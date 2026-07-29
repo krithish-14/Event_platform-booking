@@ -61,7 +61,7 @@ def main():
     print("[launcher] backend pid=%s log=%s" % (backend.pid, backend_log.name))
     print("[launcher] frontend pid=%s log=%s" % (frontend.pid, frontend_log.name))
     print("[launcher] Frontend: http://127.0.0.1:5500/index.html")
-    print("[launcher] Backend:  http://127.0.0.1:8000 (docs: /docs)")
+    print("[launcher] Backend:  http://127.0.0.1:8001 (docs: /docs)")
     print("[launcher] Press Ctrl+C or close this window to stop both servers.")
 
     def watch(proc, label, log):

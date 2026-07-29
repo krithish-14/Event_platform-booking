@@ -1,13 +1,24 @@
 @media (max-width: 1100px) {
 	.desktop-nav { gap: 1rem; margin-right: 1rem; }
+	.header-search { flex-basis: 240px; max-width: 320px; margin: 0 .75rem; }
 	.event-grid { grid-template-columns: repeat(2, 1fr); }
 	.carousel-slide { flex: 0 0 calc((100% - 1.5rem) / 2); }
+	.category-track .carousel-slide { flex: 0 0 calc((100% - 2 * 1.25rem) / 3); }
 	.team-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 1000px) {
+	.header-search { flex-basis: 200px; max-width: 260px; }
+}
+
+@media (max-width: 920px) {
+	.header-search input { font-size: .8rem; }
+	.header-search { flex-basis: 180px; max-width: 220px; }
 }
 
 @media (max-width: 800px) {
 	.container { width: min(100% - 2rem, 42rem); }
-	.desktop-nav, .nav-cta { display: none; }
+	.desktop-nav, .nav-cta, .header-search { display: none; }
 	.nav-auth .button-login { display: none; }
 	.menu-toggle { display: flex; flex-direction: column; justify-content: center; gap: .3rem; width: 2.5rem; height: 2.5rem; padding: .5rem; border: 0; border-radius: .375rem; background: transparent; cursor: pointer; }
 	.menu-toggle span { display: block; width: 100%; height: 2px; background: var(--foreground); transition: transform .2s, opacity .2s; }
@@ -36,7 +47,9 @@
 	.stats-section { padding: 1.5rem 0 1.25rem; }
 	.section { padding: 2rem 0; }
 	.carousel-viewport { margin: 0 2.75rem; }
+	.category-carousel .carousel-viewport { margin: 0 2.75rem; }
 	.carousel-slide { flex: 0 0 100%; }
+	.category-track .carousel-slide { flex: 0 0 calc((100% - 1.25rem) / 2); }
 	.services-grid, .process-grid { grid-template-columns: repeat(2, 1fr); }
 	.team-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1.75rem; }
 	.team-card { padding: 1.25rem; }
@@ -46,6 +59,7 @@
 	.capabilities-grid { gap: 2.5rem; }
 	.why-grid { display: flex; flex-direction: column; }
 	.why-grid > div:last-child { width: 100%; }
+	.home-teaser-grid { grid-template-columns: 1fr; }
 	.footer-grid { grid-template-columns: repeat(2, 1fr); }
 	.footer-grid > div:first-child { grid-column: span 2; }
 	.event-modal { grid-template-columns: 1fr; max-height: calc(100vh - 2rem); overflow-y: auto; }
@@ -74,7 +88,10 @@
 	.section-heading h2, .capabilities-copy h2 { font-size: 1.5rem; }
 	.section-heading p { font-size: .8125rem; }
 	.carousel-arrow { width: 2.5rem; height: 2.5rem; font-size: 1rem; }
+	.category-carousel .carousel-arrow { width: 2.75rem; height: 2.75rem; font-size: 1.05rem; }
 	.carousel-viewport { margin: 0 2.25rem; }
+	.category-carousel .carousel-viewport { margin: 0 2.25rem; }
+	.category-track .carousel-slide { flex: 0 0 100%; }
 	.featured-details { align-items: stretch; flex-direction: column; }
 	.featured-details .button { width: 100%; }
 	.event-grid, .services-grid, .process-grid, .team-grid { grid-template-columns: 1fr; }
@@ -83,6 +100,7 @@
 	.service-card ul { font-size: .6875rem; }
 	.capability-list { grid-template-columns: 1fr; }
 	.why-list { grid-template-columns: 1fr; }
+	.teaser-list { grid-template-columns: 1fr; }
 	.testimonial { position: relative; right: auto; bottom: auto; left: auto; max-width: none; margin-top: 1rem; }
 	.collage img { height: 11rem; }
 	.collage img:last-child { height: 8rem; }

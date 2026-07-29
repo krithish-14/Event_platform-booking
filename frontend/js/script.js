@@ -370,6 +370,36 @@
 	onScroll();
 	window.addEventListener("scroll", onScroll, { passive: true });
 
+	/* ── Header Search Bar wiring ─────────────────────────────── */
+	function wireHeaderSearch(root) {
+		if (!root) return;
+		const input = root.querySelector("input[type='text']");
+		const clear = root.querySelector(".search-clear");
+		if (!input) return;
+		if (clear) {
+			clear.addEventListener("click", () => {
+				input.value = "";
+				input.dispatchEvent(new Event("input", { bubbles: true }));
+				try { input.focus(); } catch (_) {}
+			});
+		}
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Escape") {
+				input.value = "";
+				input.dispatchEvent(new Event("input", { bubbles: true }));
+				try { input.blur(); } catch (_) {}
+			} else if (e.key === "Enter") {
+				const q = (input.value || "").trim();
+				if (q) {
+					e.preventDefault();
+					const queryParam = encodeURIComponent(q);
+					try { window.location.href = `index.html?q=${queryParam}`; } catch (_) {}
+				}
+			}
+		});
+	}
+	document.querySelectorAll(".header-search, .mobile-header-search").forEach(wireHeaderSearch);
+
 	const menuToggle = document.querySelector("[data-menu-toggle]");
 	const mobileNav = document.querySelector("[data-mobile-nav]");
 	menuToggle?.addEventListener("click", () => {
@@ -465,4 +495,61 @@
 	}
 
 	document.querySelectorAll("[data-carousel]").forEach(initCarousel);
+
+	function initCategoryCarousel(carousel) {
+		const viewport = carousel.querySelector("[data-category-viewport]");
+		const track = carousel.querySelector("[data-category-track]");
+		const prevBtn = carousel.querySelector("[data-category-prev]");
+		const nextBtn = carousel.querySelector("[data-category-next]");
+		if (!viewport || !track || !prevBtn || !nextBtn) return;
+
+		let index = 0;
+
+		function slidesPerView() {
+			const w = window.innerWidth;
+			if (w <= 520) return 1;
+			if (w <= 800) return 2;
+			if (w <= 1100) return 3;
+			return 4;
+		}
+
+		function maxIndex() {
+			const slides = track.children.length;
+			const perView = slidesPerView();
+			return Math.max(0, slides - perView);
+		}
+
+		function stepSize() {
+			const first = track.children[0];
+			if (!first) return 0;
+			const style = getComputedStyle(track);
+			const gap = parseFloat(style.columnGap || style.gap || "1.25rem".replace("rem", "")) * 16 || 20;
+			return first.getBoundingClientRect().width + gap;
+		}
+
+		function update() {
+			index = Math.min(index, maxIndex());
+			const offset = index * stepSize();
+			track.style.transform = `translateX(${-offset}px)`;
+			const max = maxIndex();
+			prevBtn.disabled = index <= 0;
+			nextBtn.disabled = index >= max;
+		}
+
+		function step(delta) {
+			index = Math.min(Math.max(0, index + delta), maxIndex());
+			update();
+		}
+
+		prevBtn.addEventListener("click", () => step(-1));
+		nextBtn.addEventListener("click", () => step(1));
+		let resizeTimer = null;
+		window.addEventListener("resize", () => {
+			clearTimeout(resizeTimer);
+			resizeTimer = setTimeout(update, 120);
+		});
+		update();
+	}
+
+	document.querySelectorAll("[data-category-carousel]").forEach(initCategoryCarousel);
 });

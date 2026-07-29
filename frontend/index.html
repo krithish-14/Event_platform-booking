@@ -1,316 +1,455 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<meta name="description" content="Premium event planning and management in Chennai by JOD Events. Corporate events, weddings, conferences, product launches & more." />
-		<title>JOD Events - Creating Events That People Remember</title>
-		<link rel="stylesheet" href="css/style.css?v=10" />
-		<link rel="stylesheet" href="css/responsive.css?v=10" />
-	</head>
-	<body class="home-page">
-		<!-- ── Splash Screen ──────────────────────────────────── -->
-		<div class="splash-screen" id="splashScreen">
-			<div class="splash-bg">
-				<div class="splash-orb orb-1"></div>
-				<div class="splash-orb orb-2"></div>
-				<div class="splash-orb orb-3"></div>
+
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description"
+		content="Premium event planning and management in Chennai by JOD Events. Corporate events, weddings, conferences, product launches & more." />
+	<title>JOD Events - Creating Events That People Remember</title>
+	<link rel="stylesheet" href="css/style.css?v=11" />
+	<link rel="stylesheet" href="css/responsive.css?v=11" />
+</head>
+
+<body class="home-page">
+	<!-- ── Splash Screen ──────────────────────────────────── -->
+	<div class="splash-screen" id="splashScreen">
+		<div class="splash-bg">
+			<div class="splash-orb orb-1"></div>
+			<div class="splash-orb orb-2"></div>
+			<div class="splash-orb orb-3"></div>
+		</div>
+		<div class="splash-content">
+			<div class="splash-logo-wrap">
+				<div class="splash-logo-ring"></div>
+				<img class="splash-logo" src="images/JOD Events Logo.png" alt="JOD Events" />
 			</div>
-			<div class="splash-content">
-				<div class="splash-logo-wrap">
-					<div class="splash-logo-ring"></div>
-					<img class="splash-logo" src="images/JOD Events Logo.png" alt="JOD Events" />
-				</div>
-				<div class="splash-text">
-					<h1 class="splash-title">JOD Events</h1>
-					<p class="splash-tagline">Creating Experiences That People Remember</p>
-				</div>
+			<div class="splash-text">
+				<h1 class="splash-title">JOD Events</h1>
+				<p class="splash-tagline">Creating Experiences That People Remember</p>
 			</div>
 		</div>
+	</div>
 
-		<!-- ── Background canvas ──────────────────────────────── -->
-		<canvas class="bg-canvas" id="bgCanvas"></canvas>
-		<div class="bg-gradient-layer"></div>
+	<!-- ── Background canvas ──────────────────────────────── -->
+	<canvas class="bg-canvas" id="bgCanvas"></canvas>
+	<div class="bg-gradient-layer"></div>
 
-		<!-- ── Site shell ─────────────────────────────────────── -->
-		<div class="site-shell" id="top">
-			<div id="header"></div>
+	<!-- ── Site shell ─────────────────────────────────────── -->
+	<div class="site-shell" id="top">
+		<div id="header"></div>
 
-			<main>
-				<!-- ── Hero ────────────────────────────────────── -->
-				<section class="hero section-dark" aria-labelledby="hero-title">
-					<img class="hero-image" src="images/hero-event.jpg" alt="JOD Events production" />
-					<div class="hero-overlay"></div>
-					<div class="glow-layer"></div>
-					<div class="container hero-grid">
-						<div class="hero-copy reveal">
-							<span class="featured-label inline-featured-label"><span class="pulse-dot"></span> Featured - Upcoming</span>
-							<span class="category-label hero-category">Corporate Conference</span>
-							<h1 id="hero-title" class="hero-event-title">Chennai Business Leaders <em>Summit 2026</em></h1>
-							<div class="event-countdown hero-countdown" data-countdown="2026-08-15T04:30:00Z">
-								<div><strong data-days>--</strong><span>Days</span></div>
-								<div><strong data-hours>--</strong><span>Hours</span></div>
-								<div><strong data-minutes>--</strong><span>Mins</span></div>
-								<div><strong data-seconds>--</strong><span>Secs</span></div>
-							</div>
-							<div class="hero-event-meta">
-								<p><span aria-hidden="true">&#128197;</span> Aug 15, 2026</p>
-								<p><span aria-hidden="true">&#128205;</span> ITC Grand Chola, Chennai</p>
-							</div>
-							<div class="button-row">
-								<a class="button button-gold" href="#upcoming">Register Now <span aria-hidden="true">&#8594;</span></a>
-							</div>
+		<main>
+			<!-- ── Hero ────────────────────────────────────── -->
+			<section class="hero section-dark" aria-labelledby="hero-title">
+				<img class="hero-image" src="images/hero-event.jpg" alt="JOD Events production" />
+				<div class="hero-overlay"></div>
+				<div class="glow-layer"></div>
+				<div class="container hero-grid">
+					<div class="hero-copy reveal">
+						<span class="featured-label inline-featured-label"><span class="pulse-dot"></span> Featured -
+							Upcoming</span>
+						<span class="category-label hero-category">Corporate Conference</span>
+						<h1 id="hero-title" class="hero-event-title">Chennai Business Leaders <em>Summit 2026</em></h1>
+						<div class="event-countdown hero-countdown" data-countdown="2026-08-15T04:30:00Z">
+							<div><strong data-days>--</strong><span>Days</span></div>
+							<div><strong data-hours>--</strong><span>Hours</span></div>
+							<div><strong data-minutes>--</strong><span>Mins</span></div>
+							<div><strong data-seconds>--</strong><span>Secs</span></div>
 						</div>
-						<div class="featured-event reveal reveal-delay">
-							<div class="featured-image-wrap hero-featured-image">
-								<img src="images/hero-event.jpg" alt="Chennai Business Leaders Summit 2026" />
-								<div class="image-gradient"></div>
-							</div>
+						<div class="hero-event-meta">
+							<p><span aria-hidden="true">&#128197;</span> Aug 15, 2026</p>
+							<p><span aria-hidden="true">&#128205;</span> ITC Grand Chola, Chennai</p>
+						</div>
+						<div class="button-row">
+							<a class="button button-gold" href="#upcoming">Register Now <span
+									aria-hidden="true">&#8594;</span></a>
 						</div>
 					</div>
-					<div class="marquee">
-						<div class="marquee-track">
-							<span>Corporate Events</span><b>*</b><span>Product Launches</span><b>*</b><span>Weddings</span><b>*</b><span>Conferences</span><b>*</b><span>Brand Activations</span><b>*</b><span>Cultural Festivals</span><b>*</b>
-							<span>Corporate Events</span><b>*</b><span>Product Launches</span><b>*</b><span>Weddings</span><b>*</b><span>Conferences</span><b>*</b><span>Brand Activations</span><b>*</b><span>Cultural Festivals</span><b>*</b>
+					<div class="featured-event reveal reveal-delay">
+						<div class="featured-image-wrap hero-featured-image">
+							<img src="images/hero-event.jpg" alt="Chennai Business Leaders Summit 2026" />
+							<div class="image-gradient"></div>
 						</div>
 					</div>
-				</section>
+				</div>
+				<div class="marquee">
+					<div class="marquee-track">
+						<span>Corporate Events</span><b>*</b><span>Product
+							Launches</span><b>*</b><span>Weddings</span><b>*</b><span>Conferences</span><b>*</b><span>Brand
+							Activations</span><b>*</b><span>Cultural Festivals</span><b>*</b>
+						<span>Corporate Events</span><b>*</b><span>Product
+							Launches</span><b>*</b><span>Weddings</span><b>*</b><span>Conferences</span><b>*</b><span>Brand
+							Activations</span><b>*</b><span>Cultural Festivals</span><b>*</b>
+					</div>
+				</div>
+			</section>
 
-				<!-- ── Upcoming Events Carousel ────────────────── -->
-				<section class="section upcoming-section" id="upcoming">
-					<div class="container">
-						<div class="section-heading">
-							<span class="pill pill-light-orange">&#10024; Upcoming Events</span>
-							<h2>What we're building next.</h2>
-							<p>A curated calendar of experiences we're producing. Reserve a spot, request an invite, or partner with us.</p>
-						</div>
-						<div class="event-carousel" data-carousel>
-							<button class="carousel-arrow carousel-prev" type="button" aria-label="Previous events" data-carousel-prev>&#8592;</button>
-							<div class="carousel-viewport" data-carousel-viewport>
-								<div class="carousel-track" data-carousel-track>
-									<article class="event-card carousel-slide reveal">
-										<div class="event-card-image">
-											<img src="images/hero-event.jpg" alt="Chennai Business Leaders Summit 2026" />
-											<span class="card-category">Corporate Conference</span>
-											<span class="live-label"><span class="pulse-dot"></span> Live</span>
-											<span class="card-timer" data-card-countdown="2026-08-15T04:30:00Z">&#10024; --d : --h : --m</span>
+			<!-- ── Upcoming Events Carousel ────────────────── -->
+			<section class="section upcoming-section" id="upcoming">
+				<div class="container">
+					<div class="section-heading">
+						<span class="pill pill-light-orange">&#10024; Upcoming Events</span>
+						<h2>Live Trending Events</h2>
+						<p>A curated calendar of experiences we're producing. Reserve a spot, request an invite, or
+							partner with us.</p>
+					</div>
+					<div class="event-carousel" data-carousel>
+						<button class="carousel-arrow carousel-prev" type="button" aria-label="Previous events"
+							data-carousel-prev>&#8592;</button>
+						<div class="carousel-viewport" data-carousel-viewport>
+							<div class="carousel-track" data-carousel-track>
+								<article class="event-card carousel-slide reveal">
+									<div class="event-card-image">
+										<img src="images/hero-event.jpg" alt="Chennai Business Leaders Summit 2026" />
+										<span class="card-category">Corporate Conference</span>
+										<span class="live-label"><span class="pulse-dot"></span> Live</span>
+										<span class="card-timer" data-card-countdown="2026-08-15T04:30:00Z">&#10024; --d
+											: --h : --m</span>
+									</div>
+									<div class="event-card-body">
+										<h3>Chennai Business Leaders Summit 2026</h3>
+										<p>The city's most anticipated corporate gathering</p>
+										<div class="event-meta">
+											<span>&#128197; Aug 15, 2026</span>
+											<span>&#128205; ITC Grand Chola, Chennai</span>
 										</div>
-										<div class="event-card-body">
-											<h3>Chennai Business Leaders Summit 2026</h3>
-											<p>The city's most anticipated corporate gathering</p>
-											<div class="event-meta">
-												<span>&#128197; Aug 15, 2026</span>
-												<span>&#128205; ITC Grand Chola, Chennai</span>
-											</div>
-											<a class="card-link" href="#contact">Register Now <span>&#8594;</span></a>
+										<a class="card-link" href="#contact">Register Now <span>&#8594;</span></a>
+									</div>
+								</article>
+								<article class="event-card carousel-slide reveal reveal-delay-1">
+									<div class="event-card-image">
+										<img src="images/event-launch.jpg" alt="Product reveal night" />
+										<span class="card-category">Product Launch</span>
+										<span class="card-timer" data-card-countdown="2026-09-12T13:30:00Z">&#10024; --d
+											: --h : --m</span>
+									</div>
+									<div class="event-card-body">
+										<h3>BrandLaunchpad - Product Reveal Night</h3>
+										<p>An immersive launch experience for D2C brands</p>
+										<div class="event-meta">
+											<span>&#128197; Sep 12, 2026</span>
+											<span>&#128205; Phoenix MarketCity, Chennai</span>
 										</div>
-									</article>
-									<article class="event-card carousel-slide reveal reveal-delay-1">
-										<div class="event-card-image">
-											<img src="images/event-launch.jpg" alt="Product reveal night" />
-											<span class="card-category">Product Launch</span>
-											<span class="card-timer" data-card-countdown="2026-09-12T13:30:00Z">&#10024; --d : --h : --m</span>
+										<a class="card-link" href="#contact">Register Now <span>&#8594;</span></a>
+									</div>
+								</article>
+								<article class="event-card carousel-slide reveal reveal-delay-2">
+									<div class="event-card-image">
+										<img src="images/event-wedding.jpg" alt="Wedding showcase" />
+										<span class="card-category">Wedding Showcase</span>
+										<span class="card-timer" data-card-countdown="2026-10-05T13:00:00Z">&#10024; --d
+											: --h : --m</span>
+									</div>
+									<div class="event-card-body">
+										<h3>The Royal Soiree - Signature Wedding Showcase</h3>
+										<p>Curated ideas for couples planning something extraordinary</p>
+										<div class="event-meta">
+											<span>&#128197; Oct 05, 2026</span>
+											<span>&#128205; Leela Palace, Chennai</span>
 										</div>
-										<div class="event-card-body">
-											<h3>BrandLaunchpad - Product Reveal Night</h3>
-											<p>An immersive launch experience for D2C brands</p>
-											<div class="event-meta">
-												<span>&#128197; Sep 12, 2026</span>
-												<span>&#128205; Phoenix MarketCity, Chennai</span>
-											</div>
-											<a class="card-link" href="#contact">Register Now <span>&#8594;</span></a>
+										<a class="card-link" href="#contact">Register Now <span>&#8594;</span></a>
+									</div>
+								</article>
+								<article class="event-card carousel-slide reveal reveal-delay-3">
+									<div class="event-card-image">
+										<img src="images/event-festival.jpg" alt="Marina Cultural Fest" />
+										<span class="card-category">Cultural Festival</span>
+										<span class="card-timer" data-card-countdown="2026-11-22T11:30:00Z">&#10024; --d
+											: --h : --m</span>
+									</div>
+									<div class="event-card-body">
+										<h3>Marina Cultural Fest</h3>
+										<p>A community celebration of music, food and heritage</p>
+										<div class="event-meta">
+											<span>&#128197; Nov 22, 2026</span>
+											<span>&#128205; Marina Grounds, Chennai</span>
 										</div>
-									</article>
-									<article class="event-card carousel-slide reveal reveal-delay-2">
-										<div class="event-card-image">
-											<img src="images/event-wedding.jpg" alt="Wedding showcase" />
-											<span class="card-category">Wedding Showcase</span>
-											<span class="card-timer" data-card-countdown="2026-10-05T13:00:00Z">&#10024; --d : --h : --m</span>
-										</div>
-										<div class="event-card-body">
-											<h3>The Royal Soiree - Signature Wedding Showcase</h3>
-											<p>Curated ideas for couples planning something extraordinary</p>
-											<div class="event-meta">
-												<span>&#128197; Oct 05, 2026</span>
-												<span>&#128205; Leela Palace, Chennai</span>
-											</div>
-											<a class="card-link" href="#contact">Register Now <span>&#8594;</span></a>
-										</div>
-									</article>
-									<article class="event-card carousel-slide reveal reveal-delay-3">
-										<div class="event-card-image">
-											<img src="images/event-festival.jpg" alt="Marina Cultural Fest" />
-											<span class="card-category">Cultural Festival</span>
-											<span class="card-timer" data-card-countdown="2026-11-22T11:30:00Z">&#10024; --d : --h : --m</span>
-										</div>
-										<div class="event-card-body">
-											<h3>Marina Cultural Fest</h3>
-											<p>A community celebration of music, food and heritage</p>
-											<div class="event-meta">
-												<span>&#128197; Nov 22, 2026</span>
-												<span>&#128205; Marina Grounds, Chennai</span>
-											</div>
-											<a class="card-link" href="#contact">Register Now <span>&#8594;</span></a>
-										</div>
-									</article>
-								</div>
+										<a class="card-link" href="#contact">Register Now <span>&#8594;</span></a>
+									</div>
+								</article>
 							</div>
-							<button class="carousel-arrow carousel-next" type="button" aria-label="Next events" data-carousel-next>&#8594;</button>
 						</div>
+						<button class="carousel-arrow carousel-next" type="button" aria-label="Next events"
+							data-carousel-next>&#8594;</button>
 					</div>
-				</section>
+				</div>
+			</section>
 
-				<!-- ── Services ─────────────────────────────────── -->
-				<section class="section" id="services">
-					<div class="container">
-						<div class="section-heading">
+			<!-- ── Event Categories Carousel ────────────────── -->
+			<section class="section categories-section" id="categories">
+				<div class="container">
+					<div class="section-heading">
+						<span class="pill pill-light-orange">&#10024; Event Categories</span>
+						<h2>Explore by <em>Category</em></h2>
+						<p>From corporate conferences to intimate celebrations — discover every type of event we craft with passion.</p>
+					</div>
+					<div class="category-carousel" data-category-carousel>
+						<button class="carousel-arrow carousel-prev category-carousel-prev" type="button" aria-label="Previous categories"
+							data-category-prev>&#8592;</button>
+						<div class="carousel-viewport category-viewport" data-category-viewport>
+							<div class="carousel-track category-track" data-category-track>
+								<article class="category-card carousel-slide reveal">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Corporate<br/>Events</h3>
+											<span class="category-count">50+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal reveal-delay-1">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Wedding<br/>Events</h3>
+											<span class="category-count">30+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal reveal-delay-2">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Anniversary<br/>Events</h3>
+											<span class="category-count">25+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal reveal-delay-3">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>FamilyFest<br/>Events</h3>
+											<span class="category-count">20+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Campus<br/>Events</h3>
+											<span class="category-count">15+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal reveal-delay-1">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #30cfd0 0%, #330867 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Entertainment<br/>Events</h3>
+											<span class="category-count">40+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal reveal-delay-2">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Religious<br/>Events</h3>
+											<span class="category-count">18+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal reveal-delay-3">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Exhibition &amp;<br/>Trade Events</h3>
+											<span class="category-count">22+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Brand Promotion<br/>Events</h3>
+											<span class="category-count">35+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal reveal-delay-1">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Sports<br/>Events</h3>
+											<span class="category-count">12+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal reveal-delay-2">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Government &amp;<br/>Public Events</h3>
+											<span class="category-count">10+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal reveal-delay-3">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Virtual &amp;<br/>Hybrid Events</h3>
+											<span class="category-count">28+ Events</span>
+										</div>
+									</div>
+								</article>
+								<article class="category-card carousel-slide reveal">
+									<div class="category-card-inner" style="--cat-gradient: linear-gradient(135deg, #fddb92 0%, #d1fdff 100%);">
+										<div class="category-bg-overlay"></div>
+										<div class="category-content">
+											<h3>Private<br/>Events</h3>
+											<span class="category-count">45+ Events</span>
+										</div>
+									</div>
+								</article>
+							</div>
+						</div>
+						<button class="carousel-arrow carousel-next category-carousel-next" type="button" aria-label="Next categories"
+							data-category-next>&#8594;</button>
+					</div>
+				</div>
+			</section>
+
+			<!-- ── Services & About Teasers ─────────────────── -->
+			<section class="section home-teasers" id="services">
+				<div class="container">
+					<div class="home-teaser-grid">
+						<div class="home-teaser-card reveal">
+							<div class="home-teaser-icon">&#9632;</div>
 							<span class="pill pill-light-orange">&#10024; Our Services</span>
 							<h2>Complete event solutions under one roof.</h2>
-							<p>End-to-end planning and execution for businesses, institutions, organizations, and individuals.</p>
+							<p>From corporate conferences and brand launches to weddings and cultural festivals - we
+								manage every event end-to-end.</p>
+							<ul class="teaser-list">
+								<li>Corporate Events</li>
+								<li>Brand Promotions &amp; Launches</li>
+								<li>Conferences &amp; Exhibitions</li>
+								<li>Weddings &amp; Celebrations</li>
+								<li>Government &amp; Educational</li>
+								<li>Entertainment &amp; Sports</li>
+							</ul>
+							<a class="button button-gold" href="services.html">Explore All Services
+								<span>&#8594;</span></a>
 						</div>
-						<div class="services-grid">
-							<article class="service-card"><div class="service-icon">&#9632;</div><h3>Corporate Events</h3><p>Events that strengthen brands, engage employees and build meaningful business relationships.</p><ul><li>Corporate Meetings</li><li>Annual Day Events</li><li>Award Ceremonies</li><li>Employee Engagement</li><li>Team Building</li><li>Dealer Meets</li><li>Conferences</li><li>Business Networking</li></ul></article>
-							<article class="service-card"><div class="service-icon">&#8599;</div><h3>Brand Promotions &amp; Launches</h3><p>Create excitement around your brand through impactful promotional events.</p><ul><li>Product Launches</li><li>Brand Activations</li><li>Mall Promotions</li><li>Road Shows</li><li>Promotional Campaigns</li><li>Retail Activations</li><li>Experiential Marketing</li></ul></article>
-							<article class="service-card"><div class="service-icon">&#9654;</div><h3>Conferences &amp; Exhibitions</h3><p>Professional event management for business exhibitions and industry conferences.</p><ul><li>Conferences</li><li>Trade Shows</li><li>Business Exhibitions</li><li>Seminars</li><li>Workshops</li><li>Investor Meets</li></ul></article>
-							<article class="service-card"><div class="service-icon">&#9829;</div><h3>Weddings &amp; Celebrations</h3><p>Celebrate life's biggest moments without worrying about the planning.</p><ul><li>Weddings</li><li>Engagements</li><li>Reception Events</li><li>Birthday Parties</li><li>Baby Showers</li><li>Anniversaries</li><li>Housewarming</li></ul></article>
-							<article class="service-card"><div class="service-icon">&#9733;</div><h3>Government &amp; Educational</h3><p>Large-scale event planning with professional coordination.</p><ul><li>Government Events</li><li>Cultural Programs</li><li>School Events</li><li>College Fests</li><li>Graduation Ceremonies</li><li>Public Celebrations</li><li>Community Events</li></ul></article>
-							<article class="service-card"><div class="service-icon">&#9835;</div><h3>Entertainment &amp; Sports</h3><p>Creating engaging experiences that entertain audiences and participants alike.</p><ul><li>Sports Events</li><li>Concerts</li><li>Cultural Festivals</li><li>Celebrity Shows</li><li>Stage Performances</li><li>Live Entertainment</li></ul></article>
-						</div>
-					</div>
-				</section>
-
-				<!-- ── Capabilities ─────────────────────────────── -->
-				<section class="section section-dark capabilities">
-					<div class="glow-layer"></div>
-					<div class="container split-grid capabilities-grid">
-						<div class="capabilities-copy">
-							<span class="pill pill-dark">End-to-End Management</span>
-							<h2>Everything you need for a <em>successful event.</em></h2>
-							<p>Our team manages every stage - from the first spark of an idea to the final round of applause.</p>
-							<a class="button button-gold" href="#contact">Talk to our team <span>&#8594;</span></a>
-						</div>
-						<div class="capability-list">
-							<span>Event Planning</span><span>Creative Concept Development</span><span>Venue Selection</span><span>Event Branding</span><span>Stage Design</span><span>Theme Decor</span><span>Sound &amp; Lighting</span><span>LED &amp; AV Production</span><span>Entertainment Management</span><span>Photography &amp; Videography</span><span>Vendor Coordination</span><span>Guest Management</span><span>Registration Support</span><span>Logistics Management</span><span>Technical Support</span><span>On-site Execution</span>
-						</div>
-					</div>
-				</section>
-
-				<!-- ── Process ──────────────────────────────────── -->
-				<section class="section cream-section" id="process">
-					<div class="container">
-						<div class="section-heading">
-							<span class="pill pill-light-orange">&#10024; Our Process</span>
-							<h2>Simple. Structured. Stress-free.</h2>
-							<p>Six deliberate stages that turn ambition into an unforgettable event.</p>
-						</div>
-						<div class="process-grid">
-							<article><strong>01</strong><h3>Understand Your Vision</h3><p>We discuss goals, audience, budget, and expectations.</p></article>
-							<article><strong>02</strong><h3>Strategic Planning</h3><p>Concept, timeline, logistics, and execution strategy.</p></article>
-							<article><strong>03</strong><h3>Creative Design</h3><p>Every visual and experiential element that brings your event to life.</p></article>
-							<article><strong>04</strong><h3>Coordination &amp; Production</h3><p>Vendors, production teams, venues, technology, and logistics.</p></article>
-							<article><strong>05</strong><h3>Event Day Execution</h3><p>Our team oversees every detail so everything runs smoothly.</p></article>
-							<article><strong>06</strong><h3>Event Completion</h3><p>Every guest leaves with a memorable experience.</p></article>
-						</div>
-					</div>
-				</section>
-
-				<!-- ── Why Us ───────────────────────────────────── -->
-				<section class="section" id="why-us">
-					<div class="container split-grid why-grid">
-						<div class="collage">
-							<img src="images/event-wedding.jpg" alt="Wedding event" />
-							<img src="images/event-launch.jpg" alt="Product launch" />
-							<img src="images/event-festival.jpg" alt="Cultural festival" />
-						</div>
-						<div>
-							<div class="section-heading left">
-								<span class="pill pill-light-orange">&#10024; Why JOD Events</span>
-								<h2>Your trusted event management partner.</h2>
-								<p>Every successful event depends on planning, communication and execution - that's why clients trust us.</p>
-							</div>
-							<ul class="why-list">
+						<div class="home-teaser-card reveal reveal-delay">
+							<div class="home-teaser-icon">&#9654;</div>
+							<span class="pill pill-light-orange">&#10024; Why JOD Events</span>
+							<h2>Your trusted event management partner.</h2>
+							<p>Every successful event depends on planning, communication and execution. Learn our
+								process and what makes us different.</p>
+							<ul class="teaser-list">
 								<li>Experienced Event Professionals</li>
-								<li>Complete Event Management Solutions</li>
 								<li>Creative Event Concepts</li>
 								<li>Professional Vendor Network</li>
 								<li>Transparent Communication</li>
 								<li>Timely Project Delivery</li>
-								<li>Personalized Event Planning</li>
 								<li>End-to-End Coordination</li>
-								<li>Focus on Quality &amp; Guest Experience</li>
 							</ul>
+							<a class="button button-gold" href="about.html#why-us">Why Choose Us
+								<span>&#8594;</span></a>
 						</div>
 					</div>
-				</section>
-
-				<!-- ── FAQ ──────────────────────────────────────── -->
-				<section class="section cream-section" id="faq">
-					<div class="container narrow">
-						<div class="section-heading">
-							<span class="pill pill-light-orange">&#10024; FAQ</span>
-							<h2>Frequently asked questions.</h2>
-						</div>
-						<div class="faq-list">
-							<button class="faq-item is-open" type="button"><span>What types of events do you organize?</span><b>&#8964;</b><p>We manage corporate events, conferences, exhibitions, product launches, weddings, birthday celebrations, government events, cultural programs, educational events, sports events, and private functions.</p></button>
-							<button class="faq-item" type="button"><span>Do you provide complete event management services?</span><b>&#8964;</b><p>Yes. We manage everything from planning and venue selection to production, decor, logistics, guest management, and event execution.</p></button>
-							<button class="faq-item" type="button"><span>Can you organize events outside Chennai?</span><b>&#8964;</b><p>Yes. We manage events across Chennai and other cities based on client requirements.</p></button>
-							<button class="faq-item" type="button"><span>Can you handle both small and large events?</span><b>&#8964;</b><p>Absolutely. We organize everything from intimate family celebrations to large corporate events and public gatherings.</p></button>
-							<button class="faq-item" type="button"><span>How early should I book my event?</span><b>&#8964;</b><p>The earlier you contact us, the better we can plan venues, vendors, production, and logistics. However, we also handle short-notice events whenever possible.</p></button>
-						</div>
-					</div>
-				</section>
-
-				<!-- ── Final CTA ────────────────────────────────── -->
-				<section class="section section-dark final-cta" id="contact">
-					<div class="glow-layer"></div>
-					<div class="container narrow">
-						<div class="pill pill-dark">&#10024; Ready when you are</div>
-						<h2>Let's create an event <em>everyone will remember.</em></h2>
-						<p>Great events don't happen by chance. Whether you're planning a corporate event, wedding, product launch, conference, exhibition or private celebration - JOD Events is ready to bring your vision to life.</p>
-						<div class="button-row centered">
-							<a class="button button-primary" href="mailto:hello@jodevents.com">Request a Free Consultation <span>&#8594;</span></a>
-							<a class="button button-outline-light" href="tel:+910000000000">&#9742; Talk to Our Event Experts</a>
-						</div>
-					</div>
-				</section>
-			</main>
-
-			<div id="footer"></div>
-		</div>
-
-		<!-- ── Modal ───────────────────────────────────────── -->
-		<div class="modal-backdrop" data-modal hidden>
-			<button class="modal-close-backdrop" type="button" aria-label="Close announcement" data-modal-close></button>
-			<div class="event-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-				<button class="modal-close" type="button" aria-label="Close" data-modal-close>&times;</button>
-				<div class="modal-image">
-					<img src="images/hero-event.jpg" alt="Chennai Business Leaders Summit 2026" />
-					<span class="featured-label"><span class="pulse-dot"></span> Featured</span>
 				</div>
-				<div class="modal-content">
-					<span class="pill pill-dark">&#10024; Upcoming Event</span>
-					<h2 id="modal-title">Chennai Business Leaders Summit 2026</h2>
-					<p>The city's most anticipated corporate gathering</p>
-					<div class="modal-meta">
-						<span>&#128197; Aug 15, 2026</span>
-						<span>&#128205; ITC Grand Chola, Chennai</span>
+			</section>
+
+			<!-- ── FAQ ──────────────────────────────────────── -->
+			<section class="section cream-section" id="faq">
+				<div class="container narrow">
+					<div class="section-heading">
+						<span class="pill pill-light-orange">&#10024; FAQ</span>
+						<h2>Frequently asked questions.</h2>
 					</div>
-					<div class="event-countdown" data-countdown="2026-08-15T04:30:00Z">
-						<div><strong data-days>--</strong><span>Days</span></div>
-						<div><strong data-hours>--</strong><span>Hrs</span></div>
-						<div><strong data-minutes>--</strong><span>Min</span></div>
-						<div><strong data-seconds>--</strong><span>Sec</span></div>
+					<div class="faq-list">
+						<button class="faq-item is-open" type="button"><span>What types of events do you
+								organize?</span><b>&#8964;</b>
+							<p>We manage corporate events, conferences, exhibitions, product launches, weddings,
+								birthday celebrations, government events, cultural programs, educational events, sports
+								events, and private functions.</p>
+						</button>
+						<button class="faq-item" type="button"><span>Do you provide complete event management
+								services?</span><b>&#8964;</b>
+							<p>Yes. We manage everything from planning and venue selection to production, decor,
+								logistics, guest management, and event execution.</p>
+						</button>
+						<button class="faq-item" type="button"><span>Can you organize events outside
+								Chennai?</span><b>&#8964;</b>
+							<p>Yes. We manage events across Chennai and other cities based on client requirements.</p>
+						</button>
+						<button class="faq-item" type="button"><span>Can you handle both small and large
+								events?</span><b>&#8964;</b>
+							<p>Absolutely. We organize everything from intimate family celebrations to large corporate
+								events and public gatherings.</p>
+						</button>
+						<button class="faq-item" type="button"><span>How early should I book my
+								event?</span><b>&#8964;</b>
+							<p>The earlier you contact us, the better we can plan venues, vendors, production, and
+								logistics. However, we also handle short-notice events whenever possible.</p>
+						</button>
 					</div>
-					<div class="button-row">
-						<a class="button button-primary" href="#contact" data-modal-close>Reserve Your Seat <span>&#8594;</span></a>
-						<button class="button button-ghost-light" type="button" data-modal-close>Maybe later</button>
+				</div>
+			</section>
+
+			<!-- ── Final CTA ────────────────────────────────── -->
+			<section class="section section-dark final-cta" id="contact">
+				<div class="glow-layer"></div>
+				<div class="container narrow">
+					<div class="pill pill-dark">&#10024; Ready when you are</div>
+					<h2>Let's create an event <em>everyone will remember.</em></h2>
+					<p>Great events don't happen by chance. Whether you're planning a corporate event, wedding, product
+						launch, conference, exhibition or private celebration - JOD Events is ready to bring your vision
+						to life.</p>
+					<div class="button-row centered">
+						<a class="button button-primary" href="mailto:hello@jodevents.com">Request a Free Consultation
+							<span>&#8594;</span></a>
+						<a class="button button-outline-light" href="tel:+910000000000">&#9742; Talk to Our Event
+							Experts</a>
 					</div>
+				</div>
+			</section>
+		</main>
+
+		<div id="footer"></div>
+	</div>
+
+	<!-- ── Modal ───────────────────────────────────────── -->
+	<div class="modal-backdrop" data-modal hidden>
+		<button class="modal-close-backdrop" type="button" aria-label="Close announcement" data-modal-close></button>
+		<div class="event-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+			<button class="modal-close" type="button" aria-label="Close" data-modal-close>&times;</button>
+			<div class="modal-image">
+				<img src="images/hero-event.jpg" alt="Chennai Business Leaders Summit 2026" />
+				<span class="featured-label"><span class="pulse-dot"></span> Featured</span>
+			</div>
+			<div class="modal-content">
+				<span class="pill pill-dark">&#10024; Upcoming Event</span>
+				<h2 id="modal-title">Chennai Business Leaders Summit 2026</h2>
+				<p>The city's most anticipated corporate gathering</p>
+				<div class="modal-meta">
+					<span>&#128197; Aug 15, 2026</span>
+					<span>&#128205; ITC Grand Chola, Chennai</span>
+				</div>
+				<div class="event-countdown" data-countdown="2026-08-15T04:30:00Z">
+					<div><strong data-days>--</strong><span>Days</span></div>
+					<div><strong data-hours>--</strong><span>Hrs</span></div>
+					<div><strong data-minutes>--</strong><span>Min</span></div>
+					<div><strong data-seconds>--</strong><span>Sec</span></div>
+				</div>
+				<div class="button-row">
+					<a class="button button-primary" href="#contact" data-modal-close>Reserve Your Seat
+						<span>&#8594;</span></a>
+					<button class="button button-ghost-light" type="button" data-modal-close>Maybe later</button>
 				</div>
 			</div>
 		</div>
+	</div>
 
-		<script src="js/include.js?v=9"></script>
-		<script src="js/auth.js?v=9"></script>
-		<script src="js/script.js?v=9"></script>
-	</body>
+	<script src="js/include.js?v=10"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/script.js?v=12"></script>
+</body>
+
 </html>
