@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="description" content="Create your JOD Events account to register for events, manage bookings, and get personalized event recommendations." />
+		<title>Sign Up - JOD Events</title>
+		<link rel="stylesheet" href="css/style.css?v=8" />
+		<link rel="stylesheet" href="css/auth.css?v=8" />
+		<link rel="stylesheet" href="css/responsive.css?v=8" />
+	</head>
+	<body class="auth-page-body sub-page">
+		<div class="auth-split">
+			<!-- ── Brand Panel (Left) ─────────────────────────── -->
+			<div class="auth-brand-panel">
+				<div class="auth-brand-orb auth-brand-orb-1"></div>
+				<div class="auth-brand-orb auth-brand-orb-2"></div>
+
+				<div class="auth-brand-top">
+					<div class="auth-brand-logo">
+						<img src="images/JOD Events Logo.png" alt="JOD Events" />
+					</div>
+				</div>
+
+				<div class="auth-brand-body">
+					<h2>Join <em>JOD Events</em> today</h2>
+					<p>Create your account to register for exclusive events, get early access to upcoming experiences, and manage your bookings — all in one place.</p>
+
+					<div class="auth-stats">
+						<div class="auth-stat">
+							<strong>500+</strong>
+							<span>Events</span>
+						</div>
+						<div class="auth-stat">
+							<strong>12+</strong>
+							<span>Industries</span>
+						</div>
+						<div class="auth-stat">
+							<strong>5,000</strong>
+							<span>Guests/Event</span>
+						</div>
+					</div>
+				</div>
+
+				<div class="auth-brand-footer">
+					<p>&copy; 2026 JOD Events. All rights reserved.</p>
+				</div>
+			</div>
+
+			<!-- ── Sign Up Form (Right) ───────────────────────── -->
+			<div class="auth-form-panel">
+				<div class="auth-form-box">
+					<div class="auth-form-header">
+						<span class="pill pill-light-orange">&#10024; Get Started</span>
+						<h1>Create your account</h1>
+						<p>Fill in the details below to join the JOD Events community.</p>
+					</div>
+
+					<form id="signupForm" novalidate>
+						<!-- Alert -->
+						<div class="form-alert alert-error" role="alert">
+							<span>&#9888;</span>
+							<span class="alert-msg"></span>
+						</div>
+
+						<!-- Full Name -->
+						<div class="form-group">
+							<label class="form-label" for="signupFullName">Full Name <span class="optional">(optional)</span></label>
+							<div class="input-wrap">
+								<input class="form-input" type="text" id="signupFullName" name="full_name" placeholder="John Doe" autocomplete="name" />
+								<span class="input-icon" aria-hidden="true">&#128100;</span>
+							</div>
+						</div>
+
+						<!-- Username -->
+						<div class="form-group">
+							<label class="form-label" for="signupUsername">Username</label>
+							<div class="input-wrap">
+								<input class="form-input" type="text" id="signupUsername" name="username" placeholder="johndoe" autocomplete="username" required />
+								<span class="input-icon" aria-hidden="true">&#9733;</span>
+							</div>
+							<div class="field-error" id="signupUsernameError"></div>
+						</div>
+
+						<!-- Email -->
+						<div class="form-group">
+							<label class="form-label" for="signupEmail">Email Address</label>
+							<div class="input-wrap">
+								<input class="form-input" type="email" id="signupEmail" name="email" placeholder="you@example.com" autocomplete="email" required />
+								<span class="input-icon" aria-hidden="true">&#9993;</span>
+							</div>
+							<div class="field-error" id="signupEmailError"></div>
+						</div>
+
+						<!-- Password -->
+						<div class="form-group">
+							<label class="form-label" for="signupPassword">Password</label>
+							<div class="input-wrap">
+								<input class="form-input has-toggle" type="password" id="signupPassword" name="password" placeholder="Min. 8 characters" autocomplete="new-password" required />
+								<span class="input-icon" aria-hidden="true">&#128274;</span>
+								<button class="toggle-pw" type="button" id="toggleSignupPw" aria-label="Show password">&#128065;</button>
+							</div>
+							<div class="pw-strength-bar">
+								<span></span><span></span><span></span><span></span>
+							</div>
+							<div class="pw-strength-label"></div>
+							<div class="field-error" id="signupPasswordError"></div>
+						</div>
+
+						<!-- Confirm Password -->
+						<div class="form-group">
+							<label class="form-label" for="signupConfirmPassword">Confirm Password</label>
+							<div class="input-wrap">
+								<input class="form-input has-toggle" type="password" id="signupConfirmPassword" name="confirm_password" placeholder="Re-enter your password" autocomplete="new-password" required />
+								<span class="input-icon" aria-hidden="true">&#128274;</span>
+								<button class="toggle-pw" type="button" id="toggleConfirmPw" aria-label="Show password">&#128065;</button>
+							</div>
+							<div class="field-error" id="signupConfirmPasswordError"></div>
+						</div>
+
+						<!-- Submit -->
+						<button class="btn-auth-submit" type="submit" id="signupSubmit" style="margin-top: .5rem;">
+							<span class="btn-spinner"></span>
+							<span class="btn-label">Create Account</span>
+							<span aria-hidden="true">&#8599;</span>
+						</button>
+					</form>
+
+					<!-- Switch -->
+					<div class="auth-switch">
+						Already have an account? <a href="login.html">Sign in</a>
+					</div>
+
+					<!-- Terms -->
+					<div class="auth-terms">
+						By creating an account, you agree to our <a href="terms-and-conditions.html">Terms &amp; Conditions</a> and <a href="privacy-policy.html">Privacy Policy</a>.
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script src="js/auth.js?v=8"></script>
+	</body>
+</html>

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="description" content="Login to your JOD Events account to manage event registrations, bookings, and more." />
+		<title>Login - JOD Events</title>
+		<link rel="stylesheet" href="css/style.css?v=8" />
+		<link rel="stylesheet" href="css/auth.css?v=8" />
+		<link rel="stylesheet" href="css/responsive.css?v=8" />
+	</head>
+	<body class="auth-page-body sub-page">
+		<div class="auth-split">
+			<!-- ── Brand Panel (Left) ─────────────────────────── -->
+			<div class="auth-brand-panel">
+				<div class="auth-brand-orb auth-brand-orb-1"></div>
+				<div class="auth-brand-orb auth-brand-orb-2"></div>
+
+				<div class="auth-brand-top">
+					<div class="auth-brand-logo">
+						<img src="images/JOD Events Logo.png" alt="JOD Events" />
+					</div>
+				</div>
+
+				<div class="auth-brand-body">
+					<h2>Welcome back to <em>JOD Events</em></h2>
+					<p>Access your dashboard to manage registrations, track upcoming events, and connect with our team.</p>
+
+					<div class="auth-stats">
+						<div class="auth-stat">
+							<strong>500+</strong>
+							<span>Events</span>
+						</div>
+						<div class="auth-stat">
+							<strong>12+</strong>
+							<span>Industries</span>
+						</div>
+						<div class="auth-stat">
+							<strong>5,000</strong>
+							<span>Guests/Event</span>
+						</div>
+					</div>
+				</div>
+
+				<div class="auth-brand-footer">
+					<p>&copy; 2026 JOD Events. All rights reserved.</p>
+				</div>
+			</div>
+
+			<!-- ── Login Form (Right) ─────────────────────────── -->
+			<div class="auth-form-panel">
+				<div class="auth-form-box">
+					<div class="auth-form-header">
+						<span class="pill pill-light-orange">&#128274; Secure Login</span>
+						<h1>Sign in to your account</h1>
+						<p>Enter your credentials to access the JOD Events platform.</p>
+					</div>
+
+					<form id="loginForm" novalidate>
+						<!-- Alert -->
+						<div class="form-alert alert-error" role="alert">
+							<span>&#9888;</span>
+							<span class="alert-msg"></span>
+						</div>
+
+						<!-- Email / Username -->
+						<div class="form-group">
+							<label class="form-label" for="loginIdentifier">Email or Username</label>
+							<div class="input-wrap">
+								<input class="form-input" type="text" id="loginIdentifier" name="identifier" placeholder="you@example.com" autocomplete="username" required />
+								<span class="input-icon" aria-hidden="true">&#9993;</span>
+							</div>
+							<div class="field-error" id="loginIdentifierError"></div>
+						</div>
+
+						<!-- Password -->
+						<div class="form-group">
+							<label class="form-label" for="loginPassword">Password</label>
+							<div class="input-wrap">
+								<input class="form-input has-toggle" type="password" id="loginPassword" name="password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="current-password" required />
+								<span class="input-icon" aria-hidden="true">&#128274;</span>
+								<button class="toggle-pw" type="button" id="toggleLoginPw" aria-label="Show password">&#128065;</button>
+							</div>
+							<div class="field-error" id="loginPasswordError"></div>
+						</div>
+
+						<!-- Remember + Forgot -->
+						<div class="form-row-split">
+							<label class="checkbox-label">
+								<input type="checkbox" id="rememberMe" />
+								Remember me
+							</label>
+							<a class="forgot-link" href="#">Forgot password?</a>
+						</div>
+
+						<!-- Submit -->
+						<button class="btn-auth-submit" type="submit" id="loginSubmit">
+							<span class="btn-spinner"></span>
+							<span class="btn-label">Sign In</span>
+							<span aria-hidden="true">&#8594;</span>
+						</button>
+					</form>
+
+					<!-- Switch -->
+					<div class="auth-switch">
+						Don't have an account? <a href="signup.html">Create one</a>
+					</div>
+
+					<!-- Terms -->
+					<div class="auth-terms">
+						By signing in, you agree to our <a href="terms-and-conditions.html">Terms</a> and <a href="privacy-policy.html">Privacy Policy</a>.
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script src="js/auth.js?v=8"></script>
+	</body>
+</html>

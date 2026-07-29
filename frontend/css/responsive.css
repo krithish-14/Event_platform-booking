@@ -1,0 +1,96 @@
+@media (max-width: 1100px) {
+	.desktop-nav { gap: 1rem; margin-right: 1rem; }
+	.event-grid { grid-template-columns: repeat(2, 1fr); }
+	.carousel-slide { flex: 0 0 calc((100% - 1.5rem) / 2); }
+	.team-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 800px) {
+	.container { width: min(100% - 2rem, 42rem); }
+	.desktop-nav, .nav-cta { display: none; }
+	.nav-auth .button-login { display: none; }
+	.menu-toggle { display: flex; flex-direction: column; justify-content: center; gap: .3rem; width: 2.5rem; height: 2.5rem; padding: .5rem; border: 0; border-radius: .375rem; background: transparent; cursor: pointer; }
+	.menu-toggle span { display: block; width: 100%; height: 2px; background: var(--foreground); transition: transform .2s, opacity .2s; }
+	.site-header .brand img { height: 40px; }
+	.menu-toggle.is-open span:first-child { transform: translateY(4px) rotate(45deg); }
+	.menu-toggle.is-open span:last-child { transform: translateY(-4px) rotate(-45deg); }
+	.mobile-nav { display: none; flex-direction: column; gap: .5rem; padding: 1rem; border-top: 1px solid var(--border); background: var(--background); }
+	.mobile-nav.is-open { display: flex; }
+	.mobile-nav > a:not(.button) { padding: .6rem .5rem; border-radius: .375rem; font-size: .875rem; font-weight: 400; }
+	.mobile-nav > a[aria-current="page"] { background: var(--cream); }
+	.mobile-nav > a:not(.button):hover { background: var(--cream); }
+	.mobile-nav .button { margin-top: .5rem; }
+	.mobile-nav .mobile-auth-group { display: flex; gap: .5rem; margin-top: .5rem; }
+	.mobile-nav .mobile-auth-group .button { flex: 1; margin-top: 0; justify-content: center; }
+	.announcement-title, .countdown-summary { display: none; }
+	.announcement-inner { justify-content: space-between; }
+	.hero-grid, .split-grid { grid-template-columns: 1fr; }
+	.hero-grid { padding-top: 1.25rem; padding-bottom: 1rem; }
+	.hero h1 { font-size: clamp(1.625rem, 8vw, 2.25rem); }
+	.hero-lead { font-size: 1rem; }
+	.hero { min-height: auto; }
+	.hero-countdown { max-width: none; margin-top: .875rem; }
+	.hero-countdown strong { font-size: 1rem; }
+	.featured-image-wrap.hero-featured-image { aspect-ratio: 16 / 10; }
+	.stats-grid { grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+	.stats-section { padding: 1.5rem 0 1.25rem; }
+	.section { padding: 2rem 0; }
+	.carousel-viewport { margin: 0 2.75rem; }
+	.carousel-slide { flex: 0 0 100%; }
+	.services-grid, .process-grid { grid-template-columns: repeat(2, 1fr); }
+	.team-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1.75rem; }
+	.team-card { padding: 1.25rem; }
+	.team-avatar { width: 4.25rem; height: 4.25rem; font-size: 1.375rem; }
+	.about-hero { min-height: auto; }
+	.about-hero h1 { font-size: clamp(2rem, 8vw, 2.75rem); }
+	.capabilities-grid { gap: 2.5rem; }
+	.why-grid { display: flex; flex-direction: column; }
+	.why-grid > div:last-child { width: 100%; }
+	.footer-grid { grid-template-columns: repeat(2, 1fr); }
+	.footer-grid > div:first-child { grid-column: span 2; }
+	.event-modal { grid-template-columns: 1fr; max-height: calc(100vh - 2rem); overflow-y: auto; }
+	.modal-image { display: none; }
+
+	/* Auth responsive */
+	.auth-split { grid-template-columns: 1fr; min-height: auto; }
+	.auth-brand-panel { display: none; }
+	.auth-form-panel { padding: 2rem 1.5rem; }
+}
+
+@media (max-width: 520px) {
+	.section { padding: 2rem 0; }
+	.announcement-inner { font-size: .6875rem; }
+	.announcement-actions { gap: .5rem; }
+	.hero-grid { gap: 1rem; }
+	.hero h1 { font-size: 1.625rem; }
+	.hero-countdown { padding: .5rem; }
+	.hero-countdown strong { font-size: .9375rem; }
+	.hero-countdown span { font-size: .5rem; }
+	.button-row .button { width: 100%; }
+	.stat-item strong { font-size: 1.75rem; }
+	.stat-item span { margin-top: .25rem; font-size: .6875rem; }
+	.stats-grid { gap: .25rem; }
+	.stats-section { padding: 1.25rem 0 1rem; }
+	.section-heading h2, .capabilities-copy h2 { font-size: 1.5rem; }
+	.section-heading p { font-size: .8125rem; }
+	.carousel-arrow { width: 2.5rem; height: 2.5rem; font-size: 1rem; }
+	.carousel-viewport { margin: 0 2.25rem; }
+	.featured-details { align-items: stretch; flex-direction: column; }
+	.featured-details .button { width: 100%; }
+	.event-grid, .services-grid, .process-grid, .team-grid { grid-template-columns: 1fr; }
+	.team-grid { margin-top: 1.5rem; }
+	.team-avatar { width: 4rem; height: 4rem; font-size: 1.25rem; }
+	.service-card ul { font-size: .6875rem; }
+	.capability-list { grid-template-columns: 1fr; }
+	.why-list { grid-template-columns: 1fr; }
+	.testimonial { position: relative; right: auto; bottom: auto; left: auto; max-width: none; margin-top: 1rem; }
+	.collage img { height: 11rem; }
+	.collage img:last-child { height: 8rem; }
+	.footer-grid { grid-template-columns: 1fr; }
+	.footer-grid > div:first-child { grid-column: auto; }
+	.modal-backdrop { padding: .75rem; }
+	.modal-content { padding: 1.5rem; }
+	.modal-content h2 { font-size: 1.75rem; }
+	.modal-content .event-countdown strong { font-size: 1.5rem; }
+	.auth-form-panel { padding: 1.5rem 1rem; }
+}
