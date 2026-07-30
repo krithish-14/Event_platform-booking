@@ -138,6 +138,23 @@ small,
 	padding: 3rem 0;
 }
 
+/* ── Auth-gated sections (default-hidden until JS evaluates auth) ─ */
+[data-auth-only="true"] {
+	display: none !important;
+}
+
+[data-guest-only="true"] {
+	display: none !important;
+}
+
+body.is-auth-ready[data-user="guest"] [data-guest-only="true"] {
+	display: block !important;
+}
+
+body.is-auth-ready[data-user="authenticated"] [data-auth-only="true"] {
+	display: block !important;
+}
+
 .section-dark {
 	position: relative;
 	overflow: hidden;

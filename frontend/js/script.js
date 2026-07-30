@@ -320,9 +320,21 @@
 	async function onLogoutClick(e) {
 		e.preventDefault();
 		try { await Auth.logout(); } catch (_) {}
+		applyAuthVisibility(false);
 		window.location.href = "index.html";
 	}
 
+	function applyAuthVisibility(authenticatedOverride) {
+		const isAuth = typeof authenticatedOverride === "boolean"
+			? authenticatedOverride
+			: (Auth.isLoggedIn && Auth.isLoggedIn());
+		const body = document.body;
+		if (!body) return;
+		body.setAttribute("data-user", isAuth ? "authenticated" : "guest");
+		body.classList.add("is-auth-ready");
+	}
+
+	applyAuthVisibility();
 	updateNavAuth();
 
 	const pad = (value) => String(value).padStart(2, "0");
