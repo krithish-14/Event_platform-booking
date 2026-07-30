@@ -332,6 +332,12 @@
 		if (!body) return;
 		body.setAttribute("data-user", isAuth ? "authenticated" : "guest");
 		body.classList.add("is-auth-ready");
+
+		// On sub-pages, always force-hide the announcement bar
+		if (body.classList.contains("sub-page")) {
+			const bar = document.querySelector(".announcement-bar");
+			if (bar) bar.style.setProperty("display", "none", "important");
+		}
 	}
 
 	applyAuthVisibility();

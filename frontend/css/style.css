@@ -155,6 +155,12 @@ body.is-auth-ready[data-user="authenticated"] [data-auth-only="true"] {
 	display: block !important;
 }
 
+/* ── Sub-pages: ALWAYS hide announcement bar regardless of auth ─ */
+body.sub-page [data-auth-only="true"].announcement-bar,
+body.sub-page .announcement-bar {
+	display: none !important;
+}
+
 .section-dark {
 	position: relative;
 	overflow: hidden;
