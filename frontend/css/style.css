@@ -256,7 +256,9 @@ body.is-auth-ready[data-user="authenticated"] [data-auth-only="true"] {
 	filter: brightness(1.12);
 }
 
-body.sub-page .announcement-bar {
+body.sub-page .announcement-bar,
+body.sub-page.is-auth-ready[data-user="authenticated"] .announcement-bar,
+body.sub-page.is-auth-ready[data-user="guest"] .announcement-bar {
 	display: none !important;
 }
 
@@ -1972,7 +1974,7 @@ h2 em {
 }
 
 body.sub-page .policy-hero {
-	padding-top: 76px;
+	padding-top: calc(76px + 1.5rem);
 }
 
 .policy-hero-content {
