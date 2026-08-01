@@ -38,9 +38,9 @@ class UserRegisterRequest(BaseModel):
             raise ValueError("Username must be at least 3 characters long.")
         if len(v) > 100:
             raise ValueError("Username must be at most 100 characters long.")
-        if not re.match(r"^[a-zA-Z0-9_.-]+$", v):
+        if not re.match(r"^[a-zA-Z0-9_.@-]+$", v):
             raise ValueError(
-                "Username can only contain letters, numbers, underscores, dots, and hyphens."
+                "Username can only contain letters, numbers, underscores, dots, hyphens, and @ symbols."
             )
         return v
 

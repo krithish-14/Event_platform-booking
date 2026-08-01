@@ -65,9 +65,31 @@ window.JodAuth = (() => {
 		form.querySelectorAll(".field-error").forEach((el) => { el.textContent = ""; el.classList.remove("is-visible"); });
 		form.querySelectorAll(".has-error").forEach((el) => el.classList.remove("has-error"));
 	}
+	function parseApiErrorMessage(detail, fallbackMsg) {
+		if (!detail) return fallbackMsg || "An error occurred.";
+		if (typeof detail === "string") return detail;
+		if (Array.isArray(detail)) {
+			const msgs = detail.map((err) => {
+				if (typeof err === "string") return err;
+				if (err && typeof err === "object") {
+					const msg = err.msg || err.message || JSON.stringify(err);
+					return msg.replace(/^Value error,\s*/i, "");
+				}
+				return String(err);
+			});
+			return msgs.join(" | ");
+		}
+		if (typeof detail === "object") {
+			if (detail.msg) return detail.msg.replace(/^Value error,\s*/i, "");
+			if (detail.message) return detail.message;
+			return JSON.stringify(detail);
+		}
+		return String(detail);
+	}
+
 	function showAlert(alertEl, type, msg) {
 		alertEl.className = `form-alert is-visible alert-${type}`;
-		alertEl.querySelector(".alert-msg").textContent = msg;
+		alertEl.querySelector(".alert-msg").textContent = parseApiErrorMessage(msg, "An error occurred.");
 	}
 	function hideAlert(alertEl) {
 		alertEl.classList.remove("is-visible");
