@@ -126,9 +126,68 @@ def get_db():
         db.close()
 
 
+def _sync_databases():
+    """Sync user accounts between SQLite and PostgreSQL so logins never fail due to DB switching."""
+    try:
+        import sqlite3
+        from sqlalchemy import text
+        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sqlite_path = os.path.join(project_backend, "jod_events.db")
+        
+        # Connect to SQLite if it exists
+        sqlite_users = []
+        if os.path.exists(sqlite_path):
+            try:
+                s_conn = sqlite3.connect(sqlite_path)
+                s_cur = s_conn.cursor()
+                s_cur.execute("SELECT id, email, username, full_name, hashed_password, is_active, is_admin FROM users")
+                sqlite_users = s_cur.fetchall()
+                s_conn.close()
+            except Exception:
+                pass
+
+        # Try connecting to PostgreSQL
+        pg_engine = None
+        try:
+            db_url = DATABASE_URL
+            if "postgresql" in db_url:
+                pg_engine = create_engine(db_url, connect_args={"connect_timeout": 3})
+                with pg_engine.connect() as conn:
+                    pass
+        except Exception:
+            pg_engine = None
+
+        if pg_engine and sqlite_users:
+            with pg_engine.connect() as pg_conn:
+                for row in sqlite_users:
+                    u_id, u_email, u_name, u_full, u_hash, u_act, u_adm = row
+                    pg_conn.execute(
+                        text("""
+                            INSERT INTO users (id, email, username, full_name, hashed_password, is_active, is_admin, created_at, updated_at)
+                            VALUES (:id, :email, :username, :full_name, :hashed_password, :is_active, :is_admin, NOW(), NOW())
+                            ON CONFLICT (email) DO UPDATE SET
+                                hashed_password = EXCLUDED.hashed_password,
+                                username = EXCLUDED.username
+                        """),
+                        {
+                            "id": str(u_id),
+                            "email": u_email,
+                            "username": u_name,
+                            "full_name": u_full,
+                            "hashed_password": u_hash,
+                            "is_active": bool(u_act),
+                            "is_admin": bool(u_adm),
+                        }
+                    )
+                pg_conn.commit()
+    except Exception as exc:
+        pass
+
+
 def create_tables():
-    """Create all tables defined in models. Called on app startup."""
+    """Create all tables defined in models and sync users across DBs. Called on app startup."""
     from Models.user import User  # noqa: F401
     from Models.event import Event  # noqa: F401
     Base.metadata.create_all(bind=get_engine())
+    _sync_databases()
 

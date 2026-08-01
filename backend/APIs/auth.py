@@ -112,6 +112,25 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
+    # Sync to backup SQLite database if present so user accounts remain available in all environments
+    try:
+        import sqlite3
+        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sqlite_path = os.path.join(project_backend, "jod_events.db")
+        s_conn = sqlite3.connect(sqlite_path)
+        s_cur = s_conn.cursor()
+        s_cur.execute("""
+            INSERT INTO users (id, email, username, full_name, hashed_password, is_active, is_admin)
+            VALUES (?, ?, ?, ?, ?, 1, 0)
+            ON CONFLICT(email) DO UPDATE SET
+                hashed_password = excluded.hashed_password,
+                username = excluded.username
+        """, (str(user.id), user.email, user.username, user.full_name, user.hashed_password))
+        s_conn.commit()
+        s_conn.close()
+    except Exception:
+        pass
+
     token = create_access_token(
         data={"sub": str(user.id)},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -157,3 +176,48 @@ def get_me(current_user: User = Depends(get_current_user)):
 def logout():
     """Logout endpoint (client-side token removal is sufficient for JWT)."""
     return {"message": "Logged out successfully."}
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+        if len(v) > 255:
+            raise ValueError("Password is too long.")
+        if not re.search(r"[A-Za-z]", v):
+            raise ValueError("Password must contain at least one letter.")
+        if not re.search(r"[0-9]", v):
+            raise ValueError("Password must contain at least one digit.")
+        return v
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset user password across active DB and secondary SQLite DB."""
+    email_clean = payload.email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == email_clean).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email address.")
+
+    user.hashed_password = get_password_hash(payload.new_password)
+    db.commit()
+
+    # Sync to backup SQLite database if present
+    try:
+        import sqlite3
+        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sqlite_path = os.path.join(project_backend, "jod_events.db")
+        s_conn = sqlite3.connect(sqlite_path)
+        s_cur = s_conn.cursor()
+        s_cur.execute("UPDATE users SET hashed_password = ? WHERE lower(email) = ?", (user.hashed_password, email_clean))
+        s_conn.commit()
+        s_conn.close()
+    except Exception:
+        pass
+
+    return {"message": "Password reset successfully. You can now log in with your new password."}

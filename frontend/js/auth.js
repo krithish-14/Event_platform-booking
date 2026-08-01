@@ -138,6 +138,33 @@ window.JodAuth = (() => {
 
 		initTogglePw(loginForm.querySelector("#toggleLoginPw"), loginForm.querySelector("#loginPassword"));
 
+		const forgotLink = loginForm.querySelector(".forgot-link");
+		if (forgotLink) {
+			forgotLink.addEventListener("click", async (e) => {
+				e.preventDefault();
+				const email = prompt("Enter your account email address to reset password:");
+				if (!email) return;
+				const newPassword = prompt("Enter your new password (min. 8 characters, with letters & numbers):");
+				if (!newPassword) return;
+
+				try {
+					const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ email: email.trim(), new_password: newPassword }),
+					});
+					const data = await res.json();
+					if (res.ok) {
+						showAlert(alertEl, "success", data.message || "Password updated successfully! You can now log in.");
+					} else {
+						showAlert(alertEl, "error", data.detail || "Could not reset password.");
+					}
+				} catch (_) {
+					showAlert(alertEl, "error", "Network error while resetting password.");
+				}
+			});
+		}
+
 		loginForm.addEventListener("submit", async (e) => {
 			e.preventDefault();
 			clearErrors(loginForm);
