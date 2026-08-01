@@ -165,8 +165,7 @@ window.JodAuth = (() => {
 			});
 		}
 
-		loginForm.addEventListener("submit", async (e) => {
-			e.preventDefault();
+		async function doLogin() {
 			clearErrors(loginForm);
 			hideAlert(alertEl);
 
@@ -214,6 +213,17 @@ window.JodAuth = (() => {
 			} finally {
 				setLoading(submitBtn, false);
 			}
+		}
+
+		// Click handler on the button (type="button") — never triggers form submit
+		submitBtn.addEventListener("click", doLogin);
+
+		// Also handle Enter key in the password field
+		loginForm.querySelector("#loginPassword").addEventListener("keydown", (e) => {
+			if (e.key === "Enter") { e.preventDefault(); doLogin(); }
+		});
+		loginForm.querySelector("#loginIdentifier").addEventListener("keydown", (e) => {
+			if (e.key === "Enter") { e.preventDefault(); doLogin(); }
 		});
 	}
 
@@ -231,8 +241,7 @@ window.JodAuth = (() => {
 		initTogglePw(signupForm.querySelector("#toggleSignupPw"), signupForm.querySelector("#signupPassword"));
 		initTogglePw(signupForm.querySelector("#toggleConfirmPw"), signupForm.querySelector("#signupConfirmPassword"));
 
-		signupForm.addEventListener("submit", async (e) => {
-			e.preventDefault();
+		async function doSignup() {
 			clearErrors(signupForm);
 			hideAlert(alertEl);
 
@@ -288,7 +297,10 @@ window.JodAuth = (() => {
 			} finally {
 				setLoading(submitBtn, false);
 			}
-		});
+		}
+
+		// Click handler on button (type="button") — decoupled from form submit entirely
+		submitBtn.addEventListener("click", doSignup);
 	}
 
 	/* ── Expose Public API ─────────────────────────────────── */

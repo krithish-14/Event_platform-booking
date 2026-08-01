@@ -56,7 +56,7 @@
 						<p>Enter your credentials to access the JOD Events platform.</p>
 					</div>
 
-					<form id="loginForm" novalidate>
+					<form id="loginForm" action="javascript:void(0);" method="post" onsubmit="return false;" novalidate>
 						<!-- Alert -->
 						<div class="form-alert alert-error" role="alert">
 							<span>&#9888;</span>
@@ -67,7 +67,7 @@
 						<div class="form-group">
 							<label class="form-label" for="loginIdentifier">Email or Username</label>
 							<div class="input-wrap">
-								<input class="form-input" type="text" id="loginIdentifier" name="identifier" placeholder="you@example.com" autocomplete="username" required />
+								<input class="form-input" type="text" id="loginIdentifier" placeholder="you@example.com" autocomplete="username" />
 								<span class="input-icon" aria-hidden="true">&#9993;</span>
 							</div>
 							<div class="field-error" id="loginIdentifierError"></div>
@@ -77,7 +77,7 @@
 						<div class="form-group">
 							<label class="form-label" for="loginPassword">Password</label>
 							<div class="input-wrap">
-								<input class="form-input has-toggle" type="password" id="loginPassword" name="password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="current-password" required />
+								<input class="form-input has-toggle" type="password" id="loginPassword" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="current-password" />
 								<span class="input-icon" aria-hidden="true">&#128274;</span>
 								<button class="toggle-pw" type="button" id="toggleLoginPw" aria-label="Show password">&#128065;</button>
 							</div>
@@ -94,7 +94,7 @@
 						</div>
 
 						<!-- Submit -->
-						<button class="btn-auth-submit" type="submit" id="loginSubmit">
+						<button class="btn-auth-submit" type="button" id="loginSubmit">
 							<span class="btn-spinner"></span>
 							<span class="btn-label">Sign In</span>
 							<span aria-hidden="true">&#8594;</span>
@@ -114,6 +114,6 @@
 			</div>
 		</div>
 
-		<script src="js/auth.js?v=13"></script>
+		<script src="js/auth.js?v=15"></script>
 	</body>
 </html>
