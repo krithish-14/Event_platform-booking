@@ -6,6 +6,7 @@ import re
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, field_validator
 
@@ -32,6 +33,7 @@ class UserRegisterRequest(BaseModel):
     @field_validator("username")
     @classmethod
     def validate_username(cls, v: str) -> str:
+        v = v.strip()
         if len(v) < 3:
             raise ValueError("Username must be at least 3 characters long.")
         if len(v) > 100:
@@ -91,16 +93,19 @@ def _serialize_user(user) -> dict:
 # ── Routes ────────────────────────────────────────────────────────────────────
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
-    """Register a new user and return an access token."""
-    if db.query(User).filter(User.email == payload.email).first():
+    """Register a new user, store credentials in the database, and return an access token."""
+    email_clean = payload.email.strip().lower()
+    username_clean = payload.username.strip()
+
+    if db.query(User).filter(func.lower(User.email) == email_clean).first():
         raise HTTPException(status_code=400, detail="Email already registered.")
-    if db.query(User).filter(User.username == payload.username).first():
+    if db.query(User).filter(func.lower(User.username) == username_clean.lower()).first():
         raise HTTPException(status_code=400, detail="Username already taken.")
 
     user = User(
-        email=payload.email,
-        username=payload.username,
-        full_name=payload.full_name,
+        email=email_clean,
+        username=username_clean,
+        full_name=payload.full_name.strip() if payload.full_name else None,
         hashed_password=get_password_hash(payload.password),
     )
     db.add(user)
@@ -116,9 +121,10 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Login with username/email + password. Returns a JWT token."""
+    """Login with username/email + password against stored credentials. Returns a JWT token."""
+    identifier = form.username.strip().lower()
     user = db.query(User).filter(
-        (User.email == form.username) | (User.username == form.username)
+        (func.lower(User.email) == identifier) | (func.lower(User.username) == identifier)
     ).first()
 
     if not user or not verify_password(form.password, user.hashed_password):
