@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="Your JOD Events dashboard – manage your profile, view upcoming bookings and explore events." />
+	<title>Dashboard | JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<style>
+		/* ── Dashboard Page ─────────────────────────────────────── */
+		.dashboard-hero {
+			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
+			padding: 5rem 0 3rem;
+			color: #fff;
+			position: relative;
+			overflow: hidden;
+		}
+		.dashboard-hero::before {
+			content: '';
+			position: absolute; inset: 0;
+			background: radial-gradient(ellipse at 70% 50%, rgba(255,117,8,.18) 0%, transparent 65%);
+			pointer-events: none;
+		}
+		.dashboard-profile-card {
+			display: flex;
+			align-items: center;
+			gap: 2rem;
+			flex-wrap: wrap;
+		}
+		.dashboard-avatar-wrap {
+			position: relative;
+			flex-shrink: 0;
+		}
+		.dashboard-avatar {
+			width: 6rem;
+			height: 6rem;
+			border-radius: 50%;
+			background: var(--brand-gradient);
+			color: #fff;
+			font-size: 2rem;
+			font-weight: 700;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			border: 3px solid rgba(255,255,255,.25);
+			box-shadow: 0 0 0 5px rgba(255,117,8,.2);
+			overflow: hidden;
+			cursor: pointer;
+			transition: box-shadow .25s;
+		}
+		.dashboard-avatar:hover { box-shadow: 0 0 0 6px rgba(255,117,8,.4); }
+		.dashboard-avatar img {
+			width: 100%; height: 100%;
+			object-fit: cover; display: block;
+		}
+		.avatar-upload-badge {
+			position: absolute;
+			bottom: 4px; right: 4px;
+			width: 1.75rem; height: 1.75rem;
+			background: var(--primary);
+			border-radius: 50%;
+			border: 2px solid var(--dark);
+			display: flex; align-items: center; justify-content: center;
+			cursor: pointer;
+			transition: transform .2s;
+		}
+		.avatar-upload-badge:hover { transform: scale(1.12); }
+		.avatar-upload-badge svg { width: .875rem; height: .875rem; fill: #fff; }
+		#avatarFileInput { display: none; }
+
+		.dashboard-user-info h1 { font-size: 1.75rem; margin: 0 0 .25rem; }
+		.dashboard-user-info .user-email { color: rgba(255,255,255,.65); font-size: .9rem; margin-bottom: .75rem; }
+		.dashboard-user-info .remove-photo-btn {
+			background: rgba(255,255,255,.1);
+			border: 1px solid rgba(255,255,255,.18);
+			color: rgba(255,255,255,.75);
+			padding: .3rem .85rem;
+			border-radius: 999px;
+			font-size: .78rem;
+			cursor: pointer;
+			transition: background .2s;
+			display: none;
+		}
+		.dashboard-user-info .remove-photo-btn.visible { display: inline-block; }
+		.dashboard-user-info .remove-photo-btn:hover { background: rgba(229,62,62,.3); color: #fff; }
+
+		/* ── Stats ─────────────────────────────────────────────── */
+		.dashboard-section { padding: 3rem 0; }
+		.dashboard-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: 1.25rem;
+		}
+		.stat-card {
+			background: #fff;
+			border-radius: 16px;
+			padding: 1.5rem;
+			border: 1px solid var(--border);
+			box-shadow: 0 2px 12px rgba(38,35,31,.06);
+			transition: transform .22s, box-shadow .22s;
+			display: flex;
+			align-items: center;
+			gap: 1rem;
+		}
+		.stat-card:hover {
+			transform: translateY(-3px);
+			box-shadow: 0 8px 28px rgba(38,35,31,.12);
+		}
+		.stat-icon {
+			width: 3rem; height: 3rem;
+			border-radius: 12px;
+			display: flex; align-items: center; justify-content: center;
+			flex-shrink: 0;
+		}
+		.stat-icon svg { width: 1.375rem; height: 1.375rem; }
+		.stat-icon.orange { background: rgba(255,117,8,.1); color: var(--primary); }
+		.stat-icon.blue   { background: rgba(79,172,254,.1); color: #4facfe; }
+		.stat-icon.pink   { background: rgba(240,147,251,.1); color: #f093fb; }
+		.stat-icon.green  { background: rgba(67,233,123,.12); color: #27ae60; }
+		.stat-label { font-size: .8rem; color: var(--muted); margin-bottom: .2rem; }
+		.stat-value { font-size: 1.75rem; font-weight: 700; color: var(--foreground); line-height: 1; }
+
+		/* ── Quick Actions ──────────────────────────────────────── */
+		.quick-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+			gap: 1rem;
+			margin-top: 1.5rem;
+		}
+		.quick-card {
+			background: #fff;
+			border-radius: 14px;
+			padding: 1.375rem 1.25rem;
+			border: 1px solid var(--border);
+			text-decoration: none;
+			color: var(--foreground);
+			display: flex; align-items: center; gap: .875rem;
+			font-weight: 600;
+			font-size: .9rem;
+			transition: border-color .2s, box-shadow .2s, transform .2s;
+		}
+		.quick-card:hover {
+			border-color: var(--primary);
+			box-shadow: 0 4px 20px rgba(255,117,8,.12);
+			transform: translateY(-2px);
+			color: var(--primary);
+		}
+		.quick-card .qc-icon {
+			width: 2.5rem; height: 2.5rem;
+			border-radius: 10px;
+			background: rgba(255,117,8,.09);
+			display: flex; align-items: center; justify-content: center;
+			flex-shrink: 0;
+		}
+		.quick-card .qc-icon svg { width: 1.125rem; height: 1.125rem; color: var(--primary); }
+
+		/* ── Recent activity placeholder ────────────────────────── */
+		.empty-state {
+			text-align: center;
+			padding: 3rem 1rem;
+			color: var(--muted);
+		}
+		.empty-state .empty-icon { font-size: 3rem; margin-bottom: .75rem; }
+		.empty-state p { font-size: .95rem; }
+
+		.section-title {
+			font-size: 1.2rem;
+			font-weight: 700;
+			margin: 0 0 1.125rem;
+			color: var(--foreground);
+		}
+		.section-title span {
+			display: inline-block;
+			width: 3px; height: 1.1em;
+			background: var(--primary);
+			border-radius: 2px;
+			vertical-align: middle;
+			margin-right: .5rem;
+		}
+	</style>
+</head>
+<body class="sub-page">
+	<!-- Splash -->
+	<div class="splash-screen" id="splashScreen">
+		<div class="splash-bg">
+			<div class="splash-orb orb-1"></div>
+			<div class="splash-orb orb-2"></div>
+			<div class="splash-orb orb-3"></div>
+		</div>
+		<div class="splash-content">
+			<div class="splash-logo-wrap">
+				<div class="splash-logo-ring"></div>
+				<img class="splash-logo" src="images/JOD Events Logo.png" alt="JOD Events" />
+			</div>
+			<div class="splash-text">
+				<h1 class="splash-title">JOD Events</h1>
+				<p class="splash-tagline">Creating Experiences That People Remember</p>
+			</div>
+		</div>
+	</div>
+
+	<canvas class="bg-canvas" id="bgCanvas"></canvas>
+	<div class="bg-gradient-layer"></div>
+
+	<div class="site-shell" id="top">
+		<div id="header"></div>
+
+		<main>
+			<!-- Hero / Profile Banner -->
+			<section class="dashboard-hero">
+				<div class="container">
+					<div class="dashboard-profile-card">
+						<div class="dashboard-avatar-wrap">
+							<div class="dashboard-avatar" id="dashboardAvatar" title="Click to change photo">
+								<!-- Filled by JS -->
+							</div>
+							<label class="avatar-upload-badge" for="avatarFileInput" title="Upload photo">
+								<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+							</label>
+							<input type="file" id="avatarFileInput" accept="image/*" />
+						</div>
+						<div class="dashboard-user-info">
+							<h1 id="dashUserName">Welcome!</h1>
+							<p class="user-email" id="dashUserEmail"></p>
+							<button class="remove-photo-btn" id="removePhotoBtn" type="button">&#10005; Remove Photo</button>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Stats -->
+			<section class="dashboard-section">
+				<div class="container">
+					<h2 class="section-title"><span></span>Overview</h2>
+					<div class="dashboard-grid">
+						<div class="stat-card">
+							<div class="stat-icon orange">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+							</div>
+							<div>
+								<div class="stat-label">Total Bookings</div>
+								<div class="stat-value">0</div>
+							</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-icon blue">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+							</div>
+							<div>
+								<div class="stat-label">Upcoming Events</div>
+								<div class="stat-value">0</div>
+							</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-icon pink">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+							</div>
+							<div>
+								<div class="stat-label">Wishlist Items</div>
+								<div class="stat-value">0</div>
+							</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-icon green">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+							</div>
+							<div>
+								<div class="stat-label">Events Attended</div>
+								<div class="stat-value">0</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Quick Actions -->
+			<section class="dashboard-section" style="padding-top:0">
+				<div class="container">
+					<h2 class="section-title"><span></span>Quick Actions</h2>
+					<div class="quick-grid">
+						<a class="quick-card" href="orders.html">
+							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg></div>
+							Your Orders
+						</a>
+						<a class="quick-card" href="wishlist.html">
+							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+							Your Wishlist
+						</a>
+						<a class="quick-card" href="settings.html">
+							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+							Settings
+						</a>
+						<a class="quick-card" href="help.html">
+							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+							Help & Support
+						</a>
+						<a class="quick-card" href="index.html#upcoming">
+							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+							Browse Events
+						</a>
+					</div>
+				</div>
+			</section>
+
+			<!-- Recent Bookings -->
+			<section class="dashboard-section" style="padding-top:0;padding-bottom:4rem">
+				<div class="container">
+					<h2 class="section-title"><span></span>Recent Bookings</h2>
+					<div style="background:#fff;border-radius:16px;border:1px solid var(--border);overflow:hidden">
+						<div class="empty-state">
+							<div class="empty-icon">🎟️</div>
+							<p>You haven't booked any events yet.<br>
+							<a href="index.html#upcoming" style="color:var(--primary);font-weight:600">Explore upcoming events &rarr;</a></p>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div id="footer"></div>
+	</div>
+
+	<script src="js/include.js?v=10"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/profile.js?v=1"></script>
+	<script src="js/script.js?v=13"></script>
+	<script>
+		// Dashboard-specific: populate user info and avatar
+		(function initDashboard() {
+			const AVATAR_KEY = "jod_profile_avatar";
+
+			function getUser() {
+				try {
+					const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+					return raw ? JSON.parse(raw) : null;
+				} catch (_) { return null; }
+			}
+
+			// Auth guard
+			if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+				window.location.href = "login.html";
+				return;
+			}
+
+			function getInitials(user) {
+				if (!user) return "?";
+				const name = user.full_name || user.username || "";
+				const parts = name.trim().split(/\s+/).filter(Boolean);
+				if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+				if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+				return "?";
+			}
+
+			function renderDashboardAvatar() {
+				const avatarEl = document.getElementById("dashboardAvatar");
+				if (!avatarEl) return;
+				const saved = localStorage.getItem(AVATAR_KEY);
+				const user = getUser();
+				if (saved) {
+					avatarEl.innerHTML = `<img src="${saved}" alt="Profile picture" />`;
+					const rm = document.getElementById("removePhotoBtn");
+					if (rm) rm.classList.add("visible");
+				} else {
+					avatarEl.textContent = getInitials(user);
+					const rm = document.getElementById("removePhotoBtn");
+					if (rm) rm.classList.remove("visible");
+				}
+			}
+
+			// Populate user info after DOM ready
+			document.addEventListener("DOMContentLoaded", () => {
+				const user = getUser();
+				if (user) {
+					const nameEl = document.getElementById("dashUserName");
+					const emailEl = document.getElementById("dashUserEmail");
+					if (nameEl) nameEl.textContent = "Welcome, " + (user.full_name || user.username || "User") + "!";
+					if (emailEl) emailEl.textContent = user.email || "";
+				}
+				renderDashboardAvatar();
+
+				// Avatar click also triggers upload
+				const avatarEl = document.getElementById("dashboardAvatar");
+				if (avatarEl) {
+					avatarEl.addEventListener("click", () => {
+						document.getElementById("avatarFileInput").click();
+					});
+				}
+
+				// File input change with Crop Modal
+				const fileInput = document.getElementById("avatarFileInput");
+				if (fileInput) {
+					fileInput.addEventListener("change", (e) => {
+						const file = e.target.files[0];
+						if (!file) return;
+						if (window.JodCropModal) {
+							window.JodCropModal.open(file, () => {
+								renderDashboardAvatar();
+							});
+						} else {
+							const reader = new FileReader();
+							reader.onload = (ev) => {
+								const dataUrl = ev.target.result;
+								if (window.JodProfile) {
+									window.JodProfile.setProfilePicture(dataUrl);
+								} else {
+									localStorage.setItem(AVATAR_KEY, dataUrl);
+								}
+								renderDashboardAvatar();
+							};
+							reader.readAsDataURL(file);
+						}
+						e.target.value = "";
+					});
+				}
+
+				// Remove photo
+				const removeBtn = document.getElementById("removePhotoBtn");
+				if (removeBtn) {
+					removeBtn.addEventListener("click", () => {
+						if (window.JodProfile) {
+							window.JodProfile.removeProfilePicture();
+						} else {
+							localStorage.removeItem(AVATAR_KEY);
+						}
+						renderDashboardAvatar();
+					});
+				}
+			});
+		})();
+	</script>
+</body>
+</html>

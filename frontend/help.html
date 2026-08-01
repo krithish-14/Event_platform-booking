@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="Get help with your event bookings, tickets, payments, and account on JOD Events." />
+	<title>Help & Support | JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<style>
+		.page-hero {
+			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
+			padding: 4.5rem 0 3rem;
+			color: #fff;
+			position: relative;
+			overflow: hidden;
+		}
+		.page-hero::before {
+			content: '';
+			position: absolute; inset: 0;
+			background: radial-gradient(ellipse at 70% 50%, rgba(255,117,8,.18) 0%, transparent 65%);
+			pointer-events: none;
+		}
+		.hero-content {
+			max-width: 640px;
+			margin: 0 auto;
+			text-align: center;
+		}
+		.hero-content h1 {
+			font-size: 2.25rem;
+			margin: 0 0 .5rem;
+			font-family: var(--display);
+		}
+		.hero-content p {
+			color: rgba(255,255,255,.7);
+			font-size: 1rem;
+			margin-bottom: 1.5rem;
+		}
+		.help-search-wrap {
+			position: relative;
+		}
+		.help-search-wrap input {
+			width: 100%;
+			padding: 1rem 1.25rem 1rem 3rem;
+			border-radius: 999px;
+			border: 1px solid rgba(255,255,255,.2);
+			background: rgba(255,255,255,.12);
+			backdrop-filter: blur(10px);
+			color: #fff;
+			font-size: .95rem;
+			outline: none;
+			transition: background .2s, border-color .2s;
+		}
+		.help-search-wrap input::placeholder { color: rgba(255,255,255,.6); }
+		.help-search-wrap input:focus {
+			background: rgba(255,255,255,.22);
+			border-color: var(--primary);
+		}
+		.help-search-wrap svg {
+			position: absolute;
+			left: 1.1rem;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 1.25rem; height: 1.25rem;
+			fill: rgba(255,255,255,.6);
+		}
+
+		.help-section { padding: 3.5rem 0 4rem; }
+
+		.help-grid {
+			display: grid;
+			grid-template-columns: 1fr 340px;
+			gap: 2.5rem;
+		}
+		@media (max-width: 860px) {
+			.help-grid { grid-template-columns: 1fr; }
+		}
+
+		.section-h2 {
+			font-size: 1.35rem;
+			margin: 0 0 1.25rem;
+			color: var(--foreground);
+		}
+
+		.faq-accordion {
+			display: flex;
+			flex-direction: column;
+			gap: 1rem;
+		}
+		.faq-item {
+			background: #fff;
+			border-radius: 14px;
+			border: 1px solid var(--border);
+			overflow: hidden;
+			box-shadow: 0 2px 10px rgba(38,35,31,.03);
+			transition: border-color .2s;
+		}
+		.faq-item.is-open {
+			border-color: var(--primary);
+		}
+		.faq-question {
+			padding: 1.25rem 1.5rem;
+			font-weight: 700;
+			font-size: 1rem;
+			color: var(--foreground);
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			user-select: none;
+		}
+		.faq-question span { font-size: 1.2rem; transition: transform .25s; }
+		.faq-item.is-open .faq-question span { transform: rotate(45deg); }
+		.faq-answer {
+			padding: 0 1.5rem 1.25rem;
+			font-size: .925rem;
+			color: var(--muted);
+			line-height: 1.6;
+			display: none;
+		}
+		.faq-item.is-open .faq-answer { display: block; }
+
+		/* Support card */
+		.support-card {
+			background: #fff;
+			border-radius: 16px;
+			border: 1px solid var(--border);
+			padding: 1.75rem;
+			box-shadow: 0 4px 20px rgba(38,35,31,.06);
+			height: fit-content;
+		}
+		.support-card h3 {
+			font-size: 1.15rem;
+			margin: 0 0 1rem;
+			color: var(--foreground);
+		}
+		.contact-channel {
+			display: flex;
+			align-items: center;
+			gap: .875rem;
+			padding: .875rem 0;
+			border-bottom: 1px solid var(--border);
+		}
+		.contact-channel:last-child { border-bottom: none; }
+		.cc-icon {
+			width: 2.5rem; height: 2.5rem;
+			border-radius: 50%;
+			background: rgba(255,117,8,.1);
+			color: var(--primary);
+			display: flex; align-items: center; justify-content: center;
+			font-size: 1.1rem;
+			flex-shrink: 0;
+		}
+		.cc-info div { font-weight: 700; font-size: .875rem; color: var(--foreground); }
+		.cc-info p { margin: 0; font-size: .78rem; color: var(--muted); }
+	</style>
+</head>
+<body class="sub-page">
+	<!-- Splash -->
+	<div class="splash-screen" id="splashScreen">
+		<div class="splash-bg">
+			<div class="splash-orb orb-1"></div>
+			<div class="splash-orb orb-2"></div>
+			<div class="splash-orb orb-3"></div>
+		</div>
+		<div class="splash-content">
+			<div class="splash-logo-wrap">
+				<div class="splash-logo-ring"></div>
+				<img class="splash-logo" src="images/JOD Events Logo.png" alt="JOD Events" />
+			</div>
+			<div class="splash-text">
+				<h1 class="splash-title">JOD Events</h1>
+				<p class="splash-tagline">Creating Experiences That People Remember</p>
+			</div>
+		</div>
+	</div>
+
+	<canvas class="bg-canvas" id="bgCanvas"></canvas>
+	<div class="bg-gradient-layer"></div>
+
+	<div class="site-shell" id="top">
+		<div id="header"></div>
+
+		<main>
+			<section class="page-hero">
+				<div class="container">
+					<div class="hero-content">
+						<h1>How can we help you?</h1>
+						<p>Find quick answers to common questions or reach out to our dedicated event support team.</p>
+						<div class="help-search-wrap">
+							<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+							<input type="text" placeholder="Search topics (e.g. refund, e-ticket, check-in)..." id="helpSearchInput" />
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="help-section">
+				<div class="container">
+					<div class="help-grid">
+						<!-- FAQs -->
+						<div>
+							<h2 class="section-h2">Frequently Asked Questions</h2>
+							<div class="faq-accordion" id="faqAccordion">
+								<div class="faq-item is-open">
+									<div class="faq-question">How do I access my event E-Tickets? <span>+</span></div>
+									<div class="faq-answer">
+										Once your booking is confirmed, your E-Tickets are available directly under <a href="orders.html" style="color:var(--primary);font-weight:600">Your Orders</a> in your profile dropdown. You will also receive an email with the PDF ticket attachment and QR code.
+									</div>
+								</div>
+								<div class="faq-item">
+									<div class="faq-question">What is the event cancellation and refund policy? <span>+</span></div>
+									<div class="faq-answer">
+										Cancellations made 48 hours prior to the event start time are eligible for a 100% refund. Refunds are processed back to your original payment method within 3–5 business days.
+									</div>
+								</div>
+								<div class="faq-item">
+									<div class="faq-question">Can I transfer my ticket to another attendee? <span>+</span></div>
+									<div class="faq-answer">
+										Yes! You can transfer your ticket by navigating to <a href="orders.html" style="color:var(--primary);font-weight:600">Your Orders</a>, selecting the ticket, and updating the attendee name and email.
+									</div>
+								</div>
+								<div class="faq-item">
+									<div class="faq-question">How do I change or upload my profile picture? <span>+</span></div>
+									<div class="faq-answer">
+										Click on your profile avatar icon in the top header and select <a href="dashboard.html" style="color:var(--primary);font-weight:600">Dashboard</a> or <a href="settings.html" style="color:var(--primary);font-weight:600">Settings</a>. Click on your avatar circle to upload your photo.
+									</div>
+								</div>
+								<div class="faq-item">
+									<div class="faq-question">What should I bring for check-in at the venue? <span>+</span></div>
+									<div class="faq-answer">
+										Please present your digital E-Ticket QR code on your smartphone or a printed copy along with a valid government ID matching the primary ticket holder's name.
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Contact channels -->
+						<div>
+							<div class="support-card">
+								<h3>Contact Support</h3>
+								<div class="contact-channel">
+									<div class="cc-icon">✉️</div>
+									<div class="cc-info">
+										<div>Email Us</div>
+										<p>support@jodevents.com</p>
+									</div>
+								</div>
+								<div class="contact-channel">
+									<div class="cc-icon">📞</div>
+									<div class="cc-info">
+										<div>Helpline</div>
+										<p>+91 44 2800 9000 (Mon–Sat)</p>
+									</div>
+								</div>
+								<div class="contact-channel">
+									<div class="cc-icon">💬</div>
+									<div class="cc-info">
+										<div>Live Chat</div>
+										<p>Available 9 AM – 8 PM IST</p>
+									</div>
+								</div>
+
+								<div style="margin-top:1.5rem;">
+									<button class="button button-primary" style="width:100%;justify-content:center;" onclick="alert('Support ticket system opening...')">Submit Support Ticket</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div id="footer"></div>
+	</div>
+
+	<script src="js/include.js?v=10"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/profile.js?v=1"></script>
+	<script src="js/script.js?v=13"></script>
+	<script>
+		// FAQ accordion toggle
+		document.querySelectorAll(".faq-question").forEach(q => {
+			q.addEventListener("click", () => {
+				const item = q.closest(".faq-item");
+				const wasOpen = item.classList.contains("is-open");
+				document.querySelectorAll(".faq-item").forEach(i => i.classList.remove("is-open"));
+				if (!wasOpen) item.classList.add("is-open");
+			});
+		});
+
+		// Search filter
+		const searchInput = document.getElementById("helpSearchInput");
+		if (searchInput) {
+			searchInput.addEventListener("input", (e) => {
+				const term = e.target.value.toLowerCase().trim();
+				document.querySelectorAll(".faq-item").forEach(item => {
+					const text = item.textContent.toLowerCase();
+					if (text.includes(term)) {
+						item.style.display = "block";
+					} else {
+						item.style.display = "none";
+					}
+				});
+			});
+		}
+	</script>
+</body>
+</html>

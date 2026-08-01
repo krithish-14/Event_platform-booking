@@ -14,10 +14,41 @@ load_dotenv()
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg://jod_user:jod_password@localhost:5432/jod_events"
+    "postgresql+psycopg://jod_user:jod_password@localhost:5432/jod_event"
 )
 
+import uuid
+from sqlalchemy.types import TypeDecorator, CHAR
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+
 Base = declarative_base()
+
+
+class GUID(TypeDecorator):
+    """Platform-independent GUID type. Uses PostgreSQL's UUID type, otherwise CHAR(36)."""
+    impl = CHAR
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(PG_UUID(as_uuid=True))
+        return dialect.type_descriptor(CHAR(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return str(value)
+        if isinstance(value, uuid.UUID):
+            return str(value)
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if not isinstance(value, uuid.UUID):
+            return uuid.UUID(str(value))
+        return value
 
 # ── Lazy engine/session creation ─────────────────────────────
 _engine = None
@@ -26,20 +57,38 @@ _init_lock = Lock()
 
 
 def _ensure_engine():
-    """Create engine + session factory on first actual DB access."""
+    """Create engine + session factory on first actual DB access, falling back to SQLite if PostgreSQL is unreachable."""
     global _engine, _SessionLocal
     if _engine is not None:
         return _engine
     with _init_lock:
         if _engine is None:
+            db_url = DATABASE_URL
             connect_args = {}
-            if "+psycopg" in DATABASE_URL or "postgresql" in DATABASE_URL:
-                connect_args = {"connect_timeout": 5}
-            _engine = create_engine(
-                DATABASE_URL,
+            if "sqlite" in db_url:
+                connect_args = {"check_same_thread": False}
+            elif "+psycopg" in db_url or "postgresql" in db_url:
+                connect_args = {"connect_timeout": 3}
+
+            engine_candidate = create_engine(
+                db_url,
                 pool_pre_ping=True,
                 connect_args=connect_args,
             )
+            if "postgresql" in db_url:
+                try:
+                    with engine_candidate.connect() as conn:
+                        pass
+                except Exception as err:
+                    print(f"  [WARN] PostgreSQL unavailable ({err}). Falling back to SQLite database (jod_events.db)...", flush=True)
+                    db_url = "sqlite:///./jod_events.db"
+                    connect_args = {"check_same_thread": False}
+                    engine_candidate = create_engine(
+                        db_url,
+                        pool_pre_ping=True,
+                        connect_args=connect_args,
+                    )
+            _engine = engine_candidate
             _SessionLocal = sessionmaker(
                 autocommit=False, autoflush=False, bind=_engine
             )

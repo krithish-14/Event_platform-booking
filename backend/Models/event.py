@@ -5,16 +5,15 @@ Event SQLAlchemy model.
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Text, Boolean, DateTime, Integer, Float, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from Models.base import Base
+from Models.base import Base, GUID
 
 
 class Event(Base):
     __tablename__ = "events"
 
-    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id           = Column(GUID, primary_key=True, default=uuid.uuid4, index=True)
     title        = Column(String(300), nullable=False)
     description  = Column(Text, nullable=True)
     location     = Column(String(500), nullable=True)
@@ -27,7 +26,7 @@ class Event(Base):
     capacity     = Column(Integer, nullable=True)               # None = unlimited
     is_published = Column(Boolean, default=False)
     is_cancelled = Column(Boolean, default=False)
-    organizer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    organizer_id = Column(GUID, ForeignKey("users.id"), nullable=False)
     created_at   = Column(DateTime, default=datetime.utcnow)
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -271,37 +271,9 @@
 		if (!desktopGroup && !mobileGroup) return;
 
 		if (Auth.isLoggedIn()) {
-			const user = Auth.getUser() || {};
-			const displayName = user.full_name || user.username || "Account";
-			const initials = (displayName || "?").slice(0, 2).toUpperCase();
-
-			if (desktopGroup) {
-				desktopGroup.innerHTML = `
-					<div class="auth-user-block" style="display:flex;align-items:center;gap:.75rem;">
-						<div class="user-avatar" title="${displayName}" style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;letter-spacing:.02em;">${initials}</div>
-						<div style="line-height:1.1;">
-							<div style="font-size:.82rem;font-weight:600;color:#1a1a1a;">${displayName}</div>
-							<button id="nav-logout-btn" type="button" style="background:none;border:0;padding:0;color:#ff7508;font-weight:600;font-size:.75rem;cursor:pointer;">Logout</button>
-						</div>
-					</div>`;
-				const btn = desktopGroup.querySelector("#nav-logout-btn");
-				if (btn) btn.addEventListener("click", onLogoutClick);
-			}
-
-			if (mobileGroup) {
-				mobileGroup.innerHTML = `
-					<div style="padding:1rem .5rem .5rem;">
-						<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem;">
-							<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${initials}</div>
-							<div style="line-height:1.15;">
-								<div style="font-weight:600;color:#1a1a1a;">${displayName}</div>
-								<div style="font-size:.75rem;color:#6b7280;">${user.email || ""}</div>
-							</div>
-						</div>
-						<button class="button button-login" id="mobile-logout-btn" type="button" style="width:100%;background:#fef2e6;color:#ff7508;border:1px solid #ffcd9a;">Logout</button>
-					</div>`;
-				const btn = mobileGroup.querySelector("#mobile-logout-btn");
-				if (btn) btn.addEventListener("click", onLogoutClick);
+			if (window.JodProfile) {
+				if (desktopGroup) window.JodProfile.renderProfileWidget(desktopGroup);
+				if (mobileGroup) window.JodProfile.renderMobileAuthGroup(mobileGroup);
 			}
 		} else {
 			if (desktopGroup && !desktopGroup.querySelector("#nav-login-btn")) {

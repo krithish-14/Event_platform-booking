@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="Manage your event bookings, tickets, and order history on JOD Events." />
+	<title>Your Orders | JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<style>
+		/* ── Orders Page ─────────────────────────────────────── */
+		.page-hero {
+			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
+			padding: 4.5rem 0 2.5rem;
+			color: #fff;
+			position: relative;
+			overflow: hidden;
+		}
+		.page-hero::before {
+			content: '';
+			position: absolute; inset: 0;
+			background: radial-gradient(ellipse at 70% 50%, rgba(255,117,8,.18) 0%, transparent 65%);
+			pointer-events: none;
+		}
+		.hero-content h1 {
+			font-size: 2rem;
+			margin: 0 0 .35rem;
+			font-family: var(--display);
+		}
+		.hero-content p {
+			color: rgba(255,255,255,.7);
+			font-size: .95rem;
+			margin: 0;
+		}
+
+		.orders-section { padding: 3rem 0 4rem; }
+
+		.orders-filter-bar {
+			display: flex;
+			gap: .75rem;
+			margin-bottom: 2rem;
+			border-bottom: 1px solid var(--border);
+			padding-bottom: .75rem;
+			overflow-x: auto;
+		}
+		.filter-tab {
+			background: none;
+			border: none;
+			padding: .5rem 1.125rem;
+			font-size: .9rem;
+			font-weight: 600;
+			color: var(--muted);
+			cursor: pointer;
+			border-radius: 999px;
+			transition: all .2s ease;
+			white-space: nowrap;
+		}
+		.filter-tab:hover {
+			color: var(--primary);
+			background: rgba(255,117,8,.08);
+		}
+		.filter-tab.is-active {
+			background: var(--primary);
+			color: #fff;
+			box-shadow: 0 4px 14px rgba(255,117,8,.3);
+		}
+
+		.order-card {
+			background: #fff;
+			border-radius: 16px;
+			border: 1px solid var(--border);
+			padding: 1.5rem;
+			margin-bottom: 1.25rem;
+			box-shadow: 0 2px 12px rgba(38,35,31,.04);
+			display: grid;
+			grid-template-columns: 100px 1fr auto;
+			gap: 1.5rem;
+			align-items: center;
+			transition: transform .2s, box-shadow .2s;
+		}
+		.order-card:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 8px 24px rgba(38,35,31,.08);
+		}
+		@media (max-width: 680px) {
+			.order-card {
+				grid-template-columns: 1fr;
+				gap: 1rem;
+			}
+		}
+
+		.order-thumb {
+			width: 100px;
+			height: 80px;
+			border-radius: 12px;
+			overflow: hidden;
+			background: #f4efea;
+			flex-shrink: 0;
+		}
+		.order-thumb img {
+			width: 100%; height: 100%; object-fit: cover;
+		}
+		.order-details h3 {
+			font-size: 1.1rem;
+			margin: 0 0 .35rem;
+			color: var(--foreground);
+		}
+		.order-meta {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 1rem;
+			font-size: .825rem;
+			color: var(--muted);
+			margin-bottom: .5rem;
+		}
+		.order-meta span { display: flex; align-items: center; gap: .35rem; }
+		.order-id { font-size: .78rem; color: #9ca3af; font-family: monospace; }
+
+		.badge {
+			display: inline-flex;
+			align-items: center;
+			padding: .25rem .75rem;
+			border-radius: 999px;
+			font-size: .75rem;
+			font-weight: 700;
+			letter-spacing: .02em;
+			text-transform: uppercase;
+		}
+		.badge-confirmed { background: rgba(34,197,94,.12); color: #16a34a; }
+		.badge-upcoming { background: rgba(255,117,8,.12); color: var(--primary); }
+		.badge-completed { background: rgba(107,114,128,.12); color: #4b5563; }
+
+		.order-action {
+			display: flex;
+			flex-direction: column;
+			align-items: flex-end;
+			gap: .75rem;
+		}
+		@media (max-width: 680px) {
+			.order-action { align-items: flex-start; }
+		}
+		.order-price {
+			font-size: 1.25rem;
+			font-weight: 700;
+			color: var(--foreground);
+		}
+	</style>
+</head>
+<body class="sub-page">
+	<!-- Splash -->
+	<div class="splash-screen" id="splashScreen">
+		<div class="splash-bg">
+			<div class="splash-orb orb-1"></div>
+			<div class="splash-orb orb-2"></div>
+			<div class="splash-orb orb-3"></div>
+		</div>
+		<div class="splash-content">
+			<div class="splash-logo-wrap">
+				<div class="splash-logo-ring"></div>
+				<img class="splash-logo" src="images/JOD Events Logo.png" alt="JOD Events" />
+			</div>
+			<div class="splash-text">
+				<h1 class="splash-title">JOD Events</h1>
+				<p class="splash-tagline">Creating Experiences That People Remember</p>
+			</div>
+		</div>
+	</div>
+
+	<canvas class="bg-canvas" id="bgCanvas"></canvas>
+	<div class="bg-gradient-layer"></div>
+
+	<div class="site-shell" id="top">
+		<div id="header"></div>
+
+		<main>
+			<section class="page-hero">
+				<div class="container">
+					<div class="hero-content">
+						<h1>Your Orders & Bookings</h1>
+						<p>View your upcoming event tickets, registration status, and past event receipts.</p>
+					</div>
+				</div>
+			</section>
+
+			<section class="orders-section">
+				<div class="container">
+					<div class="orders-filter-bar">
+						<button class="filter-tab is-active" data-filter="all">All Orders (2)</button>
+						<button class="filter-tab" data-filter="upcoming">Upcoming (1)</button>
+						<button class="filter-tab" data-filter="completed">Completed (1)</button>
+					</div>
+
+					<div class="orders-list">
+						<!-- Order Item 1 -->
+						<div class="order-card" data-status="upcoming">
+							<div class="order-thumb">
+								<img src="images/JOD Events Logo.png" alt="Summit" style="object-fit:contain;padding:.5rem;background:#fff;" />
+							</div>
+							<div class="order-details">
+								<span class="badge badge-upcoming">Upcoming</span>
+								<h3>Chennai Business Leaders Summit 2026</h3>
+								<div class="order-meta">
+									<span>📅 Aug 15, 2026 • 09:00 AM</span>
+									<span>📍 ITC Grand Chola, Chennai</span>
+									<span>🎟️ 2 VIP Passes</span>
+								</div>
+								<div class="order-id">Order ID: #JOD-2026-88219</div>
+							</div>
+							<div class="order-action">
+								<div class="order-price">₹4,999</div>
+								<button class="button button-sm button-primary" type="button" onclick="alert('Downloading your E-Ticket PDF...')">Download Ticket 🎟️</button>
+							</div>
+						</div>
+
+						<!-- Order Item 2 -->
+						<div class="order-card" data-status="completed">
+							<div class="order-thumb">
+								<img src="images/JOD Events Logo.png" alt="Conclave" style="object-fit:contain;padding:.5rem;background:#fff;" />
+							</div>
+							<div class="order-details">
+								<span class="badge badge-completed">Completed</span>
+								<h3>Tech Founders & Innovation Meet 2025</h3>
+								<div class="order-meta">
+									<span>📅 Nov 20, 2025</span>
+									<span>📍 Le Royal Méridien, Chennai</span>
+									<span>🎟️ 1 General Pass</span>
+								</div>
+								<div class="order-id">Order ID: #JOD-2025-41002</div>
+							</div>
+							<div class="order-action">
+								<div class="order-price">₹1,499</div>
+								<button class="button button-sm button-ghost" type="button" onclick="alert('Viewing Invoice #JOD-2025-41002')">View Invoice</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div id="footer"></div>
+	</div>
+
+	<script src="js/include.js?v=10"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/profile.js?v=1"></script>
+	<script src="js/script.js?v=13"></script>
+	<script>
+		// Auth check & filter tabs logic
+		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+			window.location.href = "login.html";
+		}
+		document.querySelectorAll(".filter-tab").forEach(tab => {
+			tab.addEventListener("click", () => {
+				document.querySelectorAll(".filter-tab").forEach(t => t.classList.remove("is-active"));
+				tab.classList.add("is-active");
+				const filter = tab.dataset.filter;
+				document.querySelectorAll(".order-card").forEach(card => {
+					if (filter === "all" || card.dataset.status === filter) {
+						card.style.display = "grid";
+					} else {
+						card.style.display = "none";
+					}
+				});
+			});
+		});
+	</script>
+</body>
+</html>

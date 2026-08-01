@@ -3,7 +3,7 @@ window.JodAuth = (() => {
 
 	/* ── Config ────────────────────────────────────────────── */
 	const API_PORT = "8001";
-	const host = (typeof window !== "undefined" && window.location && window.location.hostname) ? window.location.hostname : "127.0.0.1";
+	const host = (typeof window !== "undefined" && window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
 	const API_BASE = (window.JOD_API_BASE_OVERRIDE) || `http://${host}:${API_PORT}`;
 
 	/* ── Public Auth Helpers (exposed as window.JodAuth) ──── */
@@ -143,10 +143,11 @@ window.JodAuth = (() => {
 					body,
 				});
 
-				const data = await res.json();
+				let data = {};
+				try { data = await res.json(); } catch (_) {}
 
 				if (!res.ok) {
-					showAlert(alertEl, "error", data.detail || "Login failed. Please try again.");
+					showAlert(alertEl, "error", data.detail || `Login failed (${res.status}). Please try again.`);
 				} else {
 					// Store token
 					try {
@@ -160,7 +161,7 @@ window.JodAuth = (() => {
 					setTimeout(() => { window.location.href = "index.html"; }, 900);
 				}
 			} catch (err) {
-				showAlert(alertEl, "error", "Network error. Please check your connection.");
+				showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
 			} finally {
 				setLoading(submitBtn, false);
 			}
@@ -219,10 +220,11 @@ window.JodAuth = (() => {
 					body: JSON.stringify(payload),
 				});
 
-				const data = await res.json();
+				let data = {};
+				try { data = await res.json(); } catch (_) {}
 
 				if (!res.ok) {
-					showAlert(alertEl, "error", data.detail || "Registration failed. Please try again.");
+					showAlert(alertEl, "error", data.detail || `Registration failed (${res.status}). Please try again.`);
 				} else {
 					try {
 						sessionStorage.setItem("jod_access_token", data.access_token);
@@ -233,7 +235,7 @@ window.JodAuth = (() => {
 					setTimeout(() => { window.location.href = "index.html"; }, 900);
 				}
 			} catch (err) {
-				showAlert(alertEl, "error", "Network error. Please check your connection.");
+				showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
 			} finally {
 				setLoading(submitBtn, false);
 			}
