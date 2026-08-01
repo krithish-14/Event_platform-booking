@@ -2,7 +2,7 @@ window.JodAuth = (() => {
 	"use strict";
 
 	/* ── Config ────────────────────────────────────────────── */
-	const API_PORT = "8001";
+	const API_PORT = "8000";
 	const host = (typeof window !== "undefined" && window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
 	const API_BASE = (window.JOD_API_BASE_OVERRIDE) || `http://${host}:${API_PORT}`;
 
