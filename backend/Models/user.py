@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, Text
 from sqlalchemy.orm import relationship
 
-from Models.base import Base, GUID
+from Models.base import Base, GUID 
 
 
 class User(Base):

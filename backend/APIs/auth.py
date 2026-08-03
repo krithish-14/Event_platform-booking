@@ -2,6 +2,7 @@
 Authentication routes — register and login.
 """
 
+import os
 import re
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
