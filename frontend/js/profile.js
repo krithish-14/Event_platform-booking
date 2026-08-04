@@ -846,6 +846,9 @@
 		if (mobileGroup && isLoggedIn()) {
 			renderMobileAuthGroup(mobileGroup);
 		}
+		if (window.updateProfileLocation) {
+			window.updateProfileLocation();
+		}
 	}
 
 	// Header is injected via include.js — wait for it

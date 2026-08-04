@@ -71,7 +71,21 @@ window.JodLocation = (() => {
 
   function cacheLocation(city, pincode, lat, lon) {
     try {
-      if (city) localStorage.setItem(LS_CITY_KEY, city);
+      if (city) {
+        localStorage.setItem(LS_CITY_KEY, city);
+        // Sync user object in storage
+        ["jod_user"].forEach((key) => {
+          const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+          if (raw) {
+            try {
+              const u = JSON.parse(raw);
+              u.city = city;
+              if (localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(u));
+              if (sessionStorage.getItem(key)) sessionStorage.setItem(key, JSON.stringify(u));
+            } catch (_) {}
+          }
+        });
+      }
       if (pincode) localStorage.setItem(LS_PINCODE_KEY, pincode);
       if (lat != null && !Number.isNaN(lat)) localStorage.setItem(LS_LAT_KEY, String(lat));
       if (lon != null && !Number.isNaN(lon)) localStorage.setItem(LS_LON_KEY, String(lon));
@@ -80,7 +94,14 @@ window.JodLocation = (() => {
 
   function getCachedCity() {
     try {
-      return localStorage.getItem(LS_CITY_KEY) || null;
+      const direct = localStorage.getItem(LS_CITY_KEY);
+      if (direct) return direct;
+      const rawUser = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        if (u && u.city) return u.city;
+      }
+      return null;
     } catch (_) {
       return null;
     }
@@ -589,5 +610,15 @@ window.updateRecommendations = window.JodLocation.updateRecommendations;
 window.updateProfileLocation = window.JodLocation.updateProfileLocation;
 window.showLocationConfirmation = window.JodLocation.showLocationConfirmation;
 window.initLocationFlow = window.JodLocation.initLocationFlow;
+
+// Automatically sync location on DOM content loaded
+if (typeof document !== "undefined") {
+  document.addEventListener("DOMContentLoaded", () => {
+    if (window.updateProfileLocation) window.updateProfileLocation();
+  });
+}
+
+
+
 
 
