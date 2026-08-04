@@ -27,13 +27,7 @@ window.JodLocation = (() => {
     const host = window.location.hostname && window.location.hostname !== "localhost" ? window.location.hostname : "127.0.0.1";
     return window.JOD_API_BASE_OVERRIDE || `http://${host}:${API_PORT}`;
   }
-  async function getWorkingApiBase() {
-    if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.resolveWorkingBaseUrl === "function") {
-      return await window.JodHealth.resolveWorkingBaseUrl();
-    }
-    return getApiBase();
-  }
-
+  const API_BASE = getApiBase();
 
 
   const LS_CITY_KEY    = "jod_user_city";
@@ -388,8 +382,7 @@ window.JodLocation = (() => {
   }
 
   async function sendLocationToBackend(lat, lon) {
-    const base = await getWorkingApiBase();
-    const res = await fetch(`${base}/api/location/update/coords`, {
+    const res = await fetch(`${API_BASE}/api/location/update/coords`, {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({ lat, lon }),
@@ -418,8 +411,7 @@ window.JodLocation = (() => {
       openModal();
       return null;
     }
-    const base = await getWorkingApiBase();
-    const res = await fetch(`${base}/api/location/update/manual`, {
+    const res = await fetch(`${API_BASE}/api/location/update/manual`, {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({ city, pincode: pincode || null }),
@@ -467,9 +459,8 @@ window.JodLocation = (() => {
   }
 
   async function _fetchNearbyFromApi(lat, lon, city) {
-    const base = await getWorkingApiBase();
     const res = await fetch(
-      `${base}/api/events/nearby?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radius_km=${RADIUS_KM}&limit=20`
+      `${API_BASE}/api/events/nearby?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radius_km=${RADIUS_KM}&limit=20`
     );
     if (!res.ok) return;
     const events = await res.json();
@@ -518,8 +509,7 @@ window.JodLocation = (() => {
 
   async function _syncFromBackend() {
     try {
-      const base = await getWorkingApiBase();
-      const res = await fetch(`${base}/api/location/me`, { headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/api/location/me`, { headers: authHeaders() });
       if (!res.ok) return;
       const data = await res.json();
       if (data?.city) {
