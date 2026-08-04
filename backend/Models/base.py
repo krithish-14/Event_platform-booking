@@ -184,10 +184,69 @@ def _sync_databases():
         pass
 
 
+def _migrate_tables(engine=None):
+    """Ensure all required columns exist on tables (adds missing columns if tables already existed)."""
+    if engine is None:
+        engine = get_engine()
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        is_pg = "postgresql" in engine.dialect.name
+
+        if "users" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("users")}
+            user_migrations = [
+                ("city", "VARCHAR(200)"),
+                ("location_pincode", "VARCHAR(20)"),
+                ("location_lat", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("location_lon", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("bio", "TEXT"),
+                ("avatar_url", "VARCHAR(500)"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in user_migrations:
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type};"))
+                            print(f"  [DB MIGRATION] Added column users.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column users.{col_name}: {e}", flush=True)
+                conn.commit()
+
+        if "events" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("events")}
+            event_migrations = [
+                ("latitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("longitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("venue", "VARCHAR(300)"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in event_migrations:
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE events ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE events ADD COLUMN {col_name} {col_type};"))
+                            print(f"  [DB MIGRATION] Added column events.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column events.{col_name}: {e}", flush=True)
+                conn.commit()
+    except Exception as exc:
+        print(f"  [WARN] Auto-migration check: {exc}", flush=True)
+
+
 def create_tables():
     """Create all tables defined in models and sync users across DBs. Called on app startup."""
     from Models.user import User  # noqa: F401
     from Models.event import Event  # noqa: F401
-    Base.metadata.create_all(bind=get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(bind=engine)
+    _migrate_tables(engine)
     _sync_databases()
+
 
