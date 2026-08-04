@@ -2672,3 +2672,322 @@ body.sub-page .policy-hero {
 		height: 18rem;
 	}
 }
+
+/* ── Location toast & modal (JodLocation) ─────────────────── */
+#jodLocationToast {
+	position: fixed;
+	z-index: 90;
+	right: 1rem;
+	bottom: 1rem;
+	left: 1rem;
+	max-width: 24rem;
+	margin-left: auto;
+	transform: translateY(calc(100% + 1.5rem));
+	opacity: 0;
+	pointer-events: none;
+	transition: transform .35s ease, opacity .35s ease;
+}
+
+#jodLocationToast.is-visible {
+	transform: translateY(0);
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.jod-loc-toast-inner {
+	display: flex;
+	align-items: center;
+	gap: .75rem;
+	padding: .875rem 1rem;
+	border: 1px solid rgba(255, 117, 8, .25);
+	border-radius: 1rem;
+	background: var(--dark);
+	color: #fff;
+	box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+}
+
+.jod-loc-icon {
+	font-size: 1.25rem;
+	line-height: 1;
+}
+
+.jod-loc-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.jod-loc-title {
+	margin: 0;
+	font-size: .7rem;
+	font-weight: 600;
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	color: var(--soft-orange);
+}
+
+.jod-loc-city {
+	margin: .15rem 0 0;
+	font-size: .875rem;
+	line-height: 1.35;
+	color: rgba(255, 255, 255, .92);
+}
+
+.jod-loc-actions {
+	display: flex;
+	align-items: center;
+	gap: .35rem;
+	flex-shrink: 0;
+}
+
+.jod-loc-btn {
+	border: 0;
+	border-radius: .5rem;
+	padding: .4rem .65rem;
+	font-size: .8rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background .2s ease, color .2s ease;
+}
+
+.jod-loc-change {
+	background: var(--brand-gradient);
+	color: #fff;
+}
+
+.jod-loc-change:hover {
+	filter: brightness(1.08);
+}
+
+.jod-loc-dismiss {
+	background: rgba(255, 255, 255, .1);
+	color: rgba(255, 255, 255, .75);
+}
+
+.jod-loc-dismiss:hover {
+	background: rgba(255, 255, 255, .18);
+	color: #fff;
+}
+
+#jodLocationModal[hidden] {
+	display: none;
+}
+
+#jodLocationModal {
+	position: fixed;
+	inset: 0;
+	z-index: 95;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+}
+
+.jod-loc-modal-backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, .65);
+	backdrop-filter: blur(4px);
+	opacity: 0;
+	transition: opacity .3s ease;
+}
+
+#jodLocationModal.is-open .jod-loc-modal-backdrop {
+	opacity: 1;
+}
+
+.jod-loc-modal-box {
+	position: relative;
+	z-index: 1;
+	width: min(100%, 26rem);
+	padding: 1.75rem;
+	border: 1px solid rgba(255, 117, 8, .2);
+	border-radius: 1.25rem;
+	background: #fff;
+	box-shadow: 0 20px 60px rgba(37, 33, 28, .18);
+	transform: translateY(1rem) scale(.98);
+	opacity: 0;
+	transition: transform .3s ease, opacity .3s ease;
+}
+
+#jodLocationModal.is-open .jod-loc-modal-box {
+	transform: translateY(0) scale(1);
+	opacity: 1;
+}
+
+.jod-loc-modal-close {
+	position: absolute;
+	top: .75rem;
+	right: .75rem;
+	width: 2rem;
+	height: 2rem;
+	border: 0;
+	border-radius: 50%;
+	background: var(--cream);
+	color: var(--ink);
+	font-size: 1rem;
+	cursor: pointer;
+}
+
+.jod-loc-modal-header {
+	text-align: center;
+	margin-bottom: 1.25rem;
+}
+
+.jod-loc-modal-icon {
+	display: block;
+	font-size: 2rem;
+	margin-bottom: .5rem;
+}
+
+.jod-loc-modal-title {
+	margin: 0 0 .35rem;
+	font-size: 1.35rem;
+	color: var(--dark);
+}
+
+.jod-loc-modal-sub {
+	margin: 0;
+	font-size: .875rem;
+	color: rgba(37, 33, 28, .65);
+	line-height: 1.45;
+}
+
+.jod-loc-field {
+	margin-bottom: .875rem;
+}
+
+.jod-loc-label {
+	display: block;
+	margin-bottom: .35rem;
+	font-size: .8rem;
+	font-weight: 600;
+	color: var(--ink);
+}
+
+.jod-loc-optional {
+	font-weight: 400;
+	color: rgba(37, 33, 28, .5);
+}
+
+.jod-loc-input {
+	width: 100%;
+	padding: .7rem .875rem;
+	border: 1px solid rgba(37, 33, 28, .15);
+	border-radius: .65rem;
+	font-size: .95rem;
+	font-family: inherit;
+	background: var(--background);
+	transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.jod-loc-input:focus {
+	outline: none;
+	border-color: var(--primary);
+	box-shadow: 0 0 0 3px rgba(255, 117, 8, .15);
+}
+
+.jod-loc-field-error {
+	margin: 0 0 .75rem;
+	font-size: .8rem;
+	color: #c0392b;
+}
+
+.jod-loc-submit {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: .5rem;
+	width: 100%;
+	padding: .8rem 1rem;
+	border: 0;
+	border-radius: .75rem;
+	background: var(--brand-gradient);
+	color: #fff;
+	font-size: .95rem;
+	font-weight: 600;
+	font-family: inherit;
+	cursor: pointer;
+	transition: filter .2s ease, opacity .2s ease;
+}
+
+.jod-loc-submit:hover:not(:disabled) {
+	filter: brightness(1.06);
+}
+
+.jod-loc-submit:disabled {
+	opacity: .65;
+	cursor: not-allowed;
+}
+
+.jod-loc-submit-spinner {
+	width: 1rem;
+	height: 1rem;
+	border: 2px solid rgba(255, 255, 255, .35);
+	border-top-color: #fff;
+	border-radius: 50%;
+	animation: jod-loc-spin .7s linear infinite;
+}
+
+@keyframes jod-loc-spin {
+	to { transform: rotate(360deg); }
+}
+
+.jod-loc-gps-retry {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: .4rem;
+	width: 100%;
+	margin-top: .65rem;
+	padding: .65rem;
+	border: 1px dashed rgba(37, 33, 28, .2);
+	border-radius: .65rem;
+	background: transparent;
+	color: var(--ink);
+	font-size: .85rem;
+	font-family: inherit;
+	cursor: pointer;
+}
+
+.jod-loc-gps-retry:hover {
+	border-color: var(--primary);
+	color: var(--primary);
+}
+
+body.jod-loc-modal-open {
+	overflow: hidden;
+}
+
+.event-card.loc-hidden {
+	opacity: .25;
+	transform: scale(.97);
+	pointer-events: none;
+	filter: grayscale(.4);
+}
+
+.event-card.loc-matched {
+	opacity: 1;
+	transform: scale(1);
+}
+
+.event-card {
+	transition: opacity .35s ease, transform .35s ease, filter .35s ease;
+}
+
+@media (max-width: 480px) {
+	#jodLocationToast {
+		right: .75rem;
+		bottom: .75rem;
+		left: .75rem;
+		max-width: none;
+	}
+
+	.jod-loc-toast-inner {
+		flex-wrap: wrap;
+	}
+
+	.jod-loc-actions {
+		width: 100%;
+		justify-content: flex-end;
+	}
+}

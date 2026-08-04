@@ -2,11 +2,12 @@
 Event business logic service.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 from sqlalchemy.orm import Session
 
 from Models.event import Event
+from Services.geo_service import filter_by_radius
 
 
 def list_events(
@@ -49,3 +50,21 @@ def delete_event(db: Session, event: Event) -> None:
     """Hard-delete an event."""
     db.delete(event)
     db.commit()
+
+
+def list_nearby_events(
+    db: Session,
+    lat: float,
+    lon: float,
+    radius_km: float = 20.0,
+    skip: int = 0,
+    limit: int = 20,
+    category: Optional[str] = None,
+) -> List[Tuple[Event, float]]:
+    """Return published events within radius_km of (lat, lon), sorted by distance."""
+    query = db.query(Event).filter(Event.is_published == True, Event.is_cancelled == False)
+    if category:
+        query = query.filter(Event.category.ilike(f"%{category}%"))
+    candidates = query.all()
+    nearby = filter_by_radius(candidates, lat, lon, radius_km=radius_km)
+    return nearby[skip : skip + limit]

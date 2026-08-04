@@ -18,6 +18,8 @@ class Event(Base):
     description  = Column(Text, nullable=True)
     location     = Column(String(500), nullable=True)
     venue        = Column(String(300), nullable=True)
+    latitude     = Column(Float, nullable=True)
+    longitude    = Column(Float, nullable=True)
     category     = Column(String(100), nullable=True)           # e.g. Music, Tech, Sports
     image_url    = Column(String(500), nullable=True)
     start_date   = Column(DateTime, nullable=False)

@@ -2,9 +2,16 @@ window.JodAuth = (() => {
 	"use strict";
 
 	/* ── Config ────────────────────────────────────────────── */
-	const API_PORT = "8001";
-	const host = (typeof window !== "undefined" && window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
-	const API_BASE = (window.JOD_API_BASE_OVERRIDE) || `http://${host}:${API_PORT}`;
+	function getApiBase() {
+		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+			return window.JodHealth.getApiBaseUrl();
+		}
+		const API_PORT = "8001";
+		const host = (typeof window !== "undefined" && window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
+		return (window.JOD_API_BASE_OVERRIDE) || `http://${host}:${API_PORT}`;
+	}
+	const API_BASE = getApiBase();
+
 
 	/* ── Public Auth Helpers (exposed as window.JodAuth) ──── */
 	function getToken() {
@@ -206,14 +213,44 @@ window.JodAuth = (() => {
 					} catch (_) {}
 
 					showAlert(alertEl, "success", "Login successful! Redirecting…");
+					// Defer location flow to homepage (GPS needs time + secure context)
+					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) {}
 					setTimeout(() => { window.location.href = "index.html"; }, 900);
 				}
 			} catch (err) {
-				showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
+					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
+					window.JodHealth.retryConnection({
+						onSuccess: () => {
+							showAlert(alertEl, "success", "Backend server is online! Retrying login…");
+							setTimeout(doLogin, 600);
+						},
+						onError: () => {
+							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
+						}
+					});
+				} else {
+					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+				}
 			} finally {
 				setLoading(submitBtn, false);
 			}
 		}
+
+		// Proactive page-load health check for login form
+		if (window.JodHealth) {
+			window.JodHealth.checkBackendHealth().then((isOnline) => {
+				if (!isOnline) {
+					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
+					window.JodHealth.retryConnection({
+						onSuccess: () => {
+							hideAlert(alertEl);
+						}
+					});
+				}
+			});
+		}
+
 
 		// Click handler on the button (type="button") — never triggers form submit
 		submitBtn.addEventListener("click", doLogin);
@@ -290,18 +327,47 @@ window.JodAuth = (() => {
 					} catch (_) {}
 
 					showAlert(alertEl, "success", "Account created! Redirecting…");
+					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) {}
 					setTimeout(() => { window.location.href = "index.html"; }, 900);
 				}
 			} catch (err) {
-				showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
+					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
+					window.JodHealth.retryConnection({
+						onSuccess: () => {
+							showAlert(alertEl, "success", "Backend server is online! Retrying signup…");
+							setTimeout(doSignup, 600);
+						},
+						onError: () => {
+							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
+						}
+					});
+				} else {
+					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+				}
 			} finally {
 				setLoading(submitBtn, false);
 			}
 		}
 
+		// Proactive page-load health check for signup form
+		if (window.JodHealth) {
+			window.JodHealth.checkBackendHealth().then((isOnline) => {
+				if (!isOnline) {
+					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
+					window.JodHealth.retryConnection({
+						onSuccess: () => {
+							hideAlert(alertEl);
+						}
+					});
+				}
+			});
+		}
+
 		// Click handler on button (type="button") — decoupled from form submit entirely
 		submitBtn.addEventListener("click", doSignup);
 	}
+
 
 	/* ── Expose Public API ─────────────────────────────────── */
 	return {

@@ -4,7 +4,7 @@ User SQLAlchemy model.
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Float
 from sqlalchemy.orm import relationship
 
 from Models.base import Base, GUID 
@@ -20,10 +20,16 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     bio        = Column(Text, nullable=True)
     avatar_url = Column(String(500), nullable=True)
-    is_active  = Column(Boolean, default=True)
-    is_admin   = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active         = Column(Boolean, default=True)
+    is_admin          = Column(Boolean, default=False)
+    created_at        = Column(DateTime, default=datetime.utcnow)
+    updated_at        = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # ── Location ─────────────────────────────────────────────
+    city              = Column(String(200), nullable=True)   # resolved city name
+    location_pincode  = Column(String(20),  nullable=True)   # pincode (manual entry)
+    location_lat      = Column(Float,       nullable=True)   # last known latitude
+    location_lon      = Column(Float,       nullable=True)   # last known longitude
 
     # Relationships
     events = relationship("Event", back_populates="organizer", cascade="all, delete-orphan")

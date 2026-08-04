@@ -309,6 +309,18 @@
 	applyAuthVisibility();
 	updateNavAuth();
 
+	/* ── Location flow (post-login on homepage) ─────────────── */
+	if (Auth.isLoggedIn && Auth.isLoggedIn() && window.JodLocation) {
+		const pending = (() => {
+			try { return sessionStorage.getItem("jod_location_pending") === "1"; } catch (_) { return false; }
+		})();
+		if (pending) {
+			window.JodLocation.initLocationFlow({ force: true }).catch(() => {});
+		} else {
+			window.JodLocation.applyCachedRecommendations();
+		}
+	}
+
 	const pad = (value) => String(value).padStart(2, "0");
 
 	function getCountdown(target) {

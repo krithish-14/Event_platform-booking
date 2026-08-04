@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_title }}</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0c0a09; color: #f5f5f4; margin: 0; padding: 2rem; }
+        .card { background: #1c1917; border: 1px solid rgba(255, 117, 8, 0.2); border-radius: 1rem; padding: 1.5rem; max-width: 600px; margin: 0 auto; }
+        .tag { background: rgba(255, 117, 8, 0.15); color: #ff7508; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600; display: inline-block; margin-bottom: 1rem; }
+        h1 { margin: 0 0 0.5rem; font-size: 1.75rem; }
+        p { color: #a8a29e; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <span class="tag">📍 Events within {{ radius_km }} km of {{ city }}</span>
+        <h1>Recommended Events in {{ city }}</h1>
+        <p>This Jinja2 template renders server-side event recommendations using the stored user location and Haversine 20 km radius logic.</p>
+    </div>
+</body>
+</html>
