@@ -446,9 +446,44 @@ window.JodLocation = (() => {
     setTimeout(hideToast, 8000);
   }
 
+  function updateProfileLocation(cityOrLoc) {
+    let city = "";
+    if (typeof cityOrLoc === "string") {
+      city = cityOrLoc.trim();
+    } else if (cityOrLoc && typeof cityOrLoc === "object") {
+      city = (cityOrLoc.city || "").trim();
+    }
+    if (!city) {
+      const cached = getCachedCity();
+      if (cached) city = cached.trim();
+    }
+    if (!city) return;
+
+    const formattedLocation = city.toLowerCase().includes("india") ? city : `${city}, India`;
+
+    // 1. Update dashboard profile section (#dashUserLocation)
+    const dashLocEl = document.getElementById("dashUserLocation");
+    if (dashLocEl) {
+      dashLocEl.textContent = `📍 ${formattedLocation}`;
+      dashLocEl.classList.add("is-set");
+    }
+
+    // 2. Update top-right navbar profile location and dropdown location (.profile-location-text, .pd-location)
+    document.querySelectorAll(".profile-location-text, .pd-location, .mobile-pd-location").forEach((el) => {
+      el.textContent = `📍 ${formattedLocation}`;
+    });
+
+    // 3. Update generic user profile location indicators
+    document.querySelectorAll(".user-profile-location").forEach((el) => {
+      el.textContent = formattedLocation;
+    });
+  }
+
   function updateRecommendations(cityOrLoc) {
     const loc = normalizeLocArg(cityOrLoc);
     if (!loc.city && loc.lat == null) return;
+
+    updateProfileLocation(loc);
 
     const cards = document.querySelectorAll(".event-card");
     if (cards.length) _applyCardFilter(cards, loc);
@@ -538,6 +573,7 @@ window.JodLocation = (() => {
     fallbackManualEntry,
     showLocationConfirmation,
     updateRecommendations,
+    updateProfileLocation,
     initLocationFlow,
     applyCachedRecommendations,
     haversineKm,
@@ -550,6 +586,8 @@ window.getUserLocation = window.JodLocation.getUserLocation;
 window.sendLocationToBackend = window.JodLocation.sendLocationToBackend;
 window.fallbackManualEntry = window.JodLocation.fallbackManualEntry;
 window.updateRecommendations = window.JodLocation.updateRecommendations;
+window.updateProfileLocation = window.JodLocation.updateProfileLocation;
 window.showLocationConfirmation = window.JodLocation.showLocationConfirmation;
 window.initLocationFlow = window.JodLocation.initLocationFlow;
+
 

@@ -595,10 +595,25 @@
 		const avatarEl = buildAvatarEl(user);
 		btn.appendChild(avatarEl);
 
+		const metaWrap = document.createElement("div");
+		metaWrap.className = "profile-meta-wrap";
+		metaWrap.style.cssText = "display:flex;flex-direction:column;align-items:flex-start;text-align:left;line-height:1.2;min-width:0;";
+
 		const nameSpan = document.createElement("span");
 		nameSpan.className = "profile-name-text";
 		nameSpan.textContent = user.full_name || user.username || "Profile";
-		btn.appendChild(nameSpan);
+		metaWrap.appendChild(nameSpan);
+
+		const initialCity = (user && user.city) || (typeof localStorage !== "undefined" ? localStorage.getItem("jod_user_city") : null);
+		const locText = initialCity ? (initialCity.toLowerCase().includes("india") ? initialCity : `${initialCity}, India`) : "Detecting location…";
+
+		const locSpan = document.createElement("span");
+		locSpan.className = "profile-location-text";
+		locSpan.style.cssText = "font-size:.725rem;color:var(--primary);font-weight:600;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;";
+		locSpan.textContent = `📍 ${locText}`;
+		metaWrap.appendChild(locSpan);
+
+		btn.appendChild(metaWrap);
 
 		const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 		chevron.setAttribute("viewBox", "0 0 24 24");
@@ -648,6 +663,9 @@
 			? `<img src="${savedPhoto}" alt="Profile picture" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`
 			: initials;
 
+		const mCity = (user && user.city) || (typeof localStorage !== "undefined" ? localStorage.getItem("jod_user_city") : null);
+		const mLocText = mCity ? (mCity.toLowerCase().includes("india") ? mCity : `${mCity}, India`) : "Detecting location…";
+
 		mobileGroup.innerHTML = `
 			<div class="mobile-user-profile" style="padding:1rem .5rem .5rem;">
 				<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;">
@@ -655,6 +673,7 @@
 					<div style="line-height:1.2;min-width:0;">
 						<div style="font-weight:700;color:var(--foreground);font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(displayName)}</div>
 						<div style="font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(user.email || "")}</div>
+						<div class="mobile-pd-location" style="font-size:.75rem;color:var(--primary);font-weight:600;margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍 ${escHtml(mLocText)}</div>
 					</div>
 				</div>
 				<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem;">
@@ -699,8 +718,13 @@
 		header.appendChild(headerAvatar);
 		const info = document.createElement("div");
 		info.className = "pd-user-info";
+		const initialCity = (user && user.city) || (typeof localStorage !== "undefined" ? localStorage.getItem("jod_user_city") : null);
+		const locText = initialCity ? (initialCity.toLowerCase().includes("india") ? initialCity : `${initialCity}, India`) : null;
+		const locHtml = locText ? `<div class="pd-location" style="font-size:.725rem;color:var(--primary);font-weight:600;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 ${escHtml(locText)}</div>` : `<div class="pd-location" style="font-size:.725rem;color:var(--muted);margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 Detecting location…</div>`;
+
 		info.innerHTML = `<div class="pd-name">${escHtml(user.full_name || user.username || "User")}</div>
-		<div class="pd-email">${escHtml(user.email || "")}</div>`;
+		<div class="pd-email">${escHtml(user.email || "")}</div>
+		${locHtml}`;
 		header.appendChild(info);
 		d.appendChild(header);
 
