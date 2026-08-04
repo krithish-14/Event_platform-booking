@@ -10,10 +10,15 @@ window.JodAuth = (() => {
 		const host = (typeof window !== "undefined" && window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
 		return (window.JOD_API_BASE_OVERRIDE) || `http://${host}:${API_PORT}`;
 	}
-	const API_BASE = getApiBase();
 
+	async function getWorkingApiBase() {
+		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.resolveWorkingBaseUrl === "function") {
+			return await window.JodHealth.resolveWorkingBaseUrl();
+		}
+		return getApiBase();
+	}
 
-	/* ── Public Auth Helpers (exposed as window.JodAuth) ──── */
+	/* ── Public Auth Helpers ─────────────────────────────── */
 	function getToken() {
 		try {
 			return localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token") || null;
@@ -42,8 +47,9 @@ window.JodAuth = (() => {
 
 	async function logout() {
 		const token = getToken();
+		const base = await getWorkingApiBase();
 		try {
-			await fetch(`${API_BASE}/api/auth/logout`, {
+			await fetch(`${base}/api/auth/logout`, {
 				method: "POST",
 				headers: token ? { "Authorization": `Bearer ${token}` } : {},
 			}).catch(() => {});
@@ -59,7 +65,7 @@ window.JodAuth = (() => {
 		return fetch(url, Object.assign({}, options, { headers }));
 	}
 
-	/* ── Helpers ───────────────────────────────────────────── */
+	/* ── Form UI Helpers ──────────────────────────────────── */
 	function $(sel, ctx = document) { return ctx.querySelector(sel); }
 	function setError(input, msg) {
 		const wrap = input.closest(".form-group") || input.closest(".input-wrap")?.parentElement;
@@ -95,18 +101,25 @@ window.JodAuth = (() => {
 	}
 
 	function showAlert(alertEl, type, msg) {
+		if (!alertEl) return;
 		alertEl.className = `form-alert is-visible alert-${type}`;
-		alertEl.querySelector(".alert-msg").textContent = parseApiErrorMessage(msg, "An error occurred.");
+		const msgEl = alertEl.querySelector(".alert-msg");
+		if (msgEl) {
+			msgEl.textContent = parseApiErrorMessage(msg, "An error occurred.");
+		} else {
+			alertEl.innerHTML = `<span class="alert-msg">${parseApiErrorMessage(msg, "An error occurred.")}</span>`;
+		}
 	}
 	function hideAlert(alertEl) {
-		alertEl.classList.remove("is-visible");
+		if (alertEl) alertEl.classList.remove("is-visible");
 	}
 	function setLoading(btn, loading) {
+		if (!btn) return;
 		btn.disabled = loading;
 		btn.classList.toggle("is-loading", loading);
 	}
 
-	/* ── Password strength ─────────────────────────────────── */
+	/* ── Password Helpers ──────────────────────────────────── */
 	function calcStrength(pw) {
 		let s = 0;
 		if (pw.length >= 8) s++;
@@ -126,7 +139,6 @@ window.JodAuth = (() => {
 		});
 	}
 
-	/* ── Password visibility toggle ────────────────────────── */
 	function initTogglePw(btn, input) {
 		if (!btn || !input) return;
 		btn.addEventListener("click", () => {
@@ -137,7 +149,7 @@ window.JodAuth = (() => {
 		});
 	}
 
-	/* ── Login form ────────────────────────────────────────── */
+	/* ── Login Form ────────────────────────────────────────── */
 	const loginForm = document.getElementById("loginForm");
 	if (loginForm) {
 		const alertEl = loginForm.querySelector(".form-alert");
@@ -155,7 +167,8 @@ window.JodAuth = (() => {
 				if (!newPassword) return;
 
 				try {
-					const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+					const base = await getWorkingApiBase();
+					const res = await fetch(`${base}/api/auth/reset-password`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ email: email.trim(), new_password: newPassword }),
@@ -187,12 +200,12 @@ window.JodAuth = (() => {
 			setLoading(submitBtn, true);
 
 			try {
-				// FastAPI OAuth2PasswordRequestForm expects form-encoded body
+				const base = await getWorkingApiBase();
 				const body = new URLSearchParams();
 				body.append("username", identifier);
 				body.append("password", password);
 
-				const res = await fetch(`${API_BASE}/api/auth/login`, {
+				const res = await fetch(`${base}/api/auth/login`, {
 					method: "POST",
 					headers: { "Content-Type": "application/x-www-form-urlencoded" },
 					body,
@@ -204,7 +217,6 @@ window.JodAuth = (() => {
 				if (!res.ok) {
 					showAlert(alertEl, "error", data.detail || `Login failed (${res.status}). Please try again.`);
 				} else {
-					// Store token
 					try {
 						const remember = loginForm.querySelector("#rememberMe")?.checked;
 						const storage = remember ? localStorage : sessionStorage;
@@ -213,49 +225,31 @@ window.JodAuth = (() => {
 					} catch (_) {}
 
 					showAlert(alertEl, "success", "Login successful! Redirecting…");
-					// Defer location flow to homepage (GPS needs time + secure context)
 					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) {}
-					setTimeout(() => { window.location.href = "index.html"; }, 900);
+					setTimeout(() => { window.location.href = "index.html"; }, 800);
 				}
 			} catch (err) {
 				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
 					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
 					window.JodHealth.retryConnection({
 						onSuccess: () => {
-							showAlert(alertEl, "success", "Backend server is online! Retrying login…");
-							setTimeout(doLogin, 600);
+							showAlert(alertEl, "success", "Backend server online! Logging in…");
+							setTimeout(doLogin, 500);
 						},
 						onError: () => {
-							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
+							showAlert(alertEl, "error", "Could not connect to backend server on port 8001.");
 						}
 					});
 				} else {
-					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+					showAlert(alertEl, "error", "Network error: Unable to connect to backend server.");
 				}
 			} finally {
 				setLoading(submitBtn, false);
 			}
 		}
 
-		// Proactive page-load health check for login form
-		if (window.JodHealth) {
-			window.JodHealth.checkBackendHealth().then((isOnline) => {
-				if (!isOnline) {
-					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
-					window.JodHealth.retryConnection({
-						onSuccess: () => {
-							hideAlert(alertEl);
-						}
-					});
-				}
-			});
-		}
-
-
-		// Click handler on the button (type="button") — never triggers form submit
 		submitBtn.addEventListener("click", doLogin);
 
-		// Also handle Enter key in the password field
 		loginForm.querySelector("#loginPassword").addEventListener("keydown", (e) => {
 			if (e.key === "Enter") { e.preventDefault(); doLogin(); }
 		});
@@ -264,7 +258,7 @@ window.JodAuth = (() => {
 		});
 	}
 
-	/* ── Sign Up form ──────────────────────────────────────── */
+	/* ── Sign Up Form ──────────────────────────────────────── */
 	const signupForm = document.getElementById("signupForm");
 	if (signupForm) {
 		const alertEl = signupForm.querySelector(".form-alert");
@@ -306,10 +300,11 @@ window.JodAuth = (() => {
 			setLoading(submitBtn, true);
 
 			try {
+				const base = await getWorkingApiBase();
 				const payload = { username, email, password };
 				if (fullName) payload.full_name = fullName;
 
-				const res = await fetch(`${API_BASE}/api/auth/register`, {
+				const res = await fetch(`${base}/api/auth/register`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(payload),
@@ -328,50 +323,35 @@ window.JodAuth = (() => {
 
 					showAlert(alertEl, "success", "Account created! Redirecting…");
 					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) {}
-					setTimeout(() => { window.location.href = "index.html"; }, 900);
+					setTimeout(() => { window.location.href = "index.html"; }, 800);
 				}
 			} catch (err) {
 				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
 					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
 					window.JodHealth.retryConnection({
 						onSuccess: () => {
-							showAlert(alertEl, "success", "Backend server is online! Retrying signup…");
-							setTimeout(doSignup, 600);
+							showAlert(alertEl, "success", "Backend server online! Registering…");
+							setTimeout(doSignup, 500);
 						},
 						onError: () => {
-							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
+							showAlert(alertEl, "error", "Could not connect to backend server on port 8001.");
 						}
 					});
 				} else {
-					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+					showAlert(alertEl, "error", "Network error: Unable to connect to backend server.");
 				}
 			} finally {
 				setLoading(submitBtn, false);
 			}
 		}
 
-		// Proactive page-load health check for signup form
-		if (window.JodHealth) {
-			window.JodHealth.checkBackendHealth().then((isOnline) => {
-				if (!isOnline) {
-					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
-					window.JodHealth.retryConnection({
-						onSuccess: () => {
-							hideAlert(alertEl);
-						}
-					});
-				}
-			});
-		}
-
-		// Click handler on button (type="button") — decoupled from form submit entirely
 		submitBtn.addEventListener("click", doSignup);
 	}
 
-
 	/* ── Expose Public API ─────────────────────────────────── */
 	return {
-		API_BASE,
+		getApiBase,
+		getWorkingApiBase,
 		getToken,
 		getUser,
 		isLoggedIn,
