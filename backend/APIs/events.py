@@ -2,8 +2,9 @@
 Event CRUD routes.
 """
 
+import json
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -40,6 +41,14 @@ class EventCreateRequest(BaseModel):
     end_date: Optional[datetime] = None
     price: float = 0.0
     capacity: Optional[int] = None
+    event_format: Optional[str] = "In-person"
+    duration: Optional[str] = None
+    age_limit: Optional[str] = None
+    language: Optional[str] = None
+    performers: Optional[Any] = None
+    highlights: Optional[Any] = None
+    ticket_types: Optional[Any] = None
+    terms: Optional[str] = None
     is_published: bool = False
 
 
@@ -56,6 +65,14 @@ class EventUpdateRequest(BaseModel):
     end_date: Optional[datetime] = None
     price: Optional[float] = None
     capacity: Optional[int] = None
+    event_format: Optional[str] = None
+    duration: Optional[str] = None
+    age_limit: Optional[str] = None
+    language: Optional[str] = None
+    performers: Optional[Any] = None
+    highlights: Optional[Any] = None
+    ticket_types: Optional[Any] = None
+    terms: Optional[str] = None
     is_published: Optional[bool] = None
 
 
@@ -74,6 +91,14 @@ class EventResponse(BaseModel):
     end_date: Optional[datetime]
     price: float
     capacity: Optional[int]
+    event_format: Optional[str] = "In-person"
+    duration: Optional[str] = None
+    age_limit: Optional[str] = None
+    language: Optional[str] = None
+    performers: Optional[Any] = None
+    highlights: Optional[Any] = None
+    ticket_types: Optional[Any] = None
+    terms: Optional[str] = None
     is_published: bool
     is_cancelled: bool
     organizer_id: str
@@ -81,6 +106,19 @@ class EventResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+def _parse_json_field(val: Any) -> Any:
+    if val is None:
+        return []
+    if isinstance(val, (list, dict)):
+        return val
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except Exception:
+            return []
+    return []
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -100,6 +138,14 @@ def _event_to_response(event: Event, distance_km: Optional[float] = None) -> Eve
         end_date=event.end_date,
         price=event.price,
         capacity=event.capacity,
+        event_format=event.event_format or "In-person",
+        duration=event.duration,
+        age_limit=event.age_limit,
+        language=event.language,
+        performers=_parse_json_field(event.performers),
+        highlights=_parse_json_field(event.highlights),
+        ticket_types=_parse_json_field(event.ticket_types),
+        terms=event.terms,
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
         organizer_id=str(event.organizer_id),

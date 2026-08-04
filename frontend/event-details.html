@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Book tickets for Event Details on JOD Events Platform." />
+    <title>Event Details — JOD Events</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/style.css?v=15" />
+    <link rel="stylesheet" href="css/event-details.css?v=3" />
+</head>
+<body class="event-details-page category-theme-comedy" id="eventBody">
+
+    <!-- Header Navigation -->
+    <div id="header"></div>
+
+    <main class="event-details-container" id="mainContent">
+        <!-- ── Title & Header Bar ─────────────────────────────────────────── -->
+        <div class="event-title-bar">
+            <div>
+                <h1 class="event-main-title" id="eventTitle">VIR DAS - SOUNDS OF INDIA - CHENNAI</h1>
+                <div class="event-meta-top">
+                    <span id="headerVenue">📍 Sir Mutha Venkatasubba Rao Concert Hall, Chennai</span>
+                    <span>•</span>
+                    <span id="headerCategory">🎭 Standup Comedy</span>
+                </div>
+            </div>
+            <button class="btn-share" id="btnShare" type="button" onclick="copyEventShareLink()">
+                <span>🔗</span> Share Event
+            </button>
+        </div>
+
+        <!-- ── Main Grid Layout ───────────────────────────────────────────── -->
+        <div class="event-details-grid">
+            
+            <!-- Left Column: Media, Description, Artists, Highlights, Terms -->
+            <div class="event-left-column">
+                
+                <!-- Hero Banner Image & Overlay Badges -->
+                <div class="event-hero-banner">
+                    <img id="eventImage" src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80" alt="Event Banner" />
+                    <div class="banner-gradient-shade"></div>
+                    <div class="banner-overlay-tags">
+                        <div class="category-badge-list">
+                            <span class="category-tag" id="eventHeroBadge">🎙️ Live Comedy Special</span>
+                            <span class="category-tag" id="eventCategoryTag">Standup Comedy</span>
+                            <span class="category-tag" id="eventFormatTag" style="border-color: #34d399; color: #34d399;">In-person</span>
+                        </div>
+                        <div class="interested-counter">
+                            <span>🔥</span> <span id="interestedText">151 are interested</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event Description Section -->
+                <div class="section-block">
+                    <h2 class="section-block-title">About The Event</h2>
+                    <div class="event-description-text" id="eventDescription">
+                        Vir Das takes you across the nation in an immersive audio-visual stand-up comedy experience, where the vibrant sounds that we hear across India in our daily lives take us on a journey to celebrate the small nuances of our great nation. Through the symphony of sound International Emmy winning stand-up comedian Vir Das is back with his brand new global tour!
+                    </div>
+                </div>
+
+                <!-- Artist / Performer / Speaker Section -->
+                <div class="section-block" id="performersSection">
+                    <h2 class="section-block-title" id="performersTitle">Spotlight Artists & Performers</h2>
+                    <div class="performers-grid" id="performersGrid">
+                        <div class="performer-card">
+                            <img class="performer-avatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80" alt="Vir Das" />
+                            <h3 class="performer-name">Vir Das</h3>
+                            <p class="performer-role">Comedian / Performer</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Highlights Section (Past Achievements Showcase) -->
+                <div class="section-block" id="highlightsSection">
+                    <h2 class="section-block-title" id="highlightsTitle">Show Laughs & Tour Highlights</h2>
+                    <div class="highlights-grid" id="highlightsGrid">
+                        <div class="highlight-card">
+                            <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80" alt="Emmy Winner" />
+                            <div class="highlight-content">
+                                <h4 class="highlight-title">International Emmy Award Winner</h4>
+                                <p class="highlight-desc">Emmy-winning standup special performance</p>
+                            </div>
+                        </div>
+                        <div class="highlight-card">
+                            <img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=600&q=80" alt="Global Arena Tour" />
+                            <div class="highlight-content">
+                                <h4 class="highlight-title">Sold Out Global Arena Tour</h4>
+                                <p class="highlight-desc">Performed across 35 countries worldwide</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terms & Conditions Section -->
+                <div class="section-block">
+                    <h2 class="section-block-title">Terms & Conditions</h2>
+                    <ul class="terms-list" id="termsList">
+                        <li>Tickets once booked cannot be exchanged, cancelled, or refunded.</li>
+                        <li>Age restriction: 10 years and above.</li>
+                        <li>Please carry a valid photo ID proof along with your e-ticket.</li>
+                        <li>Photography and video recording during show strictly prohibited.</li>
+                    </ul>
+                </div>
+
+                <!-- Recommended Events Section -->
+                <div class="section-block" id="recommendedBlock">
+                    <h2 class="section-block-title">You May Also Like</h2>
+                    <div class="recommended-grid" id="recommendedGrid">
+                        <a href="event-details.html?id=22222222-2222-2222-2222-222222222222" class="rec-card">
+                            <img src="https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=400&q=80" alt="Chennai Business Leaders Summit 2026" />
+                            <div class="rec-card-body">
+                                <h3 class="rec-card-title">Chennai Business Leaders Summit 2026</h3>
+                                <p class="rec-card-meta">📍 ITC Grand Chola, Chennai</p>
+                                <div class="rec-card-price">₹4,999 onwards</div>
+                            </div>
+                        </a>
+                        <a href="event-details.html?id=33333333-3333-3333-3333-333333333333" class="rec-card">
+                            <img src="https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=400&q=80" alt="BrandLaunchpad" />
+                            <div class="rec-card-body">
+                                <h3 class="rec-card-title">BrandLaunchpad - Product Reveal Night</h3>
+                                <p class="rec-card-meta">📍 Phoenix MarketCity, Chennai</p>
+                                <div class="rec-card-price">₹1,299 onwards</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Sticky Event Info Box -->
+            <div class="event-right-column">
+                <div class="event-info-sidebar">
+                    <div class="info-box-card">
+                        
+                        <div class="info-header">
+                            <span class="event-format-badge" id="infoFormatBadge">In-person</span>
+                            <div class="price-main-display">
+                                Ticket Starts at <span id="displayPrice">₹1,999</span>
+                            </div>
+                        </div>
+
+                        <!-- Date & Schedule -->
+                        <div class="info-item">
+                            <div class="info-icon">📅</div>
+                            <div class="info-text-group">
+                                <h4>Date & Time</h4>
+                                <p id="infoSchedule">Sat, 31 Oct 2026 • 7:30 PM</p>
+                            </div>
+                        </div>
+
+                        <!-- Duration -->
+                        <div class="info-item">
+                            <div class="info-icon">⏱️</div>
+                            <div class="info-text-group">
+                                <h4>Duration</h4>
+                                <p id="infoDuration">1 hour 30 minutes</p>
+                            </div>
+                        </div>
+
+                        <!-- Age Limit & Language -->
+                        <div class="info-item">
+                            <div class="info-icon">👤</div>
+                            <div class="info-text-group">
+                                <h4>Age & Language</h4>
+                                <p id="infoAgeLang">10yrs + | English</p>
+                            </div>
+                        </div>
+
+                        <!-- Venue / Address -->
+                        <div class="info-item">
+                            <div class="info-icon">📍</div>
+                            <div class="info-text-group">
+                                <h4>Venue Location</h4>
+                                <p id="infoVenue">Sir Mutha Venkatasubba Rao Concert Hall, Chennai</p>
+                                <small style="color: var(--text-secondary);" id="infoLocation">Harrington Rd, Chetpet, Chennai</small>
+                            </div>
+                        </div>
+
+                        <!-- Tickets Breakdown Section -->
+                        <div class="tickets-section">
+                            <div class="tickets-title">Select Ticket Type</div>
+                            <div id="ticketsList">
+                                <div class="ticket-type-option selected" onclick="selectTicketOption(this, 1999)">
+                                    <div>
+                                        <div class="ticket-name">Silver Access</div>
+                                        <div class="ticket-status">Available</div>
+                                    </div>
+                                    <div class="ticket-price">₹1,999</div>
+                                </div>
+                                <div class="ticket-type-option" onclick="selectTicketOption(this, 3499)">
+                                    <div>
+                                        <div class="ticket-name">Gold VIP</div>
+                                        <div class="ticket-status">Filling Fast</div>
+                                    </div>
+                                    <div class="ticket-price">₹3,499</div>
+                                </div>
+                                <div class="ticket-type-option" onclick="selectTicketOption(this, 5999)">
+                                    <div>
+                                        <div class="ticket-name">Front Row Fan Zone</div>
+                                        <div class="ticket-status">Limited Seats</div>
+                                    </div>
+                                    <div class="ticket-price">₹5,999</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Book Now Primary CTA Button -->
+                        <button class="btn-book-now" type="button" onclick="triggerBookingModal()">
+                            Book Now 🎟️
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Mobile Secondary Floating Sticky Bottom Action Bar -->
+    <div class="sticky-bottom-bar">
+        <div class="sticky-bottom-bar-content">
+            <div class="bar-price-group">
+                <p>Starts from</p>
+                <h3 id="mobileStickyPrice">₹1,999</h3>
+            </div>
+            <button class="btn-book-now" type="button" style="width: auto; padding: 0.75rem 2rem;" onclick="triggerBookingModal()">
+                Book Now 🎟️
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Copy Notification -->
+    <div class="toast-msg" id="toastMsg">Link copied to clipboard!</div>
+
+    <!-- Scripts -->
+    <script src="js/include.js"></script>
+    <script src="js/event-details.js?v=3"></script>
+</body>
+</html>

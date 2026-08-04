@@ -26,6 +26,14 @@ class Event(Base):
     end_date     = Column(DateTime, nullable=True)
     price        = Column(Float, default=0.0)
     capacity     = Column(Integer, nullable=True)               # None = unlimited
+    event_format = Column(String(100), default="In-person")      # e.g. In-person, Hybrid, Virtual
+    duration     = Column(String(100), nullable=True)          # e.g. "1 hour 30 mins"
+    age_limit    = Column(String(50), nullable=True)           # e.g. "10yrs +"
+    language     = Column(String(100), nullable=True)          # e.g. "English", "Tamil"
+    performers   = Column(Text, nullable=True)                 # JSON string of artist/performer objects
+    highlights   = Column(Text, nullable=True)                 # JSON string of past achievement objects/photos
+    ticket_types = Column(Text, nullable=True)                 # JSON string of ticket categories
+    terms        = Column(Text, nullable=True)                 # Terms & conditions text
     is_published = Column(Boolean, default=False)
     is_cancelled = Column(Boolean, default=False)
     organizer_id = Column(GUID, ForeignKey("users.id"), nullable=False)

@@ -223,6 +223,14 @@ def _migrate_tables(engine=None):
                 ("latitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("longitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("venue", "VARCHAR(300)"),
+                ("event_format", "VARCHAR(100)"),
+                ("duration", "VARCHAR(100)"),
+                ("age_limit", "VARCHAR(50)"),
+                ("language", "VARCHAR(100)"),
+                ("performers", "TEXT"),
+                ("highlights", "TEXT"),
+                ("ticket_types", "TEXT"),
+                ("terms", "TEXT"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in event_migrations:
@@ -240,6 +248,279 @@ def _migrate_tables(engine=None):
         print(f"  [WARN] Auto-migration check: {exc}", flush=True)
 
 
+def _seed_demo_events():
+    """Seed initial sample events with full details if the events table is empty."""
+    import json
+    from sqlalchemy import text
+    engine = get_engine()
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM events")).scalar()
+            if result and result > 0:
+                return
+
+            # Ensure an organizer user exists
+            org_res = conn.execute(text("SELECT id FROM users LIMIT 1")).fetchone()
+            if org_res:
+                org_id = str(org_res[0])
+            else:
+                org_id = "00000000-0000-0000-0000-000000000001"
+                conn.execute(
+                    text("""
+                        INSERT INTO users (id, email, username, full_name, hashed_password, is_active, is_admin, created_at, updated_at)
+                        VALUES (:id, 'organizer@jodevents.com', 'jod_organizer', 'JOD Events Organizer', 'hashed_pass_placeholder', true, true, NOW(), NOW())
+                        ON CONFLICT (email) DO NOTHING
+                    """),
+                    {"id": org_id}
+                )
+                conn.commit()
+
+            demo_events = [
+                {
+                    "id": "11111111-1111-1111-1111-111111111111",
+                    "title": "VIR DAS - SOUNDS OF INDIA - CHENNAI",
+                    "description": "Vir Das takes you across the nation in an immersive audio-visual stand-up comedy experience, where the vibrant sounds that we hear across India in our daily lives take us on a journey to celebrate the small nuances of our great nation. Through the symphony of sound International Emmy winning stand-up comedian Vir Das is back with his brand new global tour!",
+                    "location": "Lady Andal School Campus, Harrington Rd, Chetpet, Chennai",
+                    "venue": "Sir Mutha Venkatasubba Rao Concert Hall, Chennai",
+                    "latitude": 13.0722,
+                    "longitude": 80.2425,
+                    "category": "Standup Comedy",
+                    "image_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80",
+                    "start_date": "2026-10-31 19:30:00",
+                    "end_date": "2026-10-31 21:00:00",
+                    "price": 1999.0,
+                    "capacity": 1200,
+                    "event_format": "In-person",
+                    "duration": "1 hour 30 minutes",
+                    "age_limit": "10yrs +",
+                    "language": "English",
+                    "performers": json.dumps([
+                        {
+                            "name": "Vir Das",
+                            "role": "Comedian / Artist",
+                            "image_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80"
+                        }
+                    ]),
+                    "highlights": json.dumps([
+                        {
+                            "title": "International Emmy Award Winner",
+                            "description": "Emmy-winning standup special performance",
+                            "image_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80"
+                        },
+                        {
+                            "title": "Sold Out Global Arena Tour",
+                            "description": "Performed across 35 countries worldwide",
+                            "image_url": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=600&q=80"
+                        },
+                        {
+                            "title": "Live Acoustic & Audio-Visual Production",
+                            "description": "State-of-the-art stage surround sound",
+                            "image_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80"
+                        }
+                    ]),
+                    "ticket_types": json.dumps([
+                        {"name": "Silver Access", "price": 1999, "availability": "Available"},
+                        {"name": "Gold VIP", "price": 3499, "availability": "Filling Fast"},
+                        {"name": "Front Row Fan Zone", "price": 5999, "availability": "Limited Seats"}
+                    ]),
+                    "terms": "1. Tickets are non-refundable.\n2. Age restriction: 10 years and above.\n3. Photography and recording strictly prohibited.\n4. Gates open 45 minutes prior to showtime.",
+                    "is_published": True,
+                    "is_cancelled": False,
+                    "organizer_id": org_id,
+                },
+                {
+                    "id": "22222222-2222-2222-2222-222222222222",
+                    "title": "Chennai Business Leaders Summit 2026",
+                    "description": "The city's most anticipated corporate gathering bringing together CEOs, founders, venture capitalists, and industry innovators. Featuring keynote panels on AI transformation, sustainable growth, and global market expansion.",
+                    "location": "No. 63, Mount Rd, Guindy, Chennai, Tamil Nadu 600032",
+                    "venue": "ITC Grand Chola, Chennai",
+                    "latitude": 13.0108,
+                    "longitude": 80.2206,
+                    "category": "Corporate Conference",
+                    "image_url": "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1200&q=80",
+                    "start_date": "2026-08-15 09:00:00",
+                    "end_date": "2026-08-15 17:00:00",
+                    "price": 4999.0,
+                    "capacity": 800,
+                    "event_format": "Hybrid",
+                    "duration": "8 hours",
+                    "age_limit": "18yrs +",
+                    "language": "English",
+                    "performers": json.dumps([
+                        {
+                            "name": "Dr. Aris Thorne",
+                            "role": "Keynote Speaker & AI Strategist",
+                            "image_url": "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80"
+                        },
+                        {
+                            "name": "Priya Sundaram",
+                            "role": "Venture Partner & Tech Executive",
+                            "image_url": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80"
+                        }
+                    ]),
+                    "highlights": json.dumps([
+                        {
+                            "title": "Over 500+ C-Suite Executives",
+                            "description": "Exclusive networking lounge and pitch session",
+                            "image_url": "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=600&q=80"
+                        }
+                    ]),
+                    "ticket_types": json.dumps([
+                        {"name": "Virtual Pass", "price": 1499, "availability": "Available"},
+                        {"name": "Standard Pass", "price": 4999, "availability": "Available"},
+                        {"name": "VIP Executive Pass", "price": 9999, "availability": "Filling Fast"}
+                    ]),
+                    "terms": "1. Formal business attire required.\n2. ID card verification at entrance.\n3. Includes 5-star networking lunch.",
+                    "is_published": True,
+                    "is_cancelled": False,
+                    "organizer_id": org_id,
+                },
+                {
+                    "id": "33333333-3333-3333-3333-333333333333",
+                    "title": "BrandLaunchpad - Product Reveal Night",
+                    "description": "An immersive launch experience for D2C brands, tech startups, and lifestyle innovations. Live product demos, VIP lounge access, exclusive brand gifting, and live acoustic music.",
+                    "location": "Velachery Main Rd, Velachery, Chennai, Tamil Nadu 600042",
+                    "venue": "Phoenix MarketCity, Chennai",
+                    "latitude": 12.9958,
+                    "longitude": 80.2170,
+                    "category": "Product Launch",
+                    "image_url": "https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=1200&q=80",
+                    "start_date": "2026-09-12 18:00:00",
+                    "end_date": "2026-09-12 21:00:00",
+                    "price": 1299.0,
+                    "capacity": 500,
+                    "event_format": "In-person",
+                    "duration": "3 hours",
+                    "age_limit": "16yrs +",
+                    "language": "English",
+                    "performers": json.dumps([
+                        {
+                            "name": "Ananya Roy",
+                            "role": "Brand Ambassador & Content Creator",
+                            "image_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80"
+                        }
+                    ]),
+                    "highlights": json.dumps([
+                        {
+                            "title": "Interactive Tech Demos",
+                            "description": "First look at flagship innovations",
+                            "image_url": "https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=600&q=80"
+                        }
+                    ]),
+                    "ticket_types": json.dumps([
+                        {"name": "Standard Access", "price": 1299, "availability": "Available"},
+                        {"name": "VIP Gift Bag Pass", "price": 2499, "availability": "Filling Fast"}
+                    ]),
+                    "terms": "1. Entry subject to security check.\n2. Early arrival recommended.",
+                    "is_published": True,
+                    "is_cancelled": False,
+                    "organizer_id": org_id,
+                },
+                {
+                    "id": "44444444-4444-4444-4444-444444444444",
+                    "title": "The Royal Soiree - Signature Wedding Showcase",
+                    "description": "Curated luxury ideas for couples planning an extraordinary celebration. Featuring bridal fashion walk, gourmet tasting session, decor concepts, and premier wedding planners.",
+                    "location": "Adyar Sea Face, MRC Nagar, Raja Annamalaipuram, Chennai, Tamil Nadu 600028",
+                    "venue": "Leela Palace, Chennai",
+                    "latitude": 13.0067,
+                    "longitude": 80.2546,
+                    "category": "Wedding Showcase",
+                    "image_url": "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80",
+                    "start_date": "2026-10-05 11:00:00",
+                    "end_date": "2026-10-05 17:00:00",
+                    "price": 2499.0,
+                    "capacity": 400,
+                    "event_format": "In-person",
+                    "duration": "6 hours",
+                    "age_limit": "All ages",
+                    "language": "English / Tamil",
+                    "performers": json.dumps([
+                        {
+                            "name": "Manish Malhotra Design Team",
+                            "role": "Couture & Runway Designers",
+                            "image_url": "https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=400&q=80"
+                        }
+                    ]),
+                    "highlights": json.dumps([
+                        {
+                            "title": "5-Star Gourmet & Runway Walk",
+                            "description": "Exquisite bridal setup and menu tasting",
+                            "image_url": "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=600&q=80"
+                        }
+                    ]),
+                    "ticket_types": json.dumps([
+                        {"name": "Couple Pass", "price": 2499, "availability": "Available"}
+                    ]),
+                    "terms": "1. Pass valid for 2 guests.\n2. Prior RSVP required.",
+                    "is_published": True,
+                    "is_cancelled": False,
+                    "organizer_id": org_id,
+                },
+                {
+                    "id": "55555555-5555-5555-5555-555555555555",
+                    "title": "Marina Cultural Fest",
+                    "description": "A vibrant community celebration of music, street food, traditional arts, indie band performances, and cultural heritage by the beach.",
+                    "location": "Marina Beach Promenade, Triplicane, Chennai, Tamil Nadu 600005",
+                    "venue": "Marina Grounds, Chennai",
+                    "latitude": 13.0500,
+                    "longitude": 80.2824,
+                    "category": "Cultural Festival",
+                    "image_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1200&q=80",
+                    "start_date": "2026-11-22 15:00:00",
+                    "end_date": "2026-11-22 22:00:00",
+                    "price": 499.0,
+                    "capacity": 3000,
+                    "event_format": "In-person",
+                    "duration": "7 hours",
+                    "age_limit": "All ages",
+                    "language": "Tamil & English",
+                    "performers": json.dumps([
+                        {
+                            "name": "Thaikkudam Bridge",
+                            "role": "Headliner Fusion Band",
+                            "image_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=400&q=80"
+                        }
+                    ]),
+                    "highlights": json.dumps([
+                        {
+                            "title": "Open Air Oceanfront Stage",
+                            "description": "Over 10,000 festival goers",
+                            "image_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80"
+                        }
+                    ]),
+                    "ticket_types": json.dumps([
+                        {"name": "General Admission", "price": 499, "availability": "Available"}
+                    ]),
+                    "terms": "1. Single entry pass.\n2. Plastic bottles strictly prohibited.",
+                    "is_published": True,
+                    "is_cancelled": False,
+                    "organizer_id": org_id,
+                }
+            ]
+
+            insert_sql = text("""
+                INSERT INTO events (
+                    id, title, description, location, venue, latitude, longitude,
+                    category, image_url, start_date, end_date, price, capacity,
+                    event_format, duration, age_limit, language, performers, highlights,
+                    ticket_types, terms, is_published, is_cancelled, organizer_id, created_at, updated_at
+                ) VALUES (
+                    :id, :title, :description, :location, :venue, :latitude, :longitude,
+                    :category, :image_url, :start_date, :end_date, :price, :capacity,
+                    :event_format, :duration, :age_limit, :language, :performers, :highlights,
+                    :ticket_types, :terms, :is_published, :is_cancelled, :organizer_id, NOW(), NOW()
+                ) ON CONFLICT (id) DO NOTHING
+            """)
+
+            for ev in demo_events:
+                conn.execute(insert_sql, ev)
+            conn.commit()
+            print("  [DB SEED] Successfully seeded 5 demo events into events table.", flush=True)
+
+    except Exception as exc:
+        print(f"  [DB SEED WARN] Could not seed demo events: {exc}", flush=True)
+
+
 def create_tables():
     """Create all tables defined in models and sync users across DBs. Called on app startup."""
     from Models.user import User  # noqa: F401
@@ -248,5 +529,7 @@ def create_tables():
     Base.metadata.create_all(bind=engine)
     _migrate_tables(engine)
     _sync_databases()
+    _seed_demo_events()
+
 
 
