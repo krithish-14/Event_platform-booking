@@ -61,9 +61,11 @@ class UserRegisterRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
+    customer_id: str
     email: str
     username: str
     full_name: str | None
+    city: str | None = None
     is_active: bool
     is_admin: bool
 
@@ -78,14 +80,16 @@ class TokenResponse(BaseModel):
 
 
 def _serialize_user(user) -> dict:
-    """Convert a User ORM object to a dict suitable for JSON/Pydantic (string UUID)."""
+    """Convert a User ORM object to a dict suitable for JSON/Pydantic."""
     if user is None:
         return None
     return {
         "id": str(user.id),
+        "customer_id": str(getattr(user, "customer_id", user.id)),
         "email": user.email,
         "username": user.username,
         "full_name": user.full_name,
+        "city": getattr(user, "city", None),
         "is_active": bool(getattr(user, "is_active", True)),
         "is_admin": bool(getattr(user, "is_admin", False)),
     }
@@ -121,19 +125,25 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         s_conn = sqlite3.connect(sqlite_path)
         s_cur = s_conn.cursor()
         s_cur.execute("""
-            INSERT INTO users (id, email, username, full_name, hashed_password, is_active, is_admin)
-            VALUES (?, ?, ?, ?, ?, 1, 0)
+            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?, 1, 0)
             ON CONFLICT(email) DO UPDATE SET
+                customer_id = excluded.customer_id,
                 hashed_password = excluded.hashed_password,
                 username = excluded.username
-        """, (str(user.id), user.email, user.username, user.full_name, user.hashed_password))
+        """, (str(user.id), str(user.customer_id), user.email, user.username, user.full_name, user.hashed_password))
         s_conn.commit()
         s_conn.close()
     except Exception:
         pass
 
     token = create_access_token(
-        data={"sub": str(user.id)},
+        data={
+            "sub": str(user.customer_id),
+            "customer_id": str(user.customer_id),
+            "email": user.email,
+            "username": user.username,
+        },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
@@ -161,10 +171,17 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
         )
 
     token = create_access_token(
-        data={"sub": str(user.id)},
+        data={
+            "sub": str(user.customer_id),
+            "customer_id": str(user.customer_id),
+            "email": user.email,
+            "username": user.username,
+        },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
+
+
 
 
 @router.get("/me", response_model=UserResponse)

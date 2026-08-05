@@ -140,7 +140,13 @@ def _sync_databases():
             try:
                 s_conn = sqlite3.connect(sqlite_path)
                 s_cur = s_conn.cursor()
-                s_cur.execute("SELECT id, email, username, full_name, hashed_password, is_active, is_admin FROM users")
+                # Ensure customer_id column exists in SQLite
+                s_cur.execute("PRAGMA table_info(users)")
+                cols = [c[1] for c in s_cur.fetchall()]
+                if "customer_id" not in cols:
+                    s_cur.execute("ALTER TABLE users ADD COLUMN customer_id VARCHAR(100)")
+                    s_conn.commit()
+                s_cur.execute("SELECT id, customer_id, email, username, full_name, hashed_password, is_active, is_admin FROM users")
                 sqlite_users = s_cur.fetchall()
                 s_conn.close()
             except Exception:
@@ -160,17 +166,23 @@ def _sync_databases():
         if pg_engine and sqlite_users:
             with pg_engine.connect() as pg_conn:
                 for row in sqlite_users:
-                    u_id, u_email, u_name, u_full, u_hash, u_act, u_adm = row
+                    u_id, u_cust_id, u_email, u_name, u_full, u_hash, u_act, u_adm = row
+                    if not u_cust_id or not str(u_cust_id).startswith("CUST-"):
+                        import random
+                        u_cust_id = f"CUST-{random.randint(100000, 999999)}"
+
                     pg_conn.execute(
                         text("""
-                            INSERT INTO users (id, email, username, full_name, hashed_password, is_active, is_admin, created_at, updated_at)
-                            VALUES (:id, :email, :username, :full_name, :hashed_password, :is_active, :is_admin, NOW(), NOW())
+                            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin, created_at, updated_at)
+                            VALUES (:id, :customer_id, :email, :username, :full_name, :hashed_password, :is_active, :is_admin, NOW(), NOW())
                             ON CONFLICT (email) DO UPDATE SET
+                                customer_id = COALESCE(users.customer_id, EXCLUDED.customer_id),
                                 hashed_password = EXCLUDED.hashed_password,
                                 username = EXCLUDED.username
                         """),
                         {
                             "id": str(u_id),
+                            "customer_id": str(u_cust_id),
                             "email": u_email,
                             "username": u_name,
                             "full_name": u_full,
@@ -185,7 +197,7 @@ def _sync_databases():
 
 
 def _migrate_tables(engine=None):
-    """Ensure all required columns exist on tables (adds missing columns if tables already existed)."""
+    """Ensure all required columns exist on tables (adds missing columns if tables already existed) and backfill customer_id."""
     if engine is None:
         engine = get_engine()
     from sqlalchemy import text, inspect
@@ -197,6 +209,7 @@ def _migrate_tables(engine=None):
         if "users" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("users")}
             user_migrations = [
+                ("customer_id", "VARCHAR(100)"),
                 ("city", "VARCHAR(200)"),
                 ("location_pincode", "VARCHAR(20)"),
                 ("location_lat", "DOUBLE PRECISION" if is_pg else "FLOAT"),
@@ -215,7 +228,56 @@ def _migrate_tables(engine=None):
                             print(f"  [DB MIGRATION] Added column users.{col_name}", flush=True)
                         except Exception as e:
                             print(f"  [DB MIGRATION WARN] Could not add column users.{col_name}: {e}", flush=True)
+                
+                # Backfill missing or legacy customer_ids to CUST-<number> format
+                try:
+                    import random
+                    if is_pg and "bookings" in tables:
+                        try:
+                            conn.execute(text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_customer_id_fkey;"))
+                            conn.commit()
+                        except Exception:
+                            pass
+
+                    rows = conn.execute(text("SELECT id, customer_id FROM users WHERE customer_id IS NULL OR customer_id = '' OR customer_id NOT LIKE 'CUST-%'")).fetchall()
+                    for r in rows:
+                        uid, old_cid = r[0], r[1]
+                        new_cust_id = f"CUST-{random.randint(100000, 999999)}"
+                        conn.execute(
+                            text("UPDATE users SET customer_id = :cid WHERE id = :uid"),
+                            {"cid": new_cust_id, "uid": uid}
+                        )
+                        if "bookings" in tables and old_cid:
+                            conn.execute(
+                                text("UPDATE bookings SET customer_id = :ncid WHERE customer_id = :ocid"),
+                                {"ncid": new_cust_id, "ocid": old_cid}
+                            )
+                    conn.commit()
+                    if rows:
+                        print(f"  [DB MIGRATION] Backfilled customer_id (CUST-<number>) for {len(rows)} users.", flush=True)
+
+                    if is_pg:
+                        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_customer_id ON users (customer_id);"))
+                        conn.commit()
+                        if "bookings" in tables:
+                            try:
+                                conn.execute(text("""
+                                    ALTER TABLE bookings 
+                                    ADD CONSTRAINT bookings_customer_id_fkey 
+                                    FOREIGN KEY (customer_id) REFERENCES users(customer_id) 
+                                    ON DELETE CASCADE;
+                                """))
+                                conn.commit()
+                            except Exception:
+                                pass
+                except Exception as e:
+                    print(f"  [DB MIGRATION WARN] Could not backfill/index customer_id: {e}", flush=True)
+
                 conn.commit()
+
+
+
+
 
         if "events" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("events")}
@@ -525,11 +587,14 @@ def create_tables():
     """Create all tables defined in models and sync users across DBs. Called on app startup."""
     from Models.user import User  # noqa: F401
     from Models.event import Event  # noqa: F401
+    from Models.booking import Booking  # noqa: F401
     engine = get_engine()
-    Base.metadata.create_all(bind=engine)
     _migrate_tables(engine)
+    Base.metadata.create_all(bind=engine)
     _sync_databases()
     _seed_demo_events()
+
+
 
 
 

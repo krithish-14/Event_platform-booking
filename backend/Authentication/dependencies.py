@@ -34,17 +34,24 @@ def get_current_user(
     if payload is None:
         raise credentials_exception
 
-    user_id: str = payload.get("sub")
-    if user_id is None:
+    customer_id: str = payload.get("customer_id") or payload.get("sub")
+    if customer_id is None:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.customer_id == customer_id).first()
+    if user is None and payload.get("email"):
+        user = db.query(User).filter(User.email == payload.get("email")).first()
+    if user is None:
+        # Fallback for legacy tokens using internal id UUID
+        user = db.query(User).filter(User.id == customer_id).first()
     if user is None:
         raise credentials_exception
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user.")
 
     return user
+
+
 
 
 def get_current_admin(current_user: User = Depends(get_current_user)) -> User:

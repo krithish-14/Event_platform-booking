@@ -185,53 +185,13 @@
 			<section class="orders-section">
 				<div class="container">
 					<div class="orders-filter-bar">
-						<button class="filter-tab is-active" data-filter="all">All Orders (2)</button>
-						<button class="filter-tab" data-filter="upcoming">Upcoming (1)</button>
-						<button class="filter-tab" data-filter="completed">Completed (1)</button>
+						<button class="filter-tab is-active" data-filter="all">All Orders</button>
+						<button class="filter-tab" data-filter="upcoming">Upcoming</button>
+						<button class="filter-tab" data-filter="completed">Completed</button>
 					</div>
 
-					<div class="orders-list">
-						<!-- Order Item 1 -->
-						<div class="order-card" data-status="upcoming">
-							<div class="order-thumb">
-								<img src="images/JOD Events Logo.png" alt="Summit" style="object-fit:contain;padding:.5rem;background:#fff;" />
-							</div>
-							<div class="order-details">
-								<span class="badge badge-upcoming">Upcoming</span>
-								<h3>Chennai Business Leaders Summit 2026</h3>
-								<div class="order-meta">
-									<span>📅 Aug 15, 2026 • 09:00 AM</span>
-									<span>📍 ITC Grand Chola, Chennai</span>
-									<span>🎟️ 2 VIP Passes</span>
-								</div>
-								<div class="order-id">Order ID: #JOD-2026-88219</div>
-							</div>
-							<div class="order-action">
-								<div class="order-price">₹4,999</div>
-								<button class="button button-sm button-primary" type="button" onclick="alert('Downloading your E-Ticket PDF...')">Download Ticket 🎟️</button>
-							</div>
-						</div>
-
-						<!-- Order Item 2 -->
-						<div class="order-card" data-status="completed">
-							<div class="order-thumb">
-								<img src="images/JOD Events Logo.png" alt="Conclave" style="object-fit:contain;padding:.5rem;background:#fff;" />
-							</div>
-							<div class="order-details">
-								<span class="badge badge-completed">Completed</span>
-								<h3>Tech Founders & Innovation Meet 2025</h3>
-								<div class="order-meta">
-									<span>📅 Nov 20, 2025</span>
-									<span>📍 Le Royal Méridien, Chennai</span>
-									<span>🎟️ 1 General Pass</span>
-								</div>
-								<div class="order-id">Order ID: #JOD-2025-41002</div>
-							</div>
-							<div class="order-action">
-								<div class="order-price">₹1,499</div>
-								<button class="button button-sm button-ghost" type="button" onclick="alert('Viewing Invoice #JOD-2025-41002')">View Invoice</button>
-							</div>
-						</div>
+					<div class="orders-list" id="ordersListContainer">
+						<div style="text-align:center;padding:3rem;color:var(--muted)">Loading your tickets & orders…</div>
 					</div>
 				</div>
 			</section>
@@ -249,20 +209,105 @@
 		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
 			window.location.href = "login.html";
 		}
-		document.querySelectorAll(".filter-tab").forEach(tab => {
-			tab.addEventListener("click", () => {
-				document.querySelectorAll(".filter-tab").forEach(t => t.classList.remove("is-active"));
-				tab.classList.add("is-active");
-				const filter = tab.dataset.filter;
-				document.querySelectorAll(".order-card").forEach(card => {
-					if (filter === "all" || card.dataset.status === filter) {
-						card.style.display = "grid";
-					} else {
-						card.style.display = "none";
-					}
+
+		let allBookingsData = [];
+
+		async function renderOrders(filter = "all") {
+			const container = document.getElementById("ordersListContainer");
+			if (!container) return;
+
+			if (!allBookingsData || allBookingsData.length === 0) {
+				container.innerHTML = `
+					<div style="background:#fff;border-radius:16px;border:1px solid var(--border);padding:3.5rem 1.5rem;text-align:center;color:var(--muted)">
+						<div style="font-size:3rem;margin-bottom:1rem;">🎟️</div>
+						<h3 style="font-size:1.15rem;color:var(--foreground);margin:0 0 .5rem;">No Event Bookings Found</h3>
+						<p style="font-size:.9rem;margin:0 0 1.25rem;">You haven't purchased any tickets yet. Explore upcoming events and book your seats!</p>
+						<a href="index.html#upcoming" class="button button-primary button-sm" style="display:inline-flex;align-items:center;gap:.5rem;">Explore Events &rarr;</a>
+					</div>`;
+				return;
+			}
+
+			const filtered = allBookingsData.filter(b => {
+				const isUpcoming = b.event_start_date ? new Date(b.event_start_date) > new Date() : true;
+				if (filter === "upcoming") return isUpcoming;
+				if (filter === "completed") return !isUpcoming;
+				return true;
+			});
+
+			if (filtered.length === 0) {
+				container.innerHTML = `<div style="background:#fff;border-radius:16px;border:1px solid var(--border);padding:2.5rem;text-align:center;color:var(--muted)">No ${filter} bookings found.</div>`;
+				return;
+			}
+
+			let html = "";
+			filtered.forEach(b => {
+				const isUpcoming = b.event_start_date ? new Date(b.event_start_date) > new Date() : true;
+				const statusBadge = isUpcoming
+					? `<span class="badge badge-upcoming">Upcoming</span>`
+					: `<span class="badge badge-completed">Completed</span>`;
+
+				const dateStr = b.event_start_date ? new Date(b.event_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Date TBA";
+
+				html += `
+					<div class="order-card" data-status="${isUpcoming ? 'upcoming' : 'completed'}">
+						<div class="order-thumb">
+							<img src="images/JOD Events Logo.png" alt="Event Ticket" style="object-fit:contain;padding:.5rem;background:#fff;" />
+						</div>
+						<div class="order-details">
+							${statusBadge}
+							<h3>${b.event_title || 'Event Booking'}</h3>
+							<div class="order-meta">
+								<span>📅 ${dateStr}</span>
+								<span>📍 ${b.event_venue || 'Venue details in ticket'}</span>
+								<span>🎟️ ${b.ticket_type} (x${b.quantity})</span>
+							</div>
+							<div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem;flex-wrap:wrap;">
+								<span style="background:rgba(255,117,8,.08);color:var(--primary);font-weight:700;padding:2px 8px;border-radius:6px;font-size:.78rem;border:1px solid rgba(255,117,8,.2);">🆔 Customer ID: ${b.customer_id}</span>
+								<span class="order-id">Order ID: #JOD-${b.booking_id.substring(0,8).toUpperCase()}</span>
+							</div>
+						</div>
+						<div class="order-action">
+							<div class="order-price">₹${b.total_price.toLocaleString()}</div>
+							<button class="button button-sm button-primary" type="button" onclick="alert('Downloading E-Ticket PDF for Customer ID: ${b.customer_id}')">Download Ticket 🎟️</button>
+						</div>
+					</div>`;
+			});
+
+			container.innerHTML = html;
+		}
+
+		async function fetchUserOrders() {
+			try {
+				const apiBase = (window.JodAuth && typeof window.JodAuth.getApiBase === "function") ? window.JodAuth.getApiBase() : "http://127.0.0.1:8001";
+				const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+				if (!token) return;
+
+				const res = await fetch(`${apiBase}/api/bookings/my-bookings`, {
+					headers: { "Authorization": `Bearer ${token}` }
+				});
+				if (res.ok) {
+					allBookingsData = await res.json();
+					renderOrders("all");
+				} else {
+					renderOrders("all");
+				}
+			} catch (_) {
+				renderOrders("all");
+			}
+		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			fetchUserOrders();
+
+			document.querySelectorAll(".filter-tab").forEach(tab => {
+				tab.addEventListener("click", () => {
+					document.querySelectorAll(".filter-tab").forEach(t => t.classList.remove("is-active"));
+					tab.classList.add("is-active");
+					renderOrders(tab.dataset.filter);
 				});
 			});
 		});
+
 	</script>
 </body>
 </html>

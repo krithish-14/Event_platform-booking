@@ -1,0 +1,30 @@
+"""
+Booking SQLAlchemy model.
+"""
+
+import uuid
+from datetime import datetime
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+
+from Models.base import Base, GUID
+
+
+class Booking(Base):
+    __tablename__ = "bookings"
+
+    booking_id  = Column(GUID, primary_key=True, default=uuid.uuid4, index=True)
+    customer_id = Column(String(100), ForeignKey("users.customer_id"), nullable=False, index=True)
+    event_id    = Column(GUID, ForeignKey("events.id"), nullable=False, index=True)
+    ticket_type = Column(String(100), default="Standard Access")
+    quantity    = Column(Integer, default=1)
+    total_price = Column(Float, default=0.0)
+    status      = Column(String(50), default="CONFIRMED")
+    booked_at   = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    customer = relationship("User", back_populates="bookings")
+    event    = relationship("Event", back_populates="bookings")
+
+    def __repr__(self):
+        return f"<Booking(booking_id={self.booking_id}, customer_id={self.customer_id}, event_id={self.event_id})>"

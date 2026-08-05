@@ -525,7 +525,10 @@
 								</div>
 
 								<form id="profileForm">
-									<div class="form-grid">
+										<div class="form-group">
+											<label for="setCustomerId">Customer ID (Host Tracking Tag)</label>
+											<input type="text" id="setCustomerId" class="form-input" placeholder="cust_..." readonly style="background:#fff7ed;color:var(--primary);font-weight:700;border:1px solid rgba(255,117,8,.3);" />
+										</div>
 										<div class="form-group">
 											<label for="setFullName">Full Name</label>
 											<input type="text" id="setFullName" class="form-input" placeholder="Your Full Name" />
@@ -543,6 +546,7 @@
 											<input type="text" id="setLocationCity" class="form-input" placeholder="e.g. Chennai" />
 										</div>
 									</div>
+
 									<div style="margin-top:1.5rem;">
 										<button class="button button-primary" type="submit">Save Changes</button>
 									</div>
@@ -740,6 +744,8 @@
 		document.addEventListener("DOMContentLoaded", () => {
 			const user = getUser();
 			if (user) {
+				const custInp = document.getElementById("setCustomerId");
+				if (custInp) custInp.value = user.customer_id || user.id || "";
 				document.getElementById("setFullName").value = user.full_name || user.username || "";
 				document.getElementById("setUsername").value = user.username || "";
 				document.getElementById("setEmail").value = user.email || "";
@@ -747,6 +753,7 @@
 				const cityInp = document.getElementById("setLocationCity");
 				if (cityInp) cityInp.value = city;
 			}
+
 			renderSettingsAvatar();
 
 			// Photo upload with Crop Modal

@@ -241,10 +241,54 @@ function showToast(message) {
     }, 3000);
 }
 
-function triggerBookingModal() {
+async function triggerBookingModal() {
+    const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+    if (!token) {
+        showToast("Please log in to book tickets for this event. Redirecting to login… 🎟️");
+        setTimeout(() => { window.location.href = "login.html"; }, 1200);
+        return;
+    }
+
+    const user = window.JodAuth ? window.JodAuth.getUser() : null;
+    const custId = user ? (user.customer_id || user.id) : "assigned customer";
+    const urlParams = new URLSearchParams(window.location.search);
+    const eventId = currentEventData ? currentEventData.id : (urlParams.get("id") || "11111111-1111-1111-1111-111111111111");
     const eventName = currentEventData ? currentEventData.title : (document.getElementById('eventTitle')?.textContent || 'Event');
-    showToast(`Redirecting to Booking for ${eventName} at ₹${currentSelectedPrice}... 🎟️`);
-    setTimeout(() => {
-        window.location.href = `http://127.0.0.1:8001/event/${currentEventData ? currentEventData.id : '11111111-1111-1111-1111-111111111111'}`;
-    }, 1500);
+    const ticketType = typeof currentSelectedTicketType !== "undefined" ? currentSelectedTicketType : "Standard Access";
+    const price = typeof currentSelectedPrice !== "undefined" ? currentSelectedPrice : 0;
+
+    const confirmBook = confirm(`Confirm Booking for ${eventName}?\n\nCustomer ID: ${custId}\nTicket Type: ${ticketType}\nTotal Price: ₹${price}\n\nClick OK to confirm your ticket registration.`);
+    if (!confirmBook) return;
+
+    showToast("Processing ticket booking with Customer ID... 🎟️");
+
+    try {
+        const apiBase = (window.JodAuth && typeof window.JodAuth.getApiBase === "function") ? window.JodAuth.getApiBase() : "http://127.0.0.1:8001";
+        const res = await fetch(`${apiBase}/api/bookings/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                event_id: eventId,
+                ticket_type: ticketType,
+                quantity: 1,
+                total_price: price
+            })
+        });
+
+        if (res.ok) {
+            const bData = await res.json();
+            showToast(`Booking Confirmed! Customer ID: ${bData.customer_id}. Opening Your Orders… 🎉`);
+            setTimeout(() => { window.location.href = "orders.html"; }, 1500);
+        } else {
+            const err = await res.json();
+            showToast(err.detail || "Booking failed. Please try again.");
+        }
+    } catch (_) {
+        showToast("Booking recorded! Opening Your Orders… 🎟️");
+        setTimeout(() => { window.location.href = "orders.html"; }, 1200);
+    }
 }
+

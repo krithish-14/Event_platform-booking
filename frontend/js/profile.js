@@ -674,6 +674,8 @@
 						<div style="font-weight:700;color:var(--foreground);font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(displayName)}</div>
 						<div style="font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(user.email || "")}</div>
 						<div class="mobile-pd-location" style="font-size:.75rem;color:var(--primary);font-weight:600;margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍 ${escHtml(mLocText)}</div>
+						<div style="font-size:.7rem;color:var(--primary);font-weight:600;margin-top:.2rem;background:rgba(255,117,8,.08);border:1px solid rgba(255,117,8,.2);padding:.1rem .4rem;border-radius:4px;display:inline-block;">Customer ID: ${escHtml(user.customer_id || user.id || "")}</div>
+
 					</div>
 				</div>
 				<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem;">
@@ -722,11 +724,17 @@
 		const locText = initialCity ? (initialCity.toLowerCase().includes("india") ? initialCity : `${initialCity}, India`) : null;
 		const locHtml = locText ? `<div class="pd-location" style="font-size:.725rem;color:var(--primary);font-weight:600;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 ${escHtml(locText)}</div>` : `<div class="pd-location" style="font-size:.725rem;color:var(--muted);margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 Detecting location…</div>`;
 
+		const custIdHtml = user && (user.customer_id || user.id)
+			? `<div class="pd-cust-id" style="font-size:.7rem;color:var(--primary);background:rgba(255,117,8,.08);border:1px solid rgba(255,117,8,.2);padding:.15rem .5rem;border-radius:6px;font-weight:600;margin-top:.25rem;display:inline-block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;">🆔 ${escHtml(user.customer_id || user.id)}</div>`
+			: "";
+
 		info.innerHTML = `<div class="pd-name">${escHtml(user.full_name || user.username || "User")}</div>
 		<div class="pd-email">${escHtml(user.email || "")}</div>
-		${locHtml}`;
+		${locHtml}
+		${custIdHtml}`;
 		header.appendChild(info);
 		d.appendChild(header);
+
 
 		// Menu items
 		const menu = document.createElement("ul");
