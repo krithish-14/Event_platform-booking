@@ -238,11 +238,9 @@
 							<h1 id="dashUserName">Welcome!</h1>
 							<p class="user-email" id="dashUserEmail"></p>
 							<p class="user-location" id="dashUserLocation">📍 Detecting location…</p>
-							<div>
-								<p class="user-cust-id" id="dashCustomerId" style="margin: .15rem 0 .75rem; font-size: .85rem; color: #ffbc75; font-weight: 600; background: rgba(255,117,8,.2); padding: .25rem .75rem; border-radius: 999px; display: inline-flex; align-items: center; gap: .35rem; border: 1px solid rgba(255,117,8,.35);">🆔 Customer ID: <span id="dashCustIdText">cust_...</span></p>
-							</div>
-							<button class="remove-photo-btn" id="removePhotoBtn" type="button">&#10005; Remove Photo</button>
+							<button class="remove-photo-btn" id="removePhotoBtn" type="button" style="margin-top:.5rem;">&#10005; Remove Photo</button>
 						</div>
+
 					</div>
 				</div>
 			</section>
@@ -531,13 +529,12 @@
 				if (user) {
 					const nameEl = document.getElementById("dashUserName");
 					const emailEl = document.getElementById("dashUserEmail");
-					const custIdEl = document.getElementById("dashCustIdText");
 					if (nameEl) nameEl.textContent = "Welcome, " + (user.full_name || user.username || "User") + "!";
 					if (emailEl) emailEl.textContent = user.email || "";
-					if (custIdEl) custIdEl.textContent = user.customer_id || user.id || "cust_assigned";
 					if (window.updateProfileLocation) {
 						window.updateProfileLocation(user.city || null);
 					}
+
 				}
 				renderDashboardAvatar();
 				loadMyBookings();
