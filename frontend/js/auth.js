@@ -37,7 +37,45 @@ window.JodAuth = (() => {
 			sessionStorage.removeItem("jod_access_token");
 			localStorage.removeItem("jod_user");
 			sessionStorage.removeItem("jod_user");
+		} catch (_) { }
+	}
+
+	function getRedirectTarget() {
+		try {
+			const params = new URLSearchParams(window.location.search);
+			let target = params.get("redirect");
+			if (!target) {
+				target = sessionStorage.getItem("jod_redirect_after_login");
+			}
+			if (target) {
+				sessionStorage.removeItem("jod_redirect_after_login");
+				target = decodeURIComponent(target);
+				const isRelative = !target.includes("://") || target.startsWith(window.location.origin);
+				if (isRelative && !target.includes("login.html") && !target.includes("signup.html")) {
+					return target;
+				}
+			}
 		} catch (_) {}
+		return "index.html";
+	}
+
+	async function validateSession() {
+		const token = getToken();
+		if (!token) return null;
+		try {
+			const res = await fetchAuth(`${API_BASE}/api/auth/me`);
+			if (res.ok) {
+				const user = await res.json();
+				const isRemembered = Boolean(localStorage.getItem("jod_access_token"));
+				const storage = isRemembered ? localStorage : sessionStorage;
+				storage.setItem("jod_user", JSON.stringify(user));
+				return user;
+			} else if (res.status === 401 || res.status === 403) {
+				clearAuth();
+				return null;
+			}
+		} catch (_) {}
+		return getUser();
 	}
 
 	async function logout() {
@@ -46,7 +84,7 @@ window.JodAuth = (() => {
 			await fetch(`${API_BASE}/api/auth/logout`, {
 				method: "POST",
 				headers: token ? { "Authorization": `Bearer ${token}` } : {},
-			}).catch(() => {});
+			}).catch(() => { });
 		} finally {
 			clearAuth();
 		}
@@ -56,7 +94,11 @@ window.JodAuth = (() => {
 		const token = getToken();
 		const headers = Object.assign({}, options.headers || {});
 		if (token) headers["Authorization"] = `Bearer ${token}`;
-		return fetch(url, Object.assign({}, options, { headers }));
+		const res = await fetch(url, Object.assign({}, options, { headers }));
+		if (res.status === 401) {
+			clearAuth();
+		}
+		return res;
 	}
 
 	/* ── Helpers ───────────────────────────────────────────── */
@@ -199,7 +241,7 @@ window.JodAuth = (() => {
 				});
 
 				let data = {};
-				try { data = await res.json(); } catch (_) {}
+				try { data = await res.json(); } catch (_) { }
 
 				if (!res.ok) {
 					showAlert(alertEl, "error", data.detail || `Login failed (${res.status}). Please try again.`);
@@ -210,12 +252,13 @@ window.JodAuth = (() => {
 						const storage = remember ? localStorage : sessionStorage;
 						storage.setItem("jod_access_token", data.access_token);
 						storage.setItem("jod_user", JSON.stringify(data.user));
-					} catch (_) {}
+					} catch (_) { }
 
 					showAlert(alertEl, "success", "Login successful! Redirecting…");
 					// Defer location flow to homepage (GPS needs time + secure context)
-					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) {}
-					setTimeout(() => { window.location.href = "index.html"; }, 900);
+					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
+					const targetUrl = getRedirectTarget();
+					setTimeout(() => { window.location.href = targetUrl; }, 900);
 				}
 			} catch (err) {
 				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
@@ -316,7 +359,7 @@ window.JodAuth = (() => {
 				});
 
 				let data = {};
-				try { data = await res.json(); } catch (_) {}
+				try { data = await res.json(); } catch (_) { }
 
 				if (!res.ok) {
 					showAlert(alertEl, "error", data.detail || `Registration failed (${res.status}). Please try again.`);
@@ -324,11 +367,12 @@ window.JodAuth = (() => {
 					try {
 						sessionStorage.setItem("jod_access_token", data.access_token);
 						sessionStorage.setItem("jod_user", JSON.stringify(data.user));
-					} catch (_) {}
+					} catch (_) { }
 
 					showAlert(alertEl, "success", "Account created! Redirecting…");
-					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) {}
-					setTimeout(() => { window.location.href = "index.html"; }, 900);
+					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
+					const targetUrl = getRedirectTarget();
+					setTimeout(() => { window.location.href = targetUrl; }, 900);
 				}
 			} catch (err) {
 				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
@@ -369,6 +413,15 @@ window.JodAuth = (() => {
 	}
 
 
+	// Auto-redirect if already logged in on login or signup page
+	const pageFile = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+	if ((pageFile === "login.html" || pageFile === "signup.html") && isLoggedIn()) {
+		const targetUrl = getRedirectTarget();
+		if (targetUrl && targetUrl !== pageFile) {
+			window.location.href = targetUrl;
+		}
+	}
+
 	/* ── Expose Public API ─────────────────────────────────── */
 	return {
 		API_BASE,
@@ -378,5 +431,7 @@ window.JodAuth = (() => {
 		logout,
 		clearAuth,
 		fetchAuth,
+		getRedirectTarget,
+		validateSession,
 	};
 })();

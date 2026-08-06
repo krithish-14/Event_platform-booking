@@ -212,13 +212,17 @@
 	</div>
 
 	<script src="js/include.js?v=10"></script>
+	<script src="js/health.js?v=1"></script>
 	<script src="js/auth.js?v=10"></script>
 	<script src="js/profile.js?v=1"></script>
+	<script src="js/location.js?v=2"></script>
 	<script src="js/script.js?v=13"></script>
 	<script>
 		// Auth check
 		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
-			window.location.href = "login.html";
+			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
 		}
 		function removeWishlistItem(btn) {
 			const card = btn.closest(".wishlist-card");

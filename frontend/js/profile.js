@@ -209,6 +209,20 @@
 	background: rgba(255,117,8,.07);
 	color: var(--primary);
 }
+.pd-item.is-active {
+	background: rgba(255,117,8,.14);
+	color: var(--primary);
+	font-weight: 700;
+	border-left: 3px solid var(--primary);
+	padding-left: calc(1rem - 3px);
+}
+.pd-item.is-active .pd-icon {
+	opacity: 1;
+	color: var(--primary);
+}
+.pd-item.is-active:hover {
+	background: rgba(255,117,8,.22);
+}
 .pd-item .pd-icon {
 	width: 1.125rem;
 	height: 1.125rem;
@@ -743,15 +757,57 @@
 			{ label: "Help & Support", href: "help.html",                       icon: helpIcon() },
 		];
 
+		function getDropdownActiveState(href) {
+			const path = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+			const hash = (window.location.hash || "").toLowerCase();
+			const hrefLower = href.toLowerCase();
+			const [hrefPath, hrefHash] = hrefLower.split("#");
+
+			if (path !== hrefPath) return false;
+
+			if (hrefHash) {
+				if (hrefHash === "notificationssection") {
+					return hash === "#notificationssection" || hash === "#notifications";
+				}
+				return hash === `#${hrefHash}`;
+			}
+
+			if (path === "settings.html") {
+				return !hash || hash === "#profilesection" || hash === "#profile" || hash === "#securitysection" || hash === "#security";
+			}
+
+			return true;
+		}
+
 		items.forEach(({ label, href, icon }) => {
 			const li = document.createElement("li");
 			const a = document.createElement("a");
 			a.className = "pd-item";
+			if (getDropdownActiveState(href)) {
+				a.classList.add("is-active");
+			}
 			a.href = href;
 			a.setAttribute("role", "menuitem");
 			a.innerHTML = `<span class="pd-icon">${icon}</span>${escHtml(label)}`;
+
+			a.addEventListener("click", () => {
+				menu.querySelectorAll("a.pd-item").forEach(item => item.classList.remove("is-active"));
+				a.classList.add("is-active");
+			});
+
 			li.appendChild(a);
 			menu.appendChild(li);
+		});
+
+		window.addEventListener("hashchange", () => {
+			menu.querySelectorAll("a.pd-item").forEach((a, idx) => {
+				const item = items[idx];
+				if (item && getDropdownActiveState(item.href)) {
+					a.classList.add("is-active");
+				} else {
+					a.classList.remove("is-active");
+				}
+			});
 		});
 
 		// Divider

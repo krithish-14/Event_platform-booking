@@ -76,9 +76,9 @@ function getCategoryThemeConfig(category) {
 function renderEventDOM(event) {
     if (!event) return;
 
-    // Apply category specific theme styling to body
-    const themeConfig = getCategoryThemeConfig(event.category);
-    document.body.className = `event-details-page ${themeConfig.themeClass}`;
+    // Apply category specific theme styling to body while preserving sub-page class
+    document.body.classList.remove('category-theme-comedy', 'category-theme-corporate', 'category-theme-launch', 'category-theme-wedding', 'category-theme-festival');
+    document.body.classList.add('sub-page', 'event-details-page', themeConfig.themeClass);
 
     // Hero Badge & Section Headings
     const heroBadgeEl = document.getElementById('eventHeroBadge');
@@ -245,7 +245,9 @@ async function triggerBookingModal() {
     const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
     if (!token) {
         showToast("Please log in to book tickets for this event. Redirecting to login… 🎟️");
-        setTimeout(() => { window.location.href = "login.html"; }, 1200);
+        const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+        try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+        setTimeout(() => { window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`; }, 1200);
         return;
     }
 

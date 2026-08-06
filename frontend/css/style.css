@@ -256,7 +256,8 @@ body.is-auth-ready[data-user="authenticated"] [data-auth-only="true"] {
 	filter: brightness(1.12);
 }
 
-body.sub-page .announcement-bar {
+body.sub-page .announcement-bar,
+body.event-details-page .announcement-bar {
 	display: none !important;
 }
 
@@ -278,6 +279,11 @@ body.sub-page .announcement-bar {
 }
 
 /* ── Header / Nav ──────────────────────────────────────────── */
+#header {
+	min-height: 4.75rem;
+	display: block;
+}
+
 .site-header {
 	position: fixed;
 	top: 40px;
@@ -290,8 +296,9 @@ body.sub-page .announcement-bar {
 	transition: top 0.3s ease, background .3s, border-color .3s, backdrop-filter .3s;
 }
 
-body.sub-page .site-header {
-	top: 0;
+body.sub-page .site-header,
+body.event-details-page .site-header {
+	top: 0 !important;
 }
 
 .site-header.is-scrolled {

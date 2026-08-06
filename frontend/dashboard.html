@@ -373,7 +373,9 @@
 
 			// Auth guard
 			if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
-				window.location.href = "login.html";
+				const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+				try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+				window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
 				return;
 			}
 
