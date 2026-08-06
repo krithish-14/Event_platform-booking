@@ -38,7 +38,7 @@ def main():
     python_exe = venv_python if os.path.exists(venv_python) else sys.executable
 
     backend, backend_log = launch(
-        [python_exe, "-u", "-m", "uvicorn", "FastAPI.main:app", "--host", "127.0.0.1", "--port", "8001", "--log-level", "info"],
+        [python_exe, "-u", "-m", "uvicorn", "FastAPI.main:app", "--host", "127.0.0.1", "--port", "8001", "--reload", "--log-level", "info"],
         cwd=os.path.join(project_root, "backend"),
         logfile=os.path.join(here, "backend.log"),
     )

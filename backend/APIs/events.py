@@ -20,6 +20,7 @@ from Services.event_service import (
     get_event_by_id,
     list_events,
     list_nearby_events,
+    search_events,
     update_event,
     delete_event,
 )
@@ -151,6 +152,20 @@ def _event_to_response(event: Event, distance_km: Optional[float] = None) -> Eve
         organizer_id=str(event.organizer_id),
         created_at=event.created_at,
     )
+
+
+@router.get("/search", response_model=List[EventResponse])
+def search_events_endpoint(
+    q: Optional[str] = Query(default=""),
+    limit: int = Query(default=15, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """
+    Real-time search events by title, category, venue, location, host, artists, or month.
+    """
+    if not q or not q.strip():
+        return []
+    return [_event_to_response(e) for e in search_events(db, query_str=q, limit=limit)]
 
 
 @router.get("/nearby", response_model=List[EventResponse])

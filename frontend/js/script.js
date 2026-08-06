@@ -309,8 +309,8 @@
 	applyAuthVisibility();
 	updateNavAuth();
 
-	/* ── Location flow (post-login on homepage) ─────────────── */
-	if (Auth.isLoggedIn && Auth.isLoggedIn() && window.JodLocation) {
+	/* ── Location flow (homepage) ─────────────── */
+	if (window.JodLocation) {
 		const pending = (() => {
 			try { return sessionStorage.getItem("jod_location_pending") === "1"; } catch (_) { return false; }
 		})();

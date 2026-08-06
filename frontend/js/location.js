@@ -73,6 +73,7 @@ window.JodLocation = (() => {
     try {
       if (city) {
         localStorage.setItem(LS_CITY_KEY, city);
+        try { sessionStorage.setItem(LS_CITY_KEY, city); } catch (_) {}
         // Sync user object in storage
         ["jod_user"].forEach((key) => {
           const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
@@ -86,15 +87,26 @@ window.JodLocation = (() => {
           }
         });
       }
-      if (pincode) localStorage.setItem(LS_PINCODE_KEY, pincode);
-      if (lat != null && !Number.isNaN(lat)) localStorage.setItem(LS_LAT_KEY, String(lat));
-      if (lon != null && !Number.isNaN(lon)) localStorage.setItem(LS_LON_KEY, String(lon));
+      if (pincode) {
+        localStorage.setItem(LS_PINCODE_KEY, pincode);
+        try { sessionStorage.setItem(LS_PINCODE_KEY, pincode); } catch (_) {}
+      }
+      if (lat != null && !Number.isNaN(lat)) {
+        localStorage.setItem(LS_LAT_KEY, String(lat));
+        try { sessionStorage.setItem(LS_LAT_KEY, String(lat)); } catch (_) {}
+      }
+      if (lon != null && !Number.isNaN(lon)) {
+        localStorage.setItem(LS_LON_KEY, String(lon));
+        try { sessionStorage.setItem(LS_LON_KEY, String(lon)); } catch (_) {}
+      }
+      markAsked();
+      try { sessionStorage.setItem("jod_location_acquired", "true"); } catch (_) {}
     } catch (_) {}
   }
 
   function getCachedCity() {
     try {
-      const direct = localStorage.getItem(LS_CITY_KEY);
+      const direct = sessionStorage.getItem(LS_CITY_KEY) || localStorage.getItem(LS_CITY_KEY);
       if (direct) return direct;
       const rawUser = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
       if (rawUser) {
@@ -111,8 +123,8 @@ window.JodLocation = (() => {
     let lat = null;
     let lon = null;
     try {
-      const rawLat = localStorage.getItem(LS_LAT_KEY);
-      const rawLon = localStorage.getItem(LS_LON_KEY);
+      const rawLat = sessionStorage.getItem(LS_LAT_KEY) || localStorage.getItem(LS_LAT_KEY);
+      const rawLon = sessionStorage.getItem(LS_LON_KEY) || localStorage.getItem(LS_LON_KEY);
       if (rawLat) lat = parseFloat(rawLat);
       if (rawLon) lon = parseFloat(rawLon);
     } catch (_) {}
@@ -123,12 +135,28 @@ window.JodLocation = (() => {
     };
   }
 
+  function hasAcquiredLocation() {
+    const cached = getCachedLocation();
+    return Boolean(cached.city || (cached.lat != null && cached.lon != null));
+  }
+
+  function clearLocationSession() {
+    try {
+      sessionStorage.removeItem(LS_ASKED_KEY);
+      sessionStorage.removeItem("jod_location_acquired");
+      sessionStorage.removeItem(LS_CITY_KEY);
+      sessionStorage.removeItem(LS_PINCODE_KEY);
+      sessionStorage.removeItem(LS_LAT_KEY);
+      sessionStorage.removeItem(LS_LON_KEY);
+    } catch (_) {}
+  }
+
   function markAsked() {
     try { sessionStorage.setItem(LS_ASKED_KEY, "1"); } catch (_) {}
   }
 
   function wasAskedThisSession() {
-    try { return sessionStorage.getItem(LS_ASKED_KEY) === "1"; } catch (_) { return false; }
+    try { return sessionStorage.getItem(LS_ASKED_KEY) === "1" || sessionStorage.getItem("jod_location_acquired") === "true"; } catch (_) { return false; }
   }
 
   function consumePendingFlag() {
@@ -537,15 +565,17 @@ window.JodLocation = (() => {
 
     const force = options.force || consumePendingFlag();
 
-    if (!force && wasAskedThisSession()) {
+    // If location is already acquired or asked this session, and force is false:
+    // DO NOT show toast confirmation, DO NOT open modal, DO NOT prompt for GPS!
+    if (!force && (hasAcquiredLocation() || wasAskedThisSession())) {
       applyCachedRecommendations();
       return;
     }
+
     markAsked();
 
     const cached = getCachedLocation();
-    if (!force && cached.city && cached.lat != null) {
-      showLocationConfirmation(cached.city);
+    if (!force && cached.city) {
       updateRecommendations(cached);
       _syncFromBackend().catch(() => {});
       return;
@@ -559,6 +589,7 @@ window.JodLocation = (() => {
         updateRecommendations(loc);
       }
     } catch (_geoErr) {
+      // GPS failed or denied, open manual entry modal ONCE for this session
       openModal();
     }
   }
@@ -597,6 +628,8 @@ window.JodLocation = (() => {
     updateProfileLocation,
     initLocationFlow,
     applyCachedRecommendations,
+    hasAcquiredLocation,
+    clearLocationSession,
     haversineKm,
     RADIUS_KM,
   };
@@ -611,10 +644,16 @@ window.updateProfileLocation = window.JodLocation.updateProfileLocation;
 window.showLocationConfirmation = window.JodLocation.showLocationConfirmation;
 window.initLocationFlow = window.JodLocation.initLocationFlow;
 
-// Automatically sync location on DOM content loaded
+// Automatically sync location on DOM content loaded silently
 if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded", () => {
-    if (window.updateProfileLocation) window.updateProfileLocation();
+    if (window.JodLocation) {
+      if (window.JodLocation.hasAcquiredLocation()) {
+        window.JodLocation.applyCachedRecommendations();
+      } else {
+        window.JodLocation.initLocationFlow().catch(() => {});
+      }
+    }
   });
 }
 

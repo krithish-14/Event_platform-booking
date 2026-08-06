@@ -4,8 +4,11 @@ Event business logic service.
 
 from typing import List, Optional, Tuple
 from uuid import UUID
+from sqlalchemy import or_, extract
 from sqlalchemy.orm import Session
 
+from Models.user import User
+from Models.booking import Booking
 from Models.event import Event
 from Services.geo_service import filter_by_radius
 
@@ -68,3 +71,59 @@ def list_nearby_events(
     candidates = query.all()
     nearby = filter_by_radius(candidates, lat, lon, radius_km=radius_km)
     return nearby[skip : skip + limit]
+
+
+MONTH_MAP = {
+    "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3,
+    "april": 4, "apr": 4, "may": 5, "june": 6, "jun": 6, "july": 7, "jul": 7,
+    "august": 8, "aug": 8, "september": 9, "sep": 9, "sept": 9, "october": 10,
+    "oct": 10, "november": 11, "nov": 11, "december": 12, "dec": 12
+}
+
+
+def search_events(
+    db: Session,
+    query_str: str,
+    limit: int = 15,
+) -> List[Event]:
+    """
+    Search published events across title, description, location, venue, category,
+    performers, organizer/host name, and start month.
+    """
+    if not query_str or not query_str.strip():
+        return []
+
+    from sqlalchemy import or_, extract
+    from Models.user import User
+
+    q_clean = query_str.strip().lower()
+    pattern = f"%{q_clean}%"
+
+    query = (
+        db.query(Event)
+        .outerjoin(User, Event.organizer_id == User.id)
+        .filter(Event.is_published == True, Event.is_cancelled == False)
+    )
+
+    # Check if query matches a month name
+    matched_month = None
+    for word in q_clean.split():
+        if word in MONTH_MAP:
+            matched_month = MONTH_MAP[word]
+            break
+
+    # Build OR filters across all searchable fields
+    filters = [
+        Event.title.ilike(pattern),
+        Event.description.ilike(pattern),
+        Event.location.ilike(pattern),
+        Event.venue.ilike(pattern),
+        Event.category.ilike(pattern),
+        Event.performers.ilike(pattern),
+        User.full_name.ilike(pattern),
+    ]
+
+    if matched_month:
+        filters.append(extract("month", Event.start_date) == matched_month)
+
+    return query.filter(or_(*filters)).order_by(Event.start_date).limit(limit).all()

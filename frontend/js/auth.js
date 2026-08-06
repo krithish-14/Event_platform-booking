@@ -37,6 +37,15 @@ window.JodAuth = (() => {
 			sessionStorage.removeItem("jod_access_token");
 			localStorage.removeItem("jod_user");
 			sessionStorage.removeItem("jod_user");
+			if (window.JodLocation && typeof window.JodLocation.clearLocationSession === "function") {
+				window.JodLocation.clearLocationSession();
+			} else {
+				try {
+					sessionStorage.removeItem("jod_location_asked");
+					sessionStorage.removeItem("jod_location_acquired");
+					sessionStorage.removeItem("jod_user_city");
+				} catch (_) {}
+			}
 		} catch (_) { }
 	}
 
