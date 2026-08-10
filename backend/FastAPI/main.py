@@ -255,3 +255,13 @@ async def render_event_details_static_fallback(request: Request, id: str = "1111
     return await render_event_details_page(request, event_id=id)
 
 
+@app.get("/makeup-boutique-workshop.html", response_class=HTMLResponse, tags=["Jinja2 Templates"])
+async def render_makeup_boutique_workshop_page(request: Request):
+    """Render dedicated template page for Makeup & Boutique Workshop."""
+    return templates.TemplateResponse(
+        request=request,
+        name="makeup_boutique_workshop.html",
+        context={"request": request},
+    )
+
+
