@@ -311,16 +311,12 @@ def _migrate_tables(engine=None):
 
 
 def _seed_demo_events():
-    """Seed initial sample events with full details if the events table is empty."""
+    """Seed initial sample events with full details into events table."""
     import json
     from sqlalchemy import text
     engine = get_engine()
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT COUNT(*) FROM events")).scalar()
-            if result and result > 0:
-                return
-
             # Ensure an organizer user exists
             org_res = conn.execute(text("SELECT id FROM users LIMIT 1")).fetchone()
             if org_res:
@@ -330,7 +326,7 @@ def _seed_demo_events():
                 conn.execute(
                     text("""
                         INSERT INTO users (id, email, username, full_name, hashed_password, is_active, is_admin, created_at, updated_at)
-                        VALUES (:id, 'organizer@jodevents.com', 'jod_organizer', 'JOD Events Organizer', 'hashed_pass_placeholder', true, true, NOW(), NOW())
+                        VALUES (:id, 'organizer@jodevents.com', 'jod_organizer', 'JOD Events Organizer', 'hashed_pass_placeholder', true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ON CONFLICT (email) DO NOTHING
                     """),
                     {"id": org_id}
@@ -557,6 +553,56 @@ def _seed_demo_events():
                     "is_published": True,
                     "is_cancelled": False,
                     "organizer_id": org_id,
+                },
+                {
+                    "id": "66666666-6666-6666-6666-666666666666",
+                    "title": "Makeup & Boutique Workshop",
+                    "description": "An exclusive hands-on masterclass on professional makeup artistry, boutique styling, and fashion trends. Learn bridal glam, contouring techniques, saree draping, and boutique curation from industry-leading beauty master artists and fashion stylists.",
+                    "location": "Express Avenue Mall, Royapettah, Chennai, Tamil Nadu 600014",
+                    "venue": "Express Avenue, Chennai",
+                    "latitude": 13.0600,
+                    "longitude": 80.2635,
+                    "category": "Workshop & Fashion",
+                    "image_url": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=1200&q=80",
+                    "start_date": "2026-09-25 10:00:00",
+                    "end_date": "2026-09-25 14:00:00",
+                    "price": 499.0,
+                    "capacity": 150,
+                    "event_format": "In-person",
+                    "duration": "4 hours",
+                    "age_limit": "14yrs +",
+                    "language": "English & Tamil",
+                    "performers": json.dumps([
+                        {
+                            "name": "Ananya Sharma",
+                            "role": "Master Makeup Artist & Educator",
+                            "image_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80"
+                        },
+                        {
+                            "name": "Ritu Kumar Studio Team",
+                            "role": "Boutique & Couture Designers",
+                            "image_url": "https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=400&q=80"
+                        }
+                    ]),
+                    "highlights": json.dumps([
+                        {
+                            "title": "Hands-on Makeup Masterclass",
+                            "description": "Live interactive demonstration and professional kit showcase",
+                            "image_url": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=600&q=80"
+                        },
+                        {
+                            "title": "Boutique Styling & Draping",
+                            "description": "Personalized styling advice and boutique trend guide",
+                            "image_url": "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=600&q=80"
+                        }
+                    ]),
+                    "ticket_types": json.dumps([
+                        {"name": "Workshop Entry Pass", "price": 499, "availability": "Available"}
+                    ]),
+                    "terms": "1. Single entry pass per registrant.\n2. Practice makeup kits will be provided at the venue.\n3. Tickets are non-refundable.",
+                    "is_published": True,
+                    "is_cancelled": False,
+                    "organizer_id": org_id,
                 }
             ]
 
@@ -570,14 +616,14 @@ def _seed_demo_events():
                     :id, :title, :description, :location, :venue, :latitude, :longitude,
                     :category, :image_url, :start_date, :end_date, :price, :capacity,
                     :event_format, :duration, :age_limit, :language, :performers, :highlights,
-                    :ticket_types, :terms, :is_published, :is_cancelled, :organizer_id, NOW(), NOW()
+                    :ticket_types, :terms, :is_published, :is_cancelled, :organizer_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 ) ON CONFLICT (id) DO NOTHING
             """)
 
             for ev in demo_events:
                 conn.execute(insert_sql, ev)
             conn.commit()
-            print("  [DB SEED] Successfully seeded 5 demo events into events table.", flush=True)
+            print("  [DB SEED] Successfully seeded demo events into events table.", flush=True)
 
     except Exception as exc:
         print(f"  [DB SEED WARN] Could not seed demo events: {exc}", flush=True)

@@ -3,7 +3,7 @@ Authentication service — password hashing and JWT token creation.
 """
 
 import bcrypt
-from Authentication.jwt_handler import create_access_token  # re-export
+from Authentication.jwt_handler import create_access_token   # re-export
 
 _BCRYPT_MAX_BYTES = 72
 
@@ -35,6 +35,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
     try:
-        return bool(bcrypt.checkpw(pw, stored))
+        return bool(bcrypt.checkpw(pw, stored)) 
     except ValueError:
         return False

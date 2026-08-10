@@ -225,6 +225,13 @@ def get_category_theme(category: str) -> dict:
             "performers_title": "Featured Designers & Master Artisans",
             "highlights_title": "Couture Walk & Decor Exhibition",
         }
+    elif "workshop" in cat or "makeup" in cat or "boutique" in cat or "fashion" in cat:
+        return {
+            "theme_class": "category-theme-workshop",
+            "hero_badge": "💄 Interactive Masterclass",
+            "performers_title": "Workshop Instructors & Beauty Experts",
+            "highlights_title": "Workshop Highlights & Hands-on Sessions",
+        }
     elif "festival" in cat or "cultural" in cat or "music" in cat:
         return {
             "theme_class": "category-theme-festival",

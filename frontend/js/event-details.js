@@ -56,6 +56,13 @@ function getCategoryThemeConfig(category) {
             performersTitle: 'Featured Designers & Master Artisans',
             highlightsTitle: 'Couture Walk & Decor Exhibition'
         };
+    } else if (cat.includes('workshop') || cat.includes('makeup') || cat.includes('boutique') || cat.includes('fashion')) {
+        return {
+            themeClass: 'category-theme-workshop',
+            heroBadge: '💄 Interactive Masterclass',
+            performersTitle: 'Workshop Instructors & Master Stylists',
+            highlightsTitle: 'Workshop Highlights & Hands-on Sessions'
+        };
     } else if (cat.includes('festival') || cat.includes('cultural') || cat.includes('music')) {
         return {
             themeClass: 'category-theme-festival',
@@ -76,8 +83,10 @@ function getCategoryThemeConfig(category) {
 function renderEventDOM(event) {
     if (!event) return;
 
+    const themeConfig = getCategoryThemeConfig(event.category);
+
     // Apply category specific theme styling to body while preserving sub-page class
-    document.body.classList.remove('category-theme-comedy', 'category-theme-corporate', 'category-theme-launch', 'category-theme-wedding', 'category-theme-festival');
+    document.body.classList.remove('category-theme-comedy', 'category-theme-corporate', 'category-theme-launch', 'category-theme-wedding', 'category-theme-festival', 'category-theme-workshop');
     document.body.classList.add('sub-page', 'event-details-page', themeConfig.themeClass);
 
     // Hero Badge & Section Headings

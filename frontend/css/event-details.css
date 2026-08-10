@@ -140,6 +140,25 @@ body.category-theme-festival .performer-avatar {
     box-shadow: 0 4px 15px rgba(220, 38, 38, 0.2);
 }
 
+/* 6. Makeup & Boutique Workshop Theme */
+body.category-theme-workshop {
+    --theme-accent: #db2777;
+    --theme-gradient: linear-gradient(135deg, #db2777 0%, #e11d48 100%);
+    --theme-glow: rgba(219, 39, 119, 0.15);
+    --theme-btn-text: #ffffff;
+    background: #ffffff !important;
+}
+
+body.category-theme-workshop .info-box-card {
+    border-color: rgba(219, 39, 119, 0.4);
+    box-shadow: 0 8px 30px rgba(219, 39, 119, 0.08), 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+body.category-theme-workshop .performer-avatar {
+    border-color: #db2777;
+    box-shadow: 0 4px 15px rgba(219, 39, 119, 0.2);
+}
+
 
 /* ── Layout Container ────────────────────────────────────────────────────────── */
 .event-details-container {

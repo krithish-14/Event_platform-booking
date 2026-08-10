@@ -28,7 +28,7 @@ def list_events(
 
 def get_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
     """Return a single event by ID."""
-    return db.query(Event).filter(Event.id == event_id).first()
+    return db.query(Event).filter(or_(Event.id == event_id, Event.id == str(event_id))).first()
 
 
 def create_event(db: Session, payload, organizer_id: UUID) -> Event:
