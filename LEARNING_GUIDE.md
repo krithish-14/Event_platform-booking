@@ -243,15 +243,18 @@ Welcome to the ultimate learning guide for the **JOD Events Platform**. This doc
 
 ### 18. `backend/APIs/auth.py`
 - **File Name & Path**: [`backend/APIs/auth.py`](file:///c:/Users/satheesh/Desktop/Event_platform-booking/backend/APIs/auth.py)
-- **Chronological Creation Order**: **Step 18 (Auth API Routes)**. Implements registration, login, logout, and token refresh routes.
-- **Core Purpose**: Exposes user authentication endpoints: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/google`, `GET /api/auth/me`.
+- **Chronological Creation Order**: **Step 18 (Auth API Routes)**. Implements registration, login, logout, Google OAuth 2.0 authentication, and password reset routes.
+- **Core Purpose**: Exposes user authentication endpoints: `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/google/config`, `GET /api/auth/google/url`, `POST /api/auth/google`, `GET /api/auth/me`.
 - **Detailed Line-by-Line / Block Explanation**:
-  - `register_user`: Validates input, hashes password, assigns unique `customer_id`, creates user, and returns JWT.
-  - `login_user`: Authenticates credentials against database and issues JWT access token.
-  - `google_auth`: Authenticates Google OAuth ID tokens and auto-provisions user accounts.
+  - `register`: Validates input, hashes password, assigns unique `customer_id`, creates user, syncs to SQLite backup DB, and returns JWT.
+  - `login`: Authenticates credentials against database and issues JWT access token.
+  - `google_config`: Returns Google Client ID configuration for frontend initialization.
+  - `google_auth_url`: Generates Google OAuth 2.0 authorization URL for popup window/redirect flow.
+  - `google_auth`: Authenticates or registers a user via Google OAuth 2.0 ID tokens (`credential` / `id_token`) or authorization codes (`code`). Extracts email, full name, and avatar picture. Auto-generates unique `username`, `customer_id`, and secure hashed password for database persistence. Merges profile data if email exists from manual registration. Syncs to SQLite backup DB and returns JWT access token.
   - `get_me`: Returns profile details for currently authenticated user.
 - **Connections**: Consumed by `frontend/js/auth.js`.
-- **Self-Check Question**: *Which endpoint returns profile details for the currently logged-in user?*
+- **Self-Check Question**: *How does `google_auth` prevent duplicate email registration errors when a manual signup user logs in with Google?* (Answer: It queries the database by lowercased email, merges profile details like avatar and full name into the existing user record, and issues a JWT token instead of failing).
+
 
 ---
 
@@ -475,7 +478,7 @@ Welcome to the ultimate learning guide for the **JOD Events Platform**. This doc
 
 ---
 
-### 61. `frontend/css/category.css`
+### 61. `frontend/css/category.css` 
 - **File Name & Path**: [`frontend/css/category.css`](file:///c:/Users/satheesh/Desktop/Event_platform-booking/frontend/css/category.css)
 - **Chronological Creation Order**: **Step 61 (Category Listing Styles)**. BookMyShow layout styling.
 - **Core Purpose**: Styles sub-topic horizontal pill chips bar, left sidebar filter cards, active filter tags, date overlay badges, format tags, and poster event card hover float animations on `category.html`.

@@ -64,6 +64,8 @@ class UserRegisterRequest(BaseModel):
 class GoogleAuthRequest(BaseModel):
     credential: str | None = None
     id_token: str | None = None
+    code: str | None = None
+    redirect_uri: str | None = None
     city: str | None = None
     location_pincode: str | None = None
 
@@ -211,40 +213,78 @@ def google_config():
     }
 
 
+@router.get("/google/url")
+def google_auth_url():
+    """Generates the Google OAuth 2.0 Authorization URL for browser popup / redirect login."""
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:8001/api/auth/google/callback")
+    if not client_id or client_id == "your-google-client-id.apps.googleusercontent.com":
+        raise HTTPException(status_code=400, detail="Google OAuth is not configured on the server.")
+
+    scope = "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid"
+    url = f"https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope={scope}&access_type=offline&prompt=consent"
+    return {"url": url}
+
+
 @router.post("/google", response_model=GoogleTokenResponse)
 async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
-    """Authenticate or register a user using Google OAuth 2.0 ID Token / Credential."""
-    token = (payload.credential or payload.id_token or "").strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="Google credential or id_token is required.")
-
-    # 1. Verify token with Google's tokeninfo API
+    """Authenticate or register a user using Google OAuth 2.0 ID Token / Credential or Authorization Code."""
     google_user_info = None
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                "https://oauth2.googleapis.com/tokeninfo",
-                params={"id_token": token}
-            )
-            if resp.status_code == 200:
-                google_user_info = resp.json()
-    except Exception:
-        google_user_info = None
+    token = (payload.credential or payload.id_token or "").strip()
 
-    # Fallback decoding for JWT structured tokens
-    if (not google_user_info or "email" not in google_user_info) and token.count(".") == 2:
+    # 1. If an authorization code was provided, exchange it for tokens with Google
+    if payload.code and not token:
+        client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+        redirect_uri = payload.redirect_uri or os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:8001/api/auth/google/callback")
         try:
-            import base64
-            import json
-            parts = token.split(".")
-            payload_segment = parts[1]
-            padded = payload_segment + "=" * (-len(payload_segment) % 4)
-            decoded_bytes = base64.b64decode(padded)
-            decoded_json = json.loads(decoded_bytes.decode("utf-8"))
-            if "email" in decoded_json:
-                google_user_info = decoded_json
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                token_resp = await client.post(
+                    "https://oauth2.googleapis.com/token",
+                    data={
+                        "code": payload.code,
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "redirect_uri": redirect_uri,
+                        "grant_type": "authorization_code",
+                    },
+                )
+                if token_resp.status_code == 200:
+                    token_data = token_resp.json()
+                    token = token_data.get("id_token") or token_data.get("access_token") or ""
         except Exception:
             pass
+
+    if not token and not payload.code:
+        raise HTTPException(status_code=400, detail="Google credential, id_token, or code is required.")
+
+    # 2. Verify token with Google's tokeninfo API
+    if token:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    "https://oauth2.googleapis.com/tokeninfo",
+                    params={"id_token": token}
+                )
+                if resp.status_code == 200:
+                    google_user_info = resp.json()
+        except Exception:
+            google_user_info = None
+
+        # Fallback decoding for JWT structured tokens
+        if (not google_user_info or "email" not in google_user_info) and token.count(".") == 2:
+            try:
+                import base64
+                import json
+                parts = token.split(".")
+                payload_segment = parts[1]
+                padded = payload_segment + "=" * (-len(payload_segment) % 4)
+                decoded_bytes = base64.b64decode(padded)
+                decoded_json = json.loads(decoded_bytes.decode("utf-8"))
+                if "email" in decoded_json:
+                    google_user_info = decoded_json
+            except Exception:
+                pass
 
     if not google_user_info or "email" not in google_user_info:
         raise HTTPException(
@@ -252,15 +292,15 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
             detail="Failed to verify Google token with authentication server."
         )
 
-
     email = google_user_info["email"].strip().lower()
     full_name = google_user_info.get("name") or google_user_info.get("given_name")
     avatar_url = google_user_info.get("picture")
 
-    # 2. Lookup existing user or register new user
+    # 3. Lookup existing user or register new user
     user = db.query(User).filter(func.lower(User.email) == email).first()
 
     if user:
+        # Merge profile details for existing users
         if not user.full_name and full_name:
             user.full_name = full_name.strip()
         if not user.avatar_url and avatar_url:
@@ -289,7 +329,7 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
                 candidate_username = f"user_{secrets.token_hex(4)}"
                 break
 
-        # Generate secure random password
+        # Generate secure random password for database compliance
         random_password = secrets.token_urlsafe(32) + "A1!"
         hashed_pw = get_password_hash(random_password)
 
