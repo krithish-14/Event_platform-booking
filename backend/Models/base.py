@@ -597,7 +597,9 @@ def _seed_demo_events():
                         }
                     ]),
                     "ticket_types": json.dumps([
-                        {"name": "Workshop Entry Pass", "price": 499, "availability": "Available"}
+                        {"name": "Silver Access", "price": 499, "availability": "Available"},
+                        {"name": "Gold VIP", "price": 999, "availability": "Filling Fast"},
+                        {"name": "Front Row Fan Zone", "price": 1499, "availability": "Limited Seats"}
                     ]),
                     "terms": "1. Single entry pass per registrant.\n2. Practice makeup kits will be provided at the venue.\n3. Tickets are non-refundable.",
                     "is_published": True,
@@ -620,8 +622,13 @@ def _seed_demo_events():
                 ) ON CONFLICT (id) DO NOTHING
             """)
 
+            update_sql = text("""
+                UPDATE events SET ticket_types = :ticket_types WHERE id = :id
+            """)
+
             for ev in demo_events:
                 conn.execute(insert_sql, ev)
+                conn.execute(update_sql, {"id": ev["id"], "ticket_types": ev["ticket_types"]})
             conn.commit()
             print("  [DB SEED] Successfully seeded demo events into events table.", flush=True)
 

@@ -431,6 +431,70 @@
 		window.setTimeout(() => { modal.hidden = false; document.body.classList.add("modal-open"); }, 1800);
 	}
 
+	/* ── Guest Auth Modal for Live Trending Events ───────────── */
+	const guestAuthModal = document.getElementById("guestAuthModal");
+	const guestAuthModalCloseBtn = document.getElementById("guestAuthModalCloseBtn");
+	const guestAuthModalCloseBackdrop = document.getElementById("guestAuthModalCloseBackdrop");
+	const guestAuthCancelBtn = document.getElementById("guestAuthCancelBtn");
+	const guestAuthSignupBtn = document.getElementById("guestAuthSignupBtn");
+
+	function closeGuestAuthModal() {
+		if (!guestAuthModal) return;
+		guestAuthModal.hidden = true;
+		document.body.classList.remove("guest-modal-open");
+	}
+
+	function openGuestAuthModal(targetUrl) {
+		if (!guestAuthModal) return;
+		if (targetUrl) {
+			try { sessionStorage.setItem("jod_redirect_after_login", targetUrl); } catch (_) {}
+			if (guestAuthSignupBtn) {
+				guestAuthSignupBtn.href = `signup.html?redirect=${encodeURIComponent(targetUrl)}`;
+			}
+		} else if (guestAuthSignupBtn) {
+			guestAuthSignupBtn.href = "signup.html";
+		}
+		guestAuthModal.hidden = false;
+		document.body.classList.add("guest-modal-open");
+	}
+
+	if (guestAuthModal) {
+		guestAuthModalCloseBtn?.addEventListener("click", closeGuestAuthModal);
+		guestAuthModalCloseBackdrop?.addEventListener("click", closeGuestAuthModal);
+		guestAuthCancelBtn?.addEventListener("click", closeGuestAuthModal);
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape" && guestAuthModal && !guestAuthModal.hidden) {
+				closeGuestAuthModal();
+			}
+		});
+	}
+
+	const upcomingSection = document.getElementById("upcoming");
+	if (upcomingSection) {
+		upcomingSection.addEventListener("click", (e) => {
+			const card = e.target.closest(".event-card");
+			if (!card) return;
+
+			const isLoggedIn = Auth.isLoggedIn && Auth.isLoggedIn();
+			if (!isLoggedIn) {
+				e.preventDefault();
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+
+				const linkEl = card.querySelector("a.card-link");
+				let targetUrl = linkEl ? linkEl.getAttribute("href") : null;
+				if (!targetUrl) {
+					const onclickAttr = card.getAttribute("onclick") || "";
+					const match = onclickAttr.match(/href=['"]([^'"]+)['"]/);
+					if (match) targetUrl = match[1];
+				}
+				if (!targetUrl) targetUrl = "event-details.html";
+
+				openGuestAuthModal(targetUrl);
+			}
+		}, true);
+	}
+
 	const year = document.querySelector("[data-year]");
 	if (year) year.textContent = String(new Date().getFullYear());
 	updateTimers();

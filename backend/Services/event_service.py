@@ -13,17 +13,50 @@ from Models.event import Event
 from Services.geo_service import filter_by_radius
 
 
+from datetime import datetime, timedelta
+
+
 def list_events(
     db: Session,
     skip: int = 0,
-    limit: int = 20,
+    limit: int = 50,
     category: Optional[str] = None,
+    event_format: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    date_filter: Optional[str] = None,
+    location: Optional[str] = None,
 ) -> List[Event]:
-    """Return published events, optionally filtered by category."""
+    """Return published events, optionally filtered by category, format, price, date, and location."""
     query = db.query(Event).filter(Event.is_published == True, Event.is_cancelled == False)
-    if category:
+    if category and category.lower() != "all":
         query = query.filter(Event.category.ilike(f"%{category}%"))
+    if event_format and event_format.lower() != "all":
+        query = query.filter(Event.event_format.ilike(f"%{event_format}%"))
+    if min_price is not None:
+        query = query.filter(Event.price >= min_price)
+    if max_price is not None:
+        query = query.filter(Event.price <= max_price)
+    if location and location.lower() != "all":
+        query = query.filter(or_(Event.location.ilike(f"%{location}%"), Event.venue.ilike(f"%{location}%")))
+    if date_filter:
+        now = datetime.utcnow()
+        df = date_filter.lower().strip()
+        if df == "today":
+            start = datetime(now.year, now.month, now.day)
+            end = start + timedelta(days=1)
+            query = query.filter(Event.start_date >= start, Event.start_date < end)
+        elif df == "tomorrow":
+            start = datetime(now.year, now.month, now.day) + timedelta(days=1)
+            end = start + timedelta(days=1)
+            query = query.filter(Event.start_date >= start, Event.start_date < end)
+        elif df in ("weekend", "this_weekend"):
+            days_to_sat = (5 - now.weekday()) % 7
+            sat_start = datetime(now.year, now.month, now.day) + timedelta(days=days_to_sat)
+            mon_start = sat_start + timedelta(days=2)
+            query = query.filter(Event.start_date >= sat_start, Event.start_date < mon_start)
     return query.order_by(Event.start_date).offset(skip).limit(limit).all()
+
 
 
 def get_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:

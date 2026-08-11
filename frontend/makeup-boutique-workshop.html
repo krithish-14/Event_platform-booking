@@ -204,21 +204,35 @@
                             </div>
                         </div>
 
-                        <!-- Tickets Breakdown Section (Single Category fixed at ₹499) -->
+                        <!-- Tickets Breakdown Section (Multiple Categories, Single Book Now Button) -->
                         <div class="tickets-section">
-                            <div class="tickets-title">Select Ticket Type</div>
+                            <div class="tickets-title">Select Ticket Category</div>
                             <div id="ticketsList">
-                                <div class="ticket-type-option selected" onclick="selectTicketOption(this, 499)">
+                                <div class="ticket-type-option selected" onclick="selectTicketOption(this, 499, 'Silver Access')">
                                     <div>
-                                        <div class="ticket-name">Workshop Entry Pass</div>
+                                        <div class="ticket-name">Silver Access</div>
                                         <div class="ticket-status">Available</div>
                                     </div>
                                     <div class="ticket-price">₹499</div>
                                 </div>
+                                <div class="ticket-type-option" onclick="selectTicketOption(this, 999, 'Gold VIP')">
+                                    <div>
+                                        <div class="ticket-name">Gold VIP</div>
+                                        <div class="ticket-status">Filling Fast</div>
+                                    </div>
+                                    <div class="ticket-price">₹999</div>
+                                </div>
+                                <div class="ticket-type-option" onclick="selectTicketOption(this, 1499, 'Front Row Fan Zone')">
+                                    <div>
+                                        <div class="ticket-name">Front Row Fan Zone</div>
+                                        <div class="ticket-status">Limited Seats</div>
+                                    </div>
+                                    <div class="ticket-price">₹1,499</div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Book Now Primary CTA Button -->
+                        <!-- Book Now Primary CTA Button (Single Button Positioned Below All Categories) -->
                         <button class="btn-book-now" type="button" onclick="triggerBookingModal()">
                             Book Now 🎟️
                         </button>

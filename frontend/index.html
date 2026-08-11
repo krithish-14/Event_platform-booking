@@ -89,8 +89,8 @@
 				</div>
 			</section>
 
-			<!-- ── Upcoming Events Carousel (auth only) ──────── -->
-			<section class="section upcoming-section" id="upcoming" data-auth-only="true">
+			<!-- ── Live Trending Events Carousel ──────── -->
+			<section class="section upcoming-section" id="upcoming">
 				<div class="container">
 					<div class="section-heading">
 						<span class="pill pill-light-orange">&#10024; Upcoming Events</span>
@@ -232,7 +232,7 @@
 						<div class="carousel-viewport category-viewport" data-category-viewport>
 							<div class="carousel-track category-track" data-category-track>
 								<article class="category-card carousel-slide reveal" style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=22222222-2222-2222-2222-222222222222'">
+									onclick="window.location.href='category.html?name=Corporate'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
 										<div class="category-bg-overlay"></div>
@@ -244,7 +244,7 @@
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-1"
 									style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=44444444-4444-4444-4444-444444444444'">
+									onclick="window.location.href='category.html?name=Wedding'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
 										<div class="category-bg-overlay"></div>
@@ -256,7 +256,7 @@
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-2"
 									style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=11111111-1111-1111-1111-111111111111'">
+									onclick="window.location.href='category.html?name=Comedy'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
 										<div class="category-bg-overlay"></div>
@@ -268,7 +268,7 @@
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-3"
 									style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=55555555-5555-5555-5555-555555555555'">
+									onclick="window.location.href='category.html?name=Cultural'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
 										<div class="category-bg-overlay"></div>
@@ -279,7 +279,7 @@
 									</div>
 								</article>
 								<article class="category-card carousel-slide reveal" style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=33333333-3333-3333-3333-333333333333'">
+									onclick="window.location.href='category.html?name=Launch'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
 										<div class="category-bg-overlay"></div>
@@ -291,19 +291,19 @@
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-1"
 									style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=11111111-1111-1111-1111-111111111111'">
+									onclick="window.location.href='category.html?name=Workshop'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #30cfd0 0%, #330867 100%);">
 										<div class="category-bg-overlay"></div>
 										<div class="category-content">
-											<h3>Entertainment<br />Events</h3>
+											<h3>Workshops &amp;<br />Masterclasses</h3>
 											<span class="category-count">40+ Events</span>
 										</div>
 									</div>
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-2"
 									style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=55555555-5555-5555-5555-555555555555'">
+									onclick="window.location.href='category.html?name=Religious'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
 										<div class="category-bg-overlay"></div>
@@ -313,7 +313,9 @@
 										</div>
 									</div>
 								</article>
-								<article class="category-card carousel-slide reveal reveal-delay-3">
+								<article class="category-card carousel-slide reveal reveal-delay-3"
+									style="cursor: pointer;"
+									onclick="window.location.href='category.html?name=Exhibition'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);">
 										<div class="category-bg-overlay"></div>
@@ -323,7 +325,9 @@
 										</div>
 									</div>
 								</article>
-								<article class="category-card carousel-slide reveal">
+								<article class="category-card carousel-slide reveal"
+									style="cursor: pointer;"
+									onclick="window.location.href='category.html?name=Brand'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
 										<div class="category-bg-overlay"></div>
@@ -333,7 +337,9 @@
 										</div>
 									</div>
 								</article>
-								<article class="category-card carousel-slide reveal reveal-delay-1">
+								<article class="category-card carousel-slide reveal reveal-delay-1"
+									style="cursor: pointer;"
+									onclick="window.location.href='category.html?name=Sports'">
 									<div class="category-card-inner"
 										style="--cat-gradient: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);">
 										<div class="category-bg-overlay"></div>
@@ -510,6 +516,27 @@
 						<span>&#8594;</span></a>
 					<button class="button button-ghost-light" type="button" data-modal-close>Maybe later</button>
 				</div>
+			</div>
+	</div>
+
+	<!-- ── Guest Auth Modal (Live Trending Events) ───── -->
+	<div class="modal-backdrop guest-auth-modal-backdrop" id="guestAuthModal" role="dialog" aria-modal="true" aria-labelledby="guestAuthModalTitle" hidden>
+		<button class="modal-close-backdrop" type="button" aria-label="Close modal" id="guestAuthModalCloseBackdrop"></button>
+		<div class="guest-auth-modal-box">
+			<button class="guest-auth-modal-close" type="button" aria-label="Close" id="guestAuthModalCloseBtn">&times;</button>
+			<div class="guest-auth-modal-header">
+				<div class="guest-auth-modal-icon">🔒</div>
+				<span class="pill pill-light-orange">🎟️ Account Required</span>
+			</div>
+			<div class="guest-auth-modal-body">
+				<h3 id="guestAuthModalTitle">Sign Up to Book Tickets</h3>
+				<p id="guestAuthModalDesc">You need to sign up or log in to view event details and reserve tickets for Live Trending Events.</p>
+			</div>
+			<div class="guest-auth-modal-actions">
+				<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html">
+					Sign In / Sign Up <span>&#8594;</span>
+				</a>
+				<button class="button button-ghost-light" type="button" id="guestAuthCancelBtn">Explore Other Events</button>
 			</div>
 		</div>
 	</div>

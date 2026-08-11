@@ -188,12 +188,30 @@ def get_nearby_events(
 @router.get("/", response_model=List[EventResponse])
 def get_events(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=100),
     category: Optional[str] = None,
+    event_format: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    date_filter: Optional[str] = None,
+    location: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    """List all published events with optional category filter."""
-    return [_event_to_response(e) for e in list_events(db, skip=skip, limit=limit, category=category)]
+    """List all published events with optional category, format, price, date, and location filters."""
+    return [
+        _event_to_response(e)
+        for e in list_events(
+            db,
+            skip=skip,
+            limit=limit,
+            category=category,
+            event_format=event_format,
+            min_price=min_price,
+            max_price=max_price,
+            date_filter=date_filter,
+            location=location,
+        )
+    ]
 
 
 @router.get("/{event_id}", response_model=EventResponse)

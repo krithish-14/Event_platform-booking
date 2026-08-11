@@ -19,12 +19,22 @@ from Models.user import User
 router = APIRouter()
 
 
+import random
+import secrets
+from sqlalchemy import or_
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 class BookingCreateRequest(BaseModel):
     event_id: str
     ticket_type: Optional[str] = "Standard Access"
     quantity: int = 1
     total_price: Optional[float] = None
+    payment_id: Optional[str] = None
+    payment_mode: Optional[str] = "UPI / Card"
+    seat_number: Optional[str] = None
+    receiver_name: Optional[str] = None
+    receiver_email: Optional[str] = None
+    receiver_phone: Optional[str] = None
 
 
 class BookingResponse(BaseModel):
@@ -41,6 +51,13 @@ class BookingResponse(BaseModel):
     quantity: int
     total_price: float
     status: str
+    payment_id: Optional[str] = None
+    payment_mode: Optional[str] = "UPI / Card"
+    gst_amount: float = 0.0
+    seat_number: Optional[str] = "General Admission"
+    receiver_name: Optional[str] = None
+    receiver_email: Optional[str] = None
+    receiver_phone: Optional[str] = None
     booked_at: datetime
 
     class Config:
@@ -51,9 +68,15 @@ def _serialize_booking(b: Booking) -> dict:
     event_title = b.event.title if b.event else "Event"
     event_venue = (b.event.venue or b.event.location) if b.event else None
     event_start = b.event.start_date if b.event else None
-    user_name = b.customer.full_name or b.customer.username if b.customer else None
-    user_email = b.customer.email if b.customer else None
-    user_city = b.customer.city if b.customer else None
+    user_name = (b.receiver_name or (b.customer.full_name if b.customer else None) or (b.customer.username if b.customer else None) or "Guest Customer")
+    user_email = (b.receiver_email or (b.customer.email if b.customer else None) or "customer@jodevents.com")
+    user_phone = (b.receiver_phone or "+91 98765 43210")
+    user_city = b.customer.city if b.customer else "Chennai"
+
+    pid = getattr(b, "payment_id", None) or f"PAY-JOD-{str(b.booking_id)[:8].upper()}"
+    pmode = getattr(b, "payment_mode", None) or "UPI / Card"
+    gst = float(getattr(b, "gst_amount", 0.0) or round(float(b.total_price or 0.0) * 0.18, 2))
+    seat = getattr(b, "seat_number", None) or "Row B, Seat 12-14"
 
     return {
         "booking_id": str(b.booking_id),
@@ -69,6 +92,13 @@ def _serialize_booking(b: Booking) -> dict:
         "quantity": b.quantity,
         "total_price": float(b.total_price or 0.0),
         "status": b.status or "CONFIRMED",
+        "payment_id": pid,
+        "payment_mode": pmode,
+        "gst_amount": gst,
+        "seat_number": seat,
+        "receiver_name": user_name,
+        "receiver_email": user_email,
+        "receiver_phone": user_phone,
         "booked_at": b.booked_at,
     }
 
@@ -93,6 +123,10 @@ def create_ticket_booking(
     qty = max(1, payload.quantity)
     calculated_price = payload.total_price if payload.total_price is not None else (event.price * qty)
 
+    payment_id = payload.payment_id or f"PAY-JOD-{secrets.token_hex(4).upper()}"
+    seat_num = payload.seat_number or f"Row {chr(65 + random.randint(0, 5))}, Seat {random.randint(1, 20)}"
+    gst_calc = round(calculated_price * 0.18, 2)
+
     booking = Booking(
         customer_id=current_user.customer_id,
         event_id=event.id,
@@ -100,12 +134,18 @@ def create_ticket_booking(
         quantity=qty,
         total_price=calculated_price,
         status="CONFIRMED",
+        payment_id=payment_id,
+        payment_mode=payload.payment_mode or "UPI / Card",
+        gst_amount=gst_calc,
+        seat_number=seat_num,
+        receiver_name=payload.receiver_name or current_user.full_name or current_user.username,
+        receiver_email=payload.receiver_email or current_user.email,
+        receiver_phone=payload.receiver_phone or "+91 98765 43210",
     )
     db.add(booking)
     db.commit()
     db.refresh(booking)
 
-    # Re-query with eager relationships
     b_full = (
         db.query(Booking)
         .options(joinedload(Booking.event), joinedload(Booking.customer))
@@ -135,10 +175,7 @@ def get_my_bookings(
 def get_host_tracking_analytics(
     db: Session = Depends(get_db),
 ):
-    """
-    Event Host & Admin verification endpoint.
-    Returns all bookings tracked by customer_id with full user and event details.
-    """
+    """Event Host & Admin verification endpoint."""
     bookings = (
         db.query(Booking)
         .options(joinedload(Booking.event), joinedload(Booking.customer))
@@ -146,3 +183,61 @@ def get_host_tracking_analytics(
         .all()
     )
     return [_serialize_booking(b) for b in bookings]
+
+
+@router.get("/{booking_id}", response_model=BookingResponse)
+def get_single_booking(
+    booking_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get details for an individual booking by ID."""
+    try:
+        b_uuid = UUID(booking_id)
+        b = (
+            db.query(Booking)
+            .options(joinedload(Booking.event), joinedload(Booking.customer))
+            .filter(Booking.booking_id == b_uuid)
+            .first()
+        )
+    except Exception:
+        b = (
+            db.query(Booking)
+            .options(joinedload(Booking.event), joinedload(Booking.customer))
+            .filter(Booking.booking_id == booking_id)
+            .first()
+        )
+
+    if not b:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    return _serialize_booking(b)
+
+
+@router.post("/{booking_id}/cancel", response_model=BookingResponse)
+def cancel_booking(
+    booking_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cancel a booking by ID."""
+    try:
+        b_uuid = UUID(booking_id)
+        b = db.query(Booking).filter(Booking.booking_id == b_uuid).first()
+    except Exception:
+        b = db.query(Booking).filter(Booking.booking_id == booking_id).first()
+
+    if not b:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+
+    b.status = "CANCELLED"
+    db.commit()
+    db.refresh(b)
+
+    b_full = (
+        db.query(Booking)
+        .options(joinedload(Booking.event), joinedload(Booking.customer))
+        .filter(Booking.booking_id == b.booking_id)
+        .first()
+    )
+    return _serialize_booking(b_full or b)
+

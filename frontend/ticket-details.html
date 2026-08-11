@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="View your confirmed event E-Ticket, QR code validation, bill summary, receiver details, and invoice on JOD Events." />
+	<title>View E-Ticket & Invoice — JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=14" />
+	<link rel="stylesheet" href="css/responsive.css?v=14" />
+	<link rel="stylesheet" href="css/ticket-details.css?v=1" />
+</head>
+<body class="sub-page ticket-page">
+	<div id="header"></div>
+
+	<main class="ticket-main-section">
+		<div class="container narrow">
+			<!-- Top Navigation & Header -->
+			<div class="ticket-top-nav">
+				<a href="orders.html" class="back-link">← Back to Your Orders</a>
+				<div class="header-badges">
+					<span class="status-badge badge-confirmed" id="ticketStatusBadge">CONFIRMED</span>
+					<span class="order-id-label" id="ticketOrderIdCode">#JOD-000000</span>
+				</div>
+			</div>
+
+			<!-- Main Ticket Container Card -->
+			<div class="ticket-card-box" id="printableTicketArea">
+				<!-- Event Header Banner -->
+				<div class="ticket-event-header">
+					<div class="ticket-event-image">
+						<img src="images/hero-event.jpg" alt="Event Banner" id="ticketEventImg" />
+					</div>
+					<div class="ticket-event-info">
+						<span class="pill pill-light-orange" id="ticketCategoryBadge">🎟️ Event E-Ticket</span>
+						<h1 id="ticketEventTitle">Loading Event Details…</h1>
+						<div class="event-meta-row">
+							<span>📅 <strong id="ticketEventDateTime">--</strong></span>
+							<span>📍 <strong id="ticketEventVenue">--</strong></span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Section 1: Ticket Details -->
+				<div class="ticket-section">
+					<h3 class="section-title">Ticket Information</h3>
+					<div class="info-grid">
+						<div class="info-item">
+							<span class="info-label">Ticket ID</span>
+							<strong class="info-val" id="ticketIdVal">--</strong>
+						</div>
+						<div class="info-item">
+							<span class="info-label">Category / Access</span>
+							<strong class="info-val" id="ticketCategoryVal">--</strong>
+						</div>
+						<div class="info-item">
+							<span class="info-label">Quantity</span>
+							<strong class="info-val" id="ticketCountVal">1 Ticket</strong>
+						</div>
+						<div class="info-item">
+							<span class="info-label">Booked Date &amp; Time</span>
+							<strong class="info-val" id="ticketBookedTimeVal">--</strong>
+						</div>
+						<div class="info-item">
+							<span class="info-label">Seat / Zone</span>
+							<strong class="info-val" id="ticketSeatVal">General Admission</strong>
+						</div>
+						<div class="info-item">
+							<span class="info-label">Ticket Status</span>
+							<strong class="info-val status-text-confirmed" id="ticketStatusVal">Active / Confirmed</strong>
+						</div>
+					</div>
+				</div>
+
+				<!-- Section 2: Bill Summary -->
+				<div class="ticket-section">
+					<h3 class="section-title">Bill &amp; Payment Summary</h3>
+					<div class="bill-table">
+						<div class="bill-row">
+							<span>Ticket Base Price</span>
+							<span id="billUnitPrice">₹0</span>
+						</div>
+						<div class="bill-row">
+							<span>Quantity</span>
+							<span id="billQty">x1</span>
+						</div>
+						<div class="bill-row">
+							<span>Subtotal</span>
+							<span id="billSubtotal">₹0</span>
+						</div>
+						<div class="bill-row">
+							<span>GST &amp; Taxes (18% included)</span>
+							<span id="billGst">₹0</span>
+						</div>
+						<div class="bill-row bill-row-total">
+							<span>Total Amount Paid</span>
+							<strong id="billTotal">₹0</strong>
+						</div>
+					</div>
+
+					<div class="payment-meta-grid">
+						<div>
+							<span class="meta-label">Payment ID</span>
+							<strong id="billPaymentId">PAY-JOD-00000000</strong>
+						</div>
+						<div>
+							<span class="meta-label">Payment Mode</span>
+							<strong id="billPaymentMode">UPI / Credit Card</strong>
+						</div>
+					</div>
+				</div>
+
+				<!-- Section 3: Receiver's Details -->
+				<div class="ticket-section">
+					<h3 class="section-title">Receiver's Details</h3>
+					<div class="receiver-grid">
+						<div class="receiver-item">
+							<span class="info-label">Full Name</span>
+							<strong id="receiverName">--</strong>
+						</div>
+						<div class="receiver-item">
+							<span class="info-label">Email Address</span>
+							<strong id="receiverEmail">--</strong>
+						</div>
+						<div class="receiver-item">
+							<span class="info-label">Mobile Number</span>
+							<strong id="receiverPhone">--</strong>
+						</div>
+					</div>
+				</div>
+
+				<!-- Section 4: QR Code Validation -->
+				<div class="ticket-qr-section">
+					<div class="qr-box">
+						<div class="qr-image-wrapper">
+							<img src="" alt="Ticket QR Code" id="ticketQrCodeImg" />
+						</div>
+						<div class="qr-info">
+							<h4>Entry Validation QR Code</h4>
+							<p>Present this QR code on your mobile device or printed ticket at the venue gate for entry verification.</p>
+							<small class="qr-code-text" id="ticketQrCodeText">Code: JOD-VALIDATION-KEY</small>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Action Options Buttons at Bottom -->
+			<div class="ticket-actions-bar">
+				<button class="button button-primary btn-action" type="button" id="btnDownloadTicket">
+					Download Ticket 🎟️
+				</button>
+				<button class="button button-outline-light btn-action" type="button" id="btnDownloadInvoice">
+					Download Invoice 📄
+				</button>
+				<button class="button button-danger btn-action" type="button" id="btnCancelTicket">
+					Cancel Ticket ❌
+				</button>
+			</div>
+		</div>
+	</main>
+
+	<div id="footer"></div>
+
+	<!-- Scripts -->
+	<script src="js/include.js?v=10"></script>
+	<script src="js/health.js?v=1"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/profile.js?v=1"></script>
+	<script src="js/location.js?v=2"></script>
+	<script src="js/search.js?v=1"></script>
+	<script src="js/script.js?v=14"></script>
+	<script src="js/ticket-details.js?v=1"></script>
+</body>
+</html>

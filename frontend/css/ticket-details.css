@@ -1,0 +1,373 @@
+/* ─────────────────────────────────────────────────────────────
+   JOD Events — Ticket Viewing & Invoice Page Styles
+   ───────────────────────────────────────────────────────────── */
+
+.ticket-page {
+	background: #181512;
+	color: #ffffff;
+}
+
+.ticket-main-section {
+	padding: 2.5rem 0 4rem;
+}
+
+/* ── Top Navigation Bar ──────────────────────────────────── */
+.ticket-top-nav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 1.5rem;
+	flex-wrap: wrap;
+	gap: 1rem;
+}
+
+.back-link {
+	color: rgba(255, 255, 255, .8);
+	font-size: .925rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: color .2s;
+}
+
+.back-link:hover {
+	color: var(--primary);
+}
+
+.header-badges {
+	display: flex;
+	align-items: center;
+	gap: .75rem;
+}
+
+.status-badge {
+	padding: .35rem .85rem;
+	border-radius: 2rem;
+	font-size: .8rem;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.badge-confirmed {
+	border: 1px solid #2ecc71;
+	background: rgba(46, 204, 113, .15);
+	color: #2ecc71;
+	box-shadow: 0 0 12px rgba(46, 204, 113, .2);
+}
+
+.badge-cancelled {
+	border: 1px solid #e74c3c;
+	background: rgba(231, 76, 60, .15);
+	color: #e74c3c;
+	box-shadow: 0 0 12px rgba(231, 76, 60, .2);
+}
+
+.order-id-label {
+	color: rgba(255, 255, 255, .6);
+	font-size: .875rem;
+	font-weight: 600;
+	font-family: monospace;
+}
+
+/* ── Main Ticket Card Box ────────────────────────────────── */
+.ticket-card-box {
+	border: 1px solid rgba(255, 255, 255, .12);
+	border-radius: 1.5rem;
+	background: linear-gradient(145deg, #25211c 0%, #1c1916 100%);
+	padding: 2.25rem 2rem;
+	box-shadow: 0 25px 60px -15px rgba(0, 0, 0, .5);
+	margin-bottom: 2rem;
+}
+
+.ticket-event-header {
+	display: grid;
+	grid-template-columns: 140px 1fr;
+	gap: 1.5rem;
+	align-items: center;
+	padding-bottom: 1.75rem;
+	border-bottom: 1px solid rgba(255, 255, 255, .1);
+	margin-bottom: 1.75rem;
+}
+
+.ticket-event-image {
+	width: 140px;
+	height: 140px;
+	border-radius: 1rem;
+	overflow: hidden;
+	background: var(--dark);
+	border: 1px solid rgba(255, 255, 255, .15);
+}
+
+.ticket-event-image img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.ticket-event-info h1 {
+	margin: .5rem 0 .5rem;
+	font-size: 1.75rem;
+	font-weight: 800;
+	color: #fff;
+	line-height: 1.25;
+}
+
+.event-meta-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.25rem;
+	color: rgba(255, 255, 255, .8);
+	font-size: .9rem;
+}
+
+/* ── Section Blocks ──────────────────────────────────────── */
+.ticket-section {
+	padding-bottom: 1.5rem;
+	border-bottom: 1px solid rgba(255, 255, 255, .08);
+	margin-bottom: 1.5rem;
+}
+
+.section-title {
+	margin: 0 0 1rem;
+	font-size: 1.1rem;
+	font-weight: 700;
+	color: var(--primary);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+/* Info Grid */
+.info-grid, .receiver-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 1.25rem;
+}
+
+.info-item, .receiver-item {
+	display: flex;
+	flex-direction: column;
+	gap: .25rem;
+}
+
+.info-label {
+	color: rgba(255, 255, 255, .55);
+	font-size: .775rem;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.info-val, .receiver-item strong {
+	color: #fff;
+	font-size: .95rem;
+	font-weight: 600;
+}
+
+.status-text-confirmed {
+	color: #2ecc71;
+}
+
+.status-text-cancelled {
+	color: #e74c3c;
+}
+
+/* Bill Summary Table */
+.bill-table {
+	display: flex;
+	flex-direction: column;
+	gap: .6rem;
+	background: rgba(0, 0, 0, .25);
+	padding: 1.25rem;
+	border-radius: 1rem;
+	border: 1px solid rgba(255, 255, 255, .06);
+	margin-bottom: 1rem;
+}
+
+.bill-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: .9rem;
+	color: rgba(255, 255, 255, .8);
+}
+
+.bill-row-total {
+	padding-top: .6rem;
+	border-top: 1px solid rgba(255, 255, 255, .15);
+	font-size: 1.1rem;
+	font-weight: 800;
+	color: #fff;
+}
+
+.payment-meta-grid {
+	display: flex;
+	align-items: center;
+	gap: 2rem;
+	flex-wrap: wrap;
+	font-size: .85rem;
+	color: rgba(255, 255, 255, .7);
+	padding: 0 .25rem;
+}
+
+.payment-meta-grid strong {
+	color: #fff;
+	margin-left: .35rem;
+}
+
+/* ── QR Code Section ─────────────────────────────────────── */
+.ticket-qr-section {
+	padding-top: .5rem;
+}
+
+.qr-box {
+	display: flex;
+	align-items: center;
+	gap: 1.5rem;
+	padding: 1.25rem 1.5rem;
+	border: 1px solid rgba(255, 117, 8, .25);
+	border-radius: 1rem;
+	background: radial-gradient(circle, rgba(255, 117, 8, .08) 0%, rgba(0, 0, 0, .3) 100%);
+	flex-wrap: wrap;
+}
+
+.qr-image-wrapper {
+	width: 130px;
+	height: 130px;
+	padding: .5rem;
+	background: #ffffff;
+	border-radius: .75rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: 0 4px 15px rgba(0, 0, 0, .3);
+}
+
+.qr-image-wrapper img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.qr-info h4 {
+	margin: 0 0 .35rem;
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: #fff;
+}
+
+.qr-info p {
+	margin: 0 0 .5rem;
+	color: rgba(255, 255, 255, .75);
+	font-size: .85rem;
+	line-height: 1.4;
+	max-width: 26rem;
+}
+
+.qr-code-text {
+	display: inline-block;
+	color: var(--primary);
+	font-family: monospace;
+	font-size: .775rem;
+	font-weight: 700;
+}
+
+/* ── Bottom Actions Bar ──────────────────────────────────── */
+.ticket-actions-bar {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+
+.btn-action {
+	flex: 1;
+	justify-content: center;
+	padding: .9rem 1.25rem;
+	font-size: .95rem;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.button-danger {
+	border: 1px solid #e74c3c;
+	background: rgba(231, 76, 60, .2);
+	color: #ff6b6b;
+}
+
+.button-danger:hover {
+	background: #e74c3c;
+	color: #fff;
+}
+
+.button-danger:disabled {
+	opacity: .5;
+	cursor: not-allowed;
+	border-color: #555;
+	background: rgba(255, 255, 255, .05);
+	color: #888;
+}
+
+/* ── Print Media Styles ─────────────────────────────────── */
+@media print {
+	#header, #footer, .ticket-top-nav, .ticket-actions-bar {
+		display: none !important;
+	}
+
+	body, .ticket-page {
+		background: #ffffff !important;
+		color: #000000 !important;
+	}
+
+	.ticket-card-box {
+		border: 2px solid #000000 !important;
+		background: #ffffff !important;
+		color: #000000 !important;
+		box-shadow: none !important;
+		padding: 1.5rem !important;
+	}
+
+	.ticket-event-info h1, .section-title, .info-val, .bill-row-total, .qr-info h4 {
+		color: #000000 !important;
+	}
+
+	.info-label, .bill-row, .qr-info p {
+		color: #333333 !important;
+	}
+
+	.bill-table {
+		background: #f8f8f8 !important;
+		border: 1px solid #ccc !important;
+	}
+}
+
+/* ── Responsive Viewport Adjustments ─────────────────────── */
+@media (max-width: 650px) {
+	.ticket-event-header {
+		grid-template-columns: 1fr;
+		text-align: center;
+	}
+
+	.ticket-event-image {
+		margin: 0 auto;
+	}
+
+	.event-meta-row {
+		justify-content: center;
+	}
+
+	.qr-box {
+		flex-direction: column;
+		text-align: center;
+	}
+
+	.qr-info p {
+		max-width: none;
+	}
+
+	.ticket-actions-bar {
+		flex-direction: column;
+	}
+
+	.btn-action {
+		width: 100%;
+	}
+}

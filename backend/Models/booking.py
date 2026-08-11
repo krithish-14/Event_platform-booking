@@ -20,6 +20,13 @@ class Booking(Base):
     quantity    = Column(Integer, default=1)
     total_price = Column(Float, default=0.0)
     status      = Column(String(50), default="CONFIRMED")
+    payment_id  = Column(String(100), nullable=True)
+    payment_mode = Column(String(100), default="UPI / Card")
+    gst_amount  = Column(Float, default=0.0)
+    seat_number = Column(String(100), default="General Admission")
+    receiver_name = Column(String(200), nullable=True)
+    receiver_email = Column(String(200), nullable=True)
+    receiver_phone = Column(String(50), nullable=True)
     booked_at   = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

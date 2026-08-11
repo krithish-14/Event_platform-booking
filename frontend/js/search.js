@@ -303,7 +303,11 @@ window.JodSearch = (() => {
       this.dropdown.querySelectorAll(".search-suggestion-item").forEach((item) => {
         item.addEventListener("click", (e) => {
           const type = item.dataset.type;
-          if (type === "venue" || type === "category") {
+          if (type === "category") {
+            e.preventDefault();
+            const filterQuery = item.dataset.query;
+            window.location.href = `category.html?name=${encodeURIComponent(filterQuery)}`;
+          } else if (type === "venue") {
             e.preventDefault();
             const filterQuery = item.dataset.query;
             window.location.href = `index.html?q=${encodeURIComponent(filterQuery)}`;

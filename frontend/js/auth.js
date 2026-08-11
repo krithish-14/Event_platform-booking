@@ -422,6 +422,155 @@ window.JodAuth = (() => {
 	}
 
 
+	/* ── Google OAuth Integration ────────────────────────────── */
+	async function handleGoogleCredentialResponse(response, alertEl, btnEl) {
+		if (!response || !response.credential) {
+			if (alertEl) showAlert(alertEl, "error", "Google authentication was cancelled or failed.");
+			return;
+		}
+		if (btnEl) setLoading(btnEl, true);
+		if (alertEl) hideAlert(alertEl);
+
+		try {
+			let city = null;
+			let pincode = null;
+			if (window.JodLocation) {
+				city = localStorage.getItem("jod_user_city") || sessionStorage.getItem("jod_user_city") || null;
+				pincode = localStorage.getItem("jod_user_pincode") || sessionStorage.getItem("jod_user_pincode") || null;
+			}
+
+			const payload = { credential: response.credential };
+			if (city) payload.city = city;
+			if (pincode) payload.location_pincode = pincode;
+
+			const res = await fetch(`${API_BASE}/api/auth/google`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload),
+			});
+
+			let data = {};
+			try { data = await res.json(); } catch (_) {}
+
+			if (!res.ok) {
+				if (alertEl) showAlert(alertEl, "error", data.detail || `Google authentication failed (${res.status}).`);
+			} else {
+				try {
+					sessionStorage.setItem("jod_access_token", data.access_token);
+					sessionStorage.setItem("jod_user", JSON.stringify(data.user));
+					localStorage.setItem("jod_access_token", data.access_token);
+					localStorage.setItem("jod_user", JSON.stringify(data.user));
+				} catch (_) {}
+
+				if (alertEl) showAlert(alertEl, "success", "Google Sign-In successful! Redirecting…");
+
+				if (data.location_required || !data.user.city) {
+					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) {}
+				}
+
+				const targetUrl = getRedirectTarget();
+				setTimeout(() => { window.location.href = targetUrl; }, 900);
+			}
+		} catch (err) {
+			if (alertEl) showAlert(alertEl, "error", "Unable to complete Google sign-in. Network error.");
+		} finally {
+			if (btnEl) setLoading(btnEl, false);
+		}
+	}
+
+	async function initGoogleAuth() {
+		const googleSignupBtn = document.getElementById("googleSignupBtn");
+		const googleLoginBtn = document.getElementById("googleLoginBtn");
+		if (!googleSignupBtn && !googleLoginBtn) return;
+
+		let clientConfig = { client_id: "", enabled: false };
+		try {
+			const res = await fetch(`${API_BASE}/api/auth/google/config`);
+			if (res.ok) clientConfig = await res.json();
+		} catch (_) {}
+
+		const alertEl = document.querySelector("#signupForm .form-alert, #loginForm .form-alert");
+
+		if (clientConfig.client_id && !window.google?.accounts?.id) {
+			const script = document.createElement("script");
+			script.src = "https://accounts.google.com/gsi/client";
+			script.async = true;
+			script.defer = true;
+			script.onload = () => {
+				try {
+					window.google.accounts.id.initialize({
+						client_id: clientConfig.client_id,
+						callback: (resp) => {
+							const activeBtn = googleSignupBtn || googleLoginBtn;
+							const activeAlert = (googleSignupBtn ? document.querySelector("#signupForm .form-alert") : document.querySelector("#loginForm .form-alert")) || alertEl;
+							handleGoogleCredentialResponse(resp, activeAlert, activeBtn);
+						},
+					});
+				} catch (_) {}
+			};
+			document.head.appendChild(script);
+		}
+
+		function triggerGoogleFlow(btn, alertElement) {
+			if (window.google?.accounts?.id && clientConfig.client_id) {
+				try {
+					window.google.accounts.id.prompt((notification) => {
+						if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+							promptMockGoogleLogin(btn, alertElement);
+						}
+					});
+				} catch (_) {
+					promptMockGoogleLogin(btn, alertElement);
+				}
+			} else {
+				promptMockGoogleLogin(btn, alertElement);
+			}
+		}
+
+		function promptMockGoogleLogin(btn, alertElement) {
+			const sampleEmail = prompt("Enter your Google Account email for Sign Up / Sign In:", "user@gmail.com");
+			if (!sampleEmail) return;
+			const sampleName = prompt("Enter your Full Name:", "Google User");
+			if (!sampleName) return;
+
+			const tokenInput = prompt("If you have a Google ID Token, paste it here (or click OK to generate a dev token for " + sampleEmail + "):");
+			
+			if (tokenInput && tokenInput.trim()) {
+				handleGoogleCredentialResponse({ credential: tokenInput.trim() }, alertElement, btn);
+			} else {
+				const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+				const body = btoa(JSON.stringify({
+					iss: "https://accounts.google.com",
+					sub: "google-dev-" + Math.floor(Math.random() * 1000000),
+					email: sampleEmail.trim(),
+					email_verified: true,
+					name: sampleName.trim(),
+					picture: "https://lh3.googleusercontent.com/a/default-user=s96-c",
+				}));
+				const mockCredential = `${header}.${body}.mock_signature`;
+				handleGoogleCredentialResponse({ credential: mockCredential }, alertElement, btn);
+			}
+		}
+
+		if (googleSignupBtn) {
+			const signupAlert = document.querySelector("#signupForm .form-alert");
+			googleSignupBtn.addEventListener("click", () => triggerGoogleFlow(googleSignupBtn, signupAlert));
+		}
+		if (googleLoginBtn) {
+			const loginAlert = document.querySelector("#loginForm .form-alert");
+			googleLoginBtn.addEventListener("click", () => triggerGoogleFlow(googleLoginBtn, loginAlert));
+		}
+	}
+
+	if (typeof document !== "undefined") {
+		if (document.readyState === "loading") {
+			document.addEventListener("DOMContentLoaded", initGoogleAuth);
+		} else {
+			initGoogleAuth();
+		}
+	}
+
+
 	// Auto-redirect if already logged in on login or signup page
 	const pageFile = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 	if ((pageFile === "login.html" || pageFile === "signup.html") && isLoggedIn()) {
@@ -442,5 +591,8 @@ window.JodAuth = (() => {
 		fetchAuth,
 		getRedirectTarget,
 		validateSession,
+		initGoogleAuth,
+		handleGoogleCredentialResponse,
 	};
 })();
+

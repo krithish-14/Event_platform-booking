@@ -3195,3 +3195,122 @@ body.jod-loc-modal-open {
 		justify-content: flex-end;
 	}
 }
+
+/* ── Guest Auth Modal (Live Trending Events) ──────────── */
+.guest-auth-modal-backdrop[hidden] {
+	display: none !important;
+}
+
+.guest-auth-modal-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 100;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.25rem;
+	background: rgba(15, 12, 10, .78);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	animation: guestModalFadeIn .3s ease-out both;
+}
+
+.guest-auth-modal-box {
+	position: relative;
+	z-index: 2;
+	width: min(100%, 28rem);
+	padding: 2.25rem 2rem;
+	border: 1px solid rgba(255, 255, 255, .14);
+	border-radius: 1.5rem;
+	background: linear-gradient(145deg, rgba(37, 33, 28, .96) 0%, rgba(25, 22, 18, .98) 100%);
+	color: #fff;
+	box-shadow: 0 25px 60px -15px rgba(0, 0, 0, .6), 0 0 40px rgba(255, 117, 8, .15);
+	text-align: center;
+	animation: guestModalSlideUp .35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.guest-auth-modal-close {
+	position: absolute;
+	top: 1rem;
+	right: 1rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border: 1px solid rgba(255, 255, 255, .15);
+	border-radius: 50%;
+	background: rgba(255, 255, 255, .08);
+	color: rgba(255, 255, 255, .8);
+	font-size: 1.35rem;
+	line-height: 1;
+	cursor: pointer;
+	transition: all .2s ease;
+}
+
+.guest-auth-modal-close:hover {
+	border-color: var(--primary);
+	background: var(--primary);
+	color: #fff;
+	transform: scale(1.05);
+}
+
+.guest-auth-modal-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: .75rem;
+	margin-bottom: 1rem;
+}
+
+.guest-auth-modal-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 4rem;
+	height: 4rem;
+	border: 1px solid rgba(255, 117, 8, .3);
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(255, 117, 8, .2) 0%, rgba(255, 117, 8, .05) 70%);
+	font-size: 1.85rem;
+	box-shadow: 0 0 20px rgba(255, 117, 8, .25);
+}
+
+.guest-auth-modal-body h3 {
+	margin: .5rem 0 .65rem;
+	color: #fff;
+	font-size: 1.6rem;
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.guest-auth-modal-body p {
+	margin: 0 0 1.75rem;
+	color: rgba(255, 255, 255, .75);
+	font-size: .925rem;
+	line-height: 1.5;
+}
+
+.guest-auth-modal-actions {
+	display: flex;
+	flex-direction: column;
+	gap: .75rem;
+}
+
+.guest-auth-modal-actions .button {
+	width: 100%;
+	justify-content: center;
+	padding: .85rem 1.5rem;
+	font-size: .95rem;
+	font-weight: 600;
+}
+
+@keyframes guestModalFadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes guestModalSlideUp {
+	from { opacity: 0; transform: translateY(24px) scale(.96); }
+	to { opacity: 1; transform: translateY(0) scale(1); }
+}
