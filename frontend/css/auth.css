@@ -441,6 +441,56 @@
 .btn-google-auth.is-loading .btn-google-icon { display: none; }
 .btn-google-auth.is-loading .btn-label { opacity: .7; }
 
+/* ── Google Dev Modal Dialog ─────────────────────────────── */
+.google-modal-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.75);
+	backdrop-filter: blur(8px);
+	padding: 1rem;
+	animation: fadeIn .25s ease-out;
+}
+
+.google-modal-box {
+	width: 100%;
+	max-width: 440px;
+	border-radius: 1.25rem;
+	background: #221e1a;
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	padding: 1.75rem;
+	box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+	animation: slideUp .3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.google-modal-header {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.g-chip {
+	padding: .35rem .75rem;
+	border-radius: 2rem;
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	background: rgba(255, 255, 255, 0.06);
+	color: rgba(255, 255, 255, 0.85);
+	font-size: .75rem;
+	cursor: pointer;
+	transition: background .2s, border-color .2s;
+}
+
+.g-chip:hover {
+	background: var(--primary);
+	border-color: var(--primary);
+	color: #fff;
+}
+
 .auth-social-row {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
