@@ -2628,6 +2628,357 @@ body.sub-page .policy-hero {
 	}
 }
 
+/* ── Host Your Event Page ──────────────────────────────────── */
+.host-hero {
+	min-height: 24rem;
+}
+
+.host-hero-content {
+	padding: 3.5rem 0 3rem;
+}
+
+.host-hero h1 {
+	max-width: 58rem;
+}
+
+.host-hero-cta {
+	margin-top: 1.75rem;
+}
+
+.host-cards-section {
+	background: #fffaf4;
+}
+
+.host-services-section {
+	background: var(--background);
+}
+
+.host-card-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 1.5rem;
+	max-width: 72rem;
+	margin-inline: auto;
+	margin-top: 2.5rem;
+}
+
+.host-card-grid-blue .host-card {
+	background: #f0f7ff;
+	border: 1px solid #d8e8fb;
+	color: #1e2a3a;
+}
+
+.host-card-grid-blue .host-card:hover {
+	background: #e4f0ff;
+	border-color: #b9d3f5;
+}
+
+.host-card-grid-pink .host-card {
+	background: #fff4f2;
+	border: 1px solid #fbe0da;
+	color: #2a1e1b;
+}
+
+.host-card-grid-pink .host-card:hover {
+	background: #fdeae5;
+	border-color: #f7c8be;
+}
+
+.host-card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	padding: 2.25rem 1.5rem 2.75rem;
+	border-radius: 0.5rem;
+	cursor: pointer;
+	transition: background 0.25s ease, border-color 0.25s ease, transform 0.3s ease, box-shadow 0.3s ease;
+	outline: none;
+}
+
+.host-card:hover,
+.host-card:focus-visible {
+	transform: translateY(-4px);
+	box-shadow: 0 16px 40px -16px rgba(38, 35, 31, 0.18);
+}
+
+.host-card:focus-visible {
+	box-shadow: 0 0 0 4px rgba(255, 138, 31, 0.25), 0 16px 40px -16px rgba(38, 35, 31, 0.18);
+}
+
+.host-card-icon {
+	color: currentColor;
+	opacity: 0.82;
+	margin-bottom: 1.125rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.host-card-icon svg {
+	width: 64px;
+	height: 64px;
+}
+
+.host-card h3 {
+	margin: 0;
+	font-size: 1.125rem;
+	font-weight: 700;
+	line-height: 1.35;
+	color: inherit;
+}
+
+.host-info-btn {
+	position: absolute;
+	bottom: 0.875rem;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 1.75rem;
+	height: 1.75rem;
+	border-radius: 50%;
+	border: 1.5px solid var(--primary);
+	color: var(--primary);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-family: Georgia, 'Times New Roman', serif;
+	font-weight: 700;
+	font-style: italic;
+	font-size: 0.95rem;
+	line-height: 1;
+	background: #fff;
+	transition: background 0.2s, color 0.2s;
+	pointer-events: none;
+}
+
+.host-card:hover .host-info-btn,
+.host-card:focus-visible .host-info-btn {
+	background: var(--brand-gradient);
+	color: #fff;
+	border-color: transparent;
+}
+
+.host-info-btn span {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.host-section-cta {
+	text-align: center;
+	margin-top: 2.5rem;
+}
+
+.host-services-note {
+	max-width: 56rem;
+	margin: 2.25rem auto 0;
+	text-align: center;
+	color: var(--muted);
+	font-size: 0.9375rem;
+	line-height: 1.7;
+}
+
+.host-final-cta {
+	overflow: hidden;
+	position: relative;
+}
+
+.host-final-cta h2 {
+	margin-top: 0.75rem;
+}
+
+/* ── Host Modal ────────────────────────────────────────────── */
+.host-modal-backdrop[hidden] {
+	display: none;
+}
+
+.host-modal-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 80;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.5rem;
+	background: rgba(0, 0, 0, 0.72);
+	backdrop-filter: blur(6px);
+	animation: float-up 0.35s ease-out both;
+}
+
+.host-modal-close-backdrop {
+	position: absolute;
+	inset: 0;
+	border: 0;
+	background: transparent;
+	cursor: pointer;
+}
+
+.host-modal {
+	position: relative;
+	z-index: 1;
+	width: min(100%, 34rem);
+	max-height: 90vh;
+	overflow-y: auto;
+	background: #ffffff;
+	border-radius: 0.75rem;
+	box-shadow: 0 32px 80px -24px rgba(0, 0, 0, 0.45);
+	animation: float-up 0.4s ease-out both;
+}
+
+.host-modal-close {
+	position: absolute;
+	z-index: 2;
+	top: 1rem;
+	right: 1rem;
+	width: 2rem;
+	height: 2rem;
+	border: 1px solid rgba(38, 35, 31, 0.12);
+	border-radius: 50%;
+	background: #fff;
+	color: var(--foreground);
+	font-size: 1.5rem;
+	line-height: 1;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.host-modal-close:hover {
+	background: var(--brand-gradient);
+	color: #fff;
+	border-color: transparent;
+	transform: rotate(90deg);
+}
+
+.host-modal-body {
+	padding: 3rem 2.5rem 2.5rem;
+	text-align: center;
+}
+
+.host-modal-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 4.5rem;
+	height: 4.5rem;
+	margin-bottom: 1rem;
+	color: var(--primary);
+	opacity: 0.9;
+}
+
+.host-modal-icon svg {
+	width: 72px;
+	height: 72px;
+}
+
+.host-modal-body h2 {
+	margin: 0;
+	font-size: 1.75rem;
+	font-weight: 900;
+	line-height: 1.15;
+	color: var(--foreground);
+}
+
+.host-modal-body > p {
+	margin: 0.75rem auto 0;
+	max-width: 28rem;
+	color: var(--muted);
+	font-size: 0.9375rem;
+	line-height: 1.65;
+}
+
+.host-modal-examples {
+	margin-top: 1.75rem;
+}
+
+.host-modal-examples h4 {
+	margin: 0 0 1rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--foreground);
+	opacity: 0.9;
+	letter-spacing: 0.02em;
+}
+
+.host-examples-row {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 0.75rem;
+}
+
+.host-example-item {
+	aspect-ratio: 3 / 4;
+	border-radius: 0.5rem;
+	overflow: hidden;
+	background: var(--brand-gradient);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.25rem;
+	padding: 0.5rem;
+	color: #fff;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	line-height: 1.25;
+	text-align: center;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+	position: relative;
+}
+
+.host-example-item::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background:
+		radial-gradient(circle at 80% 15%, rgba(255, 255, 255, 0.3), transparent 50%),
+		linear-gradient(180deg, transparent 30%, rgba(0, 0, 0, 0.2));
+	pointer-events: none;
+}
+
+.host-example-item svg {
+	width: 32px;
+	height: 32px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	position: relative;
+	z-index: 1;
+	opacity: 0.95;
+}
+
+.host-example-item span {
+	position: relative;
+	z-index: 1;
+	opacity: 0.95;
+}
+
+.host-example-item:nth-child(2) {
+	background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.host-example-item:nth-child(3) {
+	background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.host-modal-cta {
+	margin-top: 2rem;
+}
+
+.host-modal-cta .button {
+	width: 100%;
+	max-width: 20rem;
+	padding: 0.875rem 1.75rem;
+	border-radius: 0.5rem;
+	font-size: 0.9375rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
 
 	.splash-orb,

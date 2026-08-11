@@ -65,6 +65,13 @@
 	.event-modal { grid-template-columns: 1fr; max-height: calc(100vh - 2rem); overflow-y: auto; }
 	.modal-image { display: none; }
 
+	.host-card-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+	.host-card { padding: 1.75rem 1rem 2.25rem; }
+	.host-card-icon svg { width: 52px; height: 52px; }
+	.host-card h3 { font-size: 1rem; }
+	.host-modal { width: min(100%, 28rem); }
+	.host-modal-body { padding: 2.25rem 1.75rem 2rem; }
+
 	/* Auth responsive */
 	.auth-split { grid-template-columns: 1fr; min-height: auto; }
 	.auth-brand-panel { display: none; }
@@ -111,4 +118,14 @@
 	.modal-content h2 { font-size: 1.75rem; }
 	.modal-content .event-countdown strong { font-size: 1.5rem; }
 	.auth-form-panel { padding: 1.5rem 1rem; }
+
+	.host-card-grid { grid-template-columns: 1fr; gap: 1rem; }
+	.host-card { padding: 2rem 1.25rem 2.5rem; }
+	.host-card-icon svg { width: 56px; height: 56px; }
+	.host-modal-body { padding: 2rem 1.25rem 1.75rem; }
+	.host-modal-icon svg { width: 60px; height: 60px; }
+	.host-modal-body h2 { font-size: 1.5rem; }
+	.host-modal-body > p { font-size: 0.875rem; }
+	.host-modal-cta .button { max-width: 100%; border-radius: 0.5rem; }
+	.host-modal-backdrop { padding: 0.75rem; }
 }

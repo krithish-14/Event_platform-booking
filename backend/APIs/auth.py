@@ -18,8 +18,36 @@ from Services.auth_service import (
 )
 from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES
 from Authentication.dependencies import get_current_user
+import random
+from Models.audit_logs import UserSignupLog, UserLoginLog
 
 router = APIRouter()
+
+
+# ── Availability Check (live validation) ─────────────────────────────────────
+@router.get("/check")
+def check_availability(email: str = None, username: str = None, db: Session = Depends(get_db)):
+    """Check if an email or username is already taken. Used for real-time form validation."""
+    result = {}
+    if email:
+        exists = db.query(User).filter(User.email == email.strip().lower()).first()
+        result["email_available"] = exists is None
+        result["email_message"] = "Email already registered." if exists else "Email is available."
+    if username:
+        exists = db.query(User).filter(User.username == username.strip()).first()
+        result["username_available"] = exists is None
+        result["username_message"] = "Username already taken." if exists else "Username is available."
+    return result
+
+
+def generate_customer_id(db: Session) -> str:
+    """Generate a unique customer ID (e.g. CUST-849201)."""
+    while True:
+        num = random.randint(100000, 999999)
+        cid = f"CUST-{num}"
+        existing = db.query(User).filter(User.customer_id == cid).first()
+        if not existing:
+            return cid
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -58,11 +86,13 @@ class UserRegisterRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
+    customer_id: str | None = None
     email: str
     username: str
     full_name: str | None
     is_active: bool
     is_admin: bool
+    role: str = "attendee"
 
     class Config:
         from_attributes = True
@@ -78,13 +108,16 @@ def _serialize_user(user) -> dict:
     """Convert a User ORM object to a dict suitable for JSON/Pydantic (string UUID)."""
     if user is None:
         return None
+    role = "admin" if bool(getattr(user, "is_admin", False)) else "attendee"
     return {
         "id": str(user.id),
+        "customer_id": getattr(user, "customer_id", None),
         "email": user.email,
         "username": user.username,
         "full_name": user.full_name,
         "is_active": bool(getattr(user, "is_active", True)),
         "is_admin": bool(getattr(user, "is_admin", False)),
+        "role": role,
     }
 
 
@@ -97,7 +130,10 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=400, detail="Username already taken.")
 
+    customer_id = generate_customer_id(db)
+
     user = User(
+        customer_id=customer_id,
         email=payload.email,
         username=payload.username,
         full_name=payload.full_name,
@@ -106,6 +142,17 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Record User Signup Audit Log in user_signups table
+    signup_log = UserSignupLog(
+        user_id=user.id,
+        customer_id=customer_id,
+        email=user.email,
+        username=user.username,
+        full_name=user.full_name,
+    )
+    db.add(signup_log)
+    db.commit()
 
     token = create_access_token(
         data={"sub": str(user.id)},
@@ -133,6 +180,22 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account has been deactivated. Please contact support.",
         )
+
+    # Ensure legacy users get a customer_id if missing
+    if not user.customer_id:
+        user.customer_id = generate_customer_id(db)
+        db.commit()
+        db.refresh(user)
+
+    # Record User Login Audit Log in user_logins table
+    login_log = UserLoginLog(
+        user_id=user.id,
+        customer_id=user.customer_id,
+        email=user.email,
+        status="SUCCESS",
+    )
+    db.add(login_log)
+    db.commit()
 
     token = create_access_token(
         data={"sub": str(user.id)},

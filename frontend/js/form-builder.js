@@ -1,0 +1,986 @@
+/**
+ * Dynamic Registration Form Builder & Submissions Manager (Google Forms / Typeform style)
+ */
+function initFormBuilder() {
+	const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
+		? "http://127.0.0.1:8001/api/forms"
+		: "/api/forms";
+
+	const currentUser = window.JodAuth ? window.JodAuth.getUser() : null;
+	const urlParams = new URLSearchParams(window.location.search);
+	let email = currentUser ? currentUser.email : (urlParams.get("email") || sessionStorage.getItem("verified_organizer_email"));
+
+	if (currentUser && currentUser.id) {
+		const userVerifiedEmail = sessionStorage.getItem(`verified_organizer_${currentUser.id}`);
+		if (userVerifiedEmail) {
+			email = userVerifiedEmail;
+		}
+	}
+
+	// Elements
+	const subTabBuilder = document.getElementById("subTabBuilder");
+	const subTabSubmissions = document.getElementById("subTabSubmissions");
+	const subViewBuilder = document.getElementById("subViewBuilder");
+	const subViewSubmissions = document.getElementById("subViewSubmissions");
+
+	const builderFormTitle = document.getElementById("builderFormTitle");
+	const builderFormDesc = document.getElementById("builderFormDesc");
+	const themePrimaryColor = document.getElementById("themePrimaryColor");
+	const themePageBgColor = document.getElementById("themePageBgColor");
+	const themeCardBgColor = document.getElementById("themeCardBgColor");
+	const themeBorderRadius = document.getElementById("themeBorderRadius");
+	const themePresetSelect = document.getElementById("themePresetSelect");
+	const themeBannerUrl = document.getElementById("themeBannerUrl");
+	const themePageBgUrl = document.getElementById("themePageBgUrl");
+	const btnApplyPresetBanner = document.getElementById("btnApplyPresetBanner");
+
+	const fileBannerInput = document.getElementById("fileBannerInput");
+	const btnUploadBannerFile = document.getElementById("btnUploadBannerFile");
+	const filePageBgInput = document.getElementById("filePageBgInput");
+	const btnUploadPageBgFile = document.getElementById("btnUploadPageBgFile");
+
+	const previewCardContainer = document.getElementById("previewCardContainer");
+	const questionsList = document.getElementById("questionsList");
+	const questionCountLabel = document.getElementById("questionCountLabel");
+	const btnAddQuestion = document.getElementById("btnAddQuestion");
+
+	// Device File Upload Handlers
+	if (btnUploadBannerFile && fileBannerInput) {
+		btnUploadBannerFile.addEventListener("click", () => fileBannerInput.click());
+		fileBannerInput.addEventListener("change", (e) => {
+			if (e.target.files && e.target.files[0]) {
+				const file = e.target.files[0];
+				const reader = new FileReader();
+				reader.onload = (evt) => {
+					// Store actual base64 in data attribute — show only filename in the text field
+					if (themeBannerUrl) {
+						themeBannerUrl.dataset.uploadSrc = evt.target.result;
+						themeBannerUrl.value = file.name;
+					}
+					btnUploadBannerFile.textContent = `✓ ${file.name.substring(0, 14)}...`;
+					btnUploadBannerFile.style.color = "#10b981";
+					renderLivePreview();
+				};
+				reader.readAsDataURL(file);
+			}
+		});
+	}
+
+	if (btnUploadPageBgFile && filePageBgInput) {
+		btnUploadPageBgFile.addEventListener("click", () => filePageBgInput.click());
+		filePageBgInput.addEventListener("change", (e) => {
+			if (e.target.files && e.target.files[0]) {
+				const file = e.target.files[0];
+				const reader = new FileReader();
+				reader.onload = (evt) => {
+					// Store actual base64 in data attribute — show only filename in the text field
+					if (themePageBgUrl) {
+						themePageBgUrl.dataset.uploadSrc = evt.target.result;
+						themePageBgUrl.value = file.name;
+					}
+					btnUploadPageBgFile.textContent = `✓ ${file.name.substring(0, 14)}...`;
+					btnUploadPageBgFile.style.color = "#10b981";
+					renderLivePreview();
+				};
+				reader.readAsDataURL(file);
+			}
+		});
+	}
+
+	if (btnApplyPresetBanner && themeBannerUrl) {
+		btnApplyPresetBanner.addEventListener("click", () => {
+			themeBannerUrl.value = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=1000";
+			renderLivePreview();
+		});
+	}
+
+	if (themePresetSelect) {
+		themePresetSelect.addEventListener("change", (e) => {
+			const val = e.target.value;
+			if (val === "dark_cyber") {
+				themePrimaryColor.value = "#3b82f6";
+				themePageBgColor.value = "#0f172a";
+				themeCardBgColor.value = "#1e293b";
+				if (themePageBgUrl) themePageBgUrl.value = "";
+			} else if (val === "midnight_blue") {
+				themePrimaryColor.value = "#6366f1";
+				themePageBgColor.value = "#1e1b4b";
+				themeCardBgColor.value = "#312e81";
+				if (themePageBgUrl) themePageBgUrl.value = "";
+			} else if (val === "sunset_gradient") {
+				themePrimaryColor.value = "#f59e0b";
+				themePageBgColor.value = "#fae8ff";
+				themeCardBgColor.value = "#ffffff";
+				if (themePageBgUrl) themePageBgUrl.value = "";
+			} else if (val === "emerald_fresh") {
+				themePrimaryColor.value = "#10b981";
+				themePageBgColor.value = "#f0fdf4";
+				themeCardBgColor.value = "#ffffff";
+				if (themePageBgUrl) themePageBgUrl.value = "";
+			} else {
+				themePrimaryColor.value = "#2563eb";
+				themePageBgColor.value = "#f8fafc";
+				themeCardBgColor.value = "#ffffff";
+				if (themePageBgUrl) themePageBgUrl.value = "";
+			}
+			renderLivePreview();
+		});
+	}
+
+	if (themeBannerUrl) themeBannerUrl.addEventListener("input", () => {
+		// User typed manually — clear stored upload data so typed URL is used
+		delete themeBannerUrl.dataset.uploadSrc;
+		renderLivePreview();
+	});
+	if (themePageBgUrl) themePageBgUrl.addEventListener("input", () => {
+		delete themePageBgUrl.dataset.uploadSrc;
+		renderLivePreview();
+	});
+	if (themePageBgColor) themePageBgColor.addEventListener("input", renderLivePreview);
+	if (themeCardBgColor) themeCardBgColor.addEventListener("input", renderLivePreview);
+
+	const btnSaveDraftForm = document.getElementById("btnSaveDraftForm");
+	const btnPublishForm = document.getElementById("btnPublishForm");
+	const formStatusBadge = document.getElementById("formStatusBadge");
+	const formVersionBadge = document.getElementById("formVersionBadge");
+
+	// Live Preview Elements
+	const previewHeader = document.getElementById("previewHeader");
+	const previewTitle = document.getElementById("previewTitle");
+	const previewDesc = document.getElementById("previewDesc");
+	const previewRenderedForm = document.getElementById("previewRenderedForm");
+	const previewSubmitBtn = document.getElementById("previewSubmitBtn");
+	const livePreviewWrapper = document.getElementById("livePreviewWrapper");
+
+	// Submissions Elements
+	const submissionsTableBody = document.getElementById("submissionsTableBody");
+	const submissionsSearch = document.getElementById("submissionsSearch");
+	const submissionsStatusFilter = document.getElementById("submissionsStatusFilter");
+	const submissionsFromDate = document.getElementById("submissionsFromDate");
+	const submissionsToDate = document.getElementById("submissionsToDate");
+	const btnResetFilters = document.getElementById("btnResetFilters");
+	const btnRefreshSubmissions = document.getElementById("btnRefreshSubmissions");
+	const btnExportCSV = document.getElementById("btnExportCSV");
+	const kpiTotalSubmissions = document.getElementById("kpiTotalSubmissions");
+
+	// Form State
+	let formId = null;
+	let version = 1;
+	let isPublished = false;
+
+	let questions = [
+		{
+			id: "q_name",
+			type: "short_answer",
+			title: "What is your Full Name?",
+			placeholder: "Enter your full name",
+			help_text: "Please enter your name as on official ID.",
+			required: true
+		},
+		{
+			id: "q_email",
+			type: "email",
+			title: "Email Address",
+			placeholder: "example@domain.com",
+			help_text: "",
+			required: true
+		},
+		{
+			id: "q_phone",
+			type: "phone",
+			title: "Mobile Phone Number",
+			placeholder: "9876543210",
+			help_text: "",
+			required: true
+		},
+		{
+			id: "q_food",
+			type: "radio",
+			title: "Dietary Preference",
+			help_text: "",
+			required: false,
+			options: ["Vegetarian", "Non-Vegetarian", "Vegan"]
+		}
+	];
+
+	let theme = {
+		primary_color: "#2563eb",
+		bg_color: "#f8fafc",
+		border_radius: "8px"
+	};
+
+	let allSubmissionsData = [];
+
+	// ── Sub-Tab Switcher ──────────────────────────────────────────────────────
+	if (subTabBuilder && subTabSubmissions) {
+		subTabBuilder.addEventListener("click", () => {
+			subTabBuilder.classList.add("active");
+			subTabBuilder.style.background = "#ffffff";
+			subTabBuilder.style.color = "#2563eb";
+			subTabBuilder.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
+
+			subTabSubmissions.classList.remove("active");
+			subTabSubmissions.style.background = "transparent";
+			subTabSubmissions.style.color = "#64748b";
+			subTabSubmissions.style.boxShadow = "none";
+
+			subViewBuilder.style.display = "block";
+			subViewSubmissions.style.display = "none";
+		});
+
+		subTabSubmissions.addEventListener("click", () => {
+			subTabSubmissions.classList.add("active");
+			subTabSubmissions.style.background = "#ffffff";
+			subTabSubmissions.style.color = "#2563eb";
+			subTabSubmissions.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
+
+			subTabBuilder.classList.remove("active");
+			subTabBuilder.style.background = "transparent";
+			subTabBuilder.style.color = "#64748b";
+			subTabBuilder.style.boxShadow = "none";
+
+			subViewBuilder.style.display = "none";
+			subViewSubmissions.style.display = "block";
+			loadSubmissionsData();
+		});
+	}
+
+	// ── Render Left Builder Questions List ────────────────────────────────────
+	function renderBuilderQuestions() {
+		if (!questions || !Array.isArray(questions) || questions.length === 0) {
+			questions = [
+				{
+					id: "q_name",
+					type: "short_answer",
+					title: "What is your Full Name?",
+					placeholder: "Enter your full name",
+					help_text: "Please enter your name as on official ID.",
+					required: true
+				},
+				{
+					id: "q_email",
+					type: "email",
+					title: "Email Address",
+					placeholder: "example@domain.com",
+					help_text: "",
+					required: true
+				},
+				{
+					id: "q_phone",
+					type: "phone",
+					title: "Mobile Phone Number",
+					placeholder: "9876543210",
+					help_text: "",
+					required: true
+				},
+				{
+					id: "q_food",
+					type: "radio",
+					title: "Dietary Preference",
+					help_text: "",
+					required: false,
+					options: ["Vegetarian", "Non-Vegetarian", "Vegan"]
+				}
+			];
+		}
+
+		const countEl = document.getElementById("questionCountLabel");
+		if (countEl) countEl.textContent = questions.length;
+
+		const wizardPreview = document.getElementById("manageWizardQuestionsPreview");
+		if (wizardPreview) {
+			wizardPreview.innerHTML = questions.map((q, idx) => `
+				<div style="display:flex; justify-content:space-between; align-items:center; ${idx < questions.length - 1 ? 'border-bottom:1px solid #f1f5f9; padding-bottom:0.4rem;' : ''} font-size:0.85rem; font-weight:700; color:#334155;">
+					<span>${q.title || ('Question ' + (idx + 1))} ${q.required ? '<span style="color:#ef4444;">*</span>' : ''}</span>
+					<span style="background:#eff6ff; color:#2563eb; padding:0.15rem 0.5rem; border-radius:4px; font-size:0.75rem;">${q.type}</span>
+				</div>
+			`).join('');
+		}
+
+		const listEl = document.getElementById("questionsList");
+		if (!listEl) return;
+		listEl.innerHTML = "";
+
+		questions.forEach((q, idx) => {
+			try {
+				if (!q) return;
+				if (!q.id) q.id = "q_" + idx;
+				if (!q.type) q.type = "short_answer";
+				if (!q.title) q.title = `Question ${idx + 1}`;
+				if (!q.placeholder) q.placeholder = "";
+				if (!q.help_text) q.help_text = "";
+				if (typeof q.required !== "boolean") q.required = false;
+
+				const hasOptions = ["dropdown", "radio", "checkbox"].includes(q.type);
+				if (hasOptions && (!q.options || !Array.isArray(q.options))) {
+					q.options = ["Option 1", "Option 2"];
+				}
+
+				const card = document.createElement("div");
+				card.className = "builder-question-card";
+				card.style.background = "#ffffff";
+				card.style.border = "1.5px solid #cbd5e1";
+				card.style.borderRadius = "10px";
+				card.style.padding = "1.2rem";
+				card.style.boxShadow = "0 2px 6px rgba(0,0,0,0.03)";
+				card.style.display = "flex";
+				card.style.flexDirection = "column";
+				card.style.gap = "0.9rem";
+
+				const titleStr = String(q.title || '').replace(/"/g, '&quot;');
+				const placeholderStr = String(q.placeholder || '').replace(/"/g, '&quot;');
+				const helpStr = String(q.help_text || '').replace(/"/g, '&quot;');
+
+				card.innerHTML = `
+					<div style="display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.6rem;">
+						<span style="font-weight: 800; color: #2563eb; font-size: 0.85rem; background: #eff6ff; padding: 0.2rem 0.6rem; border-radius: 6px;">Q${idx + 1}</span>
+						
+						<div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
+							<select class="setup-select q-type-select" style="padding: 0.4rem 0.7rem; font-size: 0.88rem; font-weight: 700; height: 40px; line-height: 1.3; max-width: 240px; border-radius: 8px;">
+								<option value="short_answer" ${q.type === 'short_answer' ? 'selected' : ''}>Short Answer</option>
+								<option value="paragraph" ${q.type === 'paragraph' ? 'selected' : ''}>Paragraph</option>
+								<option value="email" ${q.type === 'email' ? 'selected' : ''}>Email Address</option>
+								<option value="phone" ${q.type === 'phone' ? 'selected' : ''}>Phone Number</option>
+								<option value="dropdown" ${q.type === 'dropdown' ? 'selected' : ''}>Dropdown Select</option>
+								<option value="radio" ${q.type === 'radio' ? 'selected' : ''}>Multiple Choice Radio</option>
+								<option value="checkbox" ${q.type === 'checkbox' ? 'selected' : ''}>Checkboxes</option>
+								<option value="date" ${q.type === 'date' ? 'selected' : ''}>Date Picker</option>
+								<option value="file_upload" ${q.type === 'file_upload' ? 'selected' : ''}>File Upload</option>
+								<option value="address" ${q.type === 'address' ? 'selected' : ''}>Address Block</option>
+								<option value="terms" ${q.type === 'terms' ? 'selected' : ''}>Terms Checkbox</option>
+							</select>
+						</div>
+
+						<div style="display: flex; align-items: center; gap: 0.4rem;">
+							<button type="button" class="btn-move-up" title="Move Up" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;">↑</button>
+							<button type="button" class="btn-move-down" title="Move Down" ${idx === questions.length - 1 ? 'disabled style="opacity:0.3;"' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;">↓</button>
+							<button type="button" class="btn-duplicate-q" title="Duplicate Question" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; border-radius:6px; padding:0.25rem 0.65rem; cursor:pointer; font-weight:700; font-size:0.8rem;">Copy</button>
+							<button type="button" class="btn-delete-q" title="Delete Question" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:6px; padding:0.25rem 0.65rem; cursor:pointer; font-weight:700; font-size:0.8rem;">Delete</button>
+						</div>
+					</div>
+
+					<div class="setup-grid-2">
+						<div class="setup-form-group">
+							<label>Question Title</label>
+							<input type="text" class="setup-input q-title-input" value="${titleStr}" placeholder="Enter question..." style="padding-left: 0.8rem;" />
+						</div>
+						<div class="setup-form-group">
+							<label>Placeholder Text</label>
+							<input type="text" class="setup-input q-placeholder-input" value="${placeholderStr}" placeholder="e.g. Enter value" style="padding-left: 0.8rem;" />
+						</div>
+					</div>
+
+					<div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+						<div class="setup-form-group" style="flex: 1;">
+							<label>Help Text / Description (Optional)</label>
+							<input type="text" class="setup-input q-help-input" value="${helpStr}" placeholder="Helper guidance..." style="padding-left: 0.8rem;" />
+						</div>
+						<div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1.2rem;">
+							<label style="font-weight: 700; font-size: 0.85rem; cursor: pointer;">
+								<input type="checkbox" class="q-required-check" ${q.required ? 'checked' : ''} /> Required
+							</label>
+						</div>
+					</div>
+
+					${hasOptions ? `
+						<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.8rem; margin-top: 0.4rem;">
+							<label style="font-size: 0.82rem; font-weight: 700; color: #475569; margin-bottom: 0.5rem; display: block;">Options List</label>
+							<div class="q-options-container" style="display: flex; flex-direction: column; gap: 0.4rem;">
+								${(q.options || ["Option 1"]).map((opt, oIdx) => `
+									<div style="display: flex; gap: 0.4rem; align-items: center;">
+										<input type="text" class="setup-input q-option-input" value="${String(opt || '').replace(/"/g, '&quot;')}" style="height: 36px; font-size: 0.85rem; padding-left: 0.8rem;" data-opt-idx="${oIdx}" />
+										<button type="button" class="btn-del-option" data-opt-idx="${oIdx}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 6px; padding: 0 0.5rem; height: 36px; cursor: pointer; font-weight: 700;">&times;</button>
+									</div>
+								`).join('')}
+							</div>
+							<button type="button" class="btn-add-option" style="background: #ffffff; border: 1px dashed #3b82f6; color: #2563eb; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.7rem; border-radius: 6px; cursor: pointer; margin-top: 0.5rem;">+ Add Option</button>
+						</div>
+					` : ''}
+				`;
+
+				// Event Listeners for Question Editing (Safely bound)
+				card.querySelector(".q-type-select")?.addEventListener("change", (e) => {
+					q.type = e.target.value;
+					if (["dropdown", "radio", "checkbox"].includes(q.type) && !q.options) {
+						q.options = ["Option 1", "Option 2"];
+					}
+					renderBuilderQuestions();
+					renderLivePreview();
+				});
+
+				card.querySelector(".q-title-input")?.addEventListener("input", (e) => {
+					q.title = e.target.value;
+					renderLivePreview();
+				});
+
+				card.querySelector(".q-placeholder-input")?.addEventListener("input", (e) => {
+					q.placeholder = e.target.value;
+					renderLivePreview();
+				});
+
+				card.querySelector(".q-help-input")?.addEventListener("input", (e) => {
+					q.help_text = e.target.value;
+					renderLivePreview();
+				});
+
+				card.querySelector(".q-required-check")?.addEventListener("change", (e) => {
+					q.required = e.target.checked;
+					renderLivePreview();
+				});
+
+				// Up / Down / Duplicate / Delete
+				card.querySelector(".btn-move-up")?.addEventListener("click", () => {
+					if (idx > 0) {
+						const temp = questions[idx];
+						questions[idx] = questions[idx - 1];
+						questions[idx - 1] = temp;
+						renderBuilderQuestions();
+						renderLivePreview();
+					}
+				});
+
+				card.querySelector(".btn-move-down")?.addEventListener("click", () => {
+					if (idx < questions.length - 1) {
+						const temp = questions[idx];
+						questions[idx] = questions[idx + 1];
+						questions[idx + 1] = temp;
+						renderBuilderQuestions();
+						renderLivePreview();
+					}
+				});
+
+				card.querySelector(".btn-duplicate-q")?.addEventListener("click", () => {
+					const dup = JSON.parse(JSON.stringify(q));
+					dup.id = "q_" + Date.now();
+					dup.title += " (Copy)";
+					questions.splice(idx + 1, 0, dup);
+					renderBuilderQuestions();
+					renderLivePreview();
+				});
+
+				card.querySelector(".btn-delete-q")?.addEventListener("click", () => {
+					if (questions.length > 1) {
+						questions.splice(idx, 1);
+						renderBuilderQuestions();
+						renderLivePreview();
+					}
+				});
+
+				// Options Handlers
+				if (hasOptions) {
+					const optionInputs = card.querySelectorAll(".q-option-input");
+					optionInputs.forEach(optInput => {
+						optInput.addEventListener("input", (e) => {
+							const oIdx = parseInt(e.target.getAttribute("data-opt-idx"));
+							q.options[oIdx] = e.target.value;
+							renderLivePreview();
+						});
+					});
+
+					card.querySelectorAll(".btn-del-option").forEach(btn => {
+						btn.addEventListener("click", (e) => {
+							const oIdx = parseInt(e.target.getAttribute("data-opt-idx"));
+							if (q.options.length > 1) {
+								q.options.splice(oIdx, 1);
+								renderBuilderQuestions();
+								renderLivePreview();
+							}
+						});
+					});
+
+					const btnAddOpt = card.querySelector(".btn-add-option");
+					if (btnAddOpt) {
+						btnAddOpt.addEventListener("click", () => {
+							q.options.push(`Option ${q.options.length + 1}`);
+							renderBuilderQuestions();
+							renderLivePreview();
+						});
+					}
+				}
+
+				listEl.appendChild(card);
+			} catch (err) {
+				console.error("Error rendering question card:", err);
+			}
+		});
+	}
+
+	// ── Render Right Column Instant Live Preview ──────────────────────────────
+	function renderLivePreview() {
+		if (!previewRenderedForm) return;
+
+		// Update Header Title & Description
+		if (previewTitle && builderFormTitle) previewTitle.textContent = builderFormTitle.value.trim() || "Event Registration Form";
+		if (previewDesc && builderFormDesc) previewDesc.textContent = builderFormDesc.value.trim() || "";
+
+		// Update Theme Styles, Page Background, Card Background & Banner Header Image
+		const primary = themePrimaryColor ? themePrimaryColor.value : "#2563eb";
+		const pageBg = themePageBgColor ? themePageBgColor.value : "#f8fafc";
+		const cardBg = themeCardBgColor ? themeCardBgColor.value : "#ffffff";
+		const radius = themeBorderRadius ? themeBorderRadius.value : "8px";
+		// Use uploaded base64 data if available, otherwise use the typed URL value
+		const bannerUrl = themeBannerUrl
+			? (themeBannerUrl.dataset.uploadSrc || themeBannerUrl.value.trim())
+			: "";
+		const pageBgUrl = themePageBgUrl
+			? (themePageBgUrl.dataset.uploadSrc || themePageBgUrl.value.trim())
+			: "";
+
+		// Outer Page Background Style
+		if (livePreviewWrapper) {
+			if (pageBgUrl) {
+				livePreviewWrapper.style.background = `url('${pageBgUrl}') center/cover no-repeat`;
+			} else {
+				livePreviewWrapper.style.background = pageBg;
+			}
+			livePreviewWrapper.style.borderRadius = "14px";
+		}
+
+		// Inner Form Card Style
+		if (previewCardContainer) {
+			previewCardContainer.style.background = cardBg;
+			previewCardContainer.style.borderRadius = radius;
+
+			// Dark / Light text auto contrast
+			const isDarkCard = cardBg.toLowerCase() === "#0f172a" || cardBg.toLowerCase() === "#1e293b" || cardBg.toLowerCase() === "#1e1b4b" || cardBg.toLowerCase() === "#312e81";
+			const textColor = isDarkCard ? "#ffffff" : "#0f172a";
+			const subTextColor = isDarkCard ? "#94a3b8" : "#64748b";
+
+			if (previewTitle) previewTitle.style.color = textColor;
+			if (previewDesc) previewDesc.style.color = subTextColor;
+			previewCardContainer.style.color = textColor;
+		}
+
+		// Header Banner Image
+		let previewBannerImg = document.getElementById("previewHeaderBannerImg");
+		if (bannerUrl) {
+			if (!previewBannerImg) {
+				previewBannerImg = document.createElement("img");
+				previewBannerImg.id = "previewHeaderBannerImg";
+				previewBannerImg.style.width = "100%";
+				previewBannerImg.style.height = "130px";
+				previewBannerImg.style.objectFit = "cover";
+				previewBannerImg.style.borderRadius = `${radius} ${radius} 0 0`;
+				previewBannerImg.style.marginBottom = "1rem";
+				if (previewHeader && previewHeader.parentNode) {
+					previewHeader.parentNode.insertBefore(previewBannerImg, previewHeader);
+				}
+			}
+			previewBannerImg.src = bannerUrl;
+			previewBannerImg.style.display = "block";
+		} else if (previewBannerImg) {
+			previewBannerImg.style.display = "none";
+		}
+
+		if (previewHeader) previewHeader.style.borderBottomColor = primary;
+		if (previewSubmitBtn) {
+			previewSubmitBtn.style.background = primary;
+			previewSubmitBtn.style.borderRadius = radius;
+		}
+
+		// Render Questions Controls
+		previewRenderedForm.innerHTML = "";
+
+		questions.forEach((q) => {
+			const group = document.createElement("div");
+			group.className = "setup-form-group";
+
+			const reqSpan = q.required ? '<span style="color:#ef4444;">*</span>' : '';
+			const helpHtml = q.help_text ? `<span style="font-size:0.75rem; color:#64748b; margin-top:0.1rem; display:block;">${q.help_text}</span>` : '';
+
+			let fieldHtml = '';
+
+			switch (q.type) {
+				case 'short_answer':
+				case 'email':
+				case 'phone':
+					fieldHtml = `<input type="${q.type === 'email' ? 'email' : 'text'}" class="setup-input" placeholder="${q.placeholder || ''}" style="border-radius:${radius}; border-color:#cbd5e1;" />`;
+					break;
+				case 'paragraph':
+				case 'address':
+					fieldHtml = `<textarea class="setup-textarea" placeholder="${q.placeholder || ''}" style="border-radius:${radius}; border-color:#cbd5e1; min-height:70px;"></textarea>`;
+					break;
+				case 'dropdown':
+					fieldHtml = `
+						<select class="setup-select" style="border-radius:${radius}; padding-left:0.8rem;">
+							${(q.options || []).map(opt => `<option>${opt}</option>`).join('')}
+						</select>
+					`;
+					break;
+				case 'radio':
+					fieldHtml = `
+						<div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.2rem;">
+							${(q.options || []).map(opt => `
+								<label style="font-weight:600; font-size:0.88rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#334155;">
+									<input type="radio" name="prev_${q.id}" /> ${opt}
+								</label>
+							`).join('')}
+						</div>
+					`;
+					break;
+				case 'checkbox':
+					fieldHtml = `
+						<div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.2rem;">
+							${(q.options || []).map(opt => `
+								<label style="font-weight:600; font-size:0.88rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#334155;">
+									<input type="checkbox" /> ${opt}
+								</label>
+							`).join('')}
+						</div>
+					`;
+					break;
+				case 'date':
+					fieldHtml = `<input type="date" class="setup-input" style="border-radius:${radius}; border-color:#cbd5e1;" />`;
+					break;
+				case 'file_upload':
+					fieldHtml = `
+						<div style="border:1.5px dashed #cbd5e1; background:#ffffff; border-radius:${radius}; padding:1rem; text-align:center;">
+							<span style="font-weight:600; font-size:0.85rem; color:#2563eb;">Upload File ↗</span>
+						</div>
+					`;
+					break;
+				case 'terms':
+					fieldHtml = `
+						<label style="font-weight:600; font-size:0.85rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#334155;">
+							<input type="checkbox" /> I agree to the terms and event policies.
+						</label>
+					`;
+					break;
+				default:
+					fieldHtml = `<input type="text" class="setup-input" placeholder="${q.placeholder || ''}" style="border-radius:${radius};" />`;
+			}
+
+			group.innerHTML = `
+				<label style="font-size:0.88rem; font-weight:700; color:#0f172a;">${q.title} ${reqSpan}</label>
+				${helpHtml}
+				${fieldHtml}
+			`;
+
+			previewRenderedForm.appendChild(group);
+		});
+	}
+
+	// ── Form Input Change Listeners ───────────────────────────────────────────
+	if (builderFormTitle) builderFormTitle.addEventListener("input", renderLivePreview);
+	if (builderFormDesc) builderFormDesc.addEventListener("input", renderLivePreview);
+	if (themePrimaryColor) themePrimaryColor.addEventListener("input", renderLivePreview);
+	if (themePageBgColor) themePageBgColor.addEventListener("input", renderLivePreview);
+	if (themeCardBgColor) themeCardBgColor.addEventListener("input", renderLivePreview);
+	if (themeBorderRadius) themeBorderRadius.addEventListener("change", renderLivePreview);
+
+	if (btnAddQuestion) {
+		btnAddQuestion.addEventListener("click", (e) => {
+			e.preventDefault();
+			if (!Array.isArray(questions)) questions = [];
+			questions.push({
+				id: "q_" + Date.now(),
+				type: "short_answer",
+				title: `New Question ${questions.length + 1}`,
+				placeholder: "Enter answer...",
+				help_text: "",
+				required: false
+			});
+			renderBuilderQuestions();
+			renderLivePreview();
+		});
+	}
+
+	// Document-level Click Delegation for Add Question Button
+	document.addEventListener("click", (e) => {
+		const btn = e.target.closest("#btnAddQuestion");
+		if (btn) {
+			e.preventDefault();
+			e.stopPropagation();
+			if (!Array.isArray(questions)) questions = [];
+			questions.push({
+				id: "q_" + Date.now(),
+				type: "short_answer",
+				title: `New Question ${questions.length + 1}`,
+				placeholder: "Enter answer...",
+				help_text: "",
+				required: false
+			});
+			renderBuilderQuestions();
+			renderLivePreview();
+			setTimeout(() => {
+				const qList = document.getElementById("questionsList");
+				if (qList && qList.lastElementChild) {
+					qList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				}
+			}, 60);
+		}
+	});
+
+	// Save Draft API Handler
+	async function saveDraftForm() {
+		const payload = {
+			organizer_email: email,
+			form_title: builderFormTitle.value.trim() || "Event Registration Form",
+			form_description: builderFormDesc.value.trim() || "",
+			schema_json: questions,
+			theme_json: {
+				primary_color: themePrimaryColor ? themePrimaryColor.value : "#2563eb",
+				page_bg_color: themePageBgColor ? themePageBgColor.value : "#f8fafc",
+				card_bg_color: themeCardBgColor ? themeCardBgColor.value : "#ffffff",
+				border_radius: themeBorderRadius ? themeBorderRadius.value : "8px",
+				banner_url: themeBannerUrl ? themeBannerUrl.value.trim() : "",
+				page_bg_url: themePageBgUrl ? themePageBgUrl.value.trim() : ""
+			}
+		};
+
+		try {
+			const res = await fetch(`${API_BASE}/save-draft`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload)
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.detail || "Failed to save draft.");
+
+			formId = data.form_id;
+			formStatusBadge.textContent = "Draft Saved";
+			formStatusBadge.style.background = "#fef3c7";
+			formStatusBadge.style.color = "#b45309";
+			alert("✓ Form draft saved successfully!");
+		} catch (err) {
+			alert(err.message || "Failed to save draft.");
+		}
+	}
+
+	// Publish Form API Handler
+	async function publishFormLive() {
+		const payload = {
+			organizer_email: email,
+			form_title: builderFormTitle.value.trim() || "Event Registration Form",
+			form_description: builderFormDesc.value.trim() || "",
+			schema_json: questions,
+			theme_json: {
+				primary_color: themePrimaryColor ? themePrimaryColor.value : "#2563eb",
+				page_bg_color: themePageBgColor ? themePageBgColor.value : "#f8fafc",
+				card_bg_color: themeCardBgColor ? themeCardBgColor.value : "#ffffff",
+				border_radius: themeBorderRadius ? themeBorderRadius.value : "8px",
+				banner_url: themeBannerUrl ? themeBannerUrl.value.trim() : "",
+				page_bg_url: themePageBgUrl ? themePageBgUrl.value.trim() : ""
+			}
+		};
+
+		try {
+			const res = await fetch(`${API_BASE}/publish`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload)
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.detail || "Failed to publish form.");
+
+			formId = data.form_id;
+			version = data.version;
+			isPublished = true;
+
+			formStatusBadge.textContent = "Live & Published ✓";
+			formStatusBadge.style.background = "#f0fdf4";
+			formStatusBadge.style.color = "#166534";
+			formVersionBadge.textContent = `Version: ${version}`;
+
+			// Live Sync to host_events_api table
+			const HOST_API = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
+				? "http://127.0.0.1:8001/api/host-events/registration-form"
+				: "/api/host-events/registration-form";
+			
+fetch(HOST_API, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					organizer_email: email,
+					questions_json: payload.schema_json,
+					form_json: payload.schema_json,
+					settings_json: payload.theme_json,
+					published: true
+				})
+			}).catch(() => {});
+
+			alert(`🚀 Form Version ${version} published live for attendees!`);
+		} catch (err) {
+			alert(err.message || "Failed to publish form.");
+		}
+	}
+
+	if (btnSaveDraftForm) btnSaveDraftForm.addEventListener("click", saveDraftForm);
+	if (btnPublishForm) btnPublishForm.addEventListener("click", publishFormLive);
+
+	// Load Form Definition from API
+	async function loadFormDefinition() {
+		try {
+			const res = await fetch(`${API_BASE}/get-form?email=${encodeURIComponent(email)}`);
+			if (res.ok) {
+				const data = await res.json();
+				if (data.form_title && builderFormTitle) builderFormTitle.value = data.form_title;
+				if (data.form_description && builderFormDesc) builderFormDesc.value = data.form_description;
+				
+				if (data.schema_json) {
+					let parsed = data.schema_json;
+					if (typeof parsed === 'string') {
+						try { parsed = JSON.parse(parsed); } catch(e) {}
+					}
+					if (Array.isArray(parsed) && parsed.length > 0) {
+						questions = parsed;
+					}
+				}
+
+				if (data.version && formVersionBadge) {
+					version = data.version;
+					formVersionBadge.textContent = `Version: ${version}`;
+				}
+				if (data.is_published && formStatusBadge) {
+					formStatusBadge.textContent = "Live & Published ✓";
+					formStatusBadge.style.background = "#f0fdf4";
+					formStatusBadge.style.color = "#166534";
+				}
+
+				let themeObj = data.theme_json;
+				if (typeof themeObj === 'string') {
+					try { themeObj = JSON.parse(themeObj); } catch(e) { themeObj = null; }
+				}
+				if (themeObj && typeof themeObj === 'object') {
+					if (themeObj.primary_color && themePrimaryColor) themePrimaryColor.value = themeObj.primary_color;
+					if (themeObj.page_bg_color && themePageBgColor) themePageBgColor.value = themeObj.page_bg_color;
+					if (themeObj.card_bg_color && themeCardBgColor) themeCardBgColor.value = themeObj.card_bg_color;
+					if (themeObj.border_radius && themeBorderRadius) themeBorderRadius.value = themeObj.border_radius;
+					if (themeObj.banner_url && themeBannerUrl) themeBannerUrl.value = themeObj.banner_url;
+					if (themeObj.page_bg_url && themePageBgUrl) themePageBgUrl.value = themeObj.page_bg_url;
+				}
+			}
+		} catch (e) {
+			console.log("Using default form builder schema.");
+		}
+		renderBuilderQuestions();
+		renderLivePreview();
+	}
+
+	// ── Submissions & Analytics Manager ───────────────────────────────────────
+	async function loadSubmissionsData() {
+		if (!submissionsTableBody) return;
+		try {
+			const res = await fetch(`${API_BASE}/submissions?email=${encodeURIComponent(email)}`);
+			if (res.ok) {
+				const data = await res.json();
+				if (data.analytics && kpiTotalSubmissions) {
+					kpiTotalSubmissions.textContent = data.analytics.total_registrations;
+				}
+				if (data.submissions) {
+					allSubmissionsData = data.submissions;
+					renderSubmissionsTable(allSubmissionsData);
+				}
+			}
+		} catch (e) {
+			console.log("Could not load submissions.");
+		}
+	}
+
+	function parseSubmissionDate(submittedAt) {
+		if (!submittedAt) return null;
+		const dt = new Date(submittedAt);
+		return Number.isFinite(dt.getTime()) ? dt : null;
+}
+
+	function applySubmissionFilters() {
+		if (!allSubmissionsData) return;
+		const query = submissionsSearch ? submissionsSearch.value.trim().toLowerCase() : "";
+		const statusValue = submissionsStatusFilter ? submissionsStatusFilter.value : "all";
+		const fromDate = submissionsFromDate && submissionsFromDate.value ? new Date(submissionsFromDate.value) : null;
+		const toDate = submissionsToDate && submissionsToDate.value ? new Date(submissionsToDate.value) : null;
+
+		const filtered = allSubmissionsData.filter(s => {
+			const emailMatch = s.user_email && s.user_email.toLowerCase().includes(query);
+			const answersMatch = query && JSON.stringify(s.answers).toLowerCase().includes(query);
+			const statusMatch = statusValue === "all" || (s.status && s.status.toLowerCase() === statusValue);
+			const submissionDate = parseSubmissionDate(s.submitted_at);
+			const fromMatch = !fromDate || (submissionDate && submissionDate >= fromDate);
+			const toMatch = !toDate || (submissionDate && submissionDate <= new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate(), 23, 59, 59));
+			const queryMatch = !query || emailMatch || answersMatch;
+			return queryMatch && statusMatch && fromMatch && toMatch;
+		});
+
+		renderSubmissionsTable(filtered);
+}
+
+	function renderSubmissionsTable(items) {
+		if (!submissionsTableBody) return;
+		submissionsTableBody.innerHTML = "";
+
+		if (!items || items.length === 0) {
+			submissionsTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:2rem; color:#64748b;">No registrations submitted yet.</td></tr>`;
+			return;
+		}
+
+		items.forEach(sub => {
+			const tr = document.createElement("tr");
+			tr.style.borderBottom = "1px solid #e2e8f0";
+			tr.innerHTML = `
+				<td style="padding:0.85rem 1.2rem; font-weight:700; color:#2563eb;">#${sub.id}</td>
+				<td style="padding:0.85rem 1.2rem; font-weight:600; color:#0f172a;">${sub.user_email}</td>
+				<td style="padding:0.85rem 1.2rem; color:#64748b;">${sub.submitted_at}</td>
+				<td style="padding:0.85rem 1.2rem;"><span style="background:#f0fdf4; color:#166534; padding:0.15rem 0.6rem; border-radius:12px; font-weight:700; font-size:0.78rem;">✓ ${sub.status}</span></td>
+				<td style="padding:0.85rem 1.2rem; text-align:right;">
+					<button type="button" class="btn-view-answers" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; font-weight:700; font-size:0.8rem; padding:0.3rem 0.7rem; border-radius:6px; cursor:pointer;">
+						View Answers ↗
+					</button>
+				</td>
+			`;
+
+			tr.querySelector(".btn-view-answers").addEventListener("click", () => {
+				alert(`Attendee Answers for ${sub.user_email}:\n\n` + JSON.stringify(sub.answers, null, 2));
+			});
+
+			submissionsTableBody.appendChild(tr);
+		});
+	}
+
+	if (submissionsSearch) {
+		submissionsSearch.addEventListener("input", applySubmissionFilters);
+	}
+	if (submissionsStatusFilter) {
+		submissionsStatusFilter.addEventListener("change", applySubmissionFilters);
+	}
+	if (submissionsFromDate) {
+		submissionsFromDate.addEventListener("change", applySubmissionFilters);
+	}
+	if (submissionsToDate) {
+		submissionsToDate.addEventListener("change", applySubmissionFilters);
+	}
+	if (btnResetFilters) {
+		btnResetFilters.addEventListener("click", () => {
+			submissionsSearch.value = "";
+			submissionsStatusFilter.value = "all";
+			submissionsFromDate.value = "";
+			submissionsToDate.value = "";
+			applySubmissionFilters();
+		});
+	}
+	if (btnRefreshSubmissions) {
+		btnRefreshSubmissions.addEventListener("click", loadSubmissionsData);
+	}
+
+	if (btnExportCSV) {
+		btnExportCSV.addEventListener("click", () => {
+			window.location.href = `${API_BASE}/export-csv?email=${encodeURIComponent(email)}`;
+		});
+	}
+
+	// Expose global renderers for tab switching
+	window.renderFormBuilderQuestions = renderBuilderQuestions;
+	window.renderFormLivePreview = renderLivePreview;
+
+	// Synchronous First Render so questions are immediately visible
+	renderBuilderQuestions();
+	renderLivePreview();
+
+	// Initialize Form Builder State from API
+	loadFormDefinition();
+}
+
+if (document.readyState === "loading") {
+	document.addEventListener("DOMContentLoaded", initFormBuilder);
+} else {
+	initFormBuilder();
+}

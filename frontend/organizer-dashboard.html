@@ -1,0 +1,1751 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="description" content="Manage your event tickets, registrations, speakers, exhibitors, and sales stats on the JOD Events Organizer Dashboard." />
+		<title>Organizer Event Dashboard - JOD Events</title>
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=4" />
+	</head>
+	<body class="dashboard-body">
+
+		<!-- ── Top Dark Navigation Bar ─────────────────────────────────────────── -->
+		<header class="dash-topbar">
+			<div class="topbar-left">
+				<div class="brand-logo-icon">J</div>
+				<div class="event-title-wrap">
+					<h1 class="event-title" id="dashEventTitle">My Events Dashboard</h1>
+				</div>
+			</div>
+			<div class="topbar-right">
+				<a href="index.html" class="topbar-link">
+					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+					Back to Home
+				</a>
+				<a href="index.html" class="topbar-link" target="_blank">
+					<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+					View Page
+				</a>
+				<button class="btn-republish" type="button" id="btnTopPublish">Publish Event <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 4px; display: inline-block; vertical-align: middle;"><path d="M6 9l6 6 6-6"/></svg></button>
+				<button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></button>
+			</div>
+		</header>
+
+		<!-- ── Layout Shell: Sidebar + Content ─────────────────────────────────── -->
+		<div class="dash-shell">
+
+			<!-- Left Icon Sidebar -->
+			<aside class="dash-sidebar" aria-label="Organizer navigation" role="tablist" aria-orientation="vertical">
+				<div class="sidebar-menu-top">
+					<a href="#" class="sidebar-item active" id="navOverview" data-tab="overview" role="tab" tabindex="0" aria-selected="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+						<span>Overview</span>
+					</a>
+					<a href="#" class="sidebar-item" id="navManage" data-tab="manage" role="tab" tabindex="0" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+						<span>Manage</span>
+					</a>
+					<a href="#" class="sidebar-item" data-tab="design" role="tab" tabindex="0" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+						<span>Design</span>
+					</a>
+					<a href="#" class="sidebar-item" data-tab="registrations" role="tab" tabindex="0" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+						<span>Registrations</span>
+					</a>
+					<a href="#" class="sidebar-item" data-tab="exhibitors" role="tab" tabindex="0" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+						<span>Exhibitors</span>
+					</a>
+					<a href="#" class="sidebar-item" data-tab="communicate" role="tab" tabindex="0" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+						<span>Communicate</span>
+					</a>
+					<a href="#" class="sidebar-item" data-tab="reports" role="tab" tabindex="0" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+						<span>Reports</span>
+					</a>
+					<a href="#" class="sidebar-item" data-tab="eventday" role="tab" tabindex="0" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+						<span>Event day</span>
+					</a>
+				</div>
+				<div class="sidebar-menu-bottom">
+					<a href="#" class="sidebar-item" data-tab="settings" role="tab" tabindex="0" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+						<span>Settings</span>
+					</a>
+				</div>
+			</aside>
+
+			<!-- Main Dashboard Body -->
+			<main class="dash-content">
+
+				<!-- Notification Alert -->
+				<div id="dashNotification" style="display: none; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.9rem 1.2rem; border-radius: 8px; font-weight: 600; font-size: 0.95rem;"></div>
+
+				<!-- ── TAB 1: OVERVIEW SECTION ──────────────────────────────────────── -->
+				<div id="sectionOverview" class="tab-section">
+
+					<!-- EMPTY STATE CARD (Displayed when no event has been created) -->
+					<div id="emptyStateCard" class="dash-card" style="padding: 3.5rem 2rem; text-align: center; max-width: 720px; margin: 2rem auto; align-items: center;">
+						<div id="emptyStateIcon" class="empty-state-icon-wrap" onclick="window.dashSwitchTab('manage')" style="width: 70px; height: 70px; background: #eff6ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1.2rem; color: #2563eb; font-size: 2rem; box-shadow: 0 0 0 8px rgba(37, 99, 235, 0.1); cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;" title="Click to Manage & Create Your Event">
+							<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+						</div>
+						<h2 style="font-size: 1.6rem; font-weight: 800; color: #0f172a; margin-bottom: 0.6rem;">You haven't created an event yet!</h2>
+						<p style="color: #64748b; font-size: 1rem; max-width: 520px; line-height: 1.6; margin-bottom: 2rem;">
+							Create your event to start selling tickets, managing registrations, tracking attendee check-ins, and viewing real-time sales analytics.
+						</p>
+						<button type="button" id="btnManageYourEvent" class="btn-setup-primary active-proceed" onclick="window.dashSwitchTab('manage')" style="font-size: 1.05rem; padding: 0.8rem 2.2rem; border-radius: 8px; cursor: pointer;">
+							<span>Manage Your Event</span> &rarr;
+						</button>
+					</div>
+
+					<!-- POPULATED OVERVIEW GRID (Displayed once an event is created) -->
+					<div id="populatedOverviewGrid" style="display: none; flex-direction: column; gap: 1.25rem;">
+
+						<!-- Row 1: Top 3 KPI Metric Cards -->
+						<section class="kpi-row">
+							<!-- KPI 1: Total Sales -->
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-sales">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Total Sales</span>
+									<span class="kpi-value" id="kpiSales">₹0.00</span>
+								</div>
+							</div>
+							<!-- KPI 2: Total Registrations -->
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-regs">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Total Registrations</span>
+									<span class="kpi-value" id="kpiRegs">0</span>
+								</div>
+							</div>
+							<!-- KPI 3: Attendees -->
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-attendees">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M15 6a3 3 0 0 1 6 0c0 1.65-1.35 3-3 3"></path></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Attendees</span>
+									<span class="kpi-value" id="kpiAttendees">0</span>
+								</div>
+							</div>
+							<!-- KPI 4: Days to Event -->
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-days">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Days to Event</span>
+									<span class="kpi-value" id="kpiDays">0</span>
+								</div>
+							</div>
+						</section>
+
+						<!-- Row 2: Quick Actions, Trend Chart & Registrations -->
+						<section class="dash-grid-3">
+							<!-- Card 1: Quick Actions -->
+							<div class="dash-card">
+								<div class="dash-card-header">
+									<h3 class="dash-card-title">Quick Actions</h3>
+								</div>
+								<div class="quick-actions-banner">
+									<span class="banner-icon">&#9881;</span>
+									<span class="banner-text">Streamline your event experience with shortcuts to our features</span>
+								</div>
+								<div class="quick-actions-grid">
+									<button type="button" class="qa-btn" id="qaBtnExhibitors" data-tab="exhibitors">
+										<svg viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+										Exhibitors
+									</button>
+									<button type="button" class="qa-btn" id="qaBtnRegistrations" data-tab="registrations">
+										<svg viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+										Registrations
+									</button>
+									<button type="button" class="qa-btn" id="qaBtnCommunicate" data-tab="communicate">
+										<svg viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path></svg>
+										Promote
+									</button>
+									<button type="button" class="qa-btn" id="qaBtnEventday" data-tab="eventday">
+										<svg viewBox="0 0 24 24" fill="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+										Event Day
+									</button>
+									<button type="button" class="qa-btn" id="qaBtnReports" data-tab="reports">
+										<svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line></svg>
+										Reports
+									</button>
+								</div>
+							</div>
+
+							<!-- Card 2: Registration Trend -->
+							<div class="dash-card">
+								<div class="dash-card-header">
+									<h3 class="dash-card-title">Registration Trend</h3>
+								</div>
+								<div class="chart-container">
+									<canvas id="trendChartCanvas" height="160"></canvas>
+								</div>
+								<button type="button" class="btn-card-action">View more</button>
+							</div>
+
+							<!-- Card 3: Registrations Breakdown -->
+							<div class="dash-card">
+								<div class="dash-card-header">
+									<h3 class="dash-card-title">Registrations</h3>
+								</div>
+								<div class="donut-wrap">
+									<svg width="150" height="150" viewBox="0 0 36 36" class="circular-chart">
+										<path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" stroke-width="4.5" />
+										<path class="circle" id="donutSoldPath" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#6366f1" stroke-width="4.5" />
+									</svg>
+								</div>
+								<div class="donut-legend">
+									<div class="legend-item">
+										<div class="legend-label"><span class="legend-dot" style="background-color: #6366f1;"></span> Sold</div>
+										<div class="legend-val" id="valSold">0 (0%)</div>
+									</div>
+									<div class="legend-item">
+										<div class="legend-label"><span class="legend-dot" style="background-color: #10b981;"></span> Available</div>
+										<div class="legend-val" id="valAvail">0 (100%)</div>
+									</div>
+								</div>
+								<button type="button" class="btn-card-action" style="margin-top: 1rem;" id="btnGoToRegs">Manage Registrations</button>
+							</div>
+						</section>
+
+						<!-- Row 3: Attendance, Website Preview & Event Numbers -->
+						<section class="dash-grid-3">
+							<!-- Card 1: Attendance -->
+							<div class="dash-card">
+								<div class="dash-card-header">
+									<h3 class="dash-card-title">Attendance</h3>
+								</div>
+								<div class="donut-wrap">
+									<svg width="150" height="150" viewBox="0 0 36 36">
+										<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f59e0b" stroke-width="4.5" />
+										<path id="donutCheckinPath" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" stroke-width="4.5" />
+									</svg>
+								</div>
+								<div class="donut-legend">
+									<div class="legend-item">
+										<div class="legend-label"><span class="legend-dot" style="background-color: #10b981;"></span> Checked-in</div>
+										<div class="legend-val" id="valCheckedIn">0</div>
+									</div>
+									<div class="legend-item">
+										<div class="legend-label"><span class="legend-dot" style="background-color: #f59e0b;"></span> Yet to Check-in</div>
+										<div class="legend-val" id="valYetToCheckIn">0</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Card 2: Event Website Preview -->
+							<div class="dash-card">
+								<div class="dash-card-header">
+									<h3 class="dash-card-title">Event website</h3>
+								</div>
+								<div class="website-preview-box">
+									<div>
+										<span style="background: #2563eb; color: #fff; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700;" id="webTitleBadge">Draft</span>
+										<h4 style="margin-top: 0.5rem;" id="webHeadline">My New Event</h4>
+										<p id="webDate">Venue TBD</p>
+									</div>
+									<a href="index.html" class="topbar-link" style="color: #60a5fa; font-size: 0.8rem;">Back to Home &rarr;</a>
+								</div>
+							</div>
+
+							<!-- Card 3: Event Numbers Grid -->
+							<div class="dash-card">
+								<div class="dash-card-header">
+									<h3 class="dash-card-title">Event numbers</h3>
+								</div>
+								<div class="numbers-grid" style="grid-template-columns: repeat(2, 1fr);">
+									<div class="number-card">
+										<svg viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+										<span class="number-title">Speakers</span>
+										<span class="number-value" id="numSpeakers">0</span>
+									</div>
+									<div class="number-card">
+										<svg viewBox="0 0 24 24" fill="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+										<span class="number-title">Sponsors</span>
+										<span class="number-value" id="numSponsors">0</span>
+									</div>
+									<div class="number-card">
+										<svg viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+										<span class="number-title">Exhibitors</span>
+										<span class="number-value" id="numExhibitors">0</span>
+									</div>
+									<div class="number-card">
+										<svg viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+										<span class="number-title">Team</span>
+										<span class="number-value" id="numTeam">1</span>
+									</div>
+								</div>
+							</div>
+						</section>
+					</div>
+
+				</div>
+
+				<!-- ── TAB 2: MANAGE SECTION (Section 2 - Manage Your Event) ──────────── -->
+				<div id="sectionManage" class="tab-section">
+					<div class="rich-form-container" style="max-width: 900px; margin: 0 auto;">
+						
+						<span class="form-pill-badge">Event Setup Wizard</span>
+						<h2 class="rich-form-title">Manage &amp; Create Your Event</h2>
+						<p class="rich-form-subtitle">Fill in the event details below to publish your event live on the JOD Events booking platform.</p>
+
+
+						<form id="createEventForm">
+
+							<!-- SECTION 1: BASIC DETAILS -->
+							<div class="form-section-divider">
+								1. Basic Details
+							</div>
+
+							<div class="setup-grid-2">
+								<div class="setup-form-group">
+									<label for="eventTitleInput">Event Title / Name <span style="color: #ef4444;">*</span></label>
+									<input type="text" id="eventTitleInput" class="setup-input" placeholder="e.g. Chennai Business Leaders Summit 2026" required style="padding-left: 0.9rem;" />
+								</div>
+
+								<div class="setup-form-group">
+									<label for="eventCategorySelect">Event Category <span style="color: #ef4444;">*</span></label>
+									<select id="eventCategorySelect" class="setup-select" required style="padding-left: 0.9rem;">
+										<option value="Conferences" selected>Conferences &amp; Summits</option>
+										<option value="Performances">Live Gigs &amp; Concerts</option>
+										<option value="Experiences">Themed Pop-Ups &amp; Fairs</option>
+										<option value="Expositions">Expositions &amp; Expos</option>
+										<option value="Parties">Parties &amp; Nightlife</option>
+										<option value="Sports">Sports Tournaments</option>
+									</select>
+								</div>
+							</div>
+
+							<div class="setup-form-group" style="margin-bottom: 1.25rem;">
+								<label>Event Format <span style="color: #ef4444;">*</span></label>
+								<div class="format-pills" id="formatPillsGroup">
+									<div class="format-pill active" data-value="Hybrid">Hybrid (In-Person + Stream)</div>
+									<div class="format-pill" data-value="In-Person">In-Person Venue</div>
+									<div class="format-pill" data-value="Online">Online Webinar</div>
+								</div>
+								<input type="hidden" id="eventFormatInput" value="Hybrid" />
+							</div>
+
+							<!-- SECTION 2: SCHEDULE & LOCATION -->
+							<div class="form-section-divider">
+								2. Schedule &amp; Venue
+							</div>
+
+							<div class="setup-grid-2">
+								<div class="setup-form-group">
+									<label for="eventDateInput">Event Date &amp; Time <span style="color: #ef4444;">*</span></label>
+									<input type="datetime-local" id="eventDateInput" class="setup-input" required style="padding-left: 0.9rem;" />
+								</div>
+
+								<div class="setup-form-group">
+									<label for="eventLocationInput">Venue / Location Address <span style="color: #ef4444;">*</span></label>
+									<input type="text" id="eventLocationInput" class="setup-input" placeholder="e.g. Chennai Trade Centre, Nandambakkam" required style="padding-left: 0.9rem;" />
+								</div>
+							</div>
+
+							<!-- SECTION 3: TICKETS & PRICING -->
+							<div class="form-section-divider">
+								3. Tickets &amp; Pricing
+							</div>
+
+							<div id="ticketTiersContainer" style="margin-bottom: 1.25rem;">
+								<div id="ticketTiersRows">
+									<!-- Default Row 1 -->
+									<div class="setup-grid-3 ticket-tier-row" style="align-items: flex-end; margin-bottom: 0.8rem;">
+										<div class="setup-form-group">
+											<label>Ticket Type / Name <span style="color: #ef4444;">*</span></label>
+											<input type="text" class="setup-input ticket-type-input" placeholder="e.g. General Admission, VIP Pass" required value="General Pass" style="padding-left: 0.9rem;" />
+										</div>
+
+										<div class="setup-form-group">
+											<label>Ticket Price (₹) <span style="color: #ef4444;">*</span></label>
+											<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="499" style="padding-left: 0.9rem;" />
+										</div>
+
+										<div class="setup-form-group">
+											<label>Capacity <span style="color: #ef4444;">*</span></label>
+											<div style="display: flex; gap: 0.5rem;">
+												<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 500" min="1" required value="500" style="flex: 1; padding-left: 0.9rem;" />
+												<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<button type="button" id="btnAddTicketTier" style="background: #eff6ff; border: 1.5px dashed #3b82f6; color: #2563eb; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; transition: all 0.2s;">
+									<span style="font-size: 1.1rem; font-weight: 800;">+</span> Add Ticket Type
+								</button>
+							</div>
+
+							<!-- SECTION 4: EVENT AGENDA & SCHEDULE -->
+							<div class="form-section-divider">
+								4. Event Agenda &amp; Timings
+							</div>
+
+							<div id="agendaContainer" style="margin-bottom: 1.25rem;">
+								<div id="agendaRows">
+									<!-- Default Agenda Row 1 -->
+									<div class="setup-grid-3 agenda-row" style="align-items: flex-end; margin-bottom: 0.8rem;">
+										<div class="setup-form-group">
+											<label>Time Slot <span style="color: #ef4444;">*</span></label>
+											<input type="text" class="setup-input agenda-time-input" placeholder="e.g. 09:00 AM - 10:00 AM" required value="09:00 AM - 10:00 AM" style="padding-left: 0.9rem;" />
+										</div>
+
+										<div class="setup-form-group">
+											<label>Session Title / Topic <span style="color: #ef4444;">*</span></label>
+											<input type="text" class="setup-input agenda-title-input" placeholder="e.g. Keynote Address &amp; Opening Ceremonies" required value="Keynote Address: Future of Tech 2026" style="padding-left: 0.9rem;" />
+										</div>
+
+										<div class="setup-form-group">
+											<label>Speaker / Host Name</label>
+											<div style="display: flex; gap: 0.5rem;">
+												<input type="text" class="setup-input agenda-speaker-input" placeholder="e.g. Dr. Rajesh Kumar" value="Chief Guest &amp; Panelists" style="flex: 1; padding-left: 0.9rem;" />
+												<button type="button" class="btn-remove-agenda" title="Remove Session" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<button type="button" id="btnAddAgendaSession" style="background: #eff6ff; border: 1.5px dashed #3b82f6; color: #2563eb; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; transition: all 0.2s;">
+									<span style="font-size: 1.1rem; font-weight: 800;">+</span> Add Agenda Session
+								</button>
+							</div>
+
+							<!-- SECTION 5: DESCRIPTION -->
+							<div class="form-section-divider">
+								5. Event Description
+							</div>
+
+							<div class="setup-form-group" style="margin-bottom: 1.5rem;">
+								<label for="eventDescInput">Description &amp; Highlights <span style="color: #ef4444;">*</span></label>
+								<textarea id="eventDescInput" class="setup-textarea" placeholder="Provide an exciting overview of the event, key speakers, schedule, and guidelines..." required></textarea>
+							</div>
+
+							<!-- SECTION 6: REGISTRATION FORM QUESTIONS -->
+							<div class="form-section-divider">
+								6. Attendee Registration Form Questions
+							</div>
+
+							<div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
+									<div>
+										<h4 style="font-size: 0.98rem; font-weight: 700; color: #0f172a; margin: 0;">Attendee Registration Questions</h4>
+										<p style="font-size: 0.82rem; color: #64748b; margin: 0.2rem 0 0 0;">Questions attendees will fill out when registering for this event.</p>
+									</div>
+									<button type="button" id="btnOpenFormStudio" style="background: #eff6ff; border: 1.5px solid #bfdbfe; color: #2563eb; padding: 0.45rem 1.1rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+										Open Form Studio &rarr;
+									</button>
+								</div>
+								<div id="manageWizardQuestionsPreview" style="display: flex; flex-direction: column; gap: 0.6rem; background: #ffffff; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+									<!-- Quick preview of active questions -->
+								</div>
+							</div>
+
+							<!-- ACTION FOOTER -->
+							<div class="wizard-footer" style="display: flex; justify-content: flex-end; align-items: center; gap: 1rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; margin-top: 1rem;">
+								<span style="font-size:0.85rem;color:#94a3b8;">Step 1 of 4</span>
+								<button type="submit" id="btnManageNext" class="publish-gradient-btn" style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); box-shadow: 0 4px 14px rgba(99,102,241,0.35);">
+									<span>Save &amp; Next: Design</span> →
+								</button>
+							</div>
+
+						</form>
+					</div>
+				</div>
+
+				<!-- ── TAB 3: SETTINGS & PROFILE SECTION ───────────────────────────── -->
+				<div id="sectionSettings" class="tab-section">
+					<div class="rich-form-container" style="max-width: 920px; margin: 0 auto;">
+						
+						<span class="form-pill-badge">&#128100; Profile &amp; Account Settings</span>
+						<h2 class="rich-form-title">Organizer Profile &amp; Verification</h2>
+						<p class="rich-form-subtitle">Manage your personal information, contact info, tax details, and view your verified bank payout information.</p>
+
+						<!-- Avatar & Header Section -->
+						<div class="avatar-upload-card" style="display: flex; align-items: center; gap: 1.8rem; background: #f8fafc; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem;">
+							<div style="position: relative; width: 88px; height: 88px;">
+								<img id="profileAvatarImg" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200" alt="Organizer Avatar" style="width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 3px solid #2563eb;" />
+								<button type="button" title="Change Avatar" style="position: absolute; bottom: 0; right: 0; background: #2563eb; color: #fff; border: 2px solid #fff; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; cursor: pointer;">&#128247;</button>
+							</div>
+							<div style="display: flex; flex-direction: column; gap: 0.6rem;">
+								<h3 id="profileHeaderName" style="font-size: 1.2rem; font-weight: 800; color: #0f172a;">Organizer Account</h3>
+								<div style="display: flex; gap: 0.8rem;">
+									<button type="button" class="btn-setup-primary active-proceed" style="padding: 0.45rem 1.2rem; font-size: 0.85rem; border-radius: 6px;">Upload New</button>
+									<button type="button" style="background: #ffffff; border: 1px solid #cbd5e1; color: #64748b; padding: 0.45rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Delete avatar</button>
+								</div>
+							</div>
+						</div>
+
+						<form id="profileForm">
+
+							<!-- SECTION A: PERSONAL & ORGANISATION DETAILS -->
+							<div class="form-section-divider">
+								Personal &amp; Organisation Details
+							</div>
+
+							<div class="setup-grid-2">
+								<div class="setup-form-group">
+									<label for="profFirstName">First Name <span style="color: #ef4444;">*</span></label>
+									<input type="text" id="profFirstName" class="setup-input" placeholder="First Name" required style="padding-left: 0.9rem;" />
+								</div>
+								<div class="setup-form-group">
+									<label for="profLastName">Last Name <span style="color: #ef4444;">*</span></label>
+									<input type="text" id="profLastName" class="setup-input" placeholder="Last Name" required style="padding-left: 0.9rem;" />
+								</div>
+							</div>
+
+							<div class="setup-grid-2">
+								<div class="setup-form-group">
+									<label for="profEmail">Email Address <span style="color: #10b981; font-size: 0.8rem;">(Verified)</span></label>
+									<input type="email" id="profEmail" class="setup-input" readonly style="background-color: #f1f5f9; color: #475569; cursor: not-allowed; padding-left: 0.9rem;" />
+								</div>
+
+								<div class="setup-form-group">
+									<label for="profMobile">Mobile Number <span style="color: #ef4444;">*</span></label>
+									<div style="display: flex; gap: 0.5rem;">
+										<div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 0 0.8rem; display: flex; align-items: center; gap: 0.3rem; font-size: 0.9rem; font-weight: 700; color: #334155;">
+											+91
+										</div>
+										<input type="tel" id="profMobile" class="setup-input" placeholder="9876543210" style="flex: 1; padding-left: 0.9rem;" required />
+									</div>
+								</div>
+							</div>
+
+							<div class="setup-grid-2">
+								<div class="setup-form-group">
+									<label>Gender</label>
+									<div style="display: flex; gap: 1rem; margin-top: 0.2rem;">
+										<label style="font-weight: 600; cursor: pointer;"><input type="radio" name="prof_gender" value="male" checked /> Male</label>
+										<label style="font-weight: 600; cursor: pointer;"><input type="radio" name="prof_gender" value="female" /> Female</label>
+									</div>
+								</div>
+
+								<div class="setup-form-group">
+									<label for="profOrgId">Organizer Reference ID</label>
+									<input type="text" id="profOrgId" class="setup-input" value="ORG-2026-98742" readonly style="background-color: #f1f5f9; color: #475569; cursor: not-allowed; font-weight: 700; padding-left: 0.9rem;" />
+								</div>
+							</div>
+
+							<div class="setup-grid-2">
+								<div class="setup-form-group">
+									<label for="profGstin">GSTIN Number / Tax Identification</label>
+									<input type="text" id="profGstin" class="setup-input" placeholder="e.g. 33AAAAA0000A1Z5" style="text-transform: uppercase; padding-left: 0.9rem;" />
+								</div>
+
+								<div class="setup-form-group">
+									<label for="profPan">PAN Number</label>
+									<input type="text" id="profPan" class="setup-input" placeholder="PAN Number" style="text-transform: uppercase; padding-left: 0.9rem;" />
+								</div>
+							</div>
+
+							<div class="setup-form-group" style="margin-bottom: 2rem;">
+								<label for="profAddress">Organisation / Residential Address</label>
+								<textarea id="profAddress" class="setup-textarea" placeholder="Full registered business address..." style="min-height: 80px;"></textarea>
+							</div>
+
+
+							<!-- SECTION B: READ-ONLY LOCKED BANK DETAILS & KYC -->
+							<div class="locked-bank-section" style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 1.6rem; margin-bottom: 2rem; position: relative;">
+								
+								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
+									<div style="display: flex; align-items: center; gap: 0.6rem;">
+										<h3 style="font-size: 1.15rem; font-weight: 800; color: #0f172a;">Verified Payout Bank Details</h3>
+									</div>
+									<span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">
+										Verified &amp; Locked
+									</span>
+								</div>
+
+								<div style="background: #fffbe6; border: 1px solid #ffe58f; color: #873800; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; line-height: 1.4; margin-bottom: 1.25rem;">
+									<strong>Bank Payout Information is Locked:</strong> For payout security, verified banking credentials cannot be directly edited by the host. To change your payout account, please submit a request to <a href="mailto:support@jodevents.com" style="color: #2563eb; text-decoration: underline;">support@jodevents.com</a>.
+								</div>
+
+								<div class="setup-grid-2">
+									<div class="setup-form-group">
+										<label style="color: #64748b;">Beneficiary Name (As per Bank)</label>
+										<input type="text" id="profBankBeneficiary" class="setup-input" readonly disabled style="background-color: #f1f5f9; color: #334155; font-weight: 700; cursor: not-allowed; padding-left: 0.9rem;" />
+									</div>
+
+									<div class="setup-form-group">
+										<label style="color: #64748b;">Bank Name</label>
+										<input type="text" id="profBankName" class="setup-input" readonly disabled style="background-color: #f1f5f9; color: #334155; font-weight: 700; cursor: not-allowed; padding-left: 0.9rem;" />
+									</div>
+								</div>
+
+								<div class="setup-grid-3">
+									<div class="setup-form-group">
+										<label style="color: #64748b;">Account Type</label>
+										<input type="text" id="profBankAccountType" class="setup-input" readonly disabled style="background-color: #f1f5f9; color: #334155; font-weight: 700; cursor: not-allowed; padding-left: 0.9rem;" />
+									</div>
+
+									<div class="setup-form-group">
+										<label style="color: #64748b;">Account Number</label>
+										<input type="text" id="profBankAccountNumber" class="setup-input" readonly disabled style="background-color: #f1f5f9; color: #334155; font-weight: 700; cursor: not-allowed; padding-left: 0.9rem;" />
+									</div>
+
+									<div class="setup-form-group">
+										<label style="color: #64748b;">Bank IFSC Code</label>
+										<input type="text" id="profBankIfsc" class="setup-input" readonly disabled style="background-color: #f1f5f9; color: #334155; font-weight: 700; cursor: not-allowed; padding-left: 0.9rem;" />
+									</div>
+								</div>
+
+								<!-- Document Links -->
+								<div style="display: flex; gap: 1rem; margin-top: 1rem; border-top: 1px dashed #cbd5e1; padding-top: 1rem;">
+									<div style="flex: 1; background: #ffffff; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+										<span style="font-size: 0.85rem; font-weight: 600; color: #334155;">PAN Card Document</span>
+										<a id="profPanDocLink" href="#" target="_blank" style="color: #2563eb; font-weight: 700; font-size: 0.82rem; text-decoration: none;">View Document ↗</a>
+									</div>
+									<div style="flex: 1; background: #ffffff; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+										<span style="font-size: 0.85rem; font-weight: 600; color: #334155;">Cancelled Cheque</span>
+										<a id="profChequeDocLink" href="#" target="_blank" style="color: #2563eb; font-weight: 700; font-size: 0.82rem; text-decoration: none;">View Document ↗</a>
+									</div>
+								</div>
+
+							</div>
+
+							<!-- SAVE BUTTON -->
+							<div style="display: flex; justify-content: flex-end; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 1.5rem;">
+								<button type="submit" id="btnSaveProfile" class="publish-gradient-btn">
+									<span>Save Profile Changes</span> &rarr;
+								</button>
+							</div>
+
+						</form>
+
+						<!-- DANGER ZONE: CLEAR EVENT DATA -->
+						<div style="background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 12px; padding: 1.6rem; margin-top: 2rem;">
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
+								<div style="display: flex; align-items: center; gap: 0.6rem;">
+									<h3 style="font-size: 1.15rem; font-weight: 800; color: #991b1b; margin: 0;">Danger Zone: Reset Event Data</h3>
+								</div>
+								<span style="background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">
+									Destructive Action
+								</span>
+							</div>
+
+							<p style="color: #7f1d1d; font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.25rem;">
+								Permanently clear all created event details, ticket tiers, design media assets, exhibitor booths, and registration form data for this account.
+							</p>
+
+							<div style="display: flex; justify-content: flex-end;">
+								<button type="button" id="btnClearEventData" style="background: #dc2626; color: #ffffff; border: none; padding: 0.65rem 1.4rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 12px rgba(220,38,38,0.25);">
+									🗑️ Clear Active Event Data
+								</button>
+							</div>
+						</div>
+
+					</div>
+				</div>
+
+				<!-- ── TAB 4: DESIGN & MEDIA ASSETS SECTION ───────────────────────── -->
+				<div id="sectionDesign" class="tab-section">
+					<div class="rich-form-container" style="max-width: 940px; margin: 0 auto;">
+						
+						<span class="form-pill-badge">Event Branding &amp; Media Studio</span>
+						<h2 class="rich-form-title">Event Design &amp; Media Assets</h2>
+						<p class="rich-form-subtitle">Upload your official event hero banner, sponsor logos, headliner artists/speakers, and event photo gallery.</p>
+
+
+						<form id="designAssetsForm">
+
+							<!-- SECTION 1: HERO EVENT BANNER -->
+							<div class="form-section-divider">
+								1. Hero Event Banner
+							</div>
+
+							<div class="setup-form-group" style="margin-bottom: 2rem;">
+								<label>Event Hero Banner (Recommended size: 1200 x 630 px)</label>
+								<div id="bannerDropzone" class="doc-dropzone" style="background: #ffffff; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s;">
+									<div id="bannerDropzoneContent" style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+										<div style="width: 48px; height: 48px; background: #eff6ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #2563eb;">
+											<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+										</div>
+										<p style="font-weight: 700; color: #0f172a; font-size: 0.95rem;">Drag &amp; drop your Event Banner or <span style="color: #2563eb; text-decoration: underline;">Browse File</span></p>
+										<span style="font-size: 0.78rem; color: #64748b;">Supports JPG, PNG, WEBP (Max size: 5MB)</span>
+									</div>
+									<div id="bannerPreviewBox" style="display: none; position: relative;">
+										<img id="bannerPreviewImg" src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=1000" alt="Banner Preview" style="width: 100%; max-height: 220px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;" />
+										<button type="button" id="btnClearBanner" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: #fff; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; cursor: pointer;">Remove Banner</button>
+									</div>
+									<input type="file" id="bannerFileInput" accept="image/*" style="display: none;" />
+								</div>
+							</div>
+
+
+							<!-- SECTION 2: EVENT SPONSORS -->
+							<div class="form-section-divider">
+								2. Event Sponsors
+							</div>
+
+							<div id="sponsorsContainer" style="margin-bottom: 2rem;">
+								<div id="sponsorsRows">
+									<!-- Default Sponsor Row 1 -->
+									<div class="setup-grid-3 sponsor-row" style="align-items: flex-end; margin-bottom: 0.9rem; background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 10px;">
+										<div class="setup-form-group">
+											<label>Sponsor Name</label>
+											<input type="text" class="setup-input sponsor-name-input" placeholder="e.g. Google Cloud" value="Google Cloud" style="padding-left: 0.9rem;" />
+										</div>
+
+										<div class="setup-form-group">
+											<label>Sponsor Category / Tier</label>
+											<input type="text" class="setup-input sponsor-tier-input" placeholder="e.g. Title Sponsor, Gold Partner" value="Title Sponsor" style="padding-left: 0.9rem;" />
+										</div>
+
+										<div class="setup-form-group">
+											<label>Logo File</label>
+											<div style="display: flex; gap: 0.5rem;">
+												<input type="text" class="setup-input sponsor-logo-input" placeholder="Logo filename or URL" value="google-cloud-logo.png" style="flex: 1; padding-left: 0.9rem;" />
+												<button type="button" class="btn-remove-sponsor" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<button type="button" id="btnAddSponsor" style="background: #eff6ff; border: 1.5px dashed #3b82f6; color: #2563eb; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; transition: all 0.2s;">
+									<span style="font-size: 1.1rem; font-weight: 800;">+</span> Add Sponsor
+								</button>
+							</div>
+
+
+							<!-- SECTION 3: HEADLINER ARTISTS & SPEAKERS -->
+							<div class="form-section-divider">
+								3. Headliner Artists &amp; Speakers
+							</div>
+
+							<div id="artistsContainer" style="margin-bottom: 2rem;">
+								<div id="artistsRows">
+									<!-- Default Artist Row 1 -->
+									<div class="setup-grid-3 artist-row" style="align-items: flex-end; margin-bottom: 0.9rem; background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 10px;">
+										<div class="setup-form-group">
+											<label>Artist / Speaker Name</label>
+											<input type="text" class="setup-input artist-name-input" placeholder="e.g. AR Rahman" value="Dr. Sundar Pichai" style="padding-left: 0.9rem;" />
+										</div>
+
+										<div class="setup-form-group">
+											<label>Title / Role</label>
+											<input type="text" class="setup-input artist-role-input" placeholder="e.g. Lead Keynote Speaker" value="Keynote Speaker &amp; CEO" style="padding-left: 0.9rem;" />
+										</div>
+
+										<div class="setup-form-group">
+											<label>Photo File</label>
+											<div style="display: flex; gap: 0.5rem;">
+												<input type="text" class="setup-input artist-photo-input" placeholder="Photo filename or URL" value="sundar-pichai-portrait.jpg" style="flex: 1; padding-left: 0.9rem;" />
+												<button type="button" class="btn-remove-artist" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<button type="button" id="btnAddArtist" style="background: #eff6ff; border: 1.5px dashed #3b82f6; color: #2563eb; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; transition: all 0.2s;">
+									<span style="font-size: 1.1rem; font-weight: 800;">+</span> Add Headliner / Speaker
+								</button>
+							</div>
+
+
+							<!-- SECTION 4: EVENT GALLERY PHOTOS -->
+							<div class="form-section-divider">
+								4. Event Gallery Photos &amp; Highlights
+							</div>
+
+							<div class="setup-form-group" style="margin-bottom: 2rem;">
+								<label>Gallery Photos (Upload up to 6 past edition photos)</label>
+								<div id="galleryDropzone" class="doc-dropzone" style="background: #ffffff; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 1.8rem; text-align: center; cursor: pointer; transition: all 0.2s;">
+									<div style="display: flex; flex-direction: column; align-items: center; gap: 0.4rem;">
+										<div style="width: 42px; height: 42px; background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #475569;">
+											<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+										</div>
+										<p style="font-weight: 700; color: #0f172a; font-size: 0.9rem;">Upload Gallery Photos</p>
+										<span style="font-size: 0.76rem; color: #64748b;">PNG, JPG, WEBP accepted</span>
+									</div>
+									<input type="file" id="galleryFileInput" accept="image/*" multiple style="display: none;" />
+								</div>
+								<!-- Gallery Grid Preview -->
+								<div id="galleryThumbnailsGrid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;"></div>
+							</div>
+
+
+							<!-- WIZARD NAVIGATION FOOTER -->
+							<div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 1.5rem;">
+								<button type="button" id="btnDesignBack" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569; padding: 0.65rem 1.4rem; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer;">
+									← Back to Manage
+								</button>
+								<div style="display: flex; align-items: center; gap: 1rem;">
+									<span style="font-size:0.85rem;color:#94a3b8;">Step 2 of 4</span>
+									<button type="submit" id="btnSaveDesign" class="publish-gradient-btn" style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); box-shadow: 0 4px 14px rgba(99,102,241,0.35);">
+										<span>Save &amp; Next: Registration Form</span> →
+									</button>
+								</div>
+							</div>
+
+						</form>
+					</div>
+				</div>
+
+				<div id="sectionRegistrations" class="tab-section">
+					<div class="rich-form-container" style="max-width: 1200px; margin: 0 auto; padding: 1.8rem 2rem;">
+						
+
+						<!-- Header & Sub-Navigation -->
+						<div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.2rem; margin-bottom: 1.8rem;">
+							<div>
+								<span class="form-pill-badge">Form Builder Studio</span>
+								<h2 class="rich-form-title" style="font-size: 1.6rem; margin-bottom: 0.2rem;">Dynamic Registration Form Builder</h2>
+								<p class="rich-form-subtitle" style="margin-bottom: 0;">Customize your attendee registration form with live split-screen preview and analytics.</p>
+							</div>
+
+							<!-- Sub-Tabs Switcher -->
+							<div style="display: flex; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 0.25rem; border-radius: 8px; gap: 0.3rem;">
+								<button type="button" id="subTabBuilder" class="subtab-btn active" style="background: #ffffff; color: #2563eb; font-weight: 700; border: none; padding: 0.45rem 1.1rem; border-radius: 6px; cursor: pointer; font-size: 0.88rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+									Form Builder &amp; Live Preview
+								</button>
+								<button type="button" id="subTabSubmissions" class="subtab-btn" style="background: transparent; color: #64748b; font-weight: 600; border: none; padding: 0.45rem 1.1rem; border-radius: 6px; cursor: pointer; font-size: 0.88rem;">
+									Submissions &amp; Analytics
+								</button>
+							</div>
+						</div>
+
+						<!-- ── SUB-VIEW 1: FORM BUILDER (SPLIT SCREEN) ──────────────────── -->
+						<div id="subViewBuilder" style="display: block;">
+							
+							<!-- Action Toolbar -->
+							<div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.8rem 1.2rem; border-radius: 10px; margin-bottom: 1.5rem;">
+								<div style="display: flex; align-items: center; gap: 0.8rem;">
+									<span id="formStatusBadge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; padding: 0.2rem 0.7rem; border-radius: 12px; font-size: 0.78rem; font-weight: 700;">Draft (Unpublished)</span>
+									<span id="formVersionBadge" style="font-size: 0.82rem; color: #64748b; font-weight: 600;">Version: 1</span>
+								</div>
+
+								<div style="display: flex; gap: 0.8rem; align-items: center;">
+									<button type="button" id="btnRegBack" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569; padding: 0.45rem 1.1rem; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer;">
+										← Back to Design
+									</button>
+									<button type="button" id="btnSaveDraftForm" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #334155; padding: 0.45rem 1.1rem; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer;">
+										Save Draft
+									</button>
+									<button type="button" id="btnPublishForm" class="publish-gradient-btn" style="padding: 0.45rem 1.4rem; font-size: 0.88rem; border-radius: 6px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+										🚀 Final Step: Publish Event Live →
+									</button>
+								</div>
+							</div>
+
+							<!-- Split-Screen Grid: Left Builder (55%) | Right Preview (45%) -->
+							<div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.8rem; align-items: start;">
+								
+								<!-- Left Column: Form Builder Controls -->
+								<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+									<!-- Form Header Card -->
+									<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem;">
+										<h4 style="font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 0.8rem;">Form Header &amp; Intro</h4>
+										
+										<div class="setup-form-group" style="margin-bottom: 1rem;">
+											<label>Form Title</label>
+											<input type="text" id="builderFormTitle" class="setup-input" value="Event Registration Form" />
+										</div>
+
+										<div class="setup-form-group">
+											<label>Form Description / Helper Text</label>
+											<textarea id="builderFormDesc" class="setup-textarea" style="min-height: 70px;">Please complete the registration form below to confirm your seat.</textarea>
+										</div>
+									</div>
+
+									<!-- Theme Customizer Accordion Card -->
+									<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem;">
+										<h4 style="font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 0.8rem;">Theme &amp; Page Background Customizer</h4>
+										
+										<!-- Grid Row 1: Primary Accent, Page Bg Color, Card Bg Color -->
+										<div class="setup-grid-3">
+											<div class="setup-form-group">
+												<label>Primary Accent</label>
+												<input type="color" id="themePrimaryColor" value="#2563eb" style="width: 100%; height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; padding: 0.2rem;" />
+											</div>
+
+											<div class="setup-form-group">
+												<label>Page Background</label>
+												<input type="color" id="themePageBgColor" value="#f8fafc" style="width: 100%; height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; padding: 0.2rem;" />
+											</div>
+
+											<div class="setup-form-group">
+												<label>Form Card Bg</label>
+												<input type="color" id="themeCardBgColor" value="#ffffff" style="width: 100%; height: 38px; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; padding: 0.2rem;" />
+											</div>
+										</div>
+
+										<!-- Grid Row 2: Border Radius & Theme Presets -->
+										<div class="setup-grid-2" style="margin-bottom: 1rem;">
+											<div class="setup-form-group">
+												<label>Border Radius</label>
+												<select id="themeBorderRadius" class="setup-select">
+													<option value="4px">Compact (4px)</option>
+													<option value="8px" selected>Rounded (8px)</option>
+													<option value="16px">Pill (16px)</option>
+												</select>
+											</div>
+
+											<div class="setup-form-group">
+												<label>Quick Theme Presets</label>
+												<select id="themePresetSelect" class="setup-select">
+													<option value="default" selected>Clean Light (Default)</option>
+													<option value="dark_cyber">Dark Cyber Mode</option>
+													<option value="midnight_blue">Midnight Blue</option>
+													<option value="sunset_gradient">Sunset Gradient</option>
+													<option value="emerald_fresh">Emerald Fresh</option>
+												</select>
+											</div>
+										</div>
+
+										<!-- Header Banner Image Input & File Upload -->
+										<div class="setup-form-group" style="margin-bottom: 1rem;">
+											<label>Form Header Banner Image</label>
+											<div style="display: flex; gap: 0.5rem;">
+												<input type="file" id="fileBannerInput" accept="image/*" style="display: none;" />
+												<button type="button" id="btnUploadBannerFile" style="background: #ffffff; border: 1.5px solid #2563eb; color: #2563eb; font-weight: 700; border-radius: 8px; padding: 0 0.9rem; height: 42px; font-size: 0.85rem; cursor: pointer; white-space: nowrap;">
+													Upload Banner
+												</button>
+												<input type="text" id="themeBannerUrl" class="setup-input" placeholder="or enter Image URL..." style="font-size: 0.85rem; flex: 1;" />
+												<button type="button" id="btnApplyPresetBanner" style="background: #eff6ff; border: 1.5px solid #bfdbfe; color: #2563eb; font-weight: 700; border-radius: 8px; padding: 0 0.8rem; font-size: 0.82rem; cursor: pointer; white-space: nowrap;">
+													Preset
+												</button>
+											</div>
+										</div>
+
+										<!-- Custom Page Background Image Input & File Upload -->
+										<div class="setup-form-group">
+											<label>Page Outer Background Image</label>
+											<div style="display: flex; gap: 0.5rem;">
+												<input type="file" id="filePageBgInput" accept="image/*" style="display: none;" />
+												<button type="button" id="btnUploadPageBgFile" style="background: #ffffff; border: 1.5px solid #2563eb; color: #2563eb; font-weight: 700; border-radius: 8px; padding: 0 0.9rem; height: 42px; font-size: 0.85rem; cursor: pointer; white-space: nowrap;">
+													Upload Background
+												</button>
+												<input type="text" id="themePageBgUrl" class="setup-input" placeholder="or enter Image URL..." style="font-size: 0.85rem; flex: 1;" />
+											</div>
+										</div>
+									</div>
+
+									<!-- Questions List Container Card -->
+									<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; margin-top: 1rem;">
+										<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.8rem;">
+											<h4 style="font-size: 1rem; font-weight: 700; color: #0f172a;">Form Questions (<span id="questionCountLabel">0</span>)</h4>
+											
+											<button type="button" id="btnAddQuestion" style="background: #2563eb; color: #ffffff; border: none; padding: 0.65rem 1.25rem; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3); transition: all 0.2s ease;">
+												<span style="font-size: 1.1rem; font-weight: 800;">+</span> Add Question
+											</button>
+										</div>
+
+										<div id="questionsList" style="display: flex; flex-direction: column; gap: 1rem; min-height: 50px;">
+											<!-- Dynamic Question Cards Rendered Here -->
+										</div>
+									</div>
+
+								</div>
+
+								<!-- Right Column: Instant Live Preview Window -->
+								<div class="preview-sticky-column">
+									<div style="background: #0f172a; border-radius: 12px; padding: 0.8rem 1.2rem; color: #ffffff; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
+										<span style="font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; gap: 0.4rem;">
+											<span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></span>
+											Live Attendee Form Preview
+										</span>
+										<span style="font-size: 0.75rem; color: #94a3b8;">Updates Instantly</span>
+									</div>
+
+									<!-- Rendered Outer Page Wrapper -->
+									<div id="livePreviewWrapper" style="background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 14px; padding: 1.5rem; box-shadow: 0 10px 25px rgba(0,0,0,0.05); transition: all 0.3s ease;">
+										
+										<!-- Inner Form Card Container -->
+										<div id="previewCardContainer" style="background: #ffffff; border-radius: 10px; padding: 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.04); transition: all 0.3s ease;">
+											
+											<div id="previewHeader" style="border-bottom: 2px solid #2563eb; padding-bottom: 0.8rem; margin-bottom: 1.5rem;">
+												<h3 id="previewTitle" style="font-size: 1.3rem; font-weight: 800; color: #0f172a;">Event Registration Form</h3>
+												<p id="previewDesc" style="font-size: 0.88rem; color: #64748b; margin-top: 0.3rem;">Please complete the registration form below to confirm your seat.</p>
+											</div>
+
+											<form id="previewRenderedForm" style="display: flex; flex-direction: column; gap: 1.2rem;">
+												<!-- Dynamic Form Controls Rendered Here -->
+											</form>
+
+											<div style="margin-top: 1.8rem; border-top: 1px solid #cbd5e1; padding-top: 1.2rem;">
+												<button type="button" id="previewSubmitBtn" style="width: 100%; background: #2563eb; color: #ffffff; border: none; padding: 0.75rem; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer;">
+													Submit Registration
+												</button>
+											</div>
+
+										</div>
+
+									</div>
+								</div>
+
+							</div>
+
+						</div>
+
+						<!-- ── SUB-VIEW 2: SUBMISSIONS & ANALYTICS ─────────────────────── -->
+						<div id="subViewSubmissions" style="display: none;">
+							
+							<!-- Analytics KPI Cards -->
+							<div class="kpi-row" style="margin-bottom: 1.8rem;">
+								<div class="kpi-card">
+									<div class="kpi-icon-circle icon-regs">
+										<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+									</div>
+									<div class="kpi-details">
+										<span class="kpi-label">Total Registrations</span>
+										<span class="kpi-value" id="kpiTotalSubmissions">128</span>
+									</div>
+								</div>
+
+								<div class="kpi-card">
+									<div class="kpi-icon-circle icon-sales">
+										<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+									</div>
+									<div class="kpi-details">
+										<span class="kpi-label">Completion Rate</span>
+										<span class="kpi-value" id="kpiCompletionRate">94.2%</span>
+									</div>
+								</div>
+
+								<div class="kpi-card">
+									<div class="kpi-icon-circle icon-days">
+										<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+									</div>
+									<div class="kpi-details">
+										<span class="kpi-label">Avg Completion Time</span>
+										<span class="kpi-value" id="kpiAvgTime">1m 42s</span>
+									</div>
+								</div>
+							</div>
+
+<!-- Table Filter Form & Export Controls -->
+						<div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 0.85rem; align-items: end; margin-bottom: 1.2rem;">
+							<div style="display: flex; flex-direction: column; gap: 0.45rem;">
+								<label for="submissionsSearch" style="font-size:0.78rem; color:#475569; font-weight:700;">Search</label>
+								<input type="text" id="submissionsSearch" class="setup-input" placeholder="Search attendee name, email, or answers..." style="padding-left: 1rem; width: 100%;" />
+							</div>
+							<div style="display: flex; flex-direction: column; gap: 0.45rem;">
+								<label for="submissionsStatusFilter" style="font-size:0.78rem; color:#475569; font-weight:700;">Status</label>
+								<select id="submissionsStatusFilter" class="setup-select" style="width: 100%; padding-left: 0.9rem;">
+									<option value="all">All Statuses</option>
+									<option value="completed">Completed</option>
+									<option value="pending">Pending</option>
+									<option value="draft">Draft</option>
+								</select>
+							</div>
+							<div style="display: flex; flex-direction: column; gap: 0.45rem;">
+								<label for="submissionsFromDate" style="font-size:0.78rem; color:#475569; font-weight:700;">From Date</label>
+								<input type="date" id="submissionsFromDate" class="setup-input" style="padding-left: 0.9rem; width: 100%;" />
+							</div>
+							<div style="display: flex; flex-direction: column; gap: 0.45rem;">
+								<label for="submissionsToDate" style="font-size:0.78rem; color:#475569; font-weight:700;">To Date</label>
+								<input type="date" id="submissionsToDate" class="setup-input" style="padding-left: 0.9rem; width: 100%;" />
+							</div>
+						</div>
+						<div style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+							<div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+								<button type="button" id="btnResetFilters" style="background: #eef2ff; border: 1px solid #c7d2fe; color: #4338ca; padding: 0.55rem 1.1rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer;">Reset</button>
+								<button type="button" id="btnRefreshSubmissions" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; padding: 0.55rem 1.1rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer;">Refresh</button>
+							</div>
+							<div style="display: flex; gap: 0.8rem;">
+								<button type="button" id="btnExportCSV" style="background: #f0fdf4; border: 1.5px solid #bbf7d0; color: #166534; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+										Export CSV Data
+									</button>
+								</div>
+							</div>
+
+							<!-- Submissions Table -->
+							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+								<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+									<thead>
+										<tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #475569; font-weight: 700;">
+											<th style="padding: 0.85rem 1.2rem;">ID</th>
+											<th style="padding: 0.85rem 1.2rem;">Attendee Email</th>
+											<th style="padding: 0.85rem 1.2rem;">Submission Time</th>
+											<th style="padding: 0.85rem 1.2rem;">Status</th>
+											<th style="padding: 0.85rem 1.2rem; text-align: right;">Action</th>
+										</tr>
+									</thead>
+									<tbody id="submissionsTableBody">
+										<!-- Submissions Rows Rendered Dynamically -->
+									</tbody>
+								</table>
+							</div>
+
+						</div>
+
+					</div>
+				</div>
+
+				<!-- ── TAB 6: EXHIBITORS & SPONSORS SECTION ────────────────────────── -->
+				<div id="sectionExhibitors" class="tab-section">
+					<div class="rich-form-container" style="max-width: 1200px; margin: 0 auto; padding: 1.8rem 2rem;">
+						
+						<!-- Header -->
+						<div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.2rem; margin-bottom: 1.8rem;">
+							<div>
+								<span class="form-pill-badge">Exhibitor &amp; Booth Management Studio</span>
+								<h2 class="rich-form-title" style="font-size: 1.6rem; margin-bottom: 0.2rem;">Exhibitors, Booths &amp; Sponsors</h2>
+								<p class="rich-form-subtitle" style="margin-bottom: 0;">Allocate booth numbers, manage exhibitor profiles, track approval workflows, and view traffic predictions.</p>
+							</div>
+							<button type="button" id="btnAddExhibitorModalBtn" class="publish-gradient-btn" style="padding: 0.55rem 1.3rem; font-size: 0.88rem; border-radius: 6px;">
+								+ Add New Exhibitor
+							</button>
+						</div>
+
+						<!-- KPI Dashboard Cards -->
+						<div class="kpi-row" style="margin-bottom: 1.8rem;">
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-sales">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Total Exhibitors</span>
+									<span class="kpi-value" id="exKpiTotal">0</span>
+								</div>
+							</div>
+
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-regs">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Confirmed Booths</span>
+									<span class="kpi-value" id="exKpiConfirmed">0</span>
+								</div>
+							</div>
+
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-days">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Pending Approval</span>
+									<span class="kpi-value" id="exKpiPending">0</span>
+								</div>
+							</div>
+
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-sales">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Premium Sponsors</span>
+									<span class="kpi-value" id="exKpiSponsors">0</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- AI Recommendations Card -->
+						<div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #2563eb; border-radius: 10px; padding: 1.25rem; margin-bottom: 1.8rem;">
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
+								<span style="font-size: 0.88rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.04em;">AI Booth Placement &amp; Traffic Optimization</span>
+								<span style="background: #eff6ff; color: #2563eb; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">AI Active</span>
+							</div>
+							<div class="setup-grid-3">
+								<div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0.9rem; border-radius: 8px;">
+									<h5 style="font-size: 0.85rem; font-weight: 700; color: #0f172a; margin-bottom: 0.3rem;">Traffic Optimization</h5>
+									<p style="font-size: 0.8rem; color: #64748b; margin: 0;">Recommend relocating TechCorp booth #B-12 to Hall A Entrance to boost footfall traffic by +24%.</p>
+								</div>
+								<div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0.9rem; border-radius: 8px;">
+									<h5 style="font-size: 0.85rem; font-weight: 700; color: #0f172a; margin-bottom: 0.3rem;">Sponsorship Pricing Suggestion</h5>
+									<p style="font-size: 0.8rem; color: #64748b; margin: 0;">High demand predicted for Hall C Premium booths. Suggest +15% package price surge for late registrations.</p>
+								</div>
+								<div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0.9rem; border-radius: 8px;">
+									<h5 style="font-size: 0.85rem; font-weight: 700; color: #0f172a; margin-bottom: 0.3rem;">Popular Booth Forecast</h5>
+									<p style="font-size: 0.8rem; color: #64748b; margin: 0;">Booths #A-01 to #A-05 are predicted to receive 65% of attendee check-in scans.</p>
+								</div>
+							</div>
+						</div>
+
+						<!-- Filter Bar & Exhibitors Table -->
+						<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.2rem; gap: 1rem;">
+							<input type="text" id="exhibitorSearch" class="setup-input" placeholder="Search by company name, booth no., or contact..." style="max-width: 380px; padding-left: 1rem;" />
+							<div style="display: flex; gap: 0.8rem;">
+								<select id="exhibitorStatusFilter" class="setup-select" style="width: 180px;">
+									<option value="all">All Statuses</option>
+									<option value="confirmed">Confirmed</option>
+									<option value="pending">Pending Approval</option>
+								</select>
+							</div>
+						</div>
+
+						<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+							<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+								<thead>
+									<tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #475569; font-weight: 700;">
+										<th style="padding: 0.85rem 1.2rem;">Company</th>
+										<th style="padding: 0.85rem 1.2rem;">Category</th>
+										<th style="padding: 0.85rem 1.2rem;">Contact Person</th>
+										<th style="padding: 0.85rem 1.2rem;">Status</th>
+										<th style="padding: 0.85rem 1.2rem; text-align: right;">Action</th>
+									</tr>
+								</thead>
+								<tbody id="exhibitorTableBody">
+
+								</tbody>
+							</table>
+						</div>
+
+					</div>
+				</div>
+
+				<!-- ── TAB 7: COMMUNICATE HUB SECTION ──────────────────────────────── -->
+				<div id="sectionCommunicate" class="tab-section">
+					<div class="rich-form-container" style="max-width: 1200px; margin: 0 auto; padding: 1.8rem 2rem;">
+						
+						<!-- Header -->
+						<div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.2rem; margin-bottom: 1.8rem;">
+							<div>
+								<span class="form-pill-badge">Omnichannel Communication Hub</span>
+								<h2 class="rich-form-title" style="font-size: 1.6rem; margin-bottom: 0.2rem;">Email, SMS, WhatsApp &amp; Broadcast Center</h2>
+								<p class="rich-form-subtitle" style="margin-bottom: 0;">Centralized messaging studio for attendees, exhibitors, speakers, and staff notifications.</p>
+							</div>
+						</div>
+
+						<!-- Sub-Tabs for Channels -->
+						<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.8rem;">
+							<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1.2rem; cursor: pointer;">
+								<h4 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem;">Email Campaigns</h4>
+								<p style="font-size: 0.78rem; color: #64748b; margin: 0;">Confirmations, Schedule Updates, Reminders</p>
+							</div>
+							<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1.2rem; cursor: pointer;">
+								<h4 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem;">SMS &amp; Push Alerts</h4>
+								<p style="font-size: 0.78rem; color: #64748b; margin: 0;">OTP, Emergency Alerts, Parking Broadcasts</p>
+							</div>
+							<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1.2rem; cursor: pointer;">
+								<h4 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem;">WhatsApp Integration</h4>
+								<p style="font-size: 0.78rem; color: #64748b; margin: 0;">Instant QR Ticket Delivery &amp; Live Chat</p>
+							</div>
+							<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1.2rem; cursor: pointer;">
+								<h4 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem;">Announcement Center</h4>
+								<p style="font-size: 0.78rem; color: #64748b; margin: 0;">Live Hall Broadcasts &amp; Delay Notices</p>
+							</div>
+						</div>
+
+						<!-- AI Copywriter & Broadcast Composer Form -->
+						<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.6rem; margin-bottom: 1.8rem;">
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.2rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.8rem;">
+								<h4 style="font-size: 1.05rem; font-weight: 800; color: #0f172a; margin: 0;">Compose New Broadcast Message</h4>
+								<button type="button" id="btnAiGenerateEmail" style="background: #eff6ff; border: 1.5px solid #bfdbfe; color: #2563eb; padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
+									Generate Message with AI
+								</button>
+							</div>
+
+							<div class="setup-grid-2">
+								<div class="setup-form-group">
+									<label>Select Target Audience</label>
+									<select id="commAudienceSelect" class="setup-select">
+										<option value="all_attendees">All Registered Attendees (0)</option>
+										<option value="vip_ticket_holders">VIP Pass Holders Only (0)</option>
+										<option value="exhibitors">Exhibitors &amp; Sponsors (0)</option>
+										<option value="speakers">Keynote Speakers &amp; Panelists (0)</option>
+									</select>
+								</div>
+
+								<div class="setup-form-group">
+									<label>Delivery Channel</label>
+									<select id="commChannelSelect" class="setup-select">
+										<option value="email">Email Broadcast</option>
+										<option value="whatsapp">WhatsApp Direct QR Delivery</option>
+										<option value="sms">SMS Text Alert</option>
+										<option value="push">Mobile Push Notification</option>
+									</select>
+								</div>
+							</div>
+
+							<div class="setup-form-group" style="margin-bottom: 1.2rem;">
+								<label>Message Title / Subject</label>
+								<input type="text" id="commSubjectInput" class="setup-input" placeholder="e.g. Important Update: Keynote Speaker Timing Changed to 10:30 AM" style="padding-left: 0.9rem;" />
+							</div>
+
+							<div class="setup-form-group" style="margin-bottom: 1.5rem;">
+								<label>Message Body Content</label>
+								<textarea id="commBodyInput" class="setup-textarea" style="min-height: 120px;" placeholder="Compose your broadcast email or notification content..."></textarea>
+							</div>
+
+							<div style="display: flex; justify-content: flex-end; gap: 0.8rem;">
+								<button type="button" id="btnSaveTemplate" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #334155; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer;">Save Template</button>
+								<button type="button" id="btnSendBroadcast" class="publish-gradient-btn" style="padding: 0.6rem 1.8rem; font-size: 0.88rem; border-radius: 8px;">Send Broadcast Now</button>
+							</div>
+						</div>
+
+						<!-- Recent Broadcast Log / History Card -->
+						<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.6rem;">
+							<h4 style="font-size: 1.05rem; font-weight: 800; color: #0f172a; margin-bottom: 1rem;">Recent Broadcast History</h4>
+							<div id="commHistoryContainer">
+								<div style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 8px;">
+									<div style="font-size: 1.5rem; margin-bottom: 0.4rem;">📢</div>
+									<div style="font-weight: 700; color: #475569;">No Communications Sent Yet</div>
+									<div style="font-size: 0.82rem; margin-top: 0.2rem;">Use the composer above to broadcast updates to attendees, VIPs, or exhibitors.</div>
+								</div>
+							</div>
+						</div>
+
+					</div>
+				</div>
+
+				<!-- ── TAB 8: REPORTS & ANALYTICS SECTION ──────────────────────────── -->
+				<div id="sectionReports" class="tab-section">
+					<div class="rich-form-container" style="max-width: 1200px; margin: 0 auto; padding: 1.8rem 2rem;">
+						
+						<!-- Header -->
+						<div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.2rem; margin-bottom: 1.8rem;">
+							<div>
+								<span class="form-pill-badge">Analytics &amp; Intelligence Center</span>
+								<h2 class="rich-form-title" style="font-size: 1.6rem; margin-bottom: 0.2rem;">Reports &amp; Financial Analytics</h2>
+								<p class="rich-form-subtitle" style="margin-bottom: 0;">Comprehensive breakdown of ticket sales, attendance check-ins, financial revenue, and marketing channels.</p>
+							</div>
+						</div>
+
+						<!-- Financial Summary KPI Cards -->
+						<div class="kpi-row" style="margin-bottom: 1.8rem;">
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-sales">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Gross Revenue</span>
+									<span class="kpi-value" id="repGrossRevenue">₹0.00</span>
+								</div>
+							</div>
+
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-regs">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Net Host Earnings</span>
+									<span class="kpi-value" id="repNetEarnings">₹0.00</span>
+								</div>
+							</div>
+
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-days">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Attendance Rate</span>
+									<span class="kpi-value" id="repAttendanceRate">0%</span>
+								</div>
+							</div>
+
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-sales">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Marketing Conversion</span>
+									<span class="kpi-value" id="repConversionRate">0%</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- AI Insights Cards Grid -->
+						<div style="margin-bottom: 1.8rem;">
+							<h4 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 1rem;">AI Executive Insights &amp; Recommendations</h4>
+							
+							<div class="setup-grid-3">
+								<div style="background: #ffffff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 1.2rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.04);">
+									<span style="background: #eff6ff; color: #2563eb; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">Registration Trend</span>
+									<h5 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0.6rem 0 0.3rem 0;">Awaiting Registrations</h5>
+									<p style="font-size: 0.85rem; color: #475569; margin: 0; line-height: 1.5;">Analytics velocity will populate here live as attendees complete registration.</p>
+								</div>
+
+								<div style="background: #ffffff; border: 1.5px solid #bbf7d0; border-radius: 10px; padding: 1.2rem; box-shadow: 0 4px 12px rgba(22, 101, 52, 0.04);">
+									<span style="background: #f0fdf4; color: #166534; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">Marketing Source</span>
+									<h5 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0.6rem 0 0.3rem 0;">Channel Tracking Active</h5>
+									<p style="font-size: 0.85rem; color: #475569; margin: 0; line-height: 1.5;">Marketing breakdown and top referral sources will be displayed dynamically.</p>
+								</div>
+
+								<div style="background: #ffffff; border: 1.5px solid #fde68a; border-radius: 10px; padding: 1.2rem; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.04);">
+									<span style="background: #fef3c7; color: #b45309; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">Pricing Insight</span>
+									<h5 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0.6rem 0 0.3rem 0;">Tier Analytics Ready</h5>
+									<p style="font-size: 0.85rem; color: #475569; margin: 0; line-height: 1.5;">Demand forecasts and ticket tier velocity will be suggested automatically.</p>
+								</div>
+							</div>
+						</div>
+
+						<!-- Financial & Demographic Tables -->
+						<div class="setup-grid-2">
+							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.4rem;">
+								<h4 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin-bottom: 1rem;">Financial Earnings Breakdown</h4>
+								<div style="display: flex; flex-direction: column; gap: 0.8rem; font-size: 0.9rem;">
+									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
+										<span>Gross Ticket Sales</span>
+										<span style="font-weight: 700; color: #0f172a;">$142,850.00</span>
+									</div>
+									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
+										<span>Platform Service Fee (5%)</span>
+										<span style="font-weight: 700; color: #dc2626;">-$7,142.50</span>
+									</div>
+									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
+										<span>Taxes &amp; Statutory GST (5%)</span>
+										<span style="font-weight: 700; color: #dc2626;">-$7,142.50</span>
+									</div>
+									<div style="display: flex; justify-content: space-between; padding-top: 0.4rem; font-size: 1rem; font-weight: 800; color: #166534;">
+										<span>Net Host Payout</span>
+										<span>$128,565.00</span>
+									</div>
+								</div>
+							</div>
+
+							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.4rem;">
+								<h4 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin-bottom: 1rem;">Audience Top Cities</h4>
+								<div style="display: flex; flex-direction: column; gap: 0.8rem; font-size: 0.9rem;">
+									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
+										<span>Chennai, Tamil Nadu</span>
+										<span style="font-weight: 700; color: #0f172a;">4,820 (42%)</span>
+									</div>
+									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
+										<span>Bengaluru, Karnataka</span>
+										<span style="font-weight: 700; color: #0f172a;">3,120 (27%)</span>
+									</div>
+									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
+										<span>Hyderabad, Telangana</span>
+										<span style="font-weight: 700; color: #0f172a;">1,950 (17%)</span>
+									</div>
+									<div style="display: flex; justify-content: space-between; padding-top: 0.4rem; font-size: 0.9rem; font-weight: 700; color: #475569;">
+										<span>Other Locations</span>
+										<span>1,590 (14%)</span>
+									</div>
+								</div>
+							</div>
+						</div>
+
+					</div>
+				</div>
+
+				<!-- ── TAB 9: EVENT DAY LIVE OPERATIONS SECTION ───────────────────── -->
+				<div id="sectionEventday" class="tab-section">
+					<div class="rich-form-container" style="max-width: 1200px; margin: 0 auto; padding: 1.8rem 2rem;">
+						
+						<!-- Header with Live Pulse Badge -->
+						<div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.2rem; margin-bottom: 1.8rem;">
+							<div>
+								<div style="display: flex; align-items: center; gap: 0.6rem;">
+									<span class="form-pill-badge">Live Event Operations Dashboard</span>
+									<span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.2rem 0.7rem; border-radius: 12px; font-size: 0.78rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem;">
+										<span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></span> Event Live Now
+									</span>
+								</div>
+								<h2 class="rich-form-title" style="font-size: 1.6rem; margin: 0.3rem 0 0.2rem 0;">Event Day Live Operations</h2>
+								<p class="rich-form-subtitle" style="margin-bottom: 0;">Real-time attendee check-in scanner, venue hall occupancy, staff allocation, and emergency broadcasts.</p>
+							</div>
+						</div>
+
+						<!-- Real-Time Metrics Row -->
+						<div class="kpi-row" style="margin-bottom: 1.8rem;">
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-sales">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Live Attendees Inside</span>
+									<span class="kpi-value" id="evLiveInside">0</span>
+								</div>
+							</div>
+
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-regs">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Check-ins Processed</span>
+									<span class="kpi-value" id="evCheckinsProcessed">0 / 0</span>
+								</div>
+							</div>
+
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-days">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M7 7h10v10H7z"></path></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Hall Occupancy</span>
+									<span class="kpi-value" id="evHallOccupancy">0%</span>
+								</div>
+							</div>
+
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-sales">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Active Sessions</span>
+									<span class="kpi-value" id="evActiveSessions">0 Ongoing</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- AI Crowd Density & Bottleneck Warning Banner -->
+						<div style="background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #2563eb; border-radius: 10px; padding: 1.25rem; margin-bottom: 1.8rem;">
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+								<span style="font-weight: 800; color: #1e3a8a; font-size: 0.88rem; text-transform: uppercase;">AI Crowd Density &amp; Bottleneck Alert</span>
+								<span style="font-size: 0.78rem; font-weight: 700; color: #2563eb;">Gate Flow Normal</span>
+							</div>
+							<p style="font-size: 0.88rem; color: #1e293b; margin: 0; line-height: 1.5;">
+								<strong>Live Gate Status:</strong> Real-time crowd density monitoring is active. Check-in flow alerts will appear here if queue bottlenecks occur.
+							</p>
+						</div>
+
+						<!-- Interactive Live Modules Grid -->
+						<div class="setup-grid-2" style="margin-bottom: 1.8rem;">
+							
+							<!-- QR Ticket Check-in Scanner & Camera Module -->
+							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.4rem;">
+								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
+									<h4 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0;">QR Code Ticket Scanner &amp; Validator</h4>
+									<span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">Live Gate Ready</span>
+								</div>
+								<p style="font-size: 0.82rem; color: #64748b; margin-bottom: 1.2rem;">Use device camera or manual input to scan attendee QR codes and prevent duplicate entry.</p>
+								
+								<div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+									<button type="button" id="btnLaunchCameraScanner" style="background: #10b981; color: #ffffff; border: none; padding: 0.65rem 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);">
+										<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+										Launch Camera Scanner
+									</button>
+								</div>
+
+								<div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+									<input type="text" id="liveQrInput" class="setup-input" placeholder="Or enter QR Code (e.g. TICKET-98742)..." style="padding-left: 0.9rem;" />
+									<button type="button" id="btnValidateQr" class="publish-gradient-btn" style="padding: 0.6rem 1.2rem; font-size: 0.88rem; border-radius: 8px; white-space: nowrap;">Validate Code</button>
+								</div>
+								
+								<div id="qrScanResult" style="display: none; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.8rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem;"></div>
+							</div>
+
+							<!-- Incident & Emergency Management -->
+							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.4rem;">
+								<h4 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin-bottom: 0.4rem;">Incident &amp; Emergency Log</h4>
+								<p style="font-size: 0.82rem; color: #64748b; margin-bottom: 1rem;">Log medical emergencies, technical issues, or security alerts.</p>
+								
+								<div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.85rem;" id="incidentLogList">
+									<div style="text-align: center; padding: 1.2rem; color: #94a3b8;">
+										No active incident alerts logged for this event.
+									</div>
+								</div>
+							</div>
+
+						</div>
+
+						<!-- Gate Management Section -->
+						<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.6rem; margin-bottom: 1.8rem; box-shadow: 0 4px 16px rgba(15,23,42,0.03);">
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.8rem;">
+								<div>
+									<h4 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 0.2rem;">Gate Management Studio</h4>
+									<p style="font-size: 0.83rem; color: #64748b; margin: 0;">Add, edit, delete, and toggle status of custom entry gates for this event. Unique gate lists are isolated per event.</p>
+								</div>
+								<span style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.78rem; font-weight: 700;">Independent Gate List</span>
+							</div>
+
+							<!-- Add/Edit Gate Form -->
+							<form id="gateForm" style="margin-bottom: 1.5rem; background: #f8fafc; padding: 1.2rem; border-radius: 10px; border: 1px solid #e2e8f0;">
+								<input type="hidden" id="gateIdInput" />
+								<div class="setup-grid-3" style="align-items: flex-end; gap: 0.8rem;">
+									<div class="setup-form-group" style="margin-bottom: 0;">
+										<label style="font-weight: 700; font-size: 0.8rem;">Gate Name *</label>
+										<input type="text" id="gateNameInput" class="setup-input" placeholder="e.g. Main Gate, VIP Entrance" required style="padding-left: 0.9rem;" />
+									</div>
+									<div class="setup-form-group" style="margin-bottom: 0;">
+										<label style="font-weight: 700; font-size: 0.8rem;">Gate Code (Optional)</label>
+										<input type="text" id="gateCodeInput" class="setup-input" placeholder="e.g. MN-01" style="padding-left: 0.9rem;" />
+									</div>
+									<div class="setup-form-group" style="margin-bottom: 0;">
+										<label style="font-weight: 700; font-size: 0.8rem;">Description (Optional)</label>
+										<input type="text" id="gateDescInput" class="setup-input" placeholder="e.g. Near West Parking" style="padding-left: 0.9rem;" />
+									</div>
+								</div>
+								<div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
+									<button type="button" id="btnCancelGateEdit" style="display: none; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.85rem;">Cancel</button>
+									<button type="submit" id="btnSaveGate" class="publish-gradient-btn" style="padding: 0.55rem 1.4rem; border-radius: 8px; font-size: 0.85rem;">Save Gate</button>
+								</div>
+							</form>
+
+							<!-- Entry Gates Table -->
+							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+								<table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+									<thead>
+										<tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #475569; font-weight: 700;">
+											<th style="padding: 0.75rem 1rem;">Gate Name</th>
+											<th style="padding: 0.75rem 1rem;">Code</th>
+											<th style="padding: 0.75rem 1rem;">Description</th>
+											<th style="padding: 0.75rem 1rem;">Status</th>
+											<th style="padding: 0.75rem 1rem; text-align: right;">Action</th>
+										</tr>
+									</thead>
+									<tbody id="gatesTableBody">
+										<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">No gates configured for this event yet. Add a gate above to get started.</td></tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+						<!-- Volunteer & Staff Scanner Access Management Card -->
+						<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.6rem; margin-bottom: 1.8rem; box-shadow: 0 4px 16px rgba(15,23,42,0.03);">
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.8rem;">
+								<div>
+									<h4 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 0.2rem;">Connect &amp; Invite Volunteers for QR Verification</h4>
+									<p style="font-size: 0.83rem; color: #64748b; margin: 0;">Generate restricted scanner access links for event staff and volunteers. They will only have permissions to scan and verify tickets on Event Day.</p>
+								</div>
+								<span style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.78rem; font-weight: 700;">Restricted Scanner Scope</span>
+							</div>
+
+							<!-- Add Volunteer Scanner Form -->
+							<div class="setup-grid-3" style="align-items: flex-end; margin-bottom: 1.2rem;">
+								<div class="setup-form-group">
+									<label>Volunteer Name / Contact Email</label>
+									<input type="text" id="volunteerNameInput" class="setup-input" placeholder="e.g. Volunteer Staff Name" style="padding-left: 0.9rem;" />
+								</div>
+								<div class="setup-form-group">
+									<label>Assigned Entry Gate</label>
+									<select id="volunteerGateSelect" class="setup-select" style="padding-left: 0.9rem;">
+										<option value="" disabled selected>No gates configured yet</option>
+									</select>
+								</div>
+								<button type="button" id="btnCreateVolunteerLink" class="publish-gradient-btn" style="height: 44px; padding: 0 1.2rem; font-size: 0.88rem; border-radius: 8px;">
+									Generate Scanner Link &amp; Passcode
+								</button>
+							</div>
+
+							<!-- Generated Scanner Link Box -->
+							<div id="generatedLinkContainer" style="display: none; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1rem; margin-bottom: 1.2rem;">
+								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
+									<span style="font-size: 0.82rem; font-weight: 700; color: #334155;">Unique Volunteer Scanner Portal URL:</span>
+									<span id="passcodeBadge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; padding: 0.15rem 0.6rem; border-radius: 6px; font-weight: 800; font-size: 0.8rem;">Passcode: VOL-2026-9874</span>
+								</div>
+								<div style="display: flex; gap: 0.5rem;">
+									<input type="text" id="volunteerPortalUrl" class="setup-input" readonly value="http://127.0.0.1:5000/volunteer-scanner.html?code=VOL-2026-9874" style="background: #ffffff; font-weight: 600; color: #2563eb; padding-left: 0.9rem;" />
+									<button type="button" id="btnCopyVolunteerUrl" style="background: #2563eb; color: #ffffff; border: none; padding: 0 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; white-space: nowrap;">Copy Link</button>
+									<a id="btnOpenVolunteerPortal" href="volunteer-scanner.html?code=VOL-2026-9874" target="_blank" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #334155; padding: 0 1rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; text-decoration: none; display: flex; align-items: center; justify-content: center; white-space: nowrap;">Open Scanner ↗</a>
+								</div>
+							</div>
+
+							<!-- Active Volunteers List Table -->
+							<h5 style="font-size: 0.9rem; font-weight: 800; color: #0f172a; margin-bottom: 0.8rem;">Active Connected Volunteer Scanners</h5>
+							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+								<table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+									<thead>
+										<tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #475569; font-weight: 700;">
+											<th style="padding: 0.75rem 1rem;">Volunteer Name</th>
+											<th style="padding: 0.75rem 1rem;">Assigned Gate</th>
+											<th style="padding: 0.75rem 1rem;">Scans Processed Today</th>
+											<th style="padding: 0.75rem 1rem;">Scanner Status</th>
+											<th style="padding: 0.75rem 1rem; text-align: right;">Action</th>
+										</tr>
+									</thead>
+									<tbody id="volunteerTableBody">
+										<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">No volunteer scanners connected yet. Generate a scanner link above to assign staff.</td></tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+					</div>
+				</div>
+
+				<!-- ── CAMERA QR SCANNER MODAL ────────────────────────────────────── -->
+				<div id="cameraScannerModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 99999; align-items: center; justify-content: center; padding: 1rem;">
+					<div style="background: #0f172a; border: 1px solid #334155; border-radius: 16px; width: 100%; max-width: 520px; padding: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5); color: #ffffff;">
+						<div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e293b; padding-bottom: 0.9rem; margin-bottom: 1.2rem;">
+							<div style="display: flex; align-items: center; gap: 0.6rem;">
+								<div style="width: 10px; height: 10px; background: #10b981; border-radius: 50%;"></div>
+								<h3 style="font-size: 1.1rem; font-weight: 800; color: #ffffff; margin: 0;">Live Camera QR Ticket Scanner</h3>
+							</div>
+							<button type="button" id="btnCloseCameraModal" style="background: #1e293b; color: #94a3b8; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.1rem; font-weight: 700;">&times;</button>
+						</div>
+
+						<!-- Camera Viewfinder Simulation -->
+						<div style="position: relative; width: 100%; height: 280px; background: #020617; border-radius: 12px; overflow: hidden; border: 2px solid #3b82f6; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 1.2rem;">
+							<div style="position: absolute; width: 180px; height: 180px; border: 3px dashed #10b981; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;">
+								<span style="font-size: 0.75rem; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(0,0,0,0.7); padding: 0.2rem 0.5rem; border-radius: 4px;">Point at Attendee QR</span>
+							</div>
+							<video id="cameraVideo" style="width: 100%; height: 100%; object-fit: cover; display: none;" autoplay playsinline></video>
+						</div>
+
+						<!-- Quick Simulation Controls & Live Result Overlay -->
+						<div id="modalScanResult" style="display: none; background: #064e3b; border: 1px solid #059669; color: #a7f3d0; padding: 0.9rem; border-radius: 8px; margin-bottom: 1.2rem; font-size: 0.88rem; line-height: 1.4;"></div>
+
+						<div style="display: flex; gap: 0.8rem;">
+							<button type="button" id="btnSimulateScanSuccess" style="flex: 1; background: #10b981; color: #ffffff; border: none; padding: 0.65rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer;">
+								Simulate Scan (Valid Pass)
+							</button>
+							<button type="button" id="btnSimulateScanDuplicate" style="flex: 1; background: #ef4444; color: #ffffff; border: none; padding: 0.65rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer;">
+								Simulate Scan (Duplicate)
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- ── ADD EXHIBITOR MODAL ─────────────────────────────────────── -->
+				<div id="addExhibitorModal" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.75); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;">
+					<div style="background: #ffffff; border-radius: 14px; max-width: 520px; width: 100%; padding: 1.8rem; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
+						<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.2rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.8rem;">
+							<h3 style="font-size: 1.2rem; font-weight: 800; color: #0f172a; margin: 0;">Add New Exhibitor</h3>
+							<button type="button" id="btnCloseExhibitorModal" style="background: #f1f5f9; color: #64748b; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-weight: 700; font-size: 1.1rem;">&times;</button>
+						</div>
+
+						<form id="addExhibitorForm">
+							<div class="setup-form-group" style="margin-bottom: 1rem;">
+								<label for="exCompanyInput">Company / Exhibitor Name <span style="color: #ef4444;">*</span></label>
+								<input type="text" id="exCompanyInput" class="setup-input" placeholder="e.g. TechCorp Solutions" required style="padding-left: 0.9rem;" />
+							</div>
+
+
+
+							<div class="setup-grid-2" style="margin-bottom: 1rem;">
+								<div class="setup-form-group">
+									<label for="exContactNameInput">Contact Person</label>
+									<input type="text" id="exContactNameInput" class="setup-input" placeholder="Name" style="padding-left: 0.9rem;" />
+								</div>
+								<div class="setup-form-group">
+									<label for="exContactEmailInput">Contact Email</label>
+									<input type="email" id="exContactEmailInput" class="setup-input" placeholder="email@company.com" style="padding-left: 0.9rem;" />
+								</div>
+							</div>
+
+							<div class="setup-grid-2" style="margin-bottom: 1.2rem;">
+								<div class="setup-form-group">
+									<label for="exCategorySelect">Category</label>
+									<select id="exCategorySelect" class="setup-select">
+										<option value="Tech &amp; AI" selected>Tech &amp; AI</option>
+										<option value="Healthcare">Healthcare</option>
+										<option value="Finance &amp; Banking">Finance &amp; Banking</option>
+										<option value="Education">Education</option>
+										<option value="General">General</option>
+									</select>
+								</div>
+								<div class="setup-form-group">
+									<label for="exStatusSelect">Status</label>
+									<select id="exStatusSelect" class="setup-select">
+										<option value="confirmed" selected>Confirmed</option>
+										<option value="pending">Pending Approval</option>
+									</select>
+								</div>
+							</div>
+
+							<div style="display: flex; justify-content: flex-end; gap: 0.8rem; border-top: 1px solid #e2e8f0; padding-top: 1rem;">
+								<button type="button" id="btnCancelExhibitorModal" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; cursor: pointer;">Cancel</button>
+								<button type="submit" class="publish-gradient-btn" style="padding: 0.55rem 1.4rem; border-radius: 8px;">Save Exhibitor</button>
+							</div>
+						</form>
+					</div>
+				</div>
+
+			</main>
+		</div>
+
+		<script src="js/include.js?v=13"></script>
+		<script src="js/auth.js?v=13"></script>
+		<script src="js/script.js?v=13"></script>
+<script src="js/form-builder.js?v=20260806_v5"></script>
+		<script src="js/organizer-dashboard.js?v=20260807_v2"></script>
+	</body>
+</html>
+

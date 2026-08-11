@@ -10,6 +10,9 @@ load_dotenv()
 from APIs.auth import router as auth_router
 from APIs.events import router as events_router
 from APIs.users import router as users_router
+from APIs.organizers import router as organizers_router
+from APIs.forms import router as forms_router
+from APIs.host_events_api import router as host_events_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
@@ -64,10 +67,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Static Uploads ─────────────────────────────────────────────────────────────
+from fastapi.staticfiles import StaticFiles
+uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
 # ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(auth_router,   prefix="/api/auth",   tags=["Authentication"])
-app.include_router(events_router, prefix="/api/events", tags=["Events"])
-app.include_router(users_router,  prefix="/api/users",  tags=["Users"])
+app.include_router(auth_router,       prefix="/api/auth",       tags=["Authentication"])
+app.include_router(events_router,     prefix="/api/events",     tags=["Events"])
+app.include_router(users_router,      prefix="/api/users",      tags=["Users"])
+app.include_router(organizers_router, prefix="/api/organizers", tags=["Organizers"])
+app.include_router(host_events_router, prefix="/api/host-events", tags=["Host Events"])
+app.include_router(forms_router)
 
 
 # ── Health Checks ─────────────────────────────────────────────────────────────
