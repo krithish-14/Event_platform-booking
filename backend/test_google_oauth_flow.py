@@ -7,6 +7,7 @@ import secrets
 from pathlib import Path
 from sqlalchemy.orm import Session
 
+from fastapi import HTTPException
 from Models.base import SessionLocal
 from Models.user import User
 from Models.event import Event
@@ -58,14 +59,17 @@ async def run_tests():
     assert user_db.hashed_password, "Hashed password not generated"
     print(f"[OK] Database record verified. Username: {user_db.username}, Password Hashed: True")
 
-    # 4. Test Google Login for EXISTING User (Account Merging / Re-login)
+    # 4. Test Google Login for EXISTING User (Must be Rejected)
     req_login = GoogleAuthRequest(credential=token_str)
-    res_login = await google_auth(req_login, db)
-    assert res_login["user"]["email"] == test_email
-    assert res_login["access_token"]
-    print("[OK] Existing Google user re-login & account merging successful without duplicate errors")
+    try:
+        await google_auth(req_login, db)
+        assert False, "Expected HTTPException 400 for existing Google user attempt"
+    except HTTPException as exc:
+        assert exc.status_code == 400
+        assert exc.detail == "User already exists"
+        print("[OK] Re-login attempt with existing Google registered email correctly rejected with 'User already exists'")
 
-    # 5. Test Google Login for User who initially created account via manual signup
+    # 5. Test Google Login for User who initially created account via manual signup (Must be Rejected)
     manual_email = f"manualuser_{secrets.token_hex(4)}@example.com"
     manual_user = User(
         email=manual_email,
@@ -78,10 +82,13 @@ async def run_tests():
 
     token_manual = create_mock_google_id_token(manual_email, "Manual User Google", "https://lh3.googleusercontent.com/a/manual-pic")
     req_manual_google = GoogleAuthRequest(credential=token_manual)
-    res_manual_google = await google_auth(req_manual_google, db)
-    assert res_manual_google["user"]["email"] == manual_email
-    assert res_manual_google["user"]["avatar_url"] == "https://lh3.googleusercontent.com/a/manual-pic"
-    print("[OK] Google login with email matching existing manual signup account linked successfully")
+    try:
+        await google_auth(req_manual_google, db)
+        assert False, "Expected HTTPException 400 for manual user Google OAuth attempt"
+    except HTTPException as exc:
+        assert exc.status_code == 400
+        assert exc.detail == "User already exists"
+        print("[OK] Google OAuth attempt with email matching existing manual signup account correctly rejected with 'User already exists'")
 
     db.close()
     print("\nALL GOOGLE OAUTH 2.0 VERIFICATION CHECKS PASSED SUCCESSFULLY!")

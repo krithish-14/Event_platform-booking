@@ -104,7 +104,7 @@ def run_google_auth_tests():
         print(f"[FAIL] Session validation failed: {e}")
         sys.exit(1)
 
-    print("\n--- 5. Testing Repeat Sign-In for Existing Google User ---")
+    print("\n--- 5. Testing Repeat Sign-In / Registration for Existing User (Must be Rejected) ---")
     req = urllib.request.Request(
         f"{BASE_URL}/api/auth/google",
         data=json.dumps({"credential": mock_token}).encode(),
@@ -112,13 +112,14 @@ def run_google_auth_tests():
         method="POST"
     )
     try:
-        with urllib.request.urlopen(req) as resp:
-            repeat_data = json.loads(resp.read().decode())
-            print(f"[OK] Repeat Google Sign-In succeeded, retrieved existing user ID: {repeat_data['user']['id']}")
-            assert repeat_data["user"]["email"] == test_email.lower()
-    except Exception as e:
-        print(f"[FAIL] Repeat sign-in failed: {e}")
+        urllib.request.urlopen(req)
+        print("[FAIL] Expected 400 error for existing user Google OAuth attempt but request succeeded")
         sys.exit(1)
+    except urllib.error.HTTPError as e:
+        assert e.code == 400, f"Expected 400 status code, got {e.code}"
+        err_body = json.loads(e.read().decode())
+        assert err_body.get("detail") == "User already exists", f"Unexpected error message: {err_body}"
+        print(f"[OK] Existing user Google OAuth attempt correctly rejected with status 400: '{err_body['detail']}'")
 
     print("\n[SUCCESS] ALL GOOGLE OAUTH INTEGRATION TESTS PASSED SUCCESSFULLY!")
 

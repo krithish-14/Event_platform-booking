@@ -175,10 +175,7 @@ def _sync_databases():
                         text("""
                             INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin, created_at, updated_at)
                             VALUES (:id, :customer_id, :email, :username, :full_name, :hashed_password, :is_active, :is_admin, NOW(), NOW())
-                            ON CONFLICT (email) DO UPDATE SET
-                                customer_id = COALESCE(users.customer_id, EXCLUDED.customer_id),
-                                hashed_password = EXCLUDED.hashed_password,
-                                username = EXCLUDED.username
+                            ON CONFLICT (email) DO NOTHING
                         """),
                         {
                             "id": str(u_id),
@@ -258,7 +255,18 @@ def _migrate_tables(engine=None):
 
                     if is_pg:
                         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_customer_id ON users (customer_id);"))
+                        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email);"))
+                        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email_lower ON users (lower(email));"))
+                        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username_lower ON users (lower(username));"))
                         conn.commit()
+                    else:
+                        try:
+                            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email);"))
+                            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email_lower ON users (lower(email));"))
+                            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username_lower ON users (lower(username));"))
+                            conn.commit()
+                        except Exception:
+                            pass
                         if "bookings" in tables:
                             try:
                                 conn.execute(text("""
@@ -305,6 +313,34 @@ def _migrate_tables(engine=None):
                             print(f"  [DB MIGRATION] Added column events.{col_name}", flush=True)
                         except Exception as e:
                             print(f"  [DB MIGRATION WARN] Could not add column events.{col_name}: {e}", flush=True)
+                conn.commit()
+
+        if "bookings" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("bookings")}
+            booking_migrations = [
+                ("ticket_type", "VARCHAR(100)"),
+                ("quantity", "INTEGER"),
+                ("total_price", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("status", "VARCHAR(50)"),
+                ("payment_id", "VARCHAR(100)"),
+                ("payment_mode", "VARCHAR(100)"),
+                ("gst_amount", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("seat_number", "VARCHAR(100)"),
+                ("receiver_name", "VARCHAR(200)"),
+                ("receiver_email", "VARCHAR(200)"),
+                ("receiver_phone", "VARCHAR(50)"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in booking_migrations:
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE bookings ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE bookings ADD COLUMN {col_name} {col_type};"))
+                            print(f"  [DB MIGRATION] Added column bookings.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column bookings.{col_name}: {e}", flush=True)
                 conn.commit()
     except Exception as exc:
         print(f"  [WARN] Auto-migration check: {exc}", flush=True)
@@ -641,6 +677,7 @@ def create_tables():
     from Models.user import User  # noqa: F401
     from Models.event import Event  # noqa: F401
     from Models.booking import Booking  # noqa: F401
+    from Models.ticket import Ticket  # noqa: F401
     engine = get_engine()
     _migrate_tables(engine)
     Base.metadata.create_all(bind=engine)

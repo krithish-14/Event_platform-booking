@@ -1,14 +1,14 @@
 /* ─────────────────────────────────────────────────────────────
-   JOD Events — Ticket Viewing & Invoice Page Styles
+   JOD Events — BookMyShow-Style M-Ticket Redesign Styles
    ───────────────────────────────────────────────────────────── */
 
 .ticket-page {
-	background: #181512;
+	background: #0f1115;
 	color: #ffffff;
 }
 
 .ticket-main-section {
-	padding: 2.5rem 0 4rem;
+	padding: 2rem 0 4rem;
 }
 
 /* ── Top Navigation Bar ──────────────────────────────────── */
@@ -69,220 +69,332 @@
 	font-family: monospace;
 }
 
-/* ── Main Ticket Card Box ────────────────────────────────── */
-.ticket-card-box {
-	border: 1px solid rgba(255, 255, 255, .12);
-	border-radius: 1.5rem;
-	background: linear-gradient(145deg, #25211c 0%, #1c1916 100%);
-	padding: 2.25rem 2rem;
-	box-shadow: 0 25px 60px -15px rgba(0, 0, 0, .5);
-	margin-bottom: 2rem;
+/* ── BookMyShow Style M-Ticket Wrapper ───────────────────── */
+.ticket-mticket-wrapper {
+	max-width: 480px;
+	margin: 0 auto 2rem;
+	position: relative;
 }
 
-.ticket-event-header {
-	display: grid;
-	grid-template-columns: 140px 1fr;
-	gap: 1.5rem;
-	align-items: center;
-	padding-bottom: 1.75rem;
-	border-bottom: 1px solid rgba(255, 255, 255, .1);
-	margin-bottom: 1.75rem;
-}
-
-.ticket-event-image {
-	width: 140px;
-	height: 140px;
-	border-radius: 1rem;
+.mticket-card {
+	background: #ffffff;
+	color: #111827;
+	border-radius: 1.25rem;
+	padding: 1.5rem 1.5rem 1.25rem;
+	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+	position: relative;
 	overflow: hidden;
-	background: var(--dark);
-	border: 1px solid rgba(255, 255, 255, .15);
 }
 
-.ticket-event-image img {
+/* Side Notches */
+.mticket-notch {
+	position: absolute;
+	width: 24px;
+	height: 24px;
+	background-color: #0f1115;
+	border-radius: 50%;
+	z-index: 10;
+}
+.notch-left-top { top: 220px; left: -12px; }
+.notch-right-top { top: 220px; right: -12px; }
+.notch-left-bottom { bottom: -12px; left: -12px; }
+.notch-right-bottom { bottom: -12px; right: -12px; }
+
+/* Section 1: Header (Poster + Info) */
+.mticket-header-section {
+	display: flex;
+	gap: 1rem;
+	align-items: flex-start;
+	position: relative;
+	padding-bottom: 1.25rem;
+}
+
+.mticket-poster {
+	width: 76px;
+	height: 100px;
+	border-radius: 8px;
+	overflow: hidden;
+	background: #e5e7eb;
+	flex-shrink: 0;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.mticket-poster img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
 }
 
-.ticket-event-info h1 {
-	margin: .5rem 0 .5rem;
-	font-size: 1.75rem;
+.mticket-event-details {
+	flex: 1;
+	padding-right: 1.5rem;
+}
+
+.mticket-event-details h1 {
+	font-size: 1.25rem;
 	font-weight: 800;
-	color: #fff;
-	line-height: 1.25;
+	color: #111827;
+	margin: 0 0 0.25rem;
+	line-height: 1.3;
 }
 
-.event-meta-row {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 1.25rem;
-	color: rgba(255, 255, 255, .8);
-	font-size: .9rem;
+.mticket-format-tag {
+	font-size: 0.8rem;
+	color: #6b7280;
+	margin-bottom: 0.5rem;
+	font-weight: 500;
 }
 
-/* ── Section Blocks ──────────────────────────────────────── */
-.ticket-section {
-	padding-bottom: 1.5rem;
-	border-bottom: 1px solid rgba(255, 255, 255, .08);
-	margin-bottom: 1.5rem;
+.mticket-meta-item {
+	font-size: 0.85rem;
+	color: #374151;
+	margin-bottom: 0.2rem;
+
 }
 
-.section-title {
-	margin: 0 0 1rem;
-	font-size: 1.1rem;
+.mticket-datetime span {
 	font-weight: 700;
-	color: var(--primary);
+	color: #111827;
+}
+
+.mticket-venue span {
+	color: #6b7280;
+}
+
+.mticket-watermark {
+	position: absolute;
+	right: -8px;
+	top: 0;
+	font-size: 0.725rem;
+	font-weight: 700;
+	color: #9ca3af;
+	writing-mode: vertical-rl;
 	text-transform: uppercase;
-	letter-spacing: 0.04em;
+	letter-spacing: 0.1em;
+	opacity: 0.45;
 }
 
-/* Info Grid */
-.info-grid, .receiver-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-	gap: 1.25rem;
-}
-
-.info-item, .receiver-item {
-	display: flex;
-	flex-direction: column;
-	gap: .25rem;
-}
-
-.info-label {
-	color: rgba(255, 255, 255, .55);
-	font-size: .775rem;
-	text-transform: uppercase;
-	letter-spacing: 0.03em;
-}
-
-.info-val, .receiver-item strong {
-	color: #fff;
-	font-size: .95rem;
+/* Collapsible Toggle Bar */
+.mticket-toggle-btn {
+	width: 100%;
+	background: #f3f4f6;
+	border: none;
+	padding: 0.55rem 1rem;
+	border-radius: 20px;
+	font-size: 0.825rem;
 	font-weight: 600;
-}
-
-.status-text-confirmed {
-	color: #2ecc71;
-}
-
-.status-text-cancelled {
-	color: #e74c3c;
-}
-
-/* Bill Summary Table */
-.bill-table {
-	display: flex;
-	flex-direction: column;
-	gap: .6rem;
-	background: rgba(0, 0, 0, .25);
-	padding: 1.25rem;
-	border-radius: 1rem;
-	border: 1px solid rgba(255, 255, 255, .06);
-	margin-bottom: 1rem;
-}
-
-.bill-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	font-size: .9rem;
-	color: rgba(255, 255, 255, .8);
-}
-
-.bill-row-total {
-	padding-top: .6rem;
-	border-top: 1px solid rgba(255, 255, 255, .15);
-	font-size: 1.1rem;
-	font-weight: 800;
-	color: #fff;
-}
-
-.payment-meta-grid {
-	display: flex;
-	align-items: center;
-	gap: 2rem;
-	flex-wrap: wrap;
-	font-size: .85rem;
-	color: rgba(255, 255, 255, .7);
-	padding: 0 .25rem;
-}
-
-.payment-meta-grid strong {
-	color: #fff;
-	margin-left: .35rem;
-}
-
-/* ── QR Code Section ─────────────────────────────────────── */
-.ticket-qr-section {
-	padding-top: .5rem;
-}
-
-.qr-box {
-	display: flex;
-	align-items: center;
-	gap: 1.5rem;
-	padding: 1.25rem 1.5rem;
-	border: 1px solid rgba(255, 117, 8, .25);
-	border-radius: 1rem;
-	background: radial-gradient(circle, rgba(255, 117, 8, .08) 0%, rgba(0, 0, 0, .3) 100%);
-	flex-wrap: wrap;
-}
-
-.qr-image-wrapper {
-	width: 130px;
-	height: 130px;
-	padding: .5rem;
-	background: #ffffff;
-	border-radius: .75rem;
+	color: #374151;
+	cursor: pointer;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	box-shadow: 0 4px 15px rgba(0, 0, 0, .3);
+	gap: 0.5rem;
+	margin-bottom: 1.25rem;
+	transition: background 0.2s;
 }
 
-.qr-image-wrapper img {
+.mticket-toggle-btn:hover {
+	background: #e5e7eb;
+}
+
+.mticket-collapsible-content {
+	transition: max-height 0.3s ease, opacity 0.3s ease;
+	overflow: hidden;
+}
+
+.mticket-collapsible-content.collapsed {
+	max-height: 0 !important;
+	opacity: 0 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+/* Section 2: Seating Block */
+.mticket-seating-block {
+	text-align: center;
+	margin-bottom: 1.25rem;
+}
+
+.mticket-count {
+	font-size: 0.85rem;
+	color: #6b7280;
+	margin-bottom: 0.2rem;
+}
+
+.mticket-zone-title {
+	font-size: 1.4rem;
+	font-weight: 800;
+	color: #111827;
+	margin-bottom: 0.25rem;
+}
+
+.mticket-seats {
+	font-size: 0.85rem;
+	color: #4b5563;
+	font-weight: 600;
+}
+
+/* Section 3: Center QR Code Block */
+.mticket-qr-block {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 1.25rem;
+}
+
+.mticket-qr-frame {
+	width: 165px;
+	height: 165px;
+	padding: 0.5rem;
+	background: #ffffff;
+	border: 1px solid #e5e7eb;
+	border-radius: 12px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+	margin-bottom: 0.75rem;
+}
+
+.mticket-qr-frame img {
 	width: 100%;
 	height: 100%;
 	object-fit: contain;
 }
 
-.qr-info h4 {
-	margin: 0 0 .35rem;
-	font-size: 1.05rem;
-	font-weight: 700;
-	color: #fff;
+.mticket-booking-id-text {
+	font-size: 0.95rem;
+	font-weight: 800;
+	color: #111827;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
 }
 
-.qr-info p {
-	margin: 0 0 .5rem;
-	color: rgba(255, 255, 255, .75);
-	font-size: .85rem;
-	line-height: 1.4;
-	max-width: 26rem;
-}
-
-.qr-code-text {
-	display: inline-block;
-	color: var(--primary);
+.mticket-token-text {
+	font-size: 0.75rem;
+	color: #ff7508;
 	font-family: monospace;
-	font-size: .775rem;
 	font-weight: 700;
+	margin-top: 0.25rem;
 }
 
-/* ── Bottom Actions Bar ──────────────────────────────────── */
+/* Section 4: Policy Banner & Support */
+.mticket-policy-bar {
+	background: #f8fafc;
+	border-radius: 8px;
+	padding: 0.6rem 0.85rem;
+	text-align: center;
+	font-size: 0.8rem;
+	color: #64748b;
+	margin-bottom: 1rem;
+}
+
+.mticket-support-row {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 1.25rem;
+}
+
+.mticket-support-btn {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.25rem;
+	color: #94a3b8;
+	text-decoration: none;
+	font-size: 0.78rem;
+	font-weight: 500;
+	transition: color 0.2s;
+}
+
+.mticket-support-btn:hover {
+	color: #ff7508;
+}
+
+.mticket-support-btn svg {
+	color: #64748b;
+}
+
+/* Dotted Stub Divider */
+.mticket-stub-divider {
+	position: relative;
+	border-top: 2px dashed #e2e8f0;
+	margin: 0 -1.5rem 1.25rem;
+}
+
+/* Section 5: Bottom Price Summary */
+.mticket-price-summary {
+	padding-top: 0.25rem;
+}
+
+.mticket-total-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.85rem;
+}
+
+.mticket-total-left {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+}
+
+.mticket-total-label {
+	font-size: 0.95rem;
+	font-weight: 800;
+	color: #111827;
+}
+
+.mticket-savings-badge {
+	font-size: 0.775rem;
+	color: #16a34a;
+	font-weight: 700;
+	background: rgba(34, 197, 94, 0.1);
+	padding: 0.2rem 0.5rem;
+	border-radius: 4px;
+}
+
+.mticket-total-price {
+	font-size: 1.15rem;
+	font-weight: 800;
+	color: #111827;
+}
+
+.mticket-itemized-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	font-size: 0.825rem;
+	color: #6b7280;
+}
+
+.mticket-item-row {
+	display: flex;
+	justify-content: space-between;
+}
+
+.mticket-row-mode {
+	margin-top: 0.25rem;
+	padding-top: 0.35rem;
+	border-top: 1px dashed #f1f5f9;
+	color: #4b5563;
+	font-weight: 500;
+}
+
+/* ── Bottom Action Buttons ───────────────────────────────── */
 .ticket-actions-bar {
 	display: flex;
 	align-items: center;
 	gap: 1rem;
 	flex-wrap: wrap;
+	max-width: 480px;
+	margin: 0 auto;
 }
 
 .btn-action {
 	flex: 1;
 	justify-content: center;
-	padding: .9rem 1.25rem;
-	font-size: .95rem;
+	padding: 0.85rem 1.25rem;
+	font-size: 0.925rem;
 	font-weight: 700;
 	white-space: nowrap;
 }
@@ -298,17 +410,9 @@
 	color: #fff;
 }
 
-.button-danger:disabled {
-	opacity: .5;
-	cursor: not-allowed;
-	border-color: #555;
-	background: rgba(255, 255, 255, .05);
-	color: #888;
-}
-
-/* ── Print Media Styles ─────────────────────────────────── */
+/* ── Print & PDF Formatting ──────────────────────────────── */
 @media print {
-	#header, #footer, .ticket-top-nav, .ticket-actions-bar {
+	#header, #footer, .ticket-top-nav, .ticket-actions-bar, .mticket-toggle-btn {
 		display: none !important;
 	}
 
@@ -317,57 +421,28 @@
 		color: #000000 !important;
 	}
 
-	.ticket-card-box {
-		border: 2px solid #000000 !important;
-		background: #ffffff !important;
-		color: #000000 !important;
+	.ticket-main-section {
+		padding: 0 !important;
+	}
+
+	.ticket-mticket-wrapper {
+		max-width: 100% !important;
+		margin: 0 !important;
+	}
+
+	.mticket-card {
+		border: 1px solid #000000 !important;
 		box-shadow: none !important;
 		padding: 1.5rem !important;
+		page-break-inside: avoid;
 	}
 
-	.ticket-event-info h1, .section-title, .info-val, .bill-row-total, .qr-info h4 {
-		color: #000000 !important;
+	.mticket-collapsible-content.collapsed {
+		max-height: none !important;
+		opacity: 1 !important;
 	}
 
-	.info-label, .bill-row, .qr-info p {
-		color: #333333 !important;
-	}
-
-	.bill-table {
-		background: #f8f8f8 !important;
-		border: 1px solid #ccc !important;
-	}
-}
-
-/* ── Responsive Viewport Adjustments ─────────────────────── */
-@media (max-width: 650px) {
-	.ticket-event-header {
-		grid-template-columns: 1fr;
-		text-align: center;
-	}
-
-	.ticket-event-image {
-		margin: 0 auto;
-	}
-
-	.event-meta-row {
-		justify-content: center;
-	}
-
-	.qr-box {
-		flex-direction: column;
-		text-align: center;
-	}
-
-	.qr-info p {
-		max-width: none;
-	}
-
-	.ticket-actions-bar {
-		flex-direction: column;
-	}
-
-	.btn-action {
-		width: 100%;
+	.mticket-notch {
+		display: none !important;
 	}
 }

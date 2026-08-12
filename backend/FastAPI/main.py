@@ -12,10 +12,12 @@ from APIs.events import router as events_router
 from APIs.users import router as users_router
 from APIs.location import router as location_router
 from APIs.bookings import router as bookings_router
+from APIs.tickets import router as tickets_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
 from Models.booking import Booking
+from Models.ticket import Ticket
 
 
 
@@ -84,6 +86,7 @@ app.include_router(events_router,   prefix="/api/events",   tags=["Events"])
 app.include_router(users_router,    prefix="/api/users",    tags=["Users"])
 app.include_router(location_router, prefix="/api/location", tags=["Location"])
 app.include_router(bookings_router, prefix="/api/bookings", tags=["Bookings"])
+app.include_router(tickets_router,  prefix="/api/tickets",  tags=["Tickets"])
 
 
 

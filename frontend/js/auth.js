@@ -453,6 +453,7 @@ window.JodAuth = (() => {
 			try { data = await res.json(); } catch (_) {}
 
 			if (!res.ok) {
+				clearAuth();
 				if (alertEl) showAlert(alertEl, "error", data.detail || `Google authentication failed (${res.status}).`);
 			} else {
 				try {

@@ -1,6 +1,6 @@
 /**
- * JOD Events — Individual Ticket Viewing & Invoice Controller
- * Renders ticket details, bill breakdown, QR code validation, download options, and cancellation handling.
+ * JOD Events — BookMyShow-Style M-Ticket & Invoice Controller
+ * Dynamic data rendering, QR code generation, collapsible details toggle, print/download, and ticket cancellation.
  */
 
 (function initTicketDetailsPage() {
@@ -146,33 +146,60 @@
 			}
 		}
 
-		// Event Header
+		// BookMyShow Style Header Section
 		const titleEl = document.getElementById("ticketEventTitle");
+		const formatLangEl = document.getElementById("ticketFormatLang");
 		const dateTimeEl = document.getElementById("ticketEventDateTime");
 		const venueEl = document.getElementById("ticketEventVenue");
 		const catBadge = document.getElementById("ticketCategoryBadge");
 		const imgEl = document.getElementById("ticketEventImg");
 
 		if (titleEl) titleEl.textContent = data.event_title || "Event Booking";
+		if (formatLangEl) formatLangEl.textContent = `${data.language || "English"}, ${data.event_format || "Live Event"}`;
 		if (dateTimeEl) dateTimeEl.textContent = formatDateFull(data.event_start_date);
-		if (venueEl) venueEl.textContent = data.event_venue || "Venue details at location";
+		if (venueEl) venueEl.textContent = `${data.event_venue || "Venue details at location"}`;
 		if (catBadge) catBadge.textContent = `🎟️ ${data.ticket_type || "Standard Access"}`;
 		if (imgEl && data.image_url) imgEl.src = data.image_url;
 
-		// Ticket Info
-		const idVal = document.getElementById("ticketIdVal");
-		const catVal = document.getElementById("ticketCategoryVal");
+		// Seating Block
 		const countVal = document.getElementById("ticketCountVal");
-		const bookedTimeVal = document.getElementById("ticketBookedTimeVal");
+		const catVal = document.getElementById("ticketCategoryVal");
 		const seatVal = document.getElementById("ticketSeatVal");
+		const idVal = document.getElementById("ticketIdVal");
+		const bookedTimeVal = document.getElementById("ticketBookedTimeVal");
 
-		if (idVal) idVal.textContent = `#JOD-${shortId}`;
-		if (catVal) catVal.textContent = data.ticket_type || "Standard Access";
-		if (countVal) countVal.textContent = `${data.quantity || 1} ${data.quantity === 1 ? "Ticket" : "Tickets"}`;
+		const ticketIdDisplay = data.ticket_id ? `#TKT-${data.ticket_id.substring(0, 8).toUpperCase()}` : `#JOD-${shortId}`;
+		if (idVal) idVal.textContent = ticketIdDisplay;
+		if (catVal) catVal.textContent = data.ticket_type || "Standard Access Pass";
+		if (countVal) countVal.textContent = `${data.quantity || 1} Ticket(s)`;
 		if (bookedTimeVal) bookedTimeVal.textContent = formatDateFull(data.booked_at);
 		if (seatVal) seatVal.textContent = data.seat_number || "General Admission";
 
-		// Bill Summary
+		// Booking ID & Secure QR Code Block
+		const bookingIdText = document.getElementById("ticketBookingIdText");
+		const qrImg = document.getElementById("ticketQrCodeImg");
+		const qrText = document.getElementById("ticketQrCodeText");
+		const qrToken = data.qr_token || `JOD-TKT-${shortId}9900AABBCCDD`;
+
+		if (bookingIdText) bookingIdText.textContent = `BOOKING ID: ${shortId}-JOD`;
+		if (qrImg) {
+			qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrToken)}`;
+		}
+		if (qrText) {
+			qrText.textContent = `Token: ${qrToken}`;
+		}
+
+		// Policy & Support Banner
+		const policyBanner = document.getElementById("ticketPolicyBanner");
+		if (policyBanner) {
+			if (isCancelled) {
+				policyBanner.innerHTML = `<span style="color:#ef4444;font-weight:700;">Ticket Cancelled — Refund initialized to payment mode</span>`;
+			} else {
+				policyBanner.innerHTML = `<span>Cancellation available up to 24h prior to showtime</span>`;
+			}
+		}
+
+		// Bill & Pricing Summary
 		const qty = max(1, data.quantity || 1);
 		const totalPrice = Number(data.total_price || 0);
 		const unitPrice = Math.round(totalPrice / qty);
@@ -183,14 +210,16 @@
 		const subtotalEl = document.getElementById("billSubtotal");
 		const gstEl = document.getElementById("billGst");
 		const totalEl = document.getElementById("billTotal");
+		const savingsEl = document.getElementById("ticketSavingsBadge");
 		const paymentIdEl = document.getElementById("billPaymentId");
 		const paymentModeEl = document.getElementById("billPaymentMode");
 
 		if (unitPriceEl) unitPriceEl.textContent = `₹${unitPrice.toLocaleString("en-IN")}`;
 		if (qtyEl) qtyEl.textContent = `x${qty}`;
-		if (subtotalEl) subtotalEl.textContent = `₹${totalPrice.toLocaleString("en-IN")}`;
-		if (gstEl) gstEl.textContent = `₹${gstAmount.toLocaleString("en-IN")}`;
-		if (totalEl) totalEl.textContent = `₹${totalPrice.toLocaleString("en-IN")}`;
+		if (subtotalEl) subtotalEl.textContent = `Rs.${(totalPrice - gstAmount).toLocaleString("en-IN")}`;
+		if (gstEl) gstEl.textContent = `Rs.${gstAmount.toLocaleString("en-IN")}`;
+		if (totalEl) totalEl.textContent = `Rs.${totalPrice.toLocaleString("en-IN")}`;
+		if (savingsEl) savingsEl.textContent = `₹${gstAmount.toLocaleString("en-IN")} saved`;
 		if (paymentIdEl) paymentIdEl.textContent = data.payment_id || `PAY-JOD-${shortId}`;
 		if (paymentModeEl) paymentModeEl.textContent = data.payment_mode || "UPI / Credit Card";
 
@@ -202,17 +231,6 @@
 		if (recName) recName.textContent = data.receiver_name || data.user_name || "Guest Customer";
 		if (recEmail) recEmail.textContent = data.receiver_email || data.user_email || "customer@jodevents.com";
 		if (recPhone) recPhone.textContent = data.receiver_phone || "+91 98765 43210";
-
-		// QR Code Generator
-		const qrImg = document.getElementById("ticketQrCodeImg");
-		const qrText = document.getElementById("ticketQrCodeText");
-		const validationString = `JOD-TICKET-VALID-${data.booking_id}-${shortId}`;
-		if (qrImg) {
-			qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(validationString)}`;
-		}
-		if (qrText) {
-			qrText.textContent = `Code: JOD-VAL-${shortId}`;
-		}
 	}
 
 	function max(a, b) { return a > b ? a : b; }
@@ -247,12 +265,38 @@
 		const btnDownloadTicket = document.getElementById("btnDownloadTicket");
 		const btnDownloadInvoice = document.getElementById("btnDownloadInvoice");
 		const btnCancelTicket = document.getElementById("btnCancelTicket");
+		const btnToggleDetails = document.getElementById("btnToggleDetails");
+		const btnContactSupport = document.getElementById("btnContactSupport");
+		const collapsibleContent = document.getElementById("collapsibleTicketDetails");
+		const toggleText = document.getElementById("toggleDetailsText");
+
+		let isCollapsed = false;
+
+		btnToggleDetails?.addEventListener("click", () => {
+			isCollapsed = !isCollapsed;
+			if (collapsibleContent) {
+				if (isCollapsed) {
+					collapsibleContent.classList.add("collapsed");
+					if (toggleText) toggleText.textContent = "Tap to show details ▼";
+				} else {
+					collapsibleContent.classList.remove("collapsed");
+					if (toggleText) toggleText.textContent = "Tap to hide details ▲";
+				}
+			}
+		});
+
+		btnContactSupport?.addEventListener("click", () => {
+			alert(`JOD Events 24/7 Helpline & Support:\n\n📞 Phone: +91 1800-JOD-EVENTS (+91 1800-563-383)\n✉️ Email: support@jodevents.com\n💬 Booking ID: #${(bookingData.booking_id || "00000000").substring(0,8).toUpperCase()}`);
+		});
 
 		btnDownloadTicket?.addEventListener("click", () => {
+			// Ensure details are expanded before printing
+			if (collapsibleContent) collapsibleContent.classList.remove("collapsed");
 			window.print();
 		});
 
 		btnDownloadInvoice?.addEventListener("click", () => {
+			if (collapsibleContent) collapsibleContent.classList.remove("collapsed");
 			window.print();
 		});
 

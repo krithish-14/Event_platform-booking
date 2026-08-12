@@ -9,6 +9,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, field_validator
 import httpx
@@ -122,10 +123,28 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     email_clean = payload.email.strip().lower()
     username_clean = payload.username.strip()
 
-    if db.query(User).filter(func.lower(User.email) == email_clean).first():
-        raise HTTPException(status_code=400, detail="Email already registered.")
-    if db.query(User).filter(func.lower(User.username) == username_clean.lower()).first():
+    if db.query(User).filter(func.lower(func.trim(User.email)) == email_clean).first():
+        raise HTTPException(status_code=400, detail="User already exists")
+    if db.query(User).filter(func.lower(func.trim(User.username)) == username_clean.lower()).first():
         raise HTTPException(status_code=400, detail="Username already taken.")
+
+    # Check secondary SQLite database if exists
+    try:
+        import sqlite3
+        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sqlite_path = os.path.join(project_backend, "jod_events.db")
+        if os.path.exists(sqlite_path):
+            s_conn = sqlite3.connect(sqlite_path)
+            s_cur = s_conn.cursor()
+            s_cur.execute("SELECT id FROM users WHERE lower(trim(email)) = ?", (email_clean,))
+            row = s_cur.fetchone()
+            s_conn.close()
+            if row:
+                raise HTTPException(status_code=400, detail="User already exists")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
     user = User(
         email=email_clean,
@@ -133,9 +152,13 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         full_name=payload.full_name.strip() if payload.full_name else None,
         hashed_password=get_password_hash(payload.password),
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="User already exists")
 
     # Sync to backup SQLite database if present so user accounts remain available in all environments
     try:
@@ -147,10 +170,7 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         s_cur.execute("""
             INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin)
             VALUES (?, ?, ?, ?, ?, ?, 1, 0)
-            ON CONFLICT(email) DO UPDATE SET
-                customer_id = excluded.customer_id,
-                hashed_password = excluded.hashed_password,
-                username = excluded.username
+            ON CONFLICT(email) DO NOTHING
         """, (str(user.id), str(user.customer_id), user.email, user.username, user.full_name, user.hashed_password))
         s_conn.commit()
         s_conn.close()
@@ -296,55 +316,72 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
     full_name = google_user_info.get("name") or google_user_info.get("given_name")
     avatar_url = google_user_info.get("picture")
 
-    # 3. Lookup existing user or register new user
-    user = db.query(User).filter(func.lower(User.email) == email).first()
+    # 3. Lookup existing user: Reject Google login/registration if email already exists
+    existing_user = db.query(User).filter(func.lower(func.trim(User.email)) == email).first()
 
-    if user:
-        # Merge profile details for existing users
-        if not user.full_name and full_name:
-            user.full_name = full_name.strip()
-        if not user.avatar_url and avatar_url:
-            user.avatar_url = avatar_url
-        if payload.city and not user.city:
-            user.city = payload.city.strip()
-        if payload.location_pincode and not user.location_pincode:
-            user.location_pincode = payload.location_pincode.strip()
-        db.commit()
-        db.refresh(user)
-    else:
-        # Generate unique username
-        base_username = email.split("@")[0]
-        base_username = re.sub(r"[^a-zA-Z0-9_.@-]", "", base_username)
-        if len(base_username) < 3:
-            base_username = f"user_{base_username}"
-        if len(base_username) > 80:
-            base_username = base_username[:80]
+    # Also check secondary SQLite backup DB if present
+    if not existing_user:
+        try:
+            import sqlite3
+            project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sqlite_path = os.path.join(project_backend, "jod_events.db")
+            if os.path.exists(sqlite_path):
+                s_conn = sqlite3.connect(sqlite_path)
+                s_cur = s_conn.cursor()
+                s_cur.execute("SELECT id FROM users WHERE lower(trim(email)) = ?", (email,))
+                row = s_cur.fetchone()
+                s_conn.close()
+                if row:
+                    existing_user = True
+        except Exception:
+            pass
 
-        candidate_username = base_username
-        counter = 1
-        while db.query(User).filter(func.lower(User.username) == candidate_username.lower()).first():
-            candidate_username = f"{base_username}{secrets.randbelow(9000) + 1000}"
-            counter += 1
-            if counter > 50:
-                candidate_username = f"user_{secrets.token_hex(4)}"
-                break
-
-        # Generate secure random password for database compliance
-        random_password = secrets.token_urlsafe(32) + "A1!"
-        hashed_pw = get_password_hash(random_password)
-
-        user = User(
-            email=email,
-            username=candidate_username,
-            full_name=full_name.strip() if full_name else None,
-            avatar_url=avatar_url,
-            hashed_password=hashed_pw,
-            city=payload.city.strip() if payload.city else None,
-            location_pincode=payload.location_pincode.strip() if payload.location_pincode else None,
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already exists",
         )
+
+    # Generate unique username
+    base_username = email.split("@")[0]
+    base_username = re.sub(r"[^a-zA-Z0-9_.@-]", "", base_username)
+    if len(base_username) < 3:
+        base_username = f"user_{base_username}"
+    if len(base_username) > 80:
+        base_username = base_username[:80]
+
+    candidate_username = base_username
+    counter = 1
+    while db.query(User).filter(func.lower(User.username) == candidate_username.lower()).first():
+        candidate_username = f"{base_username}{secrets.randbelow(9000) + 1000}"
+        counter += 1
+        if counter > 50:
+            candidate_username = f"user_{secrets.token_hex(4)}"
+            break
+
+    # Generate secure random password for database compliance
+    random_password = secrets.token_urlsafe(32) + "A1!"
+    hashed_pw = get_password_hash(random_password)
+
+    user = User(
+        email=email,
+        username=candidate_username,
+        full_name=full_name.strip() if full_name else None,
+        avatar_url=avatar_url,
+        hashed_password=hashed_pw,
+        city=payload.city.strip() if payload.city else None,
+        location_pincode=payload.location_pincode.strip() if payload.location_pincode else None,
+    )
+    try:
         db.add(user)
         db.commit()
         db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already exists",
+        )
 
     # 3. Sync to backup SQLite database
     try:
@@ -356,10 +393,7 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
         s_cur.execute("""
             INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin)
             VALUES (?, ?, ?, ?, ?, ?, 1, 0)
-            ON CONFLICT(email) DO UPDATE SET
-                customer_id = excluded.customer_id,
-                hashed_password = excluded.hashed_password,
-                username = excluded.username
+            ON CONFLICT(email) DO NOTHING
         """, (str(user.id), str(user.customer_id), user.email, user.username, user.full_name, user.hashed_password))
         s_conn.commit()
         s_conn.close()
