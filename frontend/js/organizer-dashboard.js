@@ -1986,69 +1986,332 @@ async function initOrganizerDashboard() {
 			handleGalleryFiles(e.target.files);
 			galleryFileInput.value = '';
 		});
-
 		renderGalleryHint();
 	}
 
 
-// ── EVENT DAY LIVE QR SCANNER & VOLUNTEER PORTAL HANDLERS ────────────────
-	const btnLaunchCameraScanner = document.getElementById("btnLaunchCameraScanner");
-	const cameraScannerModal = document.getElementById("cameraScannerModal");
-	const btnCloseCameraModal = document.getElementById("btnCloseCameraModal");
-	const modalScanResult = document.getElementById("modalScanResult");
-	const btnSimulateScanSuccess = document.getElementById("btnSimulateScanSuccess");
-	const btnSimulateScanDuplicate = document.getElementById("btnSimulateScanDuplicate");
+// ── EVENT DAY LIVE QR SCANNER ────────────────────────────────────────
+	const cameraVideo          = document.getElementById("cameraVideo");
+	const cameraCanvas         = document.getElementById("cameraCanvas");
+	const cameraLoadingOverlay = document.getElementById("cameraLoadingOverlay");
+	const cameraScanFrame      = document.getElementById("cameraScanFrame");
+	const cameraStatusLabel    = document.getElementById("cameraStatusLabel");
+	const cameraTargetBox      = document.getElementById("cameraTargetBox");
+	const cameraErrorOverlay   = document.getElementById("cameraErrorOverlay");
+	const cameraErrorTitle     = document.getElementById("cameraErrorTitle");
+	const cameraErrorMessage   = document.getElementById("cameraErrorMessage");
+	const btnRetryCamera       = document.getElementById("btnRetryCamera");
 
-const btnCreateVolunteerLink = document.getElementById("btnCreateVolunteerLink");
-	const volunteerNameInput = document.getElementById("volunteerNameInput");
-	const generatedLinkContainer = document.getElementById("generatedLinkContainer");
-	const volunteerPortalUrl = document.getElementById("volunteerPortalUrl");
-	const passcodeBadge = document.getElementById("passcodeBadge");
-	const btnCopyVolunteerUrl = document.getElementById("btnCopyVolunteerUrl");
-	const volunteerTableBody = document.getElementById("volunteerTableBody");
+	let _cameraStream = null;
+	let _scanRafId = null;
+	let _lastDetectedCode = null;
 
-	// Open / Close Camera Modal
+	// Open Camera Modal → auto-start camera
 	if (btnLaunchCameraScanner && cameraScannerModal) {
-		btnLaunchCameraScanner.addEventListener("click", () => {
+		btnLaunchCameraScanner.addEventListener("click", async () => {
 			cameraScannerModal.style.display = "flex";
 			if (modalScanResult) modalScanResult.style.display = "none";
+			_lastDetectedCode = null;
+			await _startCamera();
 		});
 	}
 
-	if (btnCloseCameraModal && cameraScannerModal) {
-		btnCloseCameraModal.addEventListener("click", () => {
-			cameraScannerModal.style.display = "none";
+	// Retry Camera Button
+	if (btnRetryCamera) {
+		btnRetryCamera.addEventListener("click", async () => {
+			await _startCamera();
 		});
 	}
 
-	// Simulate Camera QR Scans
-	if (btnSimulateScanSuccess && modalScanResult) {
-		btnSimulateScanSuccess.addEventListener("click", () => {
-			modalScanResult.style.display = "block";
-			modalScanResult.style.background = "#064e3b";
-			modalScanResult.style.borderColor = "#059669";
-			modalScanResult.style.color = "#a7f3d0";
-			modalScanResult.innerHTML = `
-				<strong>VALID TICKET PASS!</strong><br />
-				Attendee: <strong>Demo Attendee</strong> (VIP Access Pass)<br />
-				Ticket Code: <strong>TICKET-DEMO-VIP</strong><br />
-				Gate Status: Verified &amp; Checked-in at Gate 1 (09:44 AM)
-			`;
+	function _showCameraError(title, message) {
+		if (cameraLoadingOverlay) cameraLoadingOverlay.style.display = "none";
+		if (cameraScanFrame) cameraScanFrame.style.display = "none";
+		if (cameraVideo) cameraVideo.style.display = "none";
+		if (cameraErrorTitle) cameraErrorTitle.textContent = title;
+		if (cameraErrorMessage) cameraErrorMessage.textContent = message;
+		if (cameraErrorOverlay) cameraErrorOverlay.style.display = "flex";
+	}
+
+	function _stopCamera() {
+		if (_scanRafId) { cancelAnimationFrame(_scanRafId); _scanRafId = null; }
+		if (_cameraStream) {
+			_cameraStream.getTracks().forEach(t => t.stop());
+			_cameraStream = null;
+		}
+		if (cameraVideo) {
+			try { cameraVideo.pause(); } catch (e) {}
+			cameraVideo.srcObject = null;
+			cameraVideo.style.display = "none";
+		}
+		if (cameraScanFrame) cameraScanFrame.style.display = "none";
+		if (cameraLoadingOverlay) cameraLoadingOverlay.style.display = "none";
+		if (cameraErrorOverlay) cameraErrorOverlay.style.display = "none";
+	}
+
+	function _startScanLoop() {
+		if (!cameraCanvas || !cameraVideo) return;
+		const ctx = cameraCanvas.getContext("2d", { willReadFrequently: true });
+
+		function tick() {
+			if (!_cameraStream || cameraVideo.paused || cameraVideo.ended) return;
+
+			if (cameraVideo.readyState >= cameraVideo.HAVE_ENOUGH_DATA) {
+				cameraCanvas.width = cameraVideo.videoWidth || 640;
+				cameraCanvas.height = cameraVideo.videoHeight || 480;
+				ctx.drawImage(cameraVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
+
+				const imageData = ctx.getImageData(0, 0, cameraCanvas.width, cameraCanvas.height);
+				let codeData = null;
+
+				if (typeof jsQR !== "undefined") {
+					const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+					if (code && code.data) {
+						codeData = code.data;
+					}
+				}
+
+				if (codeData && codeData !== _lastDetectedCode) {
+					_lastDetectedCode = codeData;
+
+					// Visual feedback on QR detection
+					if (cameraTargetBox) cameraTargetBox.style.borderColor = "#34d399";
+					if (cameraStatusLabel) {
+						cameraStatusLabel.textContent = "QR Code Detected!";
+						cameraStatusLabel.style.color = "#34d399";
+					}
+
+					// Auto-fill input field and trigger verification
+					if (cameraQrInput) cameraQrInput.value = codeData;
+					if (btnVerifyQr) btnVerifyQr.click();
+
+					setTimeout(() => {
+						if (cameraTargetBox) cameraTargetBox.style.borderColor = "#10b981";
+						if (cameraStatusLabel) {
+							cameraStatusLabel.textContent = "Scanning for QR code…";
+							cameraStatusLabel.style.color = "#10b981";
+						}
+					}, 1800);
+
+					setTimeout(() => {
+						if (_lastDetectedCode === codeData) {
+							_lastDetectedCode = null;
+						}
+					}, 2500);
+				}
+			}
+
+			_scanRafId = requestAnimationFrame(tick);
+		}
+
+		_scanRafId = requestAnimationFrame(tick);
+	}
+
+	async function _startCamera() {
+		_stopCamera(); // Stop existing streams before initializing
+
+		// Check secure context / mediaDevices support
+		const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+		if (!window.isSecureContext && !isLocalhost) {
+			_showCameraError(
+				"Security Context Required",
+				"Camera access requires a secure connection (HTTPS or localhost). Please open this site over HTTPS or from http://127.0.0.1."
+			);
+			return;
+		}
+
+		if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+			_showCameraError(
+				"Browser Not Supported",
+				"Your browser does not support camera access. Please use a modern browser such as Chrome, Edge, or Safari."
+			);
+			return;
+		}
+
+		if (cameraLoadingOverlay) cameraLoadingOverlay.style.display = "flex";
+		if (cameraErrorOverlay) cameraErrorOverlay.style.display = "none";
+		if (cameraScanFrame) cameraScanFrame.style.display = "none";
+
+		let stream = null;
+
+		// Strategy 1: Rear / Environment camera (ideal for mobile QR scanning)
+		try {
+			stream = await navigator.mediaDevices.getUserMedia({
+				video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+				audio: false
+			});
+		} catch (err1) {
+			// Strategy 2: Any video camera (for laptop / desktop webcams)
+			try {
+				stream = await navigator.mediaDevices.getUserMedia({
+					video: true,
+					audio: false
+				});
+			} catch (err2) {
+				const err = err2 || err1;
+				if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+					_showCameraError(
+						"Camera Permission Denied",
+						"Camera permission was denied. Please allow camera access in your browser settings and click Retry."
+					);
+				} else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+					_showCameraError(
+						"No Camera Detected",
+						"No camera hardware was detected on this device. You can still type or paste QR codes manually below."
+					);
+				} else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+					_showCameraError(
+						"Camera In Use",
+						"Unable to access camera because it is being used by another application or browser tab."
+					);
+				} else {
+					_showCameraError(
+						"Unable to Access Camera",
+						`Unable to initialize camera stream: ${err.message || err.name}`
+					);
+				}
+				return;
+			}
+		}
+
+		if (!stream) {
+			_showCameraError("Camera Failure", "Could not start camera stream.");
+			return;
+		}
+
+		_cameraStream = stream;
+		cameraVideo.srcObject = stream;
+		cameraVideo.style.display = "block";
+
+		try {
+			await cameraVideo.play();
+		} catch (playErr) {
+			console.warn("Camera video play warning:", playErr);
+		}
+
+		if (cameraLoadingOverlay) cameraLoadingOverlay.style.display = "none";
+		if (cameraScanFrame) cameraScanFrame.style.display = "flex";
+		if (cameraStatusLabel) {
+			cameraStatusLabel.textContent = "Scanning for QR code…";
+			cameraStatusLabel.style.color = "#10b981";
+		}
+
+		_startScanLoop();
+	}
+
+
+	// ── CAMERA QR SCANNER – VERIFY BUTTON ────────────────────────────────
+	const cameraQrInput        = document.getElementById("cameraQrInput");
+	const btnVerifyQr          = document.getElementById("btnVerifyQr");
+	const scanHistoryWrap      = document.getElementById("scanHistoryWrap");
+	const scanHistoryList      = document.getElementById("scanHistoryList");
+
+	// Map: qrCode → { count, name, firstTime }
+	const _scanRegistry = new Map();
+
+	// Mock attendee data keyed by QR code prefix (in production replace with API call)
+	function _mockLookup(code) {
+		// Simple deterministic mock – in production this would call the backend
+		const names = ["Ananya Sharma", "Karthik Raja", "Priya Nair", "Vikram S.", "Demo Attendee"];
+		const types = ["VIP Access Pass", "General Admission", "Speaker Pass", "Press Pass", "Exhibitor Pass"];
+		const gates = ["Gate 1", "Gate 2", "Gate A", "Main Entrance"];
+		const h = [...code].reduce((a, c) => a + c.charCodeAt(0), 0);
+		return {
+			name: names[h % names.length],
+			type: types[h % types.length],
+			gate: gates[h % gates.length],
+		};
+	}
+
+	function _addHistoryRow(code, status, name) {
+		if (!scanHistoryWrap || !scanHistoryList) return;
+		scanHistoryWrap.style.display = "block";
+		const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+		const color = status === "valid" ? "#10b981" : "#f59e0b";
+		const label = status === "valid" ? "✔ Valid" : "⚠ Duplicate";
+		const row = document.createElement("div");
+		row.style.cssText = "display:flex;justify-content:space-between;align-items:center;background:#1e293b;border-radius:6px;padding:0.4rem 0.7rem;font-size:0.8rem;";
+		row.innerHTML = `<span style="color:#f1f5f9;font-weight:600;">${name}</span><span style="color:#94a3b8;font-size:0.75rem;">${code.slice(0,18)}…</span><span style="color:${color};font-weight:700;">${label}</span><span style="color:#64748b;font-size:0.72rem;">${now}</span>`;
+		scanHistoryList.insertBefore(row, scanHistoryList.firstChild);
+	}
+
+	if (btnVerifyQr && modalScanResult && cameraQrInput) {
+		btnVerifyQr.addEventListener("click", () => {
+			const code = cameraQrInput.value.trim();
+			if (!code) {
+				cameraQrInput.style.borderColor = "#ef4444";
+				cameraQrInput.focus();
+				setTimeout(() => (cameraQrInput.style.borderColor = "#334155"), 1500);
+				return;
+			}
+
+			const existing = _scanRegistry.get(code);
+			const attendee = _mockLookup(code);
+			const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+			if (!existing) {
+				// First scan – VALID
+				_scanRegistry.set(code, { count: 1, name: attendee.name, firstTime: now });
+				modalScanResult.style.display = "block";
+				modalScanResult.style.background = "#064e3b";
+				modalScanResult.style.borderColor = "#059669";
+				modalScanResult.style.color = "#a7f3d0";
+				modalScanResult.innerHTML = `
+					<strong style="font-size:1rem;">✔ VALID TICKET PASS!</strong><br/>
+					Attendee: <strong>${attendee.name}</strong> &mdash; <em>${attendee.type}</em><br/>
+					Ticket Code: <strong>${code}</strong><br/>
+					Gate Status: <strong>Verified &amp; Checked‑in</strong> at ${attendee.gate} &mdash; ${now}
+				`;
+				_addHistoryRow(code, "valid", attendee.name);
+			} else {
+				// 2nd or more scan – ALREADY SCANNED
+				existing.count += 1;
+				_scanRegistry.set(code, existing);
+				modalScanResult.style.display = "block";
+				modalScanResult.style.background = "#7c2d12";
+				modalScanResult.style.borderColor = "#dc2626";
+				modalScanResult.style.color = "#fecaca";
+				modalScanResult.innerHTML = `
+					<strong style="font-size:1rem;">⚠ ALREADY SCANNED!</strong><br/>
+					Attendee: <strong>${existing.name}</strong><br/>
+					Ticket Code: <strong>${code}</strong><br/>
+					This ticket was first verified at <strong>${existing.firstTime}</strong> at ${attendee.gate}.<br/>
+					<span style="opacity:.85;">Total scan attempts: <strong>${existing.count}</strong> &mdash; Entry Denied.</span>
+				`;
+				_addHistoryRow(code, "duplicate", existing.name);
+			}
+
+			// Clear input for next scan
+			cameraQrInput.value = "";
+			cameraQrInput.focus();
+		});
+
+		// Allow pressing Enter to trigger Verify
+		cameraQrInput.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") btnVerifyQr.click();
 		});
 	}
 
-	if (btnSimulateScanDuplicate && modalScanResult) {
-		btnSimulateScanDuplicate.addEventListener("click", () => {
-			modalScanResult.style.display = "block";
-			modalScanResult.style.background = "#7f1d1d";
-			modalScanResult.style.borderColor = "#dc2626";
-			modalScanResult.style.color = "#fecaca";
-			modalScanResult.innerHTML = `
-				<strong>DUPLICATE ENTRY ALERT!</strong><br />
-				Attendee: <strong>Ananya Sharma</strong><br />
-				Ticket Code: <strong>TICKET-55412-GEN</strong><br />
-				Warning: Already scanned &amp; verified at Gate 1 at 09:12 AM! Entry Denied.
-			`;
+	// Close Camera Modal (Close Button or Backdrop Click)
+	if (cameraScannerModal) {
+		if (btnCloseCameraModal) {
+			btnCloseCameraModal.addEventListener("click", () => {
+				_stopCamera();
+				cameraScannerModal.style.display = "none";
+				if (modalScanResult) modalScanResult.style.display = "none";
+				if (scanHistoryWrap) scanHistoryWrap.style.display = "none";
+				if (scanHistoryList) scanHistoryList.innerHTML = "";
+				if (cameraQrInput) cameraQrInput.value = "";
+			});
+		}
+		cameraScannerModal.addEventListener("click", (e) => {
+			if (e.target === cameraScannerModal) {
+				_stopCamera();
+				cameraScannerModal.style.display = "none";
+				if (modalScanResult) modalScanResult.style.display = "none";
+				if (scanHistoryWrap) scanHistoryWrap.style.display = "none";
+				if (scanHistoryList) scanHistoryList.innerHTML = "";
+				if (cameraQrInput) cameraQrInput.value = "";
+			}
 		});
 	}
 

@@ -6,6 +6,8 @@
 		<meta name="description" content="Manage your event tickets, registrations, speakers, exhibitors, and sales stats on the JOD Events Organizer Dashboard." />
 		<title>Organizer Event Dashboard - JOD Events</title>
 		<link rel="stylesheet" href="css/organizer-dashboard.css?v=4" />
+		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
+		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 	</head>
 	<body class="dashboard-body">
 
@@ -1608,24 +1610,60 @@
 							<button type="button" id="btnCloseCameraModal" style="background: #1e293b; color: #94a3b8; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.1rem; font-weight: 700;">&times;</button>
 						</div>
 
-						<!-- Camera Viewfinder Simulation -->
-						<div style="position: relative; width: 100%; height: 280px; background: #020617; border-radius: 12px; overflow: hidden; border: 2px solid #3b82f6; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 1.2rem;">
-							<div style="position: absolute; width: 180px; height: 180px; border: 3px dashed #10b981; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;">
-								<span style="font-size: 0.75rem; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(0,0,0,0.7); padding: 0.2rem 0.5rem; border-radius: 4px;">Point at Attendee QR</span>
+						<!-- Camera Viewfinder Container -->
+						<div id="cameraViewfinder" style="position: relative; width: 100%; height: 280px; background: #020617; border-radius: 12px; overflow: hidden; border: 2px solid #3b82f6; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem;">
+							<!-- 1. Live Camera Video Feed -->
+							<video id="cameraVideo" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; display: none;" autoplay playsinline muted></video>
+							
+							<!-- 2. Hidden Canvas for QR Frame Analysis -->
+							<canvas id="cameraCanvas" style="display: none;"></canvas>
+
+							<!-- 3. Loading Overlay (Shown during stream initialization) -->
+							<div id="cameraLoadingOverlay" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; background: #020617; z-index: 10; padding: 1rem; text-align: center;">
+								<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+								<span style="font-size: 0.85rem; color: #94a3b8; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+									<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#3b82f6; animation:camPulse 1s infinite;"></span>
+									Starting camera…
+								</span>
+								<style>@keyframes camPulse{0%,100%{opacity:1}50%{opacity:.3}}</style>
 							</div>
-							<video id="cameraVideo" style="width: 100%; height: 100%; object-fit: cover; display: none;" autoplay playsinline></video>
+
+							<!-- 4. Active Scanning Reticle Overlay -->
+							<div id="cameraScanFrame" style="display: none; position: absolute; inset: 0; z-index: 5; align-items: center; justify-content: center; pointer-events: none;">
+								<div id="cameraTargetBox" style="position: relative; width: 190px; height: 190px; border: 3px dashed #10b981; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; transition: border-color 0.2s ease;">
+									<span id="cameraStatusLabel" style="font-size: 0.75rem; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(0,0,0,0.75); padding: 0.3rem 0.6rem; border-radius: 6px; backdrop-filter: blur(4px);">Scanning for QR code…</span>
+								</div>
+							</div>
+
+							<!-- 5. Camera Error Overlay -->
+							<div id="cameraErrorOverlay" style="display: none; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; background: #0f172a; z-index: 20; padding: 1.25rem; text-align: center;">
+								<div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); display: flex; align-items: center; justify-content: center; color: #ef4444; font-size: 1.3rem;">⚠️</div>
+								<div id="cameraErrorTitle" style="font-size: 0.95rem; font-weight: 700; color: #f87171;">Camera Access Error</div>
+								<div id="cameraErrorMessage" style="font-size: 0.8rem; color: #94a3b8; max-width: 360px; line-height: 1.45;">Unable to access device camera.</div>
+								<button type="button" id="btnRetryCamera" style="margin-top: 0.4rem; background: #1e293b; border: 1px solid #475569; color: #f1f5f9; padding: 0.45rem 1.1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
+									🔄 Retry Camera Access
+								</button>
+							</div>
 						</div>
 
-						<!-- Quick Simulation Controls & Live Result Overlay -->
-						<div id="modalScanResult" style="display: none; background: #064e3b; border: 1px solid #059669; color: #a7f3d0; padding: 0.9rem; border-radius: 8px; margin-bottom: 1.2rem; font-size: 0.88rem; line-height: 1.4;"></div>
 
-						<div style="display: flex; gap: 0.8rem;">
-							<button type="button" id="btnSimulateScanSuccess" style="flex: 1; background: #10b981; color: #ffffff; border: none; padding: 0.65rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer;">
-								Simulate Scan (Valid Pass)
+						<!-- QR Code Input & Verify -->
+						<div style="display: flex; gap: 0.6rem; margin-bottom: 1rem;">
+							<input type="text" id="cameraQrInput" placeholder="Scan or enter ticket QR code…" autocomplete="off"
+								style="flex: 1; background: #1e293b; border: 1px solid #334155; color: #f1f5f9; border-radius: 8px; padding: 0.6rem 0.9rem; font-size: 0.88rem; outline: none;" />
+							<button type="button" id="btnVerifyQr"
+								style="background: linear-gradient(135deg,#3b82f6,#6366f1); color: #fff; border: none; padding: 0.6rem 1.3rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; white-space: nowrap; transition: opacity .2s;">
+								Verify
 							</button>
-							<button type="button" id="btnSimulateScanDuplicate" style="flex: 1; background: #ef4444; color: #ffffff; border: none; padding: 0.65rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer;">
-								Simulate Scan (Duplicate)
-							</button>
+						</div>
+
+						<!-- Scan Result -->
+						<div id="modalScanResult" style="display: none; padding: 0.9rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.88rem; line-height: 1.6; border: 1px solid transparent;"></div>
+
+						<!-- Scanned History -->
+						<div id="scanHistoryWrap" style="display: none;">
+							<div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.5rem;">Recent Scans</div>
+							<div id="scanHistoryList" style="max-height: 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem;"></div>
 						</div>
 					</div>
 				</div>
