@@ -640,7 +640,7 @@ window.JodAuth = (() => {
 
 	/* ── Google OAuth Integration ────────────────────────────── */
 	async function handleGoogleCredentialResponse(response, alertEl, btnEl) {
-		if (!response || !response.credential) {
+		if (!response || (!response.credential && !response.code)) {
 			if (alertEl) showAlert(alertEl, "error", "Google authentication was cancelled or failed.");
 			return;
 		}
@@ -655,7 +655,12 @@ window.JodAuth = (() => {
 				pincode = localStorage.getItem("jod_user_pincode") || sessionStorage.getItem("jod_user_pincode") || null;
 			}
 
-			const payload = { credential: response.credential };
+			const payload = {};
+			if (response.credential) payload.credential = response.credential;
+			if (response.code) {
+				payload.code = response.code;
+				payload.redirect_uri = window.location.origin + window.location.pathname;
+			}
 			if (city) payload.city = city;
 			if (pincode) payload.location_pincode = pincode;
 
@@ -698,12 +703,24 @@ window.JodAuth = (() => {
 	let googleClientConfig = { client_id: "", enabled: false };
 
 	async function initGoogleAuth() {
+		// 1. Check if we returned from Google OAuth redirect
+		const params = new URLSearchParams(window.location.search);
+		const code = params.get("code");
+		const alertEl = document.querySelector("#signupForm .form-alert, #loginForm .form-alert");
+		const btnEl = document.getElementById("googleSignupBtn") || document.getElementById("googleLoginBtn");
+
+		if (code) {
+			// Remove the code from the URL so it doesn't linger or get reused
+			window.history.replaceState({}, document.title, window.location.pathname);
+			if (alertEl) showAlert(alertEl, "info", "Finalizing Google authentication...");
+			await handleGoogleCredentialResponse({ code }, alertEl, btnEl);
+			return;
+		}
+
 		try {
 			const res = await fetch(`${API_BASE}/api/auth/google/config`);
 			if (res.ok) googleClientConfig = await res.json();
 		} catch (_) {}
-
-		const alertEl = document.querySelector("#signupForm .form-alert, #loginForm .form-alert");
 
 		if (googleClientConfig.client_id && !window.google?.accounts?.id) {
 			const script = document.createElement("script");
@@ -715,9 +732,7 @@ window.JodAuth = (() => {
 					window.google.accounts.id.initialize({
 						client_id: googleClientConfig.client_id,
 						callback: (resp) => {
-							const activeBtn = document.getElementById("googleSignupBtn") || document.getElementById("googleLoginBtn");
-							const activeAlert = (document.getElementById("googleSignupBtn") ? document.querySelector("#signupForm .form-alert") : document.querySelector("#loginForm .form-alert")) || alertEl;
-							handleGoogleCredentialResponse(resp, activeAlert, activeBtn);
+							handleGoogleCredentialResponse(resp, alertEl, btnEl);
 						},
 					});
 				} catch (_) {}
@@ -726,19 +741,27 @@ window.JodAuth = (() => {
 		}
 	}
 
-	function triggerGoogleFlow(btn, alertElement) {
-		if (window.google?.accounts?.id && googleClientConfig.client_id) {
-			try {
-				window.google.accounts.id.prompt((notification) => {
-					if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-						openGoogleDevModal(btn, alertElement);
-					}
-				});
-			} catch (_) {
-				openGoogleDevModal(btn, alertElement);
+	async function triggerGoogleFlow(btn, alertElement) {
+		if (btn) btn.classList.add("is-loading");
+		
+		// Preserve redirect URI if present
+		const params = new URLSearchParams(window.location.search);
+		const redirect = params.get("redirect");
+		if (redirect) {
+			sessionStorage.setItem("jod_redirect", redirect);
+		}
+		
+		try {
+			const res = await fetch(`${API_BASE}/api/auth/google/url`);
+			const data = await res.json();
+			if (data.url) {
+				window.location.href = data.url;
+			} else {
+				throw new Error("No URL returned from backend");
 			}
-		} else {
-			openGoogleDevModal(btn, alertElement);
+		} catch (e) {
+			if (btn) btn.classList.remove("is-loading");
+			if (alertElement) showAlert(alertElement, "error", "Failed to start Google Auth. Check connection.");
 		}
 	}
 
@@ -834,6 +857,7 @@ window.JodAuth = (() => {
 	// Global Event Delegation for Google Auth Buttons
 	document.addEventListener("click", (e) => {
 		const targetBtn = e.target.closest("#googleSignupBtn, #googleLoginBtn, .btn-google-auth");
+		console.log("Global click caught on auth button:", targetBtn);
 		if (targetBtn) {
 			e.preventDefault();
 			e.stopPropagation();

@@ -431,21 +431,7 @@
 	window.addEventListener("load", () => { applyAuthVisibility(); updateNavAuth(); });
 	window.addEventListener("includesLoaded", () => { applyAuthVisibility(); updateNavAuth(); });
 
-	// MutationObserver: whenever header component is injected, instantly transform auth navigation
-	try {
-		const observer = new MutationObserver(() => {
-			const desktopGroup = document.querySelector(".nav-auth");
-			const mobileGroup = document.querySelector(".mobile-auth-group");
-			if (desktopGroup || mobileGroup) {
-				const auth = window.JodAuth || DefaultAuth;
-				if (auth.isLoggedIn() && !document.querySelector(".auth-user-block")) {
-					updateNavAuth();
-					applyAuthVisibility(true);
-				}
-			}
-		});
-		observer.observe(document.documentElement, { childList: true, subtree: true });
-	} catch (_) {}
+
 })();
 
 (window.includesReady || Promise.resolve()).then(() => {
