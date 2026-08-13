@@ -288,6 +288,22 @@ def get_tickets_for_booking(
     return [_serialize_ticket_success(t) for t in tickets]
 
 
+@router.get("/my-tickets", response_model=List[TicketResponse])
+def get_my_tickets(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve all tickets belonging to the currently authenticated user."""
+    tickets = (
+        db.query(Ticket)
+        .options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
+        .filter(Ticket.customer_id == current_user.customer_id)
+        .order_by(Ticket.created_at.desc())
+        .all()
+    )
+    return [_serialize_ticket_success(t) for t in tickets]
+
+
 @router.get("/{ticket_id}", response_model=TicketResponse)
 def get_single_ticket_by_id(
     ticket_id: str,

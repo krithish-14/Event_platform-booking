@@ -96,6 +96,79 @@ def resolve_or_create_event(db: Session, email: str, event_id: Optional[str] = N
     return event, customer_id, host_id
 
 
+def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManagement):
+    """
+    Bridge function: When a host publishes an event, sync its details
+    to the public `events` table so normal users can browse and book it.
+    """
+    from Models.event import Event
+    from Models.host_event import EventDesign
+    from Models.organizer_accounts import OrganizerAccount
+    from Models.user import User
+
+    design = db.query(EventDesign).filter(EventDesign.event_id == event_mgt.event_id).first()
+    image_url = design.banner_image if design else None
+
+    # Resolve organizer_id (UUID PK of OrganizerAccount or User)
+    org_acc = db.query(OrganizerAccount).filter(
+        (OrganizerAccount.customer_id == event_mgt.customer_id) |
+        (OrganizerAccount.email == event_mgt.organizer_email.lower().strip())
+    ).first()
+    user_acc = db.query(User).filter(
+        (User.customer_id == event_mgt.customer_id) |
+        (User.email == event_mgt.organizer_email.lower().strip())
+    ).first()
+
+    organizer_id = user_acc.id if user_acc else None
+
+    start_dt = event_mgt.created_at or datetime.utcnow()
+    if event_mgt.event_start_date:
+        try:
+            start_dt = datetime.strptime(str(event_mgt.event_start_date)[:10], "%Y-%m-%d")
+        except Exception:
+            pass
+
+    end_dt = None
+    if event_mgt.event_end_date:
+        try:
+            end_dt = datetime.strptime(str(event_mgt.event_end_date)[:10], "%Y-%m-%d")
+        except Exception:
+            pass
+
+    # Check if corresponding public Event record exists
+    public_event = db.query(Event).filter(Event.id == event_mgt.event_id).first()
+    if not public_event:
+        public_event = Event(
+            id=event_mgt.event_id,
+            title=event_mgt.event_title or "Untitled Event",
+            description=design.event_description if (design and hasattr(design, "event_description")) else None,
+            location=event_mgt.venue or "Chennai",
+            venue=event_mgt.venue,
+            category=event_mgt.event_category or "Corporate Conference",
+            image_url=image_url or "images/hero-event.jpg",
+            start_date=start_dt,
+            end_date=end_dt,
+            is_published=True,
+            customer_id=event_mgt.customer_id,
+            organizer_id=organizer_id
+        )
+        db.add(public_event)
+    else:
+        public_event.title = event_mgt.event_title or public_event.title
+        public_event.location = event_mgt.venue or public_event.location
+        public_event.venue = event_mgt.venue or public_event.venue
+        public_event.category = event_mgt.event_category or public_event.category
+        if image_url:
+            public_event.image_url = image_url
+        public_event.start_date = start_dt
+        public_event.is_published = True
+        public_event.customer_id = event_mgt.customer_id
+        if organizer_id:
+            public_event.organizer_id = organizer_id
+
+    db.commit()
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 class SaveManageEventRequest(BaseModel):
     event_id: Optional[str] = None
@@ -270,6 +343,14 @@ def save_manage_event(
         try:
             event_uuid = uuid.UUID(payload.event_id)
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
+            if event and current_user:
+                if event.customer_id and current_user.customer_id and event.customer_id != current_user.customer_id and event.organizer_email.lower() != current_user.email.lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Forbidden: You are not authorized to modify another host's event resource."
+                    )
+        except HTTPException:
+            raise
         except ValueError:
             pass
 
@@ -324,6 +405,12 @@ def save_manage_event(
 
     db.commit()
     db.refresh(event)
+
+    if event.event_status == "published":
+        try:
+            sync_published_event_to_public_catalog(db, event)
+        except Exception:
+            pass
 
     return {
         "status": "success",
@@ -484,6 +571,14 @@ def save_registration_form(
 
     db.commit()
     db.refresh(reg_form)
+
+    if reg_form.published:
+        event.event_status = "published"
+        db.commit()
+        try:
+            sync_published_event_to_public_catalog(db, event)
+        except Exception:
+            pass
 
     return {
         "status": "success",

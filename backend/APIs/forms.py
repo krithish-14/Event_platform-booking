@@ -252,10 +252,20 @@ def submit_attendee_response(payload: SubmissionRequest, db: Session = Depends(g
 	}
 
 
+from Authentication.dependencies import get_current_user_optional
+from Models.user import User
+
 @router.get("/submissions")
-def get_form_submissions(email: str = Query(..., description="Organizer email address"), db: Session = Depends(get_db)):
+def get_form_submissions(
+	email: Optional[str] = Query(None, description="Organizer email address"),
+	db: Session = Depends(get_db),
+	current_user: Optional[User] = Depends(get_current_user_optional)
+):
 	"""Fetch submissions table and analytics metrics for organizer."""
-	email_clean = email.lower().strip()
+	if not current_user and not email:
+		raise HTTPException(status_code=401, detail="Authentication required.")
+
+	email_clean = (email or (current_user.email if current_user else "")).lower().strip()
 
 	form = db.query(FormDefinition).filter(
 		FormDefinition.organizer_email == email_clean

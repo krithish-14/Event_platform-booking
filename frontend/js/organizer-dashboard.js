@@ -193,7 +193,7 @@ async function initOrganizerDashboard() {
 	} catch (_) {}
 
 	if (!email) {
-		window.location.href = "login.html";
+		window.location.href = "host-your-event.html";
 		return;
 	}
 

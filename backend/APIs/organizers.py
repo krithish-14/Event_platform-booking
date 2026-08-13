@@ -293,14 +293,20 @@ def save_account_setup(
 
 @router.get("/account-setup")
 def get_account_setup(
-    email: str = Query(..., description="Organizer email address"),
+    email: Optional[str] = Query(None, description="Organizer email address"),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """Fetch saved organizer account details by email."""
-    email_clean = email.lower().strip()
+    """Fetch saved organizer account details by authenticated token or email."""
+    if not current_user and not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token or email is required."
+        )
 
-    if current_user and current_user.email.lower() != email_clean:
+    email_clean = (email or (current_user.email if current_user else "")).lower().strip()
+
+    if current_user and email and current_user.email.lower() != email_clean:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not authorized to view another user's host account."

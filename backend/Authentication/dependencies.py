@@ -62,6 +62,28 @@ def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
+def get_current_organizer(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Dependency requiring the user to have an active or onboarding Organizer Account.
+    Raises 403 Forbidden if the user has not initiated host account setup.
+    """
+    from Models.organizer_accounts import OrganizerAccount
+    org_acc = db.query(OrganizerAccount).filter(
+        (OrganizerAccount.customer_id == current_user.customer_id) |
+        (OrganizerAccount.email == current_user.email.lower().strip())
+    ).first()
+
+    if not org_acc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Organizer access required. Please complete Host account setup first."
+        )
+    return current_user
+
+
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 

@@ -102,7 +102,7 @@ class EventResponse(BaseModel):
     terms: Optional[str] = None
     is_published: bool
     is_cancelled: bool
-    customer_id: str
+    customer_id: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -139,7 +139,7 @@ def _event_to_response(event: Event, distance_km: Optional[float] = None) -> Eve
         end_date=event.end_date,
         price=event.price,
         capacity=event.capacity,
-        event_format=event.event_format or "In-person",
+        event_format=event.event_format,
         duration=event.duration,
         age_limit=event.age_limit,
         language=event.language,
@@ -149,8 +149,8 @@ def _event_to_response(event: Event, distance_km: Optional[float] = None) -> Eve
         terms=event.terms,
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
-        organizer_id=str(event.organizer_id),
-        created_at=event.created_at,
+        customer_id=getattr(event, "customer_id", None) or "CUST-SYSTEM",
+        created_at=event.created_at or datetime.utcnow(),
     )
 
 

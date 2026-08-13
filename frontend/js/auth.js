@@ -865,28 +865,26 @@ window.JodAuth = (() => {
 		if (e && typeof e.preventDefault === "function") e.preventDefault();
 		const u = getUser();
 		if (!u || !isLoggedIn()) {
-			window.location.href = "account-setup.html";
+			window.location.href = "host-your-event.html";
 			return;
 		}
 
-		const userEmail = (u.email || "").toLowerCase().trim();
-
 		const token = getToken();
 		try {
-			const res = await fetch(`${API_BASE}/api/organizers/account-setup?email=${encodeURIComponent(u.email)}`, {
+			const res = await fetch(`${API_BASE}/api/organizers/account-setup`, {
 				headers: token ? { "Authorization": `Bearer ${token}` } : {}
 			});
 			if (res.ok) {
 				const data = await res.json();
 				const acc = data.account;
 				if (acc && (acc.status === "submitted" || acc.status === "verified")) {
-					window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(u.email)}`;
+					window.location.href = "organizer-dashboard.html";
 					return;
 				}
 			}
 		} catch (_) {}
 
-		window.location.href = `account-setup.html?email=${encodeURIComponent(u.email)}`;
+		window.location.href = "account-setup.html";
 	}
 
 	/* ── Expose Public API ─────────────────────────────────── */
