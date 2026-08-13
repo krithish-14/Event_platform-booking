@@ -39,7 +39,8 @@ def get_current_user(
     if user_id is None:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == user_id).first()
+    # Query user by customer_id (the primary key)
+    user = db.query(User).filter(User.customer_id == user_id).first()
     if user is None:
         raise credentials_exception
     if not user.is_active:
@@ -72,6 +73,6 @@ def get_current_user_optional(
         user_id = payload.get("sub")
         if not user_id:
             return None
-        return db.query(User).filter(User.id == user_id, User.is_active == True).first()
+        return db.query(User).filter(User.customer_id == user_id, User.is_active == True).first()
     except Exception:
         return None

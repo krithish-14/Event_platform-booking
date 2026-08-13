@@ -713,6 +713,14 @@ function initFormBuilder() {
 
 	// Save Draft API Handler
 	async function saveDraftForm() {
+		// Use base64 data from upload if available, otherwise fall back to typed URL
+		const bannerSrc = themeBannerUrl
+			? (themeBannerUrl.dataset.uploadSrc || themeBannerUrl.value.trim())
+			: "";
+		const pageBgSrc = themePageBgUrl
+			? (themePageBgUrl.dataset.uploadSrc || themePageBgUrl.value.trim())
+			: "";
+
 		const payload = {
 			organizer_email: email,
 			form_title: builderFormTitle.value.trim() || "Event Registration Form",
@@ -723,10 +731,14 @@ function initFormBuilder() {
 				page_bg_color: themePageBgColor ? themePageBgColor.value : "#f8fafc",
 				card_bg_color: themeCardBgColor ? themeCardBgColor.value : "#ffffff",
 				border_radius: themeBorderRadius ? themeBorderRadius.value : "8px",
-				banner_url: themeBannerUrl ? themeBannerUrl.value.trim() : "",
-				page_bg_url: themePageBgUrl ? themePageBgUrl.value.trim() : ""
+				banner_url: bannerSrc,
+				page_bg_url: pageBgSrc
 			}
 		};
+
+		const btn = document.getElementById("btnSaveDraftForm");
+		const origLabel = btn ? btn.textContent : "Save Draft";
+		if (btn) { btn.textContent = "Saving..."; btn.disabled = true; }
 
 		try {
 			const res = await fetch(`${API_BASE}/save-draft`, {
@@ -738,17 +750,37 @@ function initFormBuilder() {
 			if (!res.ok) throw new Error(data.detail || "Failed to save draft.");
 
 			formId = data.form_id;
-			formStatusBadge.textContent = "Draft Saved";
-			formStatusBadge.style.background = "#fef3c7";
-			formStatusBadge.style.color = "#b45309";
-			alert("✓ Form draft saved successfully!");
+			if (formStatusBadge) {
+				formStatusBadge.textContent = "Draft Saved";
+				formStatusBadge.style.background = "#fef3c7";
+				formStatusBadge.style.color = "#b45309";
+			}
+			if (btn) { btn.textContent = "✓ Draft Saved"; btn.style.color = "#059669"; }
+			setTimeout(() => {
+				if (btn) { btn.textContent = origLabel; btn.style.color = ""; btn.disabled = false; }
+			}, 2500);
 		} catch (err) {
 			alert(err.message || "Failed to save draft.");
+			if (btn) { btn.textContent = origLabel; btn.disabled = false; }
 		}
 	}
 
 	// Publish Form API Handler
 	async function publishFormLive() {
+		const btn = document.getElementById("btnPublishForm");
+		const origLabel = btn ? btn.innerHTML : "Publish Form";
+
+		// Guard: prevent double-click
+		if (btn && btn.disabled) return;
+
+		// Use base64 data from upload if available, otherwise fall back to typed URL
+		const bannerSrc = themeBannerUrl
+			? (themeBannerUrl.dataset.uploadSrc || themeBannerUrl.value.trim())
+			: "";
+		const pageBgSrc = themePageBgUrl
+			? (themePageBgUrl.dataset.uploadSrc || themePageBgUrl.value.trim())
+			: "";
+
 		const payload = {
 			organizer_email: email,
 			form_title: builderFormTitle.value.trim() || "Event Registration Form",
@@ -759,10 +791,17 @@ function initFormBuilder() {
 				page_bg_color: themePageBgColor ? themePageBgColor.value : "#f8fafc",
 				card_bg_color: themeCardBgColor ? themeCardBgColor.value : "#ffffff",
 				border_radius: themeBorderRadius ? themeBorderRadius.value : "8px",
-				banner_url: themeBannerUrl ? themeBannerUrl.value.trim() : "",
-				page_bg_url: themePageBgUrl ? themePageBgUrl.value.trim() : ""
+				banner_url: bannerSrc,
+				page_bg_url: pageBgSrc
 			}
 		};
+
+		// Show publishing state
+		if (btn) {
+			btn.disabled = true;
+			btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:0.45rem;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="animation:spin 0.8s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Publishing...</span>`;
+			btn.style.opacity = "0.8";
+		}
 
 		try {
 			const res = await fetch(`${API_BASE}/publish`, {
@@ -777,17 +816,18 @@ function initFormBuilder() {
 			version = data.version;
 			isPublished = true;
 
-			formStatusBadge.textContent = "Live & Published ✓";
-			formStatusBadge.style.background = "#f0fdf4";
-			formStatusBadge.style.color = "#166534";
-			formVersionBadge.textContent = `Version: ${version}`;
+			if (formStatusBadge) {
+				formStatusBadge.textContent = "Live & Published ✓";
+				formStatusBadge.style.background = "#f0fdf4";
+				formStatusBadge.style.color = "#166534";
+			}
+			if (formVersionBadge) formVersionBadge.textContent = `Version: ${version}`;
 
-			// Live Sync to host_events_api table
+			// Sync to host_events_api table (fire-and-forget)
 			const HOST_API = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
 				? "http://127.0.0.1:8001/api/host-events/registration-form"
 				: "/api/host-events/registration-form";
-			
-fetch(HOST_API, {
+			fetch(HOST_API, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -799,14 +839,59 @@ fetch(HOST_API, {
 				})
 			}).catch(() => {});
 
-			alert(`🚀 Form Version ${version} published live for attendees!`);
+			// Success state on button
+			if (btn) {
+				btn.innerHTML = `✓ Published! Opening Preview...`;
+				btn.style.background = "linear-gradient(135deg, #059669 0%, #047857 100%)";
+				btn.style.opacity = "1";
+			}
+
+			// Open published form in a new tab
+			const baseUrl = window.location.origin.includes("5500")
+				? "http://127.0.0.1:5500"
+				: window.location.origin;
+			setTimeout(() => {
+				window.open(`${baseUrl}/published-form.html?formId=${formId}`, "_blank");
+				// Restore button
+				if (btn) {
+					btn.innerHTML = origLabel;
+					btn.style.background = "";
+					btn.style.opacity = "1";
+					btn.disabled = false;
+				}
+			}, 1800);
+
 		} catch (err) {
 			alert(err.message || "Failed to publish form.");
+			if (btn) {
+				btn.innerHTML = origLabel;
+				btn.style.opacity = "1";
+				btn.disabled = false;
+			}
 		}
 	}
 
 	if (btnSaveDraftForm) btnSaveDraftForm.addEventListener("click", saveDraftForm);
 	if (btnPublishForm) btnPublishForm.addEventListener("click", publishFormLive);
+
+	const btnViewFormHost = document.getElementById("btnViewFormHost");
+	async function viewFormHostMode() {
+		if (!formId) {
+			await saveDraftForm();
+		}
+		if (!formId) {
+			alert("Please save a draft of your form first.");
+			return;
+		}
+
+		const baseUrl = window.location.origin.includes("5500")
+			? "http://127.0.0.1:5500"
+			: window.location.origin;
+
+		window.open(`${baseUrl}/published-form.html?formId=${formId}&mode=readOnly`, "_blank");
+	}
+
+	if (btnViewFormHost) btnViewFormHost.addEventListener("click", viewFormHostMode);
 
 	// Load Form Definition from API
 	async function loadFormDefinition() {

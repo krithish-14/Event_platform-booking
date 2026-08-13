@@ -905,3 +905,75 @@ canvas#trendChartCanvas {
 	overflow-y: auto;
 	scroll-behavior: smooth;
 }
+
+/* ── INFORMATION SYMBOL 'i' BUTTON & MODAL STYLING ──────────────────────────── */
+.info-details-btn {
+	background: #eff6ff;
+	border: 1.5px solid #bfdbfe;
+	color: #2563eb;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	padding: 0;
+	transition: all 0.2s ease;
+	outline: none;
+	flex-shrink: 0;
+	margin-left: 0.35rem;
+	vertical-align: middle;
+	box-shadow: 0 1px 3px rgba(37, 99, 235, 0.1);
+}
+
+.info-details-btn:hover {
+	background: #2563eb;
+	border-color: #2563eb;
+	color: #ffffff;
+	transform: scale(1.15);
+	box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+.info-details-btn:active {
+	transform: scale(0.95);
+}
+
+.info-details-btn svg {
+	display: block;
+	pointer-events: none;
+}
+
+#infoDetailsModal {
+	animation: fadeInBg 0.25s ease-out forwards;
+}
+
+.header-info-icon {
+	width: 34px !important;
+	height: 34px !important;
+	background: #eff6ff !important;
+	border: 1.5px solid #bfdbfe !important;
+	color: #2563eb !important;
+	border-radius: 50% !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	cursor: pointer !important;
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+	box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15) !important;
+	margin-left: 0 !important;
+}
+
+.header-info-icon:hover {
+	background: #2563eb !important;
+	border-color: #2563eb !important;
+	color: #ffffff !important;
+	transform: scale(1.15) !important;
+	box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35) !important;
+}
+
+@keyframes fadeInBg {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+

@@ -832,8 +832,11 @@
 									<button type="button" id="btnSaveDraftForm" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #334155; padding: 0.45rem 1.1rem; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer;">
 										Save Draft
 									</button>
+									<button type="button" id="btnViewFormHost" style="background: #eff6ff; border: 1.5px solid #bfdbfe; color: #2563eb; padding: 0.45rem 1.1rem; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+										👁️ View Form Page (Host View)
+									</button>
 									<button type="button" id="btnPublishForm" class="publish-gradient-btn" style="padding: 0.45rem 1.4rem; font-size: 0.88rem; border-radius: 6px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-										🚀 Final Step: Publish Event Live →
+										🚀 Publish Form
 									</button>
 								</div>
 							</div>
@@ -1095,9 +1098,14 @@
 								<h2 class="rich-form-title" style="font-size: 1.6rem; margin-bottom: 0.2rem;">Exhibitors, Booths &amp; Sponsors</h2>
 								<p class="rich-form-subtitle" style="margin-bottom: 0;">Allocate booth numbers, manage exhibitor profiles, track approval workflows, and view traffic predictions.</p>
 							</div>
-							<button type="button" id="btnAddExhibitorModalBtn" class="publish-gradient-btn" style="padding: 0.55rem 1.3rem; font-size: 0.88rem; border-radius: 6px;">
-								+ Add New Exhibitor
-							</button>
+							<div style="display: flex; align-items: center; gap: 0.8rem;">
+								<button type="button" class="info-details-btn header-info-icon" data-info-type="exhibitors-overview" title="Click for Exhibitors guide & info card" aria-label="Exhibitors Information">
+									<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+								</button>
+								<button type="button" id="btnAddExhibitorModalBtn" class="publish-gradient-btn" style="padding: 0.55rem 1.3rem; font-size: 0.88rem; border-radius: 6px;">
+									+ Add New Exhibitor
+								</button>
+							</div>
 						</div>
 
 						<!-- KPI Dashboard Cards -->
@@ -1143,27 +1151,7 @@
 							</div>
 						</div>
 
-						<!-- AI Recommendations Card -->
-						<div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #2563eb; border-radius: 10px; padding: 1.25rem; margin-bottom: 1.8rem;">
-							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
-								<span style="font-size: 0.88rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.04em;">AI Booth Placement &amp; Traffic Optimization</span>
-								<span style="background: #eff6ff; color: #2563eb; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">AI Active</span>
-							</div>
-							<div class="setup-grid-3">
-								<div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0.9rem; border-radius: 8px;">
-									<h5 style="font-size: 0.85rem; font-weight: 700; color: #0f172a; margin-bottom: 0.3rem;">Traffic Optimization</h5>
-									<p style="font-size: 0.8rem; color: #64748b; margin: 0;">Recommend relocating TechCorp booth #B-12 to Hall A Entrance to boost footfall traffic by +24%.</p>
-								</div>
-								<div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0.9rem; border-radius: 8px;">
-									<h5 style="font-size: 0.85rem; font-weight: 700; color: #0f172a; margin-bottom: 0.3rem;">Sponsorship Pricing Suggestion</h5>
-									<p style="font-size: 0.8rem; color: #64748b; margin: 0;">High demand predicted for Hall C Premium booths. Suggest +15% package price surge for late registrations.</p>
-								</div>
-								<div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0.9rem; border-radius: 8px;">
-									<h5 style="font-size: 0.85rem; font-weight: 700; color: #0f172a; margin-bottom: 0.3rem;">Popular Booth Forecast</h5>
-									<p style="font-size: 0.8rem; color: #64748b; margin: 0;">Booths #A-01 to #A-05 are predicted to receive 65% of attendee check-in scans.</p>
-								</div>
-							</div>
-						</div>
+
 
 						<!-- Filter Bar & Exhibitors Table -->
 						<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.2rem; gap: 1rem;">
@@ -1208,27 +1196,12 @@
 								<h2 class="rich-form-title" style="font-size: 1.6rem; margin-bottom: 0.2rem;">Email, SMS, WhatsApp &amp; Broadcast Center</h2>
 								<p class="rich-form-subtitle" style="margin-bottom: 0;">Centralized messaging studio for attendees, exhibitors, speakers, and staff notifications.</p>
 							</div>
+							<button type="button" class="info-details-btn header-info-icon" data-info-type="communicate-overview" title="Click for Communication guide & info card" aria-label="Communication Information">
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+							</button>
 						</div>
 
-						<!-- Sub-Tabs for Channels -->
-						<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.8rem;">
-							<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1.2rem; cursor: pointer;">
-								<h4 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem;">Email Campaigns</h4>
-								<p style="font-size: 0.78rem; color: #64748b; margin: 0;">Confirmations, Schedule Updates, Reminders</p>
-							</div>
-							<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1.2rem; cursor: pointer;">
-								<h4 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem;">SMS &amp; Push Alerts</h4>
-								<p style="font-size: 0.78rem; color: #64748b; margin: 0;">OTP, Emergency Alerts, Parking Broadcasts</p>
-							</div>
-							<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1.2rem; cursor: pointer;">
-								<h4 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem;">WhatsApp Integration</h4>
-								<p style="font-size: 0.78rem; color: #64748b; margin: 0;">Instant QR Ticket Delivery &amp; Live Chat</p>
-							</div>
-							<div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1.2rem; cursor: pointer;">
-								<h4 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem;">Announcement Center</h4>
-								<p style="font-size: 0.78rem; color: #64748b; margin: 0;">Live Hall Broadcasts &amp; Delay Notices</p>
-							</div>
-						</div>
+
 
 						<!-- AI Copywriter & Broadcast Composer Form -->
 						<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.6rem; margin-bottom: 1.8rem;">
@@ -1303,6 +1276,9 @@
 								<h2 class="rich-form-title" style="font-size: 1.6rem; margin-bottom: 0.2rem;">Reports &amp; Financial Analytics</h2>
 								<p class="rich-form-subtitle" style="margin-bottom: 0;">Comprehensive breakdown of ticket sales, attendance check-ins, financial revenue, and marketing channels.</p>
 							</div>
+							<button type="button" class="info-details-btn header-info-icon" data-info-type="reports-overview" title="Click for Reports guide & info card" aria-label="Reports Information">
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+							</button>
 						</div>
 
 						<!-- Financial Summary KPI Cards -->
@@ -1348,30 +1324,7 @@
 							</div>
 						</div>
 
-						<!-- AI Insights Cards Grid -->
-						<div style="margin-bottom: 1.8rem;">
-							<h4 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 1rem;">AI Executive Insights &amp; Recommendations</h4>
-							
-							<div class="setup-grid-3">
-								<div style="background: #ffffff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 1.2rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.04);">
-									<span style="background: #eff6ff; color: #2563eb; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">Registration Trend</span>
-									<h5 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0.6rem 0 0.3rem 0;">Awaiting Registrations</h5>
-									<p style="font-size: 0.85rem; color: #475569; margin: 0; line-height: 1.5;">Analytics velocity will populate here live as attendees complete registration.</p>
-								</div>
 
-								<div style="background: #ffffff; border: 1.5px solid #bbf7d0; border-radius: 10px; padding: 1.2rem; box-shadow: 0 4px 12px rgba(22, 101, 52, 0.04);">
-									<span style="background: #f0fdf4; color: #166534; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">Marketing Source</span>
-									<h5 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0.6rem 0 0.3rem 0;">Channel Tracking Active</h5>
-									<p style="font-size: 0.85rem; color: #475569; margin: 0; line-height: 1.5;">Marketing breakdown and top referral sources will be displayed dynamically.</p>
-								</div>
-
-								<div style="background: #ffffff; border: 1.5px solid #fde68a; border-radius: 10px; padding: 1.2rem; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.04);">
-									<span style="background: #fef3c7; color: #b45309; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">Pricing Insight</span>
-									<h5 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin: 0.6rem 0 0.3rem 0;">Tier Analytics Ready</h5>
-									<p style="font-size: 0.85rem; color: #475569; margin: 0; line-height: 1.5;">Demand forecasts and ticket tier velocity will be suggested automatically.</p>
-								</div>
-							</div>
-						</div>
 
 						<!-- Financial & Demographic Tables -->
 						<div class="setup-grid-2">
@@ -1439,6 +1392,9 @@
 								<h2 class="rich-form-title" style="font-size: 1.6rem; margin: 0.3rem 0 0.2rem 0;">Event Day Live Operations</h2>
 								<p class="rich-form-subtitle" style="margin-bottom: 0;">Real-time attendee check-in scanner, venue hall occupancy, staff allocation, and emergency broadcasts.</p>
 							</div>
+							<button type="button" class="info-details-btn header-info-icon" data-info-type="eventday-overview" title="Click for Event Day guide & info card" aria-label="Event Day Information">
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+							</button>
 						</div>
 
 						<!-- Real-Time Metrics Row -->
@@ -1484,16 +1440,7 @@
 							</div>
 						</div>
 
-						<!-- AI Crowd Density & Bottleneck Warning Banner -->
-						<div style="background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #2563eb; border-radius: 10px; padding: 1.25rem; margin-bottom: 1.8rem;">
-							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
-								<span style="font-weight: 800; color: #1e3a8a; font-size: 0.88rem; text-transform: uppercase;">AI Crowd Density &amp; Bottleneck Alert</span>
-								<span style="font-size: 0.78rem; font-weight: 700; color: #2563eb;">Gate Flow Normal</span>
-							</div>
-							<p style="font-size: 0.88rem; color: #1e293b; margin: 0; line-height: 1.5;">
-								<strong>Live Gate Status:</strong> Real-time crowd density monitoring is active. Check-in flow alerts will appear here if queue bottlenecks occur.
-							</p>
-						</div>
+
 
 						<!-- Interactive Live Modules Grid -->
 						<div class="setup-grid-2" style="margin-bottom: 1.8rem;">
@@ -1732,9 +1679,35 @@
 
 							<div style="display: flex; justify-content: flex-end; gap: 0.8rem; border-top: 1px solid #e2e8f0; padding-top: 1rem;">
 								<button type="button" id="btnCancelExhibitorModal" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; cursor: pointer;">Cancel</button>
-								<button type="submit" class="publish-gradient-btn" style="padding: 0.55rem 1.4rem; border-radius: 8px;">Save Exhibitor</button>
+								<button type="submit" class="publish-gradient-btn" style="padding: 0.55rem 1.4rem; font-size: 0.88rem; border-radius: 8px;">Save Exhibitor</button>
 							</div>
 						</form>
+					</div>
+				</div>
+
+				<!-- ── UNIVERSAL INFORMATION DETAILS CARD MODAL ─────────────────────── -->
+				<div id="infoDetailsModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(6px); z-index: 99999; align-items: center; justify-content: center; padding: 1.5rem;">
+					<div style="background: #ffffff; border-radius: 20px; max-width: 720px; width: 100%; padding: 2rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3); border: 1.5px solid #cbd5e1; max-height: 85vh; display: flex; flex-direction: column; animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+						<div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.2rem; margin-bottom: 1.2rem;">
+							<div style="display: flex; align-items: center; gap: 0.85rem;">
+								<div id="infoModalIconBg" style="width: 48px; height: 48px; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #2563eb; font-size: 1.5rem; font-weight: 800; box-shadow: 0 4px 10px rgba(37,99,235,0.1);">
+									ℹ️
+								</div>
+								<div>
+									<span id="infoModalBadge" style="background: #eff6ff; color: #2563eb; padding: 0.18rem 0.65rem; border-radius: 12px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid #bfdbfe;">Module Info Card</span>
+									<h3 id="infoModalTitle" style="font-size: 1.3rem; font-weight: 800; color: #0f172a; margin: 0.25rem 0 0 0;">Feature Information</h3>
+								</div>
+							</div>
+							<button type="button" id="btnCloseInfoModal" style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-weight: 700; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Close Info Card">&times;</button>
+						</div>
+
+						<div id="infoModalBody" style="display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; padding-right: 0.4rem; flex: 1;">
+							<!-- Content dynamically rendered in Card format via JS -->
+						</div>
+
+						<div style="display: flex; justify-content: flex-end; margin-top: 1.2rem; border-top: 1px solid #e2e8f0; padding-top: 1rem;">
+							<button type="button" id="btnGotItInfoModal" class="publish-gradient-btn" style="padding: 0.6rem 1.8rem; font-size: 0.9rem; border-radius: 10px; font-weight: 800;">Got It</button>
+						</div>
 					</div>
 				</div>
 

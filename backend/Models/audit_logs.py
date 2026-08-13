@@ -4,7 +4,7 @@ Separate audit log models for Signup, Login, and Host Registration actions.
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, String, DateTime, Text, ForeignKey, DECIMAL
 from sqlalchemy.dialects.postgresql import UUID
 
 from Models.base import Base
@@ -14,11 +14,17 @@ class UserSignupLog(Base):
     __tablename__ = "user_signups"
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
-    customer_id  = Column(String(50), nullable=False, index=True)
+    customer_id  = Column(String(50), ForeignKey("users.customer_id", onupdate="CASCADE"), nullable=False, index=True)
     email        = Column(String(255), nullable=False, index=True)
     username     = Column(String(100), nullable=False)
     full_name    = Column(String(200), nullable=True)
+    
+    # Location fields
+    city         = Column(String(150), nullable=True)
+    location_pin = Column(String(20), nullable=True)
+    latitude     = Column(DECIMAL(10, 8), nullable=True)
+    longitude    = Column(DECIMAL(11, 8), nullable=True)
+    
     signup_at    = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
@@ -29,8 +35,7 @@ class UserLoginLog(Base):
     __tablename__ = "user_logins"
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
-    customer_id  = Column(String(50), nullable=True, index=True)
+    customer_id  = Column(String(50), ForeignKey("users.customer_id", onupdate="CASCADE"), nullable=False, index=True)
     email        = Column(String(255), nullable=False, index=True)
     status       = Column(String(50), default="SUCCESS")
     ip_address   = Column(String(50), nullable=True)
@@ -45,8 +50,7 @@ class HostRegistrationLog(Base):
     __tablename__ = "host_registration_logs"
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
-    customer_id  = Column(String(50), nullable=True, index=True)
+    customer_id  = Column(String(50), ForeignKey("users.customer_id", onupdate="CASCADE"), nullable=False, index=True)
     email        = Column(String(255), nullable=False, index=True)
     org_name     = Column(String(255), nullable=True)
     action       = Column(String(50), nullable=False)  # e.g. 'LIST_YOUR_EVENT', 'DRAFT_SAVED', 'FINAL_SUBMIT'

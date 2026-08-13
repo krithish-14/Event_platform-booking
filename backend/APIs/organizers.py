@@ -133,19 +133,19 @@ def verify_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
 
     # Ensure draft OrganizerAccount exists
     org_acc = db.query(OrganizerAccount).filter(
-        (OrganizerAccount.email == email) | (user and OrganizerAccount.user_id == user.id)
+        (OrganizerAccount.email == email) | (user and OrganizerAccount.customer_id == user.customer_id)
     ).first()
 
     if not org_acc:
         org_acc = OrganizerAccount(
             email=email,
-            user_id=user.id if user else None,
+            customer_id=user.customer_id if user else None,
             contact_email=email,
             status="draft"
         )
         db.add(org_acc)
-    elif user and not org_acc.user_id:
-        org_acc.user_id = user.id
+    elif user and not org_acc.customer_id:
+        org_acc.customer_id = user.customer_id
 
     db.commit()
 
@@ -191,7 +191,7 @@ def save_account_setup(
     org_acc = None
     if current_user:
         org_acc = db.query(OrganizerAccount).filter(
-            (OrganizerAccount.user_id == current_user.id) | (OrganizerAccount.email == email)
+            (OrganizerAccount.customer_id == current_user.customer_id) | (OrganizerAccount.email == email)
         ).first()
     else:
         org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email).first()
@@ -199,13 +199,10 @@ def save_account_setup(
     if not org_acc:
         org_acc = OrganizerAccount(
             email=email,
-            user_id=current_user.id if current_user else None,
             customer_id=current_user.customer_id if (current_user and current_user.customer_id) else None
         )
         db.add(org_acc)
     elif current_user:
-        if not org_acc.user_id:
-            org_acc.user_id = current_user.id
         if not org_acc.customer_id and current_user.customer_id:
             org_acc.customer_id = current_user.customer_id
 
@@ -256,7 +253,6 @@ def save_account_setup(
 
     # Log Host Registration in host_registration_logs table
     host_log = HostRegistrationLog(
-        user_id=org_acc.user_id,
         customer_id=org_acc.customer_id,
         email=email,
         org_name=payload.org_name,
@@ -317,7 +313,7 @@ def get_account_setup(
     org_acc = None
     if current_user:
         org_acc = db.query(OrganizerAccount).filter(
-            (OrganizerAccount.user_id == current_user.id) | (OrganizerAccount.email == email_clean)
+            (OrganizerAccount.customer_id == current_user.customer_id) | (OrganizerAccount.email == email_clean)
         ).first()
     else:
         org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()
@@ -415,16 +411,16 @@ def upload_document(
     org_acc = None
     if current_user:
         org_acc = db.query(OrganizerAccount).filter(
-            (OrganizerAccount.user_id == current_user.id) | (OrganizerAccount.email == email_clean)
+            (OrganizerAccount.customer_id == current_user.customer_id) | (OrganizerAccount.email == email_clean)
         ).first()
     else:
         org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()
 
     if not org_acc:
-        org_acc = OrganizerAccount(email=email_clean, user_id=current_user.id if current_user else None, status="draft")
+        org_acc = OrganizerAccount(email=email_clean, customer_id=current_user.customer_id if current_user else None, status="draft")
         db.add(org_acc)
-    elif current_user and not org_acc.user_id:
-        org_acc.user_id = current_user.id
+    elif current_user and not org_acc.customer_id:
+        org_acc.customer_id = current_user.customer_id
 
     if doc_type == "pan_card":
         org_acc.pan_card_url = file_url
@@ -459,7 +455,7 @@ def get_organizer_dashboard(
     org_acc = None
     if current_user:
         org_acc = db.query(OrganizerAccount).filter(
-            (OrganizerAccount.user_id == current_user.id) | (OrganizerAccount.email == email_clean)
+            (OrganizerAccount.customer_id == current_user.customer_id) | (OrganizerAccount.email == email_clean)
         ).first()
     else:
         org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()

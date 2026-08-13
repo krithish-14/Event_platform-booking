@@ -2173,6 +2173,375 @@ const btnCreateVolunteerLink = document.getElementById("btnCreateVolunteerLink")
 		});
 	}
 
+	// ── Information Symbol 'i' Modal Logic ────────────────────────────────────
+	const INFO_DETAILS_DATA = {
+		"exhibitors-overview": {
+			badge: "Exhibitors & Booth AI",
+			title: "AI Booth Placement & Traffic Optimization",
+			icon: "🎪",
+			description: "Our machine learning engine analyzes floor plans, attendee demographic interests, and entry gate traffic flows to suggest peak booth locations and dynamic pricing.",
+			sections: [
+				{
+					heading: "How AI Optimization Works",
+					content: "1. <strong>Heatmap Simulation:</strong> Maps predicted footfall vectors from main entrances to key stage halls.<br/>2. <strong>Category Balance:</strong> Distributes direct competitors across different aisle zones.<br/>3. <strong>Revenue Maximization:</strong> Adjusts booth tier pricing based on historical demand."
+				},
+				{
+					heading: "🚀 Traffic Optimization",
+					content: "<strong>Recommendation:</strong> Relocate TechCorp booth #B-12 to Hall A Entrance to boost footfall by +24%.<br/><br/>• <strong>+24% Footfall Surge:</strong> Positioning near Hall A Entrance increases attendee exposure.<br/>• <strong>Queue Reduction:</strong> Reduces choke points in secondary corridors.<br/>• <strong>Sponsor Value:</strong> High visibility increases booth lead captures."
+				},
+				{
+					heading: "💎 Sponsorship Pricing Suggestion",
+					content: "High demand predicted for Hall C Premium booths. Suggest +15% package price surge for late registrations.<br/><br/>• <strong>Inventory Remaining:</strong> Only 22% of Hall C booths available.<br/>• <strong>Suggested Surge:</strong> +15% price increase.<br/>• <strong>Projected Extra Revenue:</strong> ₹45,000."
+				},
+				{
+					heading: "📊 Popular Booth Forecast",
+					content: "Booths #A-01 to #A-05 are predicted to receive 65% of attendee check-in scans.<br/><br/>• <strong>Avg Dwell Time:</strong> 8.5 minutes per visitor.<br/>• <strong>Peak Traffic Hours:</strong> 11:30 AM & 02:30 PM.<br/>• <strong>Recommended Prep:</strong> Assign dedicated volunteer scanners and Wi-Fi repeaters to Hall A."
+				},
+				{
+					heading: "Recommended Action Plan",
+					content: "Review high-demand booths regularly and assign prime spots to key partners early to maximize booth sales ROI."
+				}
+			]
+		},
+		"traffic-opt": {
+			badge: "Traffic Analytics",
+			title: "Traffic Optimization Details",
+			icon: "🚀",
+			description: "Detailed analysis for relocating high-traffic exhibitors (e.g. TechCorp booth #B-12) to Hall A Entrance.",
+			sections: [
+				{
+					heading: "Impact & Benefits",
+					content: "• <strong>+24% Footfall Surge:</strong> Positioning near Hall A Entrance increases attendee exposure.<br/>• <strong>Queue Reduction:</strong> Reduces choke points in secondary corridors.<br/>• <strong>Sponsor Value:</strong> High visibility increases booth lead captures."
+				},
+				{
+					heading: "Implementation",
+					content: "Contact exhibitor to confirm booth relocation. Update gate digital maps automatically."
+				}
+			]
+		},
+		"sponsorship-pricing": {
+			badge: "Pricing Intelligence",
+			title: "Sponsorship Pricing & Dynamic Surge",
+			icon: "💎",
+			description: "Algorithmically calculated price surge model based on inventory scarcity and time remaining until event day.",
+			sections: [
+				{
+					heading: "Current Metrics",
+					content: "• <strong>Inventory Remaining:</strong> Only 22% of Hall C booths available.<br/>• <strong>Suggested Surge:</strong> +15% price increase.<br/>• <strong>Projected Extra Revenue:</strong> ₹45,000."
+				},
+				{
+					heading: "Best Practice",
+					content: "Enable automated pricing tiers to capture high late-registration willingness-to-pay."
+				}
+			]
+		},
+		"booth-forecast": {
+			badge: "Predictive Analytics",
+			title: "Popular Booth Check-in Forecast",
+			icon: "📊",
+			description: "Predicts attendee scan distribution across all booths based on ticket surveys and industry interests.",
+			sections: [
+				{
+					heading: "Key Predictions",
+					content: "• <strong>Top Zone:</strong> Booths #A-01 to #A-05 will attract 65% of total scans.<br/>• <strong>Avg Dwell Time:</strong> 8.5 minutes per visitor.<br/>• <strong>Peak Traffic Hours:</strong> 11:30 AM & 02:30 PM."
+				},
+				{
+					heading: "Recommended Prep",
+					content: "Ensure dedicated volunteer scanners and Wi-Fi repeaters are assigned to Hall A."
+				}
+			]
+		},
+		"communicate-overview": {
+			badge: "Communication Hub",
+			title: "Omnichannel Broadcast Studio Guide",
+			icon: "📢",
+			description: "Centralized messaging studio to compose, schedule, and broadcast multi-channel announcements across Email, SMS, WhatsApp, and Mobile Push.",
+			sections: [
+				{
+					heading: "✉️ Email Campaigns",
+					content: "Send personalized broadcast emails, ticket confirmations, calendar invites, and automated event reminders.<br/><br/>• <strong>Delivery Rate:</strong> 99.4% inbox placement.<br/>• <strong>Avg Open Rate:</strong> 42.8% for event broadcasts.<br/>• <strong>Supported Media:</strong> PDF Tickets, Calendar Passes (.ics), Custom HTML.<br/>• <strong>Pro Tip:</strong> Schedule your primary reminder email 24 hours prior to door opening for maximum attendance turn-out."
+				},
+				{
+					heading: "📱 SMS & Push Alerts",
+					content: "Instant delivery channel for urgent notifications, parking updates, schedule shifts, and security alerts.<br/><br/>• <strong>Delivery Speed:</strong> Delivered within 3 seconds worldwide.<br/>• <strong>Open Rate:</strong> 98% read rate.<br/>• <strong>DLT Verification:</strong> Compliant with Indian telecom DLT regulations.<br/>• <strong>Usage:</strong> Reserve SMS for urgent gate check-in pass delivery and emergencies."
+				},
+				{
+					heading: "💬 WhatsApp Integration",
+					content: "Direct WhatsApp messaging with interactive buttons, green-tick verification, and instant QR pass delivery.<br/><br/>• <strong>Instant Ticket Delivery:</strong> Sends PDF tickets directly to attendee WhatsApp.<br/>• <strong>Read Rate:</strong> 95% within 5 minutes.<br/>• <strong>Interactive Buttons:</strong> 'View Venue Map', 'Add to Calendar', 'Ask Bot'.<br/>• <strong>Setup:</strong> Ensure WhatsApp template permissions are active prior to mass blasts."
+				},
+				{
+					heading: "📣 Announcement Center",
+					content: "Broadcast live notices across attendee mobile web apps, hall digital signage screens, and stage audio.<br/><br/>• <strong>Screen Takeover:</strong> Push emergency or keynote alerts to hall screens.<br/>• <strong>Targeting:</strong> Select specific halls, VIP lounges, or all venue zones.<br/>• <strong>Auto-Translation:</strong> Instant translation into major regional languages.<br/>• <strong>Best Practice:</strong> Publish key session start alerts 10 minutes beforehand to direct crowd movement."
+				},
+				{
+					heading: "Targeting & AI Copywriter",
+					content: "1. Filter recipient audience by All Attendees, VIP Pass Holders, Exhibitors, or Keynote Speakers.<br/>2. Click <strong>Generate Message with AI</strong> to draft high-converting announcement copy instantly."
+				}
+			]
+		},
+		"email-campaigns": {
+			badge: "Channel Details",
+			title: "Email Campaigns & Automation Studio",
+			icon: "✉️",
+			description: "Send personalized broadcast emails, ticket confirmations, calendar invites, and automated event reminders.",
+			sections: [
+				{
+					heading: "Performance Standards",
+					content: "• <strong>Delivery Rate:</strong> 99.4% inbox placement.<br/>• <strong>Avg Open Rate:</strong> 42.8% for event broadcasts.<br/>• <strong>Supported Media:</strong> PDF Tickets, Calendar Passes (.ics), Custom HTML."
+				},
+				{
+					heading: "Pro Tips",
+					content: "Schedule your primary reminder email 24 hours prior to door opening for maximum attendance turn-out."
+				}
+			]
+		},
+		"sms-push-alerts": {
+			badge: "Channel Details",
+			title: "SMS & Mobile Push Emergency Broadcasts",
+			icon: "📱",
+			description: "Instant delivery channel for urgent notifications, parking updates, schedule shifts, and security alerts.",
+			sections: [
+				{
+					heading: "Key Specifications",
+					content: "• <strong>Delivery Speed:</strong> Delivered within 3 seconds worldwide.<br/>• <strong>Open Rate:</strong> 98% read rate.<br/>• <strong>DLT Verification:</strong> Compliant with Indian telecom DLT regulations."
+				},
+				{
+					heading: "Usage Recommendations",
+					content: "Reserve SMS broadcasts for urgent updates and gate check-in pass delivery."
+				}
+			]
+		},
+		"whatsapp-integration": {
+			badge: "Channel Details",
+			title: "WhatsApp Official Business API",
+			icon: "💬",
+			description: "Direct WhatsApp messaging with interactive buttons, green-tick verification, and instant QR pass delivery.",
+			sections: [
+				{
+					heading: "Capabilities & Features",
+					content: "• <strong>Instant Ticket Delivery:</strong> Sends PDF tickets directly to attendee WhatsApp.<br/>• <strong>Read Rate:</strong> 95% within 5 minutes.<br/>• <strong>Interactive Buttons:</strong> 'View Venue Map', 'Add to Calendar', 'Ask Bot'."
+				},
+				{
+					heading: "Setup Guide",
+					content: "Ensure WhatsApp template permissions are active prior to sending mass blasts."
+				}
+			]
+		},
+		"announcement-center": {
+			badge: "Channel Details",
+			title: "Announcement & Screen Broadcast Center",
+			icon: "📢",
+			description: "Broadcast live notices across attendee mobile web apps, hall digital signage screens, and stage audio.",
+			sections: [
+				{
+					heading: "Channel Functions",
+					content: "• <strong>Screen Takeover:</strong> Push emergency or keynote alerts to hall screens.<br/>• <strong>Targeting:</strong> Select specific halls, VIP lounges, or all venue zones.<br/>• <strong>Auto-Translation:</strong> Instant translation into major regional languages."
+				},
+				{
+					heading: "Best Practice",
+					content: "Publish key session start alerts 10 minutes beforehand to direct crowd movement."
+				}
+			]
+		},
+		"reports-overview": {
+			badge: "Executive Reports",
+			title: "Reports & Financial Intelligence",
+			icon: "📈",
+			description: "Comprehensive financial intelligence breakdown including gross sales, platform fees, taxes, attendee demographics, and AI-powered executive insights.",
+			sections: [
+				{
+					heading: "Financial Calculation Standard",
+					content: "• <strong>Gross Revenue:</strong> Sum of all ticket tier transactions.<br/>• <strong>Platform Fee:</strong> 5% service fee.<br/>• <strong>Taxes/GST:</strong> 5% statutory tax deduction.<br/>• <strong>Net Payout:</strong> Transferred to verified bank account after reconciliation."
+				},
+				{
+					heading: "⚡ Registration Trend & Velocity",
+					content: "Real-time registration sales velocity, daily run-rate, and peak purchase window tracking.<br/><br/>• <strong>Peak Hours:</strong> 6:00 PM - 9:30 PM.<br/>• <strong>Weekly Velocity:</strong> +18% growth week-over-week.<br/>• <strong>Checkout Conversion:</strong> 94.2% completion rate.<br/>• <strong>Action Step:</strong> Trigger automated cart-abandonment emails for uncompleted registrations."
+				},
+				{
+					heading: "🎯 Marketing Attribution & Source Tracking",
+					content: "Multi-touch attribution to determine which marketing campaigns generate the highest ticket sales.<br/><br/>• <strong>Instagram Stories:</strong> 41% of total registrations.<br/>• <strong>LinkedIn Posts:</strong> Highest ticket value (₹1,250 avg).<br/>• <strong>Direct Referral:</strong> 22% organic word-of-mouth.<br/>• <strong>Optimization Tip:</strong> Reallocate budget towards top-converting Instagram and LinkedIn channels."
+				},
+				{
+					heading: "🏷️ Ticket Tier Elasticity & Pricing Insights",
+					content: "Monitors ticket tier sell-out velocity to recommend optimal tier caps and price points.<br/><br/>• <strong>General Pass:</strong> 82% sold.<br/>• <strong>VIP Pass:</strong> 3.5x higher profit margin per seat.<br/>• <strong>Dynamic Suggestion:</strong> Introduce 'Phase 2 Late Pass' tier.<br/>• <strong>Strategy:</strong> Close Early Bird tier early to create scarcity demand for standard passes."
+				},
+				{
+					heading: "Audience Analytics",
+					content: "Tracks registrant location by IP/address to display top city distribution."
+				}
+			]
+		},
+		"reg-trend-insight": {
+			badge: "Sales Insights",
+			title: "Registration Trend & Velocity",
+			icon: "⚡",
+			description: "Real-time registration sales velocity, daily run-rate, and peak purchase window tracking.",
+			sections: [
+				{
+					heading: "Analytics Breakdown",
+					content: "• <strong>Peak Hours:</strong> 6:00 PM - 9:30 PM.<br/>• <strong>Weekly Velocity:</strong> +18% growth week-over-week.<br/>• <strong>Checkout Conversion:</strong> 94.2% completion rate."
+				},
+				{
+					heading: "Action Step",
+					content: "Trigger automated cart-abandonment emails for uncompleted registrations."
+				}
+			]
+		},
+		"mktg-source-insight": {
+			badge: "Marketing ROI",
+			title: "Marketing Attribution & Source Tracking",
+			icon: "🎯",
+			description: "Multi-touch attribution to determine which marketing campaigns generate the highest ticket sales.",
+			sections: [
+				{
+					heading: "Top Performers",
+					content: "• <strong>Instagram Stories:</strong> 41% of total registrations.<br/>• <strong>LinkedIn Posts:</strong> Highest ticket value (₹1,250 avg).<br/>• <strong>Direct Referral:</strong> 22% organic word-of-mouth."
+				},
+				{
+					heading: "Optimization Tip",
+					content: "Reallocate promotional budget towards top-converting Instagram and LinkedIn channels."
+				}
+			]
+		},
+		"pricing-insight": {
+			badge: "Pricing Strategy",
+			title: "Ticket Tier Elasticity & Pricing Insights",
+			icon: "🏷️",
+			description: "Monitors ticket tier sell-out velocity to recommend optimal tier caps and price points.",
+			sections: [
+				{
+					heading: "Current Metrics",
+					content: "• <strong>General Pass:</strong> 82% sold.<br/>• <strong>VIP Pass:</strong> 3.5x higher profit margin per seat.<br/>• <strong>Dynamic Suggestion:</strong> Introduce 'Phase 2 Late Pass' tier."
+				},
+				{
+					heading: "Strategy Recommendation",
+					content: "Close Early Bird tier early to create scarcity demand for standard passes."
+				}
+			]
+		},
+		"eventday-crowd-alert": {
+			badge: "Live Safety & Ops",
+			title: "AI Crowd Density & Safety Monitoring",
+			icon: "🚨",
+			description: "Real-time gate scanner frequency monitoring and computer vision crowd density alerts.",
+			sections: [
+				{
+					heading: "Live Safety Thresholds",
+					content: "• <strong>Current Gate Flow:</strong> 42 check-ins/minute (Normal).<br/>• <strong>Max Safety Capacity:</strong> 80 check-ins/minute.<br/>• <strong>Average Queue Time:</strong> 1.2 minutes."
+				},
+				{
+					heading: "Automated Bottleneck Protocol",
+					content: "1. <strong>Reroute Alert:</strong> Directs overflow crowd to secondary gates.<br/>2. <strong>Staff Push:</strong> Dispatches additional volunteer scanners automatically.<br/>3. <strong>Security Alert:</strong> Notifies venue control if hall reaches 90% capacity."
+				}
+			]
+		},
+		"eventday-overview": {
+			badge: "Live Operations",
+			title: "Event Day Live Operations Guide",
+			icon: "🚨",
+			description: "Real-time command center for managing door check-ins, entry gate configurations, volunteer scanner passes, crowd safety alerts, and live incident management.",
+			sections: [
+				{
+					heading: "Gate Operations",
+					content: "• <strong>QR Ticket Validation:</strong> Use device camera or manual input to validate attendee ticket numbers instantly.<br/>• <strong>Gate Management:</strong> Create isolated entry gates (e.g. Gate 1, VIP Portal) specific to this event.<br/>• <strong>Staff Scanner Passes:</strong> Assign passcode credentials to gate volunteers to track live scan throughput."
+				},
+				{
+					heading: "🚨 AI Crowd Density & Bottleneck Alert",
+					content: "Real-time gate scanner frequency monitoring and computer vision crowd density alerts.<br/><br/>• <strong>Current Gate Flow:</strong> 42 check-ins/minute (Normal).<br/>• <strong>Max Safety Capacity:</strong> 80 check-ins/minute.<br/>• <strong>Average Queue Time:</strong> 1.2 minutes."
+				},
+				{
+					heading: "Automated Bottleneck Protocol",
+					content: "1. <strong>Reroute Alert:</strong> Directs overflow crowd to secondary gates.<br/>2. <strong>Staff Push:</strong> Dispatches additional volunteer scanners automatically.<br/>3. <strong>Security Alert:</strong> Notifies venue control if hall reaches 90% capacity."
+				},
+				{
+					heading: "Crowd Control & Safety",
+					content: "Real-time AI crowd density alerts notify control if hall occupancy or gate entry queues reach capacity limits."
+				}
+			]
+		}
+	};
+
+	const infoModal = document.getElementById("infoDetailsModal");
+	const infoModalIconBg = document.getElementById("infoModalIconBg");
+	const infoModalBadge = document.getElementById("infoModalBadge");
+	const infoModalTitle = document.getElementById("infoModalTitle");
+	const infoModalBody = document.getElementById("infoModalBody");
+	const btnCloseInfoModal = document.getElementById("btnCloseInfoModal");
+	const btnGotItInfoModal = document.getElementById("btnGotItInfoModal");
+
+	function openInfoModal(typeKey) {
+		const data = INFO_DETAILS_DATA[typeKey] || {
+			badge: "Information",
+			title: "Details & Insights",
+			icon: "ℹ️",
+			description: "Detailed information for this section.",
+			sections: []
+		};
+
+		if (infoModalIconBg) infoModalIconBg.textContent = data.icon || "ℹ️";
+		if (infoModalBadge) infoModalBadge.textContent = data.badge || "MODULE INFO CARD";
+		if (infoModalTitle) infoModalTitle.textContent = data.title || "Information Card";
+
+		let html = `
+			<div style="background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 1.5px solid #bfdbfe; border-left: 5px solid #2563eb; border-radius: 14px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.05);">
+				<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
+					<span style="background: #2563eb; color: #ffffff; font-size: 0.72rem; font-weight: 800; padding: 0.2rem 0.65rem; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.04em;">Module Summary</span>
+					<span style="font-size: 0.75rem; font-weight: 700; color: #2563eb;">Information Card Format</span>
+				</div>
+				<p style="font-size: 0.9rem; color: #1e293b; line-height: 1.6; margin: 0; font-weight: 500;">${data.description}</p>
+			</div>
+		`;
+
+		if (data.sections && data.sections.length > 0) {
+			html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">`;
+			data.sections.forEach((sec, idx) => {
+				html += `
+					<div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 1.2rem; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04); display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s ease;">
+						<div>
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.65rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.55rem;">
+								<h4 style="font-size: 0.9rem; font-weight: 800; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 0.4rem;">${sec.heading}</h4>
+								<span style="background: #f8fafc; color: #475569; font-size: 0.7rem; font-weight: 800; padding: 0.15rem 0.5rem; border-radius: 8px; border: 1px solid #cbd5e1;">CARD ${idx + 1}</span>
+							</div>
+							<div style="font-size: 0.85rem; color: #334155; line-height: 1.6;">${sec.content}</div>
+						</div>
+					</div>
+				`;
+			});
+			html += `</div>`;
+		}
+
+		if (infoModalBody) infoModalBody.innerHTML = html;
+		if (infoModal) {
+			infoModal.style.display = "flex";
+		}
+	}
+
+	function closeInfoModal() {
+		if (infoModal) infoModal.style.display = "none";
+	}
+
+	if (btnCloseInfoModal) btnCloseInfoModal.addEventListener("click", closeInfoModal);
+	if (btnGotItInfoModal) btnGotItInfoModal.addEventListener("click", closeInfoModal);
+
+	if (infoModal) {
+		infoModal.addEventListener("click", (e) => {
+			if (e.target === infoModal) closeInfoModal();
+		});
+	}
+
+	// Attach click delegation for all info-details-btn elements
+	document.addEventListener("click", (e) => {
+		const btn = e.target.closest(".info-details-btn");
+		if (btn) {
+			e.preventDefault();
+			e.stopPropagation();
+			const infoType = btn.getAttribute("data-info-type");
+			if (infoType) {
+				openInfoModal(infoType);
+			}
+		}
+	});
+
 	// Expose functions to global window scope for tab switching
 	window.loadRegistrationModuleData = loadRegistrationModuleData;
 	window.loadCommunicationsData = loadCommunicationsData;

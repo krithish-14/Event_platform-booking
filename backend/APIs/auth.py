@@ -105,13 +105,14 @@ class TokenResponse(BaseModel):
 
 
 def _serialize_user(user) -> dict:
-    """Convert a User ORM object to a dict suitable for JSON/Pydantic (string UUID)."""
+    """Convert a User ORM object to a dict suitable for JSON/Pydantic."""
     if user is None:
         return None
     role = "admin" if bool(getattr(user, "is_admin", False)) else "attendee"
+    cid = user.customer_id
     return {
-        "id": str(user.id),
-        "customer_id": getattr(user, "customer_id", None),
+        "id": cid,
+        "customer_id": cid,
         "email": user.email,
         "username": user.username,
         "full_name": user.full_name,
@@ -145,7 +146,6 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
 
     # Record User Signup Audit Log in user_signups table
     signup_log = UserSignupLog(
-        user_id=user.id,
         customer_id=customer_id,
         email=user.email,
         username=user.username,
@@ -155,7 +155,7 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     db.commit()
 
     token = create_access_token(
-        data={"sub": str(user.id)},
+        data={"sub": user.customer_id},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
@@ -189,7 +189,6 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 
     # Record User Login Audit Log in user_logins table
     login_log = UserLoginLog(
-        user_id=user.id,
         customer_id=user.customer_id,
         email=user.email,
         status="SUCCESS",
@@ -198,7 +197,7 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     db.commit()
 
     token = create_access_token(
-        data={"sub": str(user.id)},
+        data={"sub": user.customer_id},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}

@@ -145,6 +145,47 @@ def get_form_definition(email: str = Query(..., description="Organizer email add
 	}
 
 
+@router.get("/get-form-by-id")
+def get_form_by_id(
+	form_id: int = Query(..., description="Form ID integer"),
+	mode: Optional[str] = Query(None, description="View mode, e.g. readOnly"),
+	db: Session = Depends(get_db)
+):
+	"""Fetch a published or host preview form definition by its integer ID."""
+	form = db.query(FormDefinition).filter(
+		FormDefinition.id == form_id
+	).first()
+
+	if not form:
+		raise HTTPException(status_code=404, detail="Form not found.")
+
+	if not form.is_published and mode != "readOnly":
+		raise HTTPException(status_code=404, detail="This form has not been published yet.")
+
+	return {
+		"exists": True,
+		"form_id": form.id,
+		"form_title": form.form_title,
+		"form_description": form.form_description,
+		"version": form.version,
+		"is_published": form.is_published,
+		"organizer_email": form.organizer_email,
+		"event_id": form.event_id,
+		"schema_json": form.schema_json,
+		"theme_json": form.theme_json or {
+			"primary_color": "#2563eb",
+			"page_bg_color": "#f8fafc",
+			"card_bg_color": "#ffffff",
+			"border_radius": "8px",
+			"banner_url": "",
+			"page_bg_url": ""
+		},
+		"published_at": form.updated_at.isoformat() if form.updated_at else None
+	}
+
+
+
+
 @router.post("/publish")
 def publish_form(payload: FormSaveRequest, db: Session = Depends(get_db)):
 	"""Publish current registration form version for attendees."""

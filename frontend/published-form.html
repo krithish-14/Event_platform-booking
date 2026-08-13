@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Event Registration Form | JOD Events</title>
+	<!-- Google Fonts -->
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+	
+	<style>
+		@keyframes spin {
+			to { transform: rotate(360deg); }
+		}
+		@keyframes fadeIn {
+			from { opacity: 0; transform: translateY(12px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+
+		body {
+			font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+			background-color: #f8fafc;
+			color: #0f172a;
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: flex-start;
+			padding: 2rem 1rem;
+			transition: background 0.3s ease;
+		}
+
+		#pageContainer {
+			width: 100%;
+			max-width: 680px;
+			animation: fadeIn 0.4s ease-out forwards;
+		}
+
+		/* Loading Spinner Card */
+		#loadingState {
+			background: #ffffff;
+			border-radius: 16px;
+			padding: 3rem 2rem;
+			text-align: center;
+			box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+			border: 1px solid #e2e8f0;
+			margin-top: 3rem;
+		}
+
+		.spinner {
+			width: 40px;
+			height: 40px;
+			border: 4px solid #e2e8f0;
+			border-top-color: #2563eb;
+			border-radius: 50%;
+			animation: spin 0.8s linear infinite;
+			margin: 0 auto 1.2rem;
+		}
+
+		/* Error State Card */
+		#errorState {
+			display: none;
+			background: #ffffff;
+			border-radius: 16px;
+			padding: 3rem 2rem;
+			text-align: center;
+			box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+			border: 1px solid #fecaca;
+			margin-top: 3rem;
+		}
+
+		/* Main Dynamic Form Card */
+		#formCard {
+			display: none;
+			background: #ffffff;
+			border-radius: 12px;
+			box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+			border: 1px solid #e2e8f0;
+			overflow: hidden;
+			transition: all 0.3s ease;
+		}
+
+		.banner-img-container {
+			width: 100%;
+			height: 180px;
+			overflow: hidden;
+			background: #f1f5f9;
+			display: none;
+		}
+
+		.banner-img-container img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+
+		.form-card-body {
+			padding: 2.2rem 2.5rem;
+		}
+
+		.form-header {
+			border-bottom: 2px solid #2563eb;
+			padding-bottom: 1.2rem;
+			margin-bottom: 2rem;
+		}
+
+		.form-title {
+			font-size: 1.75rem;
+			font-weight: 800;
+			line-height: 1.25;
+			color: #0f172a;
+			margin-bottom: 0.5rem;
+		}
+
+		.form-description {
+			font-size: 0.95rem;
+			color: #64748b;
+			line-height: 1.5;
+		}
+
+		.question-group {
+			margin-bottom: 1.8rem;
+			display: flex;
+			flex-direction: column;
+			gap: 0.45rem;
+		}
+
+		.question-label {
+			font-size: 0.95rem;
+			font-weight: 700;
+			color: inherit;
+			display: flex;
+			align-items: center;
+			gap: 0.25rem;
+		}
+
+		.req-star {
+			color: #ef4444;
+			font-weight: 800;
+		}
+
+		.help-text {
+			font-size: 0.8rem;
+			color: #64748b;
+			margin-top: -0.2rem;
+			margin-bottom: 0.25rem;
+		}
+
+		.form-input, .form-textarea, .form-select {
+			width: 100%;
+			padding: 0.75rem 1rem;
+			font-size: 0.95rem;
+			font-family: inherit;
+			border: 1.5px solid #cbd5e1;
+			border-radius: 8px;
+			background-color: #ffffff;
+			color: #0f172a;
+			outline: none;
+			transition: border-color 0.2s, box-shadow 0.2s;
+		}
+
+		.form-input:focus, .form-textarea:focus, .form-select:focus {
+			border-color: var(--primary-color, #2563eb);
+			box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+		}
+
+		.options-group {
+			display: flex;
+			flex-direction: column;
+			gap: 0.6rem;
+			margin-top: 0.3rem;
+		}
+
+		.option-label {
+			display: flex;
+			align-items: center;
+			gap: 0.6rem;
+			font-size: 0.92rem;
+			font-weight: 500;
+			cursor: pointer;
+			color: inherit;
+		}
+
+		.option-label input[type="radio"],
+		.option-label input[type="checkbox"] {
+			width: 18px;
+			height: 18px;
+			accent-color: var(--primary-color, #2563eb);
+			cursor: pointer;
+		}
+
+		.submit-btn {
+			width: 100%;
+			padding: 0.9rem;
+			font-size: 1rem;
+			font-weight: 700;
+			font-family: inherit;
+			color: #ffffff;
+			background-color: var(--primary-color, #2563eb);
+			border: none;
+			border-radius: 8px;
+			cursor: pointer;
+			box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+			transition: all 0.2s ease;
+			margin-top: 1rem;
+		}
+
+		.submit-btn:hover {
+			filter: brightness(0.92);
+			transform: translateY(-1px);
+		}
+
+		.submit-btn:disabled {
+			opacity: 0.6;
+			cursor: not-allowed;
+			transform: none;
+		}
+
+		/* Success Screen */
+		#successState {
+			display: none;
+			background: #ffffff;
+			border-radius: 16px;
+			padding: 3.5rem 2rem;
+			text-align: center;
+			box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+			border: 1px solid #bbf7d0;
+			margin-top: 2rem;
+			animation: fadeIn 0.4s ease-out forwards;
+		}
+
+		.success-icon {
+			width: 64px;
+			height: 64px;
+			background: #f0fdf4;
+			color: #166534;
+			border: 2px solid #bbf7d0;
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 2rem;
+			margin: 0 auto 1.5rem;
+		}
+
+		.powered-by {
+			text-align: center;
+			margin-top: 2rem;
+			font-size: 0.82rem;
+			color: #64748b;
+		}
+
+		.powered-by a {
+			color: #2563eb;
+			text-decoration: none;
+			font-weight: 700;
+		}
+
+		@media (max-width: 640px) {
+			body { padding: 1rem 0.5rem; }
+			.form-card-body { padding: 1.5rem 1.25rem; }
+			.form-title { font-size: 1.4rem; }
+		}
+	</style>
+</head>
+<body>
+
+	<div id="pageContainer">
+		
+		<!-- ── LOADING STATE ─────────────────────────────────────────────────── -->
+		<div id="loadingState">
+			<div class="spinner"></div>
+			<h3 style="font-weight: 700; color: #334155;">Loading Form...</h3>
+			<p style="font-size: 0.88rem; color: #64748b; margin-top: 0.4rem;">Fetching published event registration details.</p>
+		</div>
+
+		<!-- ── ERROR STATE ───────────────────────────────────────────────────── -->
+		<div id="errorState">
+			<div style="font-size: 3rem; margin-bottom: 0.8rem;">⚠️</div>
+			<h3 id="errorTitle" style="font-weight: 800; color: #991b1b; margin-bottom: 0.5rem;">Form Not Found</h3>
+			<p id="errorMsg" style="font-size: 0.9rem; color: #7f1d1d; line-height: 1.5;">This registration form does not exist or has not been published yet.</p>
+		</div>
+
+		<!-- ── MAIN PUBLISHED FORM CARD ──────────────────────────────────────── -->
+		<div id="formCard">
+			
+			<!-- Header Banner Image -->
+			<div id="bannerContainer" class="banner-img-container">
+				<img id="bannerImg" src="" alt="Event Banner" />
+			</div>
+
+			<div class="form-card-body">
+				<!-- Form Title & Description Header -->
+				<div id="formHeader" class="form-header">
+					<h1 id="pubFormTitle" class="form-title">Event Registration Form</h1>
+					<p id="pubFormDesc" class="form-description"></p>
+				</div>
+
+				<!-- Dynamic Questions Form -->
+				<form id="pubFormElement">
+					<div id="questionsContainer"></div>
+
+					<!-- Attendee Email Field (if not already in schema) -->
+					<div id="attendeeEmailGroup" class="question-group" style="display: none;">
+						<label class="question-label">
+							Attendee Email Address <span class="req-star">*</span>
+						</label>
+						<span class="help-text">Used to send your registration confirmation ticket.</span>
+						<input type="email" id="attendeeEmailInput" class="form-input" placeholder="you@example.com" />
+					</div>
+
+					<button type="submit" id="submitBtn" class="submit-btn">
+						Submit Registration
+					</button>
+				</form>
+			</div>
+		</div>
+
+		<!-- ── SUCCESS STATE ─────────────────────────────────────────────────── -->
+		<div id="successState">
+			<div class="success-icon">✓</div>
+			<h2 style="font-weight: 800; color: #0f172a; margin-bottom: 0.6rem; font-size: 1.6rem;">Registration Confirmed!</h2>
+			<p style="color: #475569; font-size: 0.95rem; line-height: 1.6; max-width: 480px; margin: 0 auto 1.8rem;">
+				Thank you for registering. Your details have been submitted successfully to the event host.
+			</p>
+			<button type="button" onclick="location.reload()" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155; padding: 0.65rem 1.4rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer;">
+				Submit Another Response
+			</button>
+		</div>
+
+		<!-- Powered By Footer -->
+		<div class="powered-by">
+			Powered by <a href="#" onclick="return false;">JOD Events Platform</a>
+		</div>
+
+	</div>
+
+	<script>
+		(function () {
+			const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
+				? "http://127.0.0.1:8001/api/forms"
+				: "/api/forms";
+
+			const urlParams = new URLSearchParams(window.location.search);
+			const formId = urlParams.get("formId") || urlParams.get("id");
+			const mode = urlParams.get("mode");
+			const isHostReadOnly = mode === "readOnly" || mode === "preview" || mode === "host";
+
+			const loadingState = document.getElementById("loadingState");
+			const errorState = document.getElementById("errorState");
+			const errorTitle = document.getElementById("errorTitle");
+			const errorMsg = document.getElementById("errorMsg");
+			const formCard = document.getElementById("formCard");
+			const bannerContainer = document.getElementById("bannerContainer");
+			const bannerImg = document.getElementById("bannerImg");
+			const formHeader = document.getElementById("formHeader");
+			const pubFormTitle = document.getElementById("pubFormTitle");
+			const pubFormDesc = document.getElementById("pubFormDesc");
+			const questionsContainer = document.getElementById("questionsContainer");
+			const pubFormElement = document.getElementById("pubFormElement");
+			const submitBtn = document.getElementById("submitBtn");
+			const successState = document.getElementById("successState");
+			const attendeeEmailGroup = document.getElementById("attendeeEmailGroup");
+			const attendeeEmailInput = document.getElementById("attendeeEmailInput");
+
+			let formData = null;
+			let hasEmailQuestionInSchema = false;
+
+			if (!formId) {
+				showError("Missing Form ID", "No form ID was specified in the URL. Please check the published form link.");
+				return;
+			}
+
+			// Load Published Form Data from Backend API
+			async function fetchPublishedForm() {
+				try {
+					const modeQuery = isHostReadOnly ? "&mode=readOnly" : "";
+					const res = await fetch(`${API_BASE}/get-form-by-id?form_id=${encodeURIComponent(formId)}${modeQuery}`);
+					if (!res.ok) {
+						const errJson = await res.json().catch(() => ({}));
+						throw new Error(errJson.detail || "Form not found or unpublished.");
+					}
+
+					formData = await res.json();
+					renderForm(formData);
+				} catch (err) {
+					showError("Form Unavailable", err.message || "Failed to load published form.");
+				}
+			}
+
+			function showError(title, message) {
+				loadingState.style.display = "none";
+				formCard.style.display = "none";
+				errorTitle.textContent = title;
+				errorMsg.textContent = message;
+				errorState.style.display = "block";
+			}
+
+			function renderForm(data) {
+				loadingState.style.display = "none";
+				formCard.style.display = "block";
+
+				// Title & Description
+				pubFormTitle.textContent = data.form_title || "Event Registration Form";
+				document.title = `${data.form_title || "Event Registration"} | JOD Events`;
+
+				if (data.form_description && data.form_description.trim()) {
+					pubFormDesc.textContent = data.form_description.trim();
+					pubFormDesc.style.display = "block";
+				} else {
+					pubFormDesc.style.display = "none";
+				}
+
+				// Apply Theme
+				const theme = data.theme_json || {};
+				const primary = theme.primary_color || "#2563eb";
+				const pageBg = theme.page_bg_color || "#f8fafc";
+				const cardBg = theme.card_bg_color || "#ffffff";
+				const radius = theme.border_radius || "8px";
+				const bannerUrl = theme.banner_url || "";
+				const pageBgUrl = theme.page_bg_url || "";
+
+				document.documentElement.style.setProperty("--primary-color", primary);
+				
+				// Page Outer Background
+				if (pageBgUrl) {
+					document.body.style.background = `url('${pageBgUrl}') center/cover no-repeat fixed`;
+				} else {
+					document.body.style.background = pageBg;
+				}
+
+				// Card Styling & Auto Dark/Light Text Contrast
+				formCard.style.background = cardBg;
+				formCard.style.borderRadius = radius;
+
+				const isDarkCard = cardBg.toLowerCase() === "#0f172a" || cardBg.toLowerCase() === "#1e293b" || cardBg.toLowerCase() === "#1e1b4b" || cardBg.toLowerCase() === "#312e81";
+				const textColor = isDarkCard ? "#ffffff" : "#0f172a";
+				const subTextColor = isDarkCard ? "#94a3b8" : "#64748b";
+
+				formCard.style.color = textColor;
+				pubFormTitle.style.color = textColor;
+				pubFormDesc.style.color = subTextColor;
+				formHeader.style.borderBottomColor = primary;
+
+				if (submitBtn) {
+					submitBtn.style.backgroundColor = primary;
+					submitBtn.style.borderRadius = radius;
+				}
+
+				// Banner Header Image
+				if (bannerUrl) {
+					bannerImg.src = bannerUrl;
+					bannerContainer.style.display = "block";
+					bannerContainer.style.borderRadius = `${radius} ${radius} 0 0`;
+				} else {
+					bannerContainer.style.display = "none";
+				}
+
+				// Render Questions
+				const schema = data.schema_json || [];
+				questionsContainer.innerHTML = "";
+
+				schema.forEach((q, idx) => {
+					if (q.type === "email" || (q.id && q.id.includes("email"))) {
+						hasEmailQuestionInSchema = true;
+					}
+
+					const group = document.createElement("div");
+					group.className = "question-group";
+
+					const reqSpan = q.required ? '<span class="req-star">*</span>' : '';
+					const helpHtml = q.help_text ? `<span class="help-text">${escapeHtml(q.help_text)}</span>` : '';
+
+					let fieldHtml = '';
+					const qId = q.id || `q_${idx}`;
+
+					switch (q.type) {
+						case 'short_answer':
+						case 'email':
+						case 'phone':
+							fieldHtml = `<input type="${q.type === 'email' ? 'email' : 'text'}" id="${qId}" name="${qId}" class="form-input" placeholder="${escapeHtml(q.placeholder || '')}" ${q.required ? 'required' : ''} style="border-radius:${radius};" />`;
+							break;
+
+						case 'paragraph':
+						case 'address':
+							fieldHtml = `<textarea id="${qId}" name="${qId}" class="form-textarea" placeholder="${escapeHtml(q.placeholder || '')}" ${q.required ? 'required' : ''} style="border-radius:${radius}; min-height:90px;"></textarea>`;
+							break;
+
+						case 'dropdown':
+							fieldHtml = `
+								<select id="${qId}" name="${qId}" class="form-select" ${q.required ? 'required' : ''} style="border-radius:${radius};">
+									<option value="" disabled selected>-- Select an option --</option>
+									${(q.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+								</select>
+							`;
+							break;
+
+						case 'radio':
+							fieldHtml = `
+								<div class="options-group">
+									${(q.options || []).map((opt, oIdx) => `
+										<label class="option-label">
+											<input type="radio" name="${qId}" value="${escapeHtml(opt)}" ${q.required && oIdx === 0 ? 'required' : ''} />
+											<span>${escapeHtml(opt)}</span>
+										</label>
+									`).join('')}
+								</div>
+							`;
+							break;
+
+						case 'checkbox':
+							fieldHtml = `
+								<div class="options-group">
+									${(q.options || []).map(opt => `
+										<label class="option-label">
+											<input type="checkbox" name="${qId}" value="${escapeHtml(opt)}" />
+											<span>${escapeHtml(opt)}</span>
+										</label>
+									`).join('')}
+								</div>
+							`;
+							break;
+
+						case 'date':
+							fieldHtml = `<input type="date" id="${qId}" name="${qId}" class="form-input" ${q.required ? 'required' : ''} style="border-radius:${radius};" />`;
+							break;
+
+						case 'file_upload':
+							fieldHtml = `
+								<input type="file" id="${qId}" name="${qId}" class="form-input" ${q.required ? 'required' : ''} style="border-radius:${radius}; padding:0.5rem;" />
+							`;
+							break;
+
+						case 'terms':
+							fieldHtml = `
+								<label class="option-label" style="margin-top:0.3rem;">
+									<input type="checkbox" id="${qId}" name="${qId}" value="agreed" ${q.required ? 'required' : ''} />
+									<span>${escapeHtml(q.title || 'I agree to terms and conditions')}</span>
+								</label>
+							`;
+							break;
+
+						default:
+							fieldHtml = `<input type="text" id="${qId}" name="${qId}" class="form-input" placeholder="${escapeHtml(q.placeholder || '')}" ${q.required ? 'required' : ''} style="border-radius:${radius};" />`;
+					}
+
+					group.innerHTML = `
+						<label class="question-label" for="${qId}">
+							${escapeHtml(q.title || `Question ${idx + 1}`)} ${reqSpan}
+						</label>
+						${helpHtml}
+						${fieldHtml}
+					`;
+
+					questionsContainer.appendChild(group);
+				});
+
+				// If no email question exists in custom schema, show standalone email input
+				if (!hasEmailQuestionInSchema && attendeeEmailGroup) {
+					attendeeEmailGroup.style.display = "flex";
+					if (attendeeEmailInput) attendeeEmailInput.required = true;
+				}
+
+				// If in Host Read-Only Mode: Disable all form controls and show banner
+				if (isHostReadOnly) {
+					let hostBanner = document.getElementById("hostReadOnlyBanner");
+					if (!hostBanner) {
+						hostBanner = document.createElement("div");
+						hostBanner.id = "hostReadOnlyBanner";
+						hostBanner.style.cssText = "background: #eff6ff; border: 1.5px solid #bfdbfe; color: #1e40af; padding: 0.85rem 1.25rem; border-radius: 10px; margin-bottom: 1.5rem; font-weight: 600; font-size: 0.88rem; display: flex; align-items: center; justify-content: space-between;";
+						hostBanner.innerHTML = `<span style="display:flex; align-items:center; gap:0.5rem;"><span style="font-size:1.1rem;">👁️</span><span><strong>Host Preview Mode:</strong> Form fields are disabled. Attendees fill out the live version.</span></span> <span style="background:#2563eb; color:#ffffff; font-weight:700; font-size:0.75rem; padding:0.2rem 0.65rem; border-radius:6px; white-space:nowrap;">Read Only</span>`;
+						if (formHeader && formHeader.parentNode) {
+							formHeader.parentNode.insertBefore(hostBanner, formHeader);
+						}
+					}
+
+					const allInputs = pubFormElement.querySelectorAll("input, textarea, select, button");
+					allInputs.forEach(el => {
+						el.disabled = true;
+						el.style.cursor = "not-allowed";
+					});
+					if (submitBtn) {
+						submitBtn.disabled = true;
+						submitBtn.style.opacity = "0.55";
+						submitBtn.style.cursor = "not-allowed";
+						submitBtn.style.pointerEvents = "none";
+						submitBtn.textContent = "Form Submissions Disabled (Host View)";
+					}
+				}
+			}
+
+			// Helper to escape HTML characters
+			function escapeHtml(str) {
+				if (!str) return '';
+				return String(str)
+					.replace(/&/g, '&amp;')
+					.replace(/</g, '&lt;')
+					.replace(/>/g, '&gt;')
+					.replace(/"/g, '&quot;');
+			}
+
+			// Form Submission Handler
+			pubFormElement.addEventListener("submit", async function (e) {
+				e.preventDefault();
+
+				if (isHostReadOnly) {
+					alert("Form submissions are disabled in Host Preview Mode.");
+					return;
+				}
+
+				const answers = {};
+				let userEmail = "";
+
+				const schema = (formData && formData.schema_json) ? formData.schema_json : [];
+
+				schema.forEach((q, idx) => {
+					const qId = q.id || `q_${idx}`;
+					const qTitle = q.title || `Question ${idx + 1}`;
+
+					if (q.type === 'radio') {
+						const checked = pubFormElement.querySelector(`input[name="${qId}"]:checked`);
+						answers[qTitle] = checked ? checked.value : "";
+					} else if (q.type === 'checkbox') {
+						const checkedBoxes = Array.from(pubFormElement.querySelectorAll(`input[name="${qId}"]:checked`)).map(cb => cb.value);
+						answers[qTitle] = checkedBoxes;
+					} else if (q.type === 'terms') {
+						const termsCb = document.getElementById(qId);
+						answers[qTitle] = termsCb && termsCb.checked ? "Agreed" : "Not Agreed";
+					} else {
+						const el = document.getElementById(qId);
+						answers[qTitle] = el ? el.value.trim() : "";
+						if (q.type === 'email' && el && el.value) {
+							userEmail = el.value.trim();
+						}
+					}
+				});
+
+				// Fallback to standalone email if no email field in schema
+				if (!userEmail && attendeeEmailInput && attendeeEmailInput.value) {
+					userEmail = attendeeEmailInput.value.trim();
+				}
+
+				if (!userEmail) {
+					userEmail = "attendee@guest.com";
+				}
+
+				const payload = {
+					form_id: parseInt(formId),
+					organizer_email: formData ? formData.organizer_email : "",
+					event_id: formData ? formData.event_id : null,
+					user_email: userEmail,
+					answers_json: answers
+				};
+
+				// UI Loading state
+				submitBtn.disabled = true;
+				submitBtn.textContent = "Submitting...";
+
+				try {
+					const res = await fetch(`${API_BASE}/submissions`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(payload)
+					});
+
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.detail || "Submission failed.");
+
+					formCard.style.display = "none";
+					successState.style.display = "block";
+					window.scrollTo({ top: 0, behavior: 'smooth' });
+
+				} catch (err) {
+					alert(err.message || "Failed to submit registration. Please try again.");
+					submitBtn.disabled = false;
+					submitBtn.textContent = "Submit Registration";
+				}
+			});
+
+			fetchPublishedForm();
+		})();
+	</script>
+</body>
+</html>

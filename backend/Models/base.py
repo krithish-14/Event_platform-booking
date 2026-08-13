@@ -84,33 +84,11 @@ def create_tables():
     from Models.organizer import OrganizerAccount, EmailOTP  # noqa: F401
     from Models.form_builder import FormDefinition, FormSubmission  # noqa: F401
     from Models.audit_logs import UserSignupLog, UserLoginLog, HostRegistrationLog  # noqa: F401
+    from Models.host_event import (  # noqa: F401
+        EventManagement, EventDesign, EventRegistrationForm,
+        EventRegistrationSettings, EventRegistrationTicket,
+        EventRegistration, EventCommunication, EventAttendanceCheckin,
+        Exhibitor, EventEntryGate, EventStaffScanner
+    )
     engine = get_engine()
-    
-    # Drop and recreate new event-related tables to ensure schema is up to date
-    try:
-        from sqlalchemy import text
-        with engine.begin() as conn:
-            # Drop new tables if they exist (so they can be recreated with latest schema)
-            for table_name in ["event_attendance_checkins", "event_communications", "event_registration_tickets", 
-                              "event_registration_settings", "event_registrations", "event_entry_gates", 
-                              "event_staff_scanners", "exhibitors", "event_designs", "event_registration_forms", "event_managements"]:
-                try:
-                    conn.execute(text(f"DROP TABLE IF EXISTS {table_name} CASCADE;"))
-                except Exception:
-                    pass
-    except Exception:
-        pass
-    
     Base.metadata.create_all(bind=engine)
-    try:
-        from sqlalchemy import text
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS customer_id VARCHAR(50);"))
-            conn.execute(text("ALTER TABLE organizer_accounts ADD COLUMN IF NOT EXISTS user_id UUID;"))
-            conn.execute(text("ALTER TABLE organizer_accounts ADD COLUMN IF NOT EXISTS customer_id VARCHAR(50);"))
-            conn.execute(text("ALTER TABLE organizer_accounts ADD COLUMN IF NOT EXISTS host_id VARCHAR(50);"))
-            conn.execute(text("ALTER TABLE organizer_accounts ADD COLUMN IF NOT EXISTS gstin_number TEXT;"))
-            conn.execute(text("ALTER TABLE organizer_accounts ADD COLUMN IF NOT EXISTS pan_card_url VARCHAR(500);"))
-            conn.execute(text("ALTER TABLE organizer_accounts ADD COLUMN IF NOT EXISTS cancelled_cheque_url VARCHAR(500);"))
-    except Exception:
-        pass

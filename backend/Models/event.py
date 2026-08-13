@@ -27,7 +27,7 @@ class Event(Base):
     capacity     = Column(Integer, nullable=True)               # None = unlimited
     is_published = Column(Boolean, default=False)
     is_cancelled = Column(Boolean, default=False)
-    organizer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    customer_id  = Column(String(50), ForeignKey("users.customer_id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False, index=True)
     created_at   = Column(DateTime, default=datetime.utcnow)
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -35,4 +35,4 @@ class Event(Base):
     organizer = relationship("User", back_populates="events")
 
     def __repr__(self):
-        return f"<Event(id={self.id}, title={self.title})>"
+        return f"<Event(id={self.id}, title={self.title}, customer_id={self.customer_id})>"
