@@ -50,6 +50,22 @@ class GUID(TypeDecorator):
             return uuid.UUID(str(value))
         return value
 
+
+from sqlalchemy.types import JSON as GenericJSON
+from sqlalchemy.dialects.postgresql import JSONB
+
+
+class JSONType(TypeDecorator):
+    """Platform-independent JSON type. Uses PostgreSQL's JSONB type, otherwise generic JSON."""
+    impl = GenericJSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(JSONB)
+        return dialect.type_descriptor(GenericJSON)
+
+
 # ── Lazy engine/session creation ─────────────────────────────
 _engine = None
 _SessionLocal = None
@@ -208,7 +224,10 @@ def _migrate_tables(engine=None):
             user_migrations = [
                 ("customer_id", "VARCHAR(100)"),
                 ("city", "VARCHAR(200)"),
+                ("location_pin", "VARCHAR(20)"),
                 ("location_pincode", "VARCHAR(20)"),
+                ("latitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("longitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("location_lat", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("location_lon", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("bio", "TEXT"),
@@ -290,6 +309,7 @@ def _migrate_tables(engine=None):
         if "events" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("events")}
             event_migrations = [
+                ("customer_id", "VARCHAR(50)"),
                 ("latitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("longitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("venue", "VARCHAR(300)"),
@@ -674,10 +694,7 @@ def _seed_demo_events():
 
 def create_tables():
     """Create all tables defined in models and sync users across DBs. Called on app startup."""
-    from Models.user import User  # noqa: F401
-    from Models.event import Event  # noqa: F401
-    from Models.booking import Booking  # noqa: F401
-    from Models.ticket import Ticket  # noqa: F401
+    import Models  # noqa: F401
     engine = get_engine()
     _migrate_tables(engine)
     Base.metadata.create_all(bind=engine)
