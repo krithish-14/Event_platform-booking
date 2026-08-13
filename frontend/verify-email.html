@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="description" content="Verify your email ID with a 6-digit OTP to start listing your event on JOD Events." />
+		<title>Verify Email - JOD Events</title>
+		<link rel="stylesheet" href="css/style.css?v=12" />
+		<link rel="stylesheet" href="css/auth.css?v=12" />
+		<link rel="stylesheet" href="css/responsive.css?v=12" />
+		<style>
+			.verify-container {
+				padding-top: 7.5rem;
+				padding-bottom: 4rem;
+				min-height: calc(100vh - 250px);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+			.otp-box {
+				max-width: 520px;
+				width: 100%;
+				margin: 0 auto;
+				padding: 2.5rem;
+				background: #ffffff;
+				border: 1px solid var(--border);
+				border-radius: 16px;
+				box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+			}
+			.otp-inputs {
+				display: flex;
+				gap: 0.6rem;
+				justify-content: center;
+				margin: 1.8rem 0;
+			}
+			.otp-field {
+				width: 52px;
+				height: 60px;
+				font-size: 1.5rem;
+				font-weight: 700;
+				text-align: center;
+				border: 2px solid var(--border);
+				border-radius: 10px;
+				background: #f9fafb;
+				color: var(--ink);
+				transition: all 0.2s ease;
+			}
+			.otp-field:focus {
+				border-color: #2563eb;
+				background: #ffffff;
+				box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+				outline: none;
+			}
+			.dev-hint {
+				background: #f0fdf4;
+				border: 1px solid #bbf7d0;
+				color: #166534;
+				padding: 0.75rem 1rem;
+				border-radius: 8px;
+				font-size: 0.9rem;
+				margin-bottom: 1.2rem;
+				display: none;
+			}
+			.resend-btn {
+				background: none;
+				border: none;
+				color: #2563eb;
+				font-weight: 600;
+				cursor: pointer;
+				text-decoration: underline;
+				font-size: 0.95rem;
+			}
+			.resend-btn:disabled {
+				color: var(--muted);
+				cursor: not-allowed;
+				text-decoration: none;
+			}
+			.email-step, .otp-step {
+				transition: all 0.3s ease;
+			}
+			.hidden-step {
+				display: none !important;
+			}
+		</style>
+	</head>
+	<body class="sub-page">
+		<div class="site-shell" id="top">
+			<div id="header"></div>
+
+			<main class="container verify-container">
+				<div class="otp-box">
+					<div class="section-heading text-center" style="margin-bottom: 1.5rem;">
+						<span class="pill pill-light-orange">&#10024; Organizer Setup</span>
+						<h1 style="font-size: 2rem; margin-top: 0.5rem;">Email Verification</h1>
+						<p id="otpSubtitle">Verify your email ID to list your event and manage bookings on JOD Events.</p>
+					</div>
+
+					<!-- Global Alert -->
+					<div id="verifyAlert" class="form-alert" role="alert" style="display:none; margin-bottom: 1.2rem; padding: 0.8rem 1rem; border-radius: 8px; font-size: 0.95rem;">
+						<span id="alertIcon">&#9888;</span>
+						<span id="alertMessage"></span>
+					</div>
+
+					<!-- Dev Mode Banner -->
+					<div id="devOtpBanner" class="dev-hint">
+						&#128161; <strong>Dev Mode OTP Code:</strong> <span id="devOtpValue" style="font-size: 1.1rem; font-weight: 800; letter-spacing: 2px;"></span>
+					</div>
+
+					<!-- STEP 1: Enter Email -->
+					<div id="stepEmail" class="email-step">
+						<form id="sendOtpForm" novalidate>
+							<div class="form-group">
+								<label class="form-label" for="verifyEmailInput">Email Address</label>
+								<div class="input-wrap">
+									<input class="form-input" type="email" id="verifyEmailInput" placeholder="name@organisation.com" required />
+									<span class="input-icon" aria-hidden="true">&#9993;</span>
+								</div>
+							</div>
+							<button class="button button-primary button-full" type="submit" id="btnSendOtp" style="margin-top: 1rem; width: 100%; border-radius: 8px;">
+								<span>Send 6-Digit OTP</span> &#8594;
+							</button>
+						</form>
+					</div>
+
+					<!-- STEP 2: Enter 6-Digit OTP -->
+					<div id="stepOtp" class="otp-step hidden-step">
+						<p style="text-align: center; color: var(--muted); font-size: 0.95rem;">
+							We sent a 6-digit code to <strong id="sentEmailDisplay" style="color: var(--ink);"></strong>.
+							<button type="button" class="resend-btn" id="btnEditEmail" style="margin-left: 0.3rem;">Edit</button>
+						</p>
+
+						<form id="verifyOtpForm" novalidate>
+							<div class="otp-inputs">
+								<input type="text" class="otp-field" maxlength="1" pattern="[0-9]" inputmode="numeric" required />
+								<input type="text" class="otp-field" maxlength="1" pattern="[0-9]" inputmode="numeric" required />
+								<input type="text" class="otp-field" maxlength="1" pattern="[0-9]" inputmode="numeric" required />
+								<input type="text" class="otp-field" maxlength="1" pattern="[0-9]" inputmode="numeric" required />
+								<input type="text" class="otp-field" maxlength="1" pattern="[0-9]" inputmode="numeric" required />
+								<input type="text" class="otp-field" maxlength="1" pattern="[0-9]" inputmode="numeric" required />
+							</div>
+
+							<button class="button button-primary button-full" type="submit" id="btnVerifyOtp" style="width: 100%; border-radius: 8px; font-size: 1.05rem;">
+								<span>Verify &amp; Proceed to Account Setup</span> &#8594;
+							</button>
+						</form>
+
+						<div style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--muted);">
+							Didn't receive the code?
+							<button type="button" class="resend-btn" id="btnResendOtp">Resend OTP</button>
+							<span id="timerCountdown" style="margin-left: 0.3rem; font-weight: 600;">(60s)</span>
+						</div>
+					</div>
+				</div>
+			</main>
+
+			<div id="footer"></div>
+		</div>
+
+		<script src="js/include.js?v=12"></script>
+		<script src="js/auth.js?v=12"></script>
+		<script src="js/script.js?v=12"></script>
+		<script>
+			document.addEventListener("DOMContentLoaded", () => {
+				const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
+					? "http://127.0.0.1:8001/api/organizers"
+					: "/api/organizers";
+
+				const stepEmail = document.getElementById("stepEmail");
+				const stepOtp = document.getElementById("stepOtp");
+				const sendOtpForm = document.getElementById("sendOtpForm");
+				const verifyOtpForm = document.getElementById("verifyOtpForm");
+				const emailInput = document.getElementById("verifyEmailInput");
+				const sentEmailDisplay = document.getElementById("sentEmailDisplay");
+				const devOtpBanner = document.getElementById("devOtpBanner");
+				const devOtpValue = document.getElementById("devOtpValue");
+				const verifyAlert = document.getElementById("verifyAlert");
+				const alertMessage = document.getElementById("alertMessage");
+				const btnResendOtp = document.getElementById("btnResendOtp");
+				const timerCountdown = document.getElementById("timerCountdown");
+				const btnEditEmail = document.getElementById("btnEditEmail");
+				const otpFields = document.querySelectorAll(".otp-field");
+
+				let resendTimer = null;
+				let countdownSecs = 60;
+				let currentEmail = "";
+
+				const currentUser = window.JodAuth ? window.JodAuth.getUser() : null;
+
+				function showAlert(msg, type = "error") {
+					verifyAlert.style.display = "block";
+					if (type === "error") {
+						verifyAlert.style.background = "#fef2f2";
+						verifyAlert.style.color = "#991b1b";
+						verifyAlert.style.border = "1px solid #fecaca";
+					} else {
+						verifyAlert.style.background = "#f0fdf4";
+						verifyAlert.style.color = "#166534";
+						verifyAlert.style.border = "1px solid #bbf7d0";
+					}
+					alertMessage.textContent = msg;
+				}
+
+				function hideAlert() {
+					verifyAlert.style.display = "none";
+				}
+
+				function startCountdown() {
+					btnResendOtp.disabled = true;
+					countdownSecs = 60;
+					timerCountdown.style.display = "inline";
+					timerCountdown.textContent = `(${countdownSecs}s)`;
+
+					if (resendTimer) clearInterval(resendTimer);
+					resendTimer = setInterval(() => {
+						countdownSecs--;
+						timerCountdown.textContent = `(${countdownSecs}s)`;
+						if (countdownSecs <= 0) {
+							clearInterval(resendTimer);
+							btnResendOtp.disabled = false;
+							timerCountdown.style.display = "none";
+						}
+					}, 1000);
+				}
+
+				if (typeof window.updateNavAuth === "function") {
+					window.updateNavAuth();
+				}
+				if (window.includesReady) {
+					window.includesReady.then(() => {
+						if (typeof window.updateNavAuth === "function") {
+							window.updateNavAuth();
+						}
+					});
+				}
+
+				// Pre-fill email from logged-in user, URL param, or localStorage
+				const urlParams = new URLSearchParams(window.location.search);
+				if (currentUser && currentUser.email) {
+					emailInput.value = currentUser.email;
+					emailInput.readOnly = true;
+					emailInput.style.backgroundColor = "#f8fafc";
+				} else if (urlParams.get("email")) {
+					emailInput.value = urlParams.get("email");
+				} else if (localStorage.getItem("user_email")) {
+					emailInput.value = localStorage.getItem("user_email");
+				}
+
+				// Send OTP
+				sendOtpForm.addEventListener("submit", async (e) => {
+					e.preventDefault();
+					hideAlert();
+					const email = emailInput.value.trim();
+					if (!email) {
+						showAlert("Please enter a valid email address.");
+						return;
+					}
+
+					currentEmail = email;
+
+					try {
+						const res = await fetch(`${API_BASE}/send-otp`, {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ email })
+						});
+						const data = await res.json();
+						if (!res.ok) throw new Error(data.detail || "Failed to send OTP.");
+
+						// Display Dev OTP if present
+						if (data.dev_otp) {
+							devOtpBanner.style.display = "block";
+							devOtpValue.textContent = data.dev_otp;
+						} else {
+							devOtpBanner.style.display = "none";
+						}
+
+						sentEmailDisplay.textContent = email;
+						stepEmail.classList.add("hidden-step");
+						stepOtp.classList.remove("hidden-step");
+						showAlert(`6-digit code sent to ${email}`, "success");
+						startCountdown();
+						otpFields[0].focus();
+					} catch (err) {
+						showAlert(err.message || "Failed to send verification code.");
+					}
+				});
+
+				// Edit email
+				btnEditEmail.addEventListener("click", () => {
+					stepOtp.classList.add("hidden-step");
+					stepEmail.classList.remove("hidden-step");
+					devOtpBanner.style.display = "none";
+					hideAlert();
+				});
+
+				// Resend OTP
+				btnResendOtp.addEventListener("click", async () => {
+					if (btnResendOtp.disabled) return;
+					sendOtpForm.dispatchEvent(new Event("submit"));
+				});
+
+				// OTP input auto-advance & paste handler
+				otpFields.forEach((field, index) => {
+					field.addEventListener("input", (e) => {
+						const val = e.target.value;
+						if (val.length === 1 && index < otpFields.length - 1) {
+							otpFields[index + 1].focus();
+						}
+						// Check if all 6 fields are filled -> submit
+						const allOtp = Array.from(otpFields).map(f => f.value).join("");
+						if (allOtp.length === 6) {
+							verifyOtpForm.dispatchEvent(new Event("submit"));
+						}
+					});
+
+					field.addEventListener("keydown", (e) => {
+						if (e.key === "Backspace" && !field.value && index > 0) {
+							otpFields[index - 1].focus();
+						}
+					});
+
+					field.addEventListener("paste", (e) => {
+						e.preventDefault();
+						const pasted = (e.clipboardData || window.clipboardData).getData("text").trim();
+						if (/^\d{6}$/.test(pasted)) {
+							pasted.split("").forEach((char, i) => {
+								if (otpFields[i]) otpFields[i].value = char;
+							});
+							otpFields[5].focus();
+							verifyOtpForm.dispatchEvent(new Event("submit"));
+						}
+					});
+				});
+
+				// Verify OTP
+				verifyOtpForm.addEventListener("submit", async (e) => {
+					e.preventDefault();
+					hideAlert();
+
+					const otp_code = Array.from(otpFields).map(f => f.value).join("");
+					if (otp_code.length !== 6) {
+						showAlert("Please enter all 6 digits of the OTP.");
+						return;
+					}
+
+					try {
+						const res = await fetch(`${API_BASE}/verify-otp`, {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ email: currentEmail, otp_code })
+						});
+						const data = await res.json();
+						if (!res.ok) throw new Error(data.detail || "Invalid OTP code.");
+
+						// Store verified email in sessionStorage (namespaced to logged-in user if available)
+						if (currentUser && currentUser.id) {
+							sessionStorage.setItem(`verified_organizer_${currentUser.id}`, currentEmail);
+						}
+						sessionStorage.setItem("verified_organizer_email", currentEmail);
+
+						if (data.is_completed) {
+							showAlert("Email verified! Welcome back. Redirecting to your Event Dashboard...", "success");
+							setTimeout(() => {
+								window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(currentEmail)}`;
+							}, 1200);
+						} else {
+							showAlert("Email verified successfully! Redirecting to Account Setup...", "success");
+							setTimeout(() => {
+								window.location.href = `account-setup.html?email=${encodeURIComponent(currentEmail)}`;
+							}, 1200);
+						}
+					} catch (err) {
+						showAlert(err.message || "Failed to verify OTP.");
+					}
+				});
+			});
+		</script>
+	</body>
+</html>

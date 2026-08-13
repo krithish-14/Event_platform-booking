@@ -1,0 +1,323 @@
+/* Account Setup Styling matching exact screenshot specifications */
+
+.setup-wrapper {
+	background-color: #f1f5f9;
+	min-height: calc(100vh - 120px);
+	padding: 6.5rem 1rem 4rem 1rem;
+	font-family: 'Grift', 'Outfit', system-ui, -apple-system, sans-serif;
+	color: #1e293b;
+}
+
+.setup-header-container {
+	max-width: 960px;
+	margin: 0 auto 2rem auto;
+	text-align: center;
+}
+
+.setup-header-container h1 {
+	font-size: 2.2rem;
+	font-weight: 700;
+	color: #0f172a;
+	margin-bottom: 0.5rem;
+}
+
+.setup-header-container p {
+	font-size: 0.95rem;
+	color: #64748b;
+	max-width: 720px;
+	margin: 0 auto;
+	line-height: 1.5;
+}
+
+/* Wizard Steps Navigation Bar */
+.setup-wizard-steps {
+	max-width: 960px;
+	margin: 0 auto 1.5rem auto;
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 1rem;
+	padding-bottom: 0.5rem;
+}
+
+.wizard-step {
+	padding: 0.75rem 0.5rem;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: #94a3b8;
+	border-bottom: 4px solid #cbd5e1;
+	text-align: left;
+	transition: all 0.2s ease;
+	cursor: pointer;
+}
+
+.wizard-step.active {
+	color: #2563eb;
+	border-bottom-color: #2563eb;
+}
+
+/* Card & Form Sections */
+.setup-card-container {
+	max-width: 960px;
+	margin: 0 auto;
+	background: #ffffff;
+	border-radius: 8px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+	padding: 1.8rem;
+}
+
+.setup-section-banner {
+	background-color: #eff6ff;
+	border-left: 4px solid #2563eb;
+	padding: 0.75rem 1.25rem;
+	margin: 1.5rem 0 1.25rem 0;
+	border-radius: 4px;
+}
+
+.setup-section-banner:first-child {
+	margin-top: 0.5rem;
+}
+
+.setup-section-banner h2 {
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: #1e3a8a;
+	margin: 0;
+}
+
+/* Form Grid */
+.setup-grid-2 {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 1.25rem;
+	margin-bottom: 1rem;
+}
+
+.setup-grid-3 {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 1.25rem;
+	margin-bottom: 1rem;
+}
+
+.setup-grid-full {
+	margin-bottom: 1rem;
+}
+
+.setup-form-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.setup-form-group label {
+	font-size: 0.88rem;
+	font-weight: 600;
+	color: #334155;
+}
+
+.info-icon {
+	display: inline-block;
+	width: 15px;
+	height: 15px;
+	border-radius: 50%;
+	border: 1px solid #94a3b8;
+	color: #64748b;
+	font-size: 0.7rem;
+	text-align: center;
+	line-height: 13px;
+	margin-left: 0.25rem;
+	cursor: help;
+}
+
+.setup-input, .setup-select, .setup-textarea {
+	width: 100%;
+	padding: 0.65rem 0.9rem;
+	font-size: 0.92rem;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	background-color: #ffffff;
+	color: #0f172a;
+	transition: border-color 0.2s, box-shadow 0.2s;
+	font-family: inherit;
+}
+
+.setup-textarea {
+	min-height: 80px;
+	resize: vertical;
+}
+
+.setup-input:focus, .setup-select:focus, .setup-textarea:focus {
+	outline: none;
+	border-color: #2563eb;
+	box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.setup-input::placeholder {
+	color: #94a3b8;
+}
+
+/* Radio & Checkbox Groups */
+.radio-group-inline {
+	display: flex;
+	align-items: center;
+	gap: 1.5rem;
+	margin-top: 0.25rem;
+}
+
+.radio-label, .checkbox-label {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.9rem;
+	font-weight: 500;
+	color: #334155;
+	cursor: pointer;
+}
+
+.radio-label input[type="radio"], .checkbox-label input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
+	accent-color: #2563eb;
+	cursor: pointer;
+}
+
+.undertaking-link {
+	color: #2563eb;
+	text-decoration: underline;
+}
+
+/* Step 2: File Upload Box Styles */
+.upload-dropzone {
+	background-color: #eff6ff;
+	border: 1.5px dashed #bfdbfe;
+	border-radius: 12px;
+	min-height: 160px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 1.5rem;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.upload-dropzone:hover, .upload-dropzone.dragover {
+	background-color: #dbeafe;
+	border-color: #2563eb;
+}
+
+.dropzone-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Footer Buttons */
+.setup-actions-bar {
+	max-width: 960px;
+	margin: 1.5rem auto 0 auto;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.right-action-btns {
+	display: flex;
+	gap: 1rem;
+}
+
+.btn-setup-back {
+	background-color: #ffffff;
+	border: 1px solid #2563eb;
+	color: #2563eb;
+	padding: 0.65rem 2.2rem;
+	border-radius: 6px;
+	font-weight: 600;
+	font-size: 0.92rem;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.btn-setup-back:hover {
+	background-color: #eff6ff;
+}
+
+.btn-setup-secondary {
+	background-color: #ffffff;
+	border: 1px solid #2563eb;
+	color: #2563eb;
+	padding: 0.65rem 1.8rem;
+	border-radius: 6px;
+	font-weight: 600;
+	font-size: 0.92rem;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.btn-setup-secondary:hover {
+	background-color: #eff6ff;
+}
+
+.btn-setup-primary {
+	background-color: #cbd5e1;
+	border: none;
+	color: #ffffff;
+	padding: 0.65rem 2.2rem;
+	border-radius: 6px;
+	font-weight: 600;
+	font-size: 0.92rem;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.btn-setup-primary.active-proceed,
+.btn-setup-primary:enabled {
+	background-color: #2563eb;
+	color: #ffffff;
+	cursor: pointer;
+}
+
+.btn-setup-primary.active-proceed:hover {
+	background-color: #1d4ed8;
+}
+
+/* Modal Styling */
+.doc-modal-backdrop {
+	position: fixed;
+	top: 0; left: 0; width: 100vw; height: 100vh;
+	background: rgba(15, 23, 42, 0.65);
+	backdrop-filter: blur(4px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 9999;
+}
+
+.doc-modal-card {
+	background: #ffffff;
+	border-radius: 12px;
+	max-width: 540px;
+	width: 90%;
+	padding: 1.8rem;
+	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+	position: relative;
+}
+
+.doc-modal-close {
+	position: absolute;
+	top: 1rem; right: 1.2rem;
+	background: none; border: none;
+	font-size: 1.5rem; color: #64748b;
+	cursor: pointer;
+}
+
+/* Responsive queries */
+@media (max-width: 768px) {
+	.setup-grid-2, .setup-grid-3 {
+		grid-template-columns: 1fr;
+	}
+	.setup-wizard-steps {
+		font-size: 0.8rem;
+	}
+}

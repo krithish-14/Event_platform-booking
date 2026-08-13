@@ -13,6 +13,9 @@ from APIs.users import router as users_router
 from APIs.location import router as location_router
 from APIs.bookings import router as bookings_router
 from APIs.tickets import router as tickets_router
+from APIs.organizers import router as organizers_router
+from APIs.forms import router as forms_router
+from APIs.host_events_api import router as host_events_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
@@ -66,11 +69,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Jinja2 Templates Integration ─────────────────────────────
+# ── Static Uploads & Jinja2 Templates ─────────────────────────
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.requests import Request
 from fastapi.responses import HTMLResponse
+
+uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
 templates_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "templates"))
@@ -81,12 +88,15 @@ templates = Jinja2Templates(directory=[templates_path, frontend_path])
 
 
 # ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(auth_router,     prefix="/api/auth",     tags=["Authentication"])
-app.include_router(events_router,   prefix="/api/events",   tags=["Events"])
-app.include_router(users_router,    prefix="/api/users",    tags=["Users"])
-app.include_router(location_router, prefix="/api/location", tags=["Location"])
-app.include_router(bookings_router, prefix="/api/bookings", tags=["Bookings"])
-app.include_router(tickets_router,  prefix="/api/tickets",  tags=["Tickets"])
+app.include_router(auth_router,        prefix="/api/auth",        tags=["Authentication"])
+app.include_router(events_router,      prefix="/api/events",      tags=["Events"])
+app.include_router(users_router,       prefix="/api/users",       tags=["Users"])
+app.include_router(location_router,    prefix="/api/location",    tags=["Location"])
+app.include_router(bookings_router,    prefix="/api/bookings",    tags=["Bookings"])
+app.include_router(tickets_router,     prefix="/api/tickets",     tags=["Tickets"])
+app.include_router(organizers_router,  prefix="/api/organizers",  tags=["Organizers"])
+app.include_router(host_events_router, prefix="/api/host-events", tags=["Host Events"])
+app.include_router(forms_router)
 
 
 

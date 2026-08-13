@@ -37,7 +37,7 @@ class Event(Base):
     is_published = Column(Boolean, default=False, nullable=True)
     is_cancelled = Column(Boolean, default=False, nullable=True)
     organizer_id = Column(GUID, ForeignKey("users.id"), nullable=True)
-    customer_id  = Column(String(50), ForeignKey("users.customer_id"), nullable=True, index=True)
+    customer_id  = Column(String(50), ForeignKey("users.customer_id", onupdate="CASCADE", ondelete="CASCADE"), nullable=True, index=True)
     created_at   = Column(DateTime, default=datetime.utcnow, nullable=True)
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
@@ -47,4 +47,4 @@ class Event(Base):
     bookings      = relationship("Booking", back_populates="event", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Event(id={self.id}, title={self.title})>"
+        return f"<Event(id={self.id}, title={self.title}, customer_id={self.customer_id})>"

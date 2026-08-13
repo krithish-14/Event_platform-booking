@@ -102,7 +102,7 @@ class EventResponse(BaseModel):
     terms: Optional[str] = None
     is_published: bool
     is_cancelled: bool
-    organizer_id: str
+    customer_id: str
     created_at: datetime
 
     class Config:
@@ -230,7 +230,7 @@ def create_new_event(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new event. Requires authentication."""
-    return create_event(db, payload, organizer_id=current_user.id)
+    return create_event(db, payload, customer_id=current_user.customer_id)
 
 
 @router.put("/{event_id}", response_model=EventResponse)
@@ -244,7 +244,7 @@ def update_existing_event(
     event = get_event_by_id(db, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
-    if str(event.organizer_id) != str(current_user.id) and not current_user.is_admin:
+    if event.customer_id != current_user.customer_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized.")
     return update_event(db, event, payload)
 
@@ -259,6 +259,6 @@ def delete_existing_event(
     event = get_event_by_id(db, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
-    if str(event.organizer_id) != str(current_user.id) and not current_user.is_admin:
+    if event.customer_id != current_user.customer_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized.")
     delete_event(db, event)

@@ -22,6 +22,9 @@
 			const target = document.getElementById(id);
 			if (!target) throw new Error(`Missing component target: #${id}`);
 			target.outerHTML = html;
+			if (id === "header" && typeof window.updateNavAuth === "function") {
+				try { window.updateNavAuth(); } catch (_) {}
+			}
 		});
 	}
 
@@ -100,6 +103,12 @@
 		if (window.JodSearch && typeof window.JodSearch.initSearch === "function") {
 			window.JodSearch.initSearch();
 		}
+		setTimeout(() => {
+			if (typeof window.updateNavAuth === "function") {
+				window.updateNavAuth();
+			}
+			window.dispatchEvent(new Event("includesLoaded"));
+		}, 0);
 	}).catch((error) => {
 		console.error(error);
 	});

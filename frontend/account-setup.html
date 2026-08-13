@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="description" content="Set up your organizer account and bank details on JOD Events to host and manage events." />
+		<title>Account Setup - JOD Events</title>
+		<link rel="stylesheet" href="css/style.css?v=13" />
+		<link rel="stylesheet" href="css/account-setup.css?v=13" />
+		<link rel="stylesheet" href="css/responsive.css?v=13" />
+	</head>
+	<body class="sub-page">
+		<div class="site-shell" id="top">
+			<div id="header"></div>
+
+			<main class="setup-wrapper">
+				<!-- Header Title & Subtitle -->
+				<div class="setup-header-container">
+					<h1>Account Setup</h1>
+					<p>Please fill in the below details so that we can setup an account for your organisation in our system and give you access to the Do-It-Yourself portal for listing your event.</p>
+				</div>
+
+				<!-- 3 Step Wizard Bar -->
+				<div class="setup-wizard-steps" role="navigation" aria-label="Account setup progress">
+					<div class="wizard-step active" id="tabStep1">
+						1. General Information
+					</div>
+					<div class="wizard-step" id="tabStep2">
+						2. Upload documents
+					</div>
+					<div class="wizard-step" id="tabStep3">
+						3. Sign agreement
+					</div>
+				</div>
+
+				<!-- Alert Banner -->
+				<div id="setupAlert" class="container" style="display:none; max-width:960px; margin-bottom:1rem;">
+					<div id="setupAlertContent" style="padding:0.9rem 1.2rem; border-radius:6px; font-size:0.95rem; font-weight:500;"></div>
+				</div>
+
+				<!-- Form Main Card -->
+				<div class="setup-card-container">
+					<form id="accountSetupForm" novalidate>
+
+						<!-- ── STEP 1: General Information & Bank Details ─────────────────────── -->
+						<div id="step1Section" class="setup-step-section">
+							<!-- 1. Organisation Details -->
+							<div class="setup-section-banner">
+								<h2>Organisation Details</h2>
+							</div>
+
+							<div class="setup-grid-2">
+								<div class="setup-form-group">
+									<label for="orgName">Organisation/Individual Name <span class="info-icon" title="Legal name of organisation or individual">i</span></label>
+									<input type="text" id="orgName" name="org_name" class="setup-input" placeholder="Enter organisation or individual name" required />
+								</div>
+								<div class="setup-form-group">
+									<label for="panNumber">Organisation/Individual PAN card number</label>
+									<input type="text" id="panNumber" name="pan_number" class="setup-input" placeholder="Enter PAN card number" maxlength="10" style="text-transform: uppercase;" required />
+								</div>
+							</div>
+
+							<div class="setup-grid-full">
+								<div class="setup-form-group">
+									<label for="orgAddress">Organisation/Individual Address <span class="info-icon" title="Registered office address">i</span></label>
+									<textarea id="orgAddress" name="org_address" class="setup-textarea" placeholder="Enter organisation or individual address" required></textarea>
+								</div>
+							</div>
+
+							<div class="setup-grid-2" style="align-items: center;">
+								<div class="setup-form-group">
+									<label>Do you have a GSTIN number?</label>
+									<div class="radio-group-inline">
+										<label class="radio-label">
+											<input type="radio" name="has_gstin" value="yes" id="gstinYes" /> Yes
+										</label>
+										<label class="radio-label">
+											<input type="radio" name="has_gstin" value="no" id="gstinNo" checked /> No
+										</label>
+									</div>
+								</div>
+								<div class="setup-form-group">
+									<label class="checkbox-label" style="margin-top: 1.2rem;">
+										<input type="checkbox" id="acceptUndertaking" name="accepted_undertaking" checked required />
+										<span>I have read and accept the <a href="terms-and-conditions.html" class="undertaking-link" target="_blank">undertaking</a></span>
+									</label>
+								</div>
+							</div>
+
+							<!-- Dynamic GSTIN Input Container -->
+							<div id="gstinContainer" style="display: none; margin-bottom: 1.25rem; padding: 1.25rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+								<div id="gstinRows">
+									<div class="setup-grid-2 gstin-row" style="margin-bottom: 0.75rem;">
+										<div class="setup-form-group">
+											<label>GSTIN Number</label>
+											<input type="text" class="setup-input gstin-num-input" placeholder="Enter your GSTIN Number" maxlength="15" style="text-transform: uppercase;" />
+										</div>
+										<div class="setup-form-group">
+											<label>State</label>
+											<input type="text" class="setup-input gstin-state-input" placeholder="State" />
+										</div>
+									</div>
+								</div>
+								<button type="button" id="btnAddGstinRow" style="background: none; border: none; color: #2563eb; font-weight: 600; font-size: 0.95rem; cursor: pointer; padding: 0.4rem 0;">
+									+Add another GSTIN number
+								</button>
+							</div>
+
+							<div class="setup-grid-2" style="align-items: center; margin-top: 0.5rem;">
+								<div class="setup-form-group">
+									<label>Have you filled last 2 years ITR return?</label>
+									<div class="radio-group-inline">
+										<label class="radio-label">
+											<input type="radio" name="itr_filed" value="yes" /> Yes
+										</label>
+										<label class="radio-label">
+											<input type="radio" name="itr_filed" value="no" checked /> No
+										</label>
+									</div>
+								</div>
+								<div class="setup-form-group">
+									<label for="stateSelect">State</label>
+									<select id="stateSelect" name="state" class="setup-select" required>
+										<option value="Tamil Nadu" selected>Tamil Nadu</option>
+										<option value="Maharashtra">Maharashtra</option>
+										<option value="Karnataka">Karnataka</option>
+										<option value="Delhi">Delhi</option>
+										<option value="Telangana">Telangana</option>
+										<option value="Gujarat">Gujarat</option>
+										<option value="Kerala">Kerala</option>
+										<option value="West Bengal">West Bengal</option>
+										<option value="Uttar Pradesh">Uttar Pradesh</option>
+									</select>
+								</div>
+							</div>
+
+							<!-- 2. Contact Person Details -->
+							<div class="setup-section-banner">
+								<h2>Contact Person Details</h2>
+							</div>
+
+							<div class="setup-grid-3">
+								<div class="setup-form-group">
+									<label for="contactFullName">Full Name</label>
+									<input type="text" id="contactFullName" name="contact_full_name" class="setup-input" placeholder="Enter your full name" required />
+								</div>
+								<div class="setup-form-group">
+									<label for="contactEmail">Email address</label>
+									<input type="email" id="contactEmail" name="contact_email" class="setup-input" placeholder="Enter your email address" required readonly style="background-color: #f8fafc;" />
+								</div>
+								<div class="setup-form-group">
+									<label for="contactMobile">Mobile Number</label>
+									<input type="tel" id="contactMobile" name="contact_mobile" class="setup-input" placeholder="e.g. 9876543210" maxlength="10" pattern="[0-9]{10}" required />
+								</div>
+							</div>
+
+							<!-- 3. Bank Details -->
+							<div class="setup-section-banner">
+								<h2>Bank details</h2>
+							</div>
+
+							<div class="setup-grid-2">
+								<div class="setup-form-group">
+									<label for="beneficiaryName">Beneficiary Name</label>
+									<input type="text" id="beneficiaryName" name="beneficiary_name" class="setup-input" placeholder="Enter Beneficiary Name" required />
+								</div>
+								<div class="setup-form-group">
+									<label for="accountType">Account Type</label>
+									<select id="accountType" name="account_type" class="setup-select" required>
+										<option value="" disabled selected>Select a account type</option>
+										<option value="Savings">Savings Account</option>
+										<option value="Current">Current Account</option>
+									</select>
+								</div>
+							</div>
+
+							<div class="setup-grid-3">
+								<div class="setup-form-group">
+									<label for="bankName">Bank Name</label>
+									<select id="bankName" name="bank_name" class="setup-select" required>
+										<option value="" disabled selected>Select bank name</option>
+										<option value="HDFC Bank">HDFC Bank</option>
+										<option value="State Bank of India">State Bank of India (SBI)</option>
+										<option value="ICICI Bank">ICICI Bank</option>
+										<option value="Axis Bank">Axis Bank</option>
+										<option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+										<option value="Punjab National Bank">Punjab National Bank</option>
+										<option value="Bank of Baroda">Bank of Baroda</option>
+										<option value="Canara Bank">Canara Bank</option>
+										<option value="Other">Other Bank</option>
+									</select>
+								</div>
+								<div class="setup-form-group">
+									<label for="accountNumber">Account Number</label>
+									<input type="text" id="accountNumber" name="account_number" class="setup-input" placeholder="Enter account number" required />
+								</div>
+								<div class="setup-form-group">
+									<label for="bankIfsc">Bank IFSC</label>
+									<input type="text" id="bankIfsc" name="bank_ifsc" class="setup-input" placeholder="Enter Bank IFSC" maxlength="11" style="text-transform: uppercase;" required />
+								</div>
+							</div>
+						</div>
+
+						<!-- ── STEP 2: Upload Documents Section (Matching User Image) ──────────── -->
+						<div id="step2Section" class="setup-step-section" style="display: none;">
+							<!-- Rules Card -->
+							<div class="upload-rules-card" style="margin-bottom: 2rem; font-size: 0.95rem; color: #334155; line-height: 1.6;">
+								<p style="font-weight: 600; margin-bottom: 0.4rem; color: #0f172a;">Please make sure that:</p>
+								<ul style="margin: 0; padding-left: 1.2rem; list-style-type: disc;">
+									<li>Upload a clear image in .jpg or .pdf format only.</li>
+									<li>File size should not be greater than 2mb.</li>
+								</ul>
+							</div>
+
+							<!-- Upload Dropzones Grid -->
+							<div class="setup-grid-2" style="gap: 2.5rem; margin-top: 1.5rem;">
+
+								<!-- 1. Upload PAN card -->
+								<div class="upload-box-card">
+									<div class="upload-box-header" style="display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.8rem;">
+										<h3 style="font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0;">Upload PAN card</h3>
+										<a href="#" class="view-example-link" id="linkViewPanExample" style="font-size: 0.88rem; color: #2563eb; text-decoration: none;">View example</a>
+									</div>
+									<div class="upload-dropzone" id="panDropzone" tabindex="0" role="button" aria-label="Upload PAN card">
+										<input type="file" id="panFileInput" accept=".jpg,.jpeg,.png,.pdf" style="display: none;" />
+										<div class="dropzone-content" id="panDropzoneContent">
+											<div class="upload-icon-wrap" style="color: #2563eb; font-size: 1.8rem; margin-bottom: 0.3rem;">
+												<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+											</div>
+											<span style="color: #2563eb; font-weight: 600; font-size: 0.95rem;">Upload</span>
+										</div>
+										<div class="dropzone-preview" id="panDropzonePreview" style="display: none; width: 100%; text-align: center;">
+											<div style="font-weight: 600; color: #1e293b; font-size: 0.95rem; margin-bottom: 0.4rem; word-break: break-all;" id="panFileName"></div>
+											<button type="button" class="btn-clear-file" id="btnClearPanFile" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.3rem 0.8rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Remove file</button>
+										</div>
+									</div>
+								</div>
+
+								<!-- 2. Upload Cancelled Cheque -->
+								<div class="upload-box-card">
+									<div class="upload-box-header" style="display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.8rem;">
+										<h3 style="font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0;">Upload Cancelled Cheque</h3>
+										<a href="#" class="view-example-link" id="linkViewChequeExample" style="font-size: 0.88rem; color: #2563eb; text-decoration: none;">View example</a>
+									</div>
+									<div class="upload-dropzone" id="chequeDropzone" tabindex="0" role="button" aria-label="Upload Cancelled Cheque">
+										<input type="file" id="chequeFileInput" accept=".jpg,.jpeg,.png,.pdf" style="display: none;" />
+										<div class="dropzone-content" id="chequeDropzoneContent">
+											<div class="upload-icon-wrap" style="color: #2563eb; font-size: 1.8rem; margin-bottom: 0.3rem;">
+												<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+											</div>
+											<span style="color: #2563eb; font-weight: 600; font-size: 0.95rem;">Upload</span>
+										</div>
+										<div class="dropzone-preview" id="chequeDropzonePreview" style="display: none; width: 100%; text-align: center;">
+											<div style="font-weight: 600; color: #1e293b; font-size: 0.95rem; margin-bottom: 0.4rem; word-break: break-all;" id="chequeFileName"></div>
+											<button type="button" class="btn-clear-file" id="btnClearChequeFile" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.3rem 0.8rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Remove file</button>
+										</div>
+									</div>
+								</div>
+
+							</div>
+						</div>
+
+						<!-- ── STEP 3: Sign Agreement Section ─────────────────────────────────── -->
+						<div id="step3Section" class="setup-step-section" style="display: none;">
+							<div class="setup-section-banner">
+								<h2>Sign Partner Agreement</h2>
+							</div>
+							<div style="padding: 1.5rem; text-align: center;">
+								<p style="font-size: 1.05rem; color: #334155; margin-bottom: 1.5rem;">
+									You are almost done! Click below to review and sign the digital event hosting agreement.
+								</p>
+								<div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 8px; max-width: 600px; margin: 0 auto; text-align: left;">
+									<h4 style="margin-top: 0;">JOD Events Hosting Agreement</h4>
+									<p style="font-size: 0.9rem; color: #64748b;">
+										By proceeding, you certify that all information provided (Organisation details, Bank details, and uploaded documents) are true and accurate.
+									</p>
+									<label class="checkbox-label" style="margin-top: 1rem;">
+										<input type="checkbox" id="acceptFinalAgreement" checked />
+										<span>I agree to all terms and digital signature policies.</span>
+									</label>
+								</div>
+							</div>
+						</div>
+
+					</form>
+				</div>
+
+				<!-- Bottom Action Buttons matching screenshot -->
+				<div class="setup-actions-bar">
+					<button type="button" class="btn-setup-back" id="btnBack" style="display: none;">Back</button>
+					<div class="right-action-btns">
+						<button type="button" class="btn-setup-secondary" id="btnSaveDetails">Save details</button>
+						<button type="button" class="btn-setup-primary active-proceed" id="btnProceed">Proceed</button>
+					</div>
+				</div>
+			</main>
+
+			<div id="footer"></div>
+		</div>
+
+		<!-- Document Example Modal -->
+		<div id="exampleModalBackdrop" class="doc-modal-backdrop" style="display: none;">
+			<div class="doc-modal-card">
+				<button class="doc-modal-close" id="btnCloseExampleModal" type="button">&times;</button>
+				<h3 id="exampleModalTitle" style="font-size: 1.2rem; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 1rem;">Document Example</h3>
+				<div id="exampleModalBody" style="text-align: center;">
+					<img id="exampleModalImg" src="" alt="Document example" style="max-width: 100%; border-radius: 8px; border: 1px solid #cbd5e1;" />
+				</div>
+			</div>
+		</div>
+
+		<script src="js/include.js?v=13"></script>
+		<script src="js/auth.js?v=13"></script>
+		<script src="js/script.js?v=13"></script>
+                <script src="js/account-setup.js?v=14"></script>
+	</body>
+</html>

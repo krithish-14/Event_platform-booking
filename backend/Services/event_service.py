@@ -64,9 +64,9 @@ def get_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
     return db.query(Event).filter(or_(Event.id == event_id, Event.id == str(event_id))).first()
 
 
-def create_event(db: Session, payload, organizer_id: UUID) -> Event:
+def create_event(db: Session, payload, customer_id: str) -> Event:
     """Persist a new event to the database."""
-    event = Event(**payload.model_dump(), organizer_id=organizer_id)
+    event = Event(**payload.model_dump(), customer_id=customer_id)
     db.add(event)
     db.commit()
     db.refresh(event)

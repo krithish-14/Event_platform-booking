@@ -255,25 +255,144 @@
 	requestAnimationFrame(loop);
 })();
 
-(window.includesReady || Promise.resolve()).then(() => {
+// ── Global Navigation Auth State Manager ──────────────────────
+(function initGlobalNavAuth() {
 	"use strict";
 
-	/* ── Auth state in header ──────────────────────────────── */
-	const Auth = window.JodAuth || {
-		isLoggedIn: () => false,
-		getUser: () => null,
-		logout: async () => {},
+	const DefaultAuth = {
+		getToken: () => {
+			if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
+				return window.JodAuth.getToken();
+			}
+			try {
+				let tok = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token");
+				if (tok === "null" || tok === "undefined") tok = null;
+				return tok || null;
+			} catch (_) { return null; }
+		},
+		getUser: () => {
+			if (window.JodAuth && typeof window.JodAuth.getUser === "function") {
+				return window.JodAuth.getUser();
+			}
+			try {
+				const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+				if (raw && raw !== "null" && raw !== "undefined") {
+					const parsed = JSON.parse(raw);
+					if (parsed && typeof parsed === "object") return parsed;
+				}
+				const email = sessionStorage.getItem("verified_organizer_email");
+				if (email) return { email, username: email.split("@")[0], full_name: email.split("@")[0] };
+				return null;
+			} catch (_) { return null; }
+		},
+		isLoggedIn: () => {
+			if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function") {
+				return window.JodAuth.isLoggedIn();
+			}
+			try {
+				const user = DefaultAuth.getUser();
+				const token = DefaultAuth.getToken();
+				return Boolean(user || token || sessionStorage.getItem("verified_organizer_email"));
+			} catch (_) { return false; }
+		},
+		logout: async () => {
+			if (window.JodAuth && typeof window.JodAuth.logout === "function") {
+				return window.JodAuth.logout();
+			}
+			try {
+				localStorage.clear();
+				sessionStorage.clear();
+			} catch (_) {}
+		}
 	};
+
+	async function onLogoutClick(e) {
+		if (e && e.preventDefault) e.preventDefault();
+		const auth = window.JodAuth || DefaultAuth;
+		console.log("[Auth Debug] User initiated logout from page:", window.location.pathname);
+		try {
+			if (auth.logout) await auth.logout();
+			else DefaultAuth.logout();
+		} catch (_) {
+			DefaultAuth.logout();
+		}
+		applyAuthVisibility(false);
+		window.location.href = "index.html";
+	}
+
+	function applyAuthVisibility(authenticatedOverride) {
+		const auth = window.JodAuth || DefaultAuth;
+		const isAuth = typeof authenticatedOverride === "boolean"
+			? authenticatedOverride
+			: (auth.isLoggedIn && auth.isLoggedIn());
+		const body = document.body;
+		if (!body) return;
+		
+		const currentUser = auth.getUser ? auth.getUser() : null;
+		console.log("[Auth Debug] Initialization & Visibility Evaluation:", {
+			pathname: window.location.pathname,
+			is_authenticated: isAuth,
+			user_id: currentUser?.id || "N/A",
+			email: currentUser?.email || "N/A",
+			token_present: Boolean(auth.getToken ? auth.getToken() : localStorage.getItem("jod_access_token")),
+			body_data_user: isAuth ? "authenticated" : "guest"
+		});
+
+		body.setAttribute("data-user", isAuth ? "authenticated" : "guest");
+		body.classList.add("is-auth-ready");
+
+		if (body.classList.contains("sub-page")) {
+			const bar = document.querySelector(".announcement-bar");
+			if (bar) bar.style.setProperty("display", "none", "important");
+		}
+	}
 
 	function updateNavAuth() {
 		const desktopGroup = document.querySelector(".nav-auth");
 		const mobileGroup = document.querySelector(".mobile-auth-group");
 		if (!desktopGroup && !mobileGroup) return;
 
-		if (Auth.isLoggedIn()) {
+		const auth = window.JodAuth || DefaultAuth;
+		const loggedIn = auth.isLoggedIn ? auth.isLoggedIn() : false;
+
+		if (loggedIn) {
 			if (window.JodProfile) {
 				if (desktopGroup) window.JodProfile.renderProfileWidget(desktopGroup);
 				if (mobileGroup) window.JodProfile.renderMobileAuthGroup(mobileGroup);
+			} else {
+				const user = auth.getUser() || {};
+				const displayName = user.full_name || user.username || (user.email ? user.email.split("@")[0] : "Account");
+				const initials = (displayName || "?").slice(0, 2).toUpperCase();
+
+				if (desktopGroup) {
+					desktopGroup.innerHTML = `
+						<div class="auth-user-block" style="display:flex;align-items:center;gap:.75rem;">
+							<div class="user-avatar" title="${displayName}" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;letter-spacing:.02em;box-shadow:0 2px 8px rgba(255,117,8,0.3);">${initials}</div>
+							<div style="line-height:1.2;">
+								<div style="font-size:.85rem;font-weight:700;color:#ffffff;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}</div>
+								<button id="nav-logout-btn" type="button" style="background:none;border:0;padding:0;color:#ff7508;font-weight:600;font-size:.78rem;cursor:pointer;">Logout</button>
+							</div>
+						</div>`;
+					const btn = desktopGroup.querySelector("#nav-logout-btn");
+					if (btn) btn.addEventListener("click", onLogoutClick);
+				}
+
+				if (mobileGroup) {
+					mobileGroup.innerHTML = `
+						<div style="padding:1rem .5rem .5rem;">
+							<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem;">
+								<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${initials}</div>
+								<div style="line-height:1.15;">
+									<div style="font-weight:600;color:#ffffff;">${displayName}</div>
+									<div style="font-size:.75rem;color:#94a3b8;">${user.email || ""}</div>
+								</div>
+							</div>
+							<button class="button button-login" id="mobile-logout-btn" type="button" style="width:100%;background:#fef2e6;color:#ff7508;border:1px solid #ffcd9a;">Logout</button>
+						</div>`;
+					const btn = mobileGroup.querySelector("#mobile-logout-btn");
+					if (btn) btn.addEventListener("click", onLogoutClick);
+				}
+			}
 			}
 		} else {
 			if (desktopGroup && !desktopGroup.querySelector("#nav-login-btn")) {
@@ -289,23 +408,10 @@
 		}
 	}
 
-	async function onLogoutClick(e) {
-		e.preventDefault();
-		try { await Auth.logout(); } catch (_) {}
-		applyAuthVisibility(false);
-		window.location.href = "index.html";
-	}
+	window.updateNavAuth = updateNavAuth;
+	window.applyAuthVisibility = applyAuthVisibility;
 
-	function applyAuthVisibility(authenticatedOverride) {
-		const isAuth = typeof authenticatedOverride === "boolean"
-			? authenticatedOverride
-			: (Auth.isLoggedIn && Auth.isLoggedIn());
-		const body = document.body;
-		if (!body) return;
-		body.setAttribute("data-user", isAuth ? "authenticated" : "guest");
-		body.classList.add("is-auth-ready");
-	}
-
+	// Execute immediately
 	applyAuthVisibility();
 	updateNavAuth();
 
@@ -320,6 +426,31 @@
 			window.JodLocation.applyCachedRecommendations();
 		}
 	}
+
+	// Listen to DOM events
+	window.addEventListener("DOMContentLoaded", () => { applyAuthVisibility(); updateNavAuth(); });
+	window.addEventListener("load", () => { applyAuthVisibility(); updateNavAuth(); });
+	window.addEventListener("includesLoaded", () => { applyAuthVisibility(); updateNavAuth(); });
+
+	// MutationObserver: whenever header component is injected, instantly transform auth navigation
+	try {
+		const observer = new MutationObserver(() => {
+			const desktopGroup = document.querySelector(".nav-auth");
+			const mobileGroup = document.querySelector(".mobile-auth-group");
+			if (desktopGroup || mobileGroup) {
+				const auth = window.JodAuth || DefaultAuth;
+				if (auth.isLoggedIn() && !document.querySelector(".auth-user-block")) {
+					updateNavAuth();
+					applyAuthVisibility(true);
+				}
+			}
+		});
+		observer.observe(document.documentElement, { childList: true, subtree: true });
+	} catch (_) {}
+})();
+
+(window.includesReady || Promise.resolve()).then(() => {
+	"use strict";
 
 	const pad = (value) => String(value).padStart(2, "0");
 
@@ -612,4 +743,86 @@
 	}
 
 	document.querySelectorAll("[data-category-carousel]").forEach(initCategoryCarousel);
+
+	/* ── Host Your Event - Card Modal ──────────────────────── */
+	const HOST_ICON_SVGS = {
+		performances: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="40" r="10"></circle><path d="M42 14 L42 44"></path><path d="M42 44 C42 44 44 20 54 18"></path><path d="M49 18 C50 22 47 24 42 24"></path><path d="M30 22 L30 36"></path><path d="M32 24 L32 34"></path><circle cx="24" cy="40" r="3"></circle></svg>`,
+		experiences: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 52 L16 34 L24 26 L24 52 Z"></path><path d="M28 52 L28 38 L36 30 L36 52 Z"></path><path d="M40 52 L40 42 L48 34 L48 52 Z"></path><path d="M10 52 L54 52"></path><path d="M20 20 C20 17 22 15 24 15 C26 15 27 16 28 18 C29 16 30 15 32 15 C34 15 36 17 36 20"></path><path d="M22 10 C23 8 25 7 27 8 C29 9 29 11 28 12"></path><path d="M36 10 C37 8 39 7 41 8 C43 9 43 11 42 12"></path></svg>`,
+		expositions: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12 L20 52 L48 52 L48 12 Z"></path><path d="M20 12 L34 12 L34 52"></path><path d="M48 12 L34 12"></path><path d="M44 18 L26 18"></path><path d="M44 24 L26 24"></path><path d="M44 30 L26 30"></path><path d="M44 36 L26 36"></path><path d="M44 42 L26 42"></path><path d="M16 56 L52 56"></path><path d="M18 52 L18 56"></path><path d="M50 52 L50 56"></path></svg>`,
+		parties: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="36" r="18"></circle><path d="M32 18 L32 8"></path><path d="M30 10 C30 10 32 14 34 10"></path><path d="M46 22 L52 16"></path><path d="M50 18 C51 20 49 21 48 20"></path><path d="M18 22 L12 16"></path><path d="M14 18 C15 20 13 21 12 20"></path><path d="M52 40 L60 36"></path><path d="M56 38 C57 40 55 41 54 40"></path><circle cx="26" cy="32" r="2"></circle><circle cx="38" cy="32" r="2"></circle><path d="M24 40 C24 44 30 48 32 44 C34 48 40 44 40 40"></path><path d="M32 54 L32 58"></path></svg>`,
+		sports: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="14" width="36" height="36" rx="4"></rect><path d="M14 32 L50 32"></path><circle cx="32" cy="32" r="8"></circle><path d="M32 14 L32 24"></path><path d="M32 40 L32 50"></path><circle cx="28" cy="30" r="2" fill="currentColor"></circle><circle cx="36" cy="34" r="2" fill="currentColor"></circle></svg>`,
+		conferences: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M32 10 C32 10 22 16 22 26 C22 32 26 36 32 36 C38 36 42 32 42 26 C42 16 32 10 32 10 Z"></path><circle cx="32" cy="50" r="6"></circle><path d="M32 36 L32 44"></path><path d="M22 48 C22 48 18 42 18 38"></path><path d="M42 48 C42 48 46 42 46 38"></path><path d="M14 54 L22 48"></path><path d="M50 54 L42 48"></path></svg>`,
+		"sales-marketing": `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M32 54 L32 22"></path><path d="M22 32 C22 32 28 42 32 42 C36 42 42 32 42 32"></path><path d="M16 22 C16 22 22 38 32 38 C42 38 48 22 48 22"></path><path d="M32 6 L32 14"></path><path d="M26 10 C28 12 28 14 32 14 C36 14 36 12 38 10"></path><path d="M24 52 L40 52 L38 58 L26 58 Z"></path></svg>`,
+		pricing: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="10" width="32" height="40" rx="4"></rect><path d="M46 22 L54 18 L54 42 L46 38"></path><path d="M22 20 L22 24"></path><path d="M30 20 L30 24"></path><path d="M38 20 L38 24"></path><path d="M20 30 L40 30"></path><path d="M20 30 C20 24 26 20 30 24 C34 28 28 34 28 34"></path><path d="M28 40 L38 40"></path></svg>`,
+		"food-beverages": `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 42 C10 34 16 32 22 32 L42 32 C48 32 54 34 54 42 L54 56 L10 56 Z"></path><path d="M16 32 L16 26 C16 20 20 16 26 16 C28 16 30 17 32 18"></path><path d="M42 12 L42 28"></path><path d="M42 12 C42 12 36 12 36 18 C36 22 40 24 42 24"></path><path d="M42 24 C44 24 48 22 48 18 C48 12 42 12 42 12"></path><path d="M42 32 L42 28"></path><path d="M22 46 L42 46"></path><path d="M10 60 L54 60"></path></svg>`,
+		"on-ground": `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 18 C22 14 26 10 32 10 C38 10 42 14 42 18 C42 22 38 26 32 26 C26 26 22 22 22 18 Z"></path><path d="M20 54 L20 42 C20 36 24 34 32 34 C40 34 44 36 44 42 L44 54"></path><path d="M14 58 L50 58"></path><path d="M10 38 L14 40 L20 32"></path><path d="M8 46 L14 44 L20 50"></path><path d="M54 38 L50 40 L44 32"></path><path d="M56 46 L50 44 L44 50"></path></svg>`,
+		reports: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="10" width="40" height="44" rx="3"></rect><path d="M20 44 L20 30"></path><path d="M28 44 L28 22"></path><path d="M36 44 L36 34"></path><path d="M44 44 L44 18"></path><path d="M18 50 L46 50"></path></svg>`,
+		"pos-rfid": `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="18" y="14" width="20" height="34" rx="4"></rect><path d="M24 22 L24 26"></path><path d="M32 22 L32 26"></path><path d="M22 34 L34 34"></path><path d="M22 40 L34 40"></path><path d="M38 32 C44 32 52 30 52 24 C52 18 44 18 44 22"></path><path d="M48 28 C50 30 50 32 48 34"></path></svg>`
+	};
+
+	const EXAMPLE_ICON_SVGS = [
+		`<svg viewBox="0 0 32 32"><path d="M6 26 L6 14 L14 8 L14 26 Z"/><path d="M16 26 L16 18 L22 14 L22 26 Z"/><path d="M24 26 L24 20 L28 17 L28 26 Z"/><path d="M4 28 L30 28"/></svg>`,
+		`<svg viewBox="0 0 32 32"><rect x="8" y="8" width="16" height="20" rx="2"/><path d="M8 8 L16 8 L16 28"/><path d="M11 13 L21 13"/><path d="M11 17 L21 17"/><path d="M11 21 L21 21"/></svg>`,
+		`<svg viewBox="0 0 32 32"><circle cx="16" cy="18" r="8"/><path d="M16 10 L16 6"/><path d="M8 10 L5 7"/><path d="M24 10 L27 7"/></svg>`
+	];
+
+	function buildExampleItems(examplesStr) {
+		const examples = examplesStr ? examplesStr.split(",").map((s) => s.trim()).filter(Boolean) : [];
+		if (examples.length === 0) return "";
+		return examples.slice(0, 3).map((label, idx) => {
+			const svg = EXAMPLE_ICON_SVGS[idx % EXAMPLE_ICON_SVGS.length];
+			return `<div class="host-example-item">${svg}<span>${label}</span></div>`;
+		}).join("");
+	}
+
+	const hostModal = document.querySelector("[data-host-modal]");
+	const hostModalTitle = document.querySelector("[data-host-modal-title]");
+	const hostModalDescription = document.querySelector("[data-host-modal-description]");
+	const hostModalIcon = document.querySelector("[data-host-modal-icon]");
+	const hostModalExamples = document.querySelector("[data-host-modal-examples]");
+
+	function openHostModal(card) {
+		if (!hostModal) return;
+		const title = card.dataset.title || "";
+		const description = card.dataset.description || "";
+		const iconKey = card.dataset.icon || "";
+		const examples = card.dataset.examples || "";
+
+		if (hostModalTitle) hostModalTitle.textContent = title;
+		if (hostModalDescription) hostModalDescription.textContent = description;
+		if (hostModalIcon) {
+			const svg = HOST_ICON_SVGS[iconKey] || "";
+			hostModalIcon.innerHTML = svg;
+		}
+		if (hostModalExamples) {
+			hostModalExamples.innerHTML = buildExampleItems(examples);
+		}
+
+		hostModal.hidden = false;
+		document.body.classList.add("modal-open");
+	}
+
+	function closeHostModal() {
+		if (!hostModal) return;
+		hostModal.hidden = true;
+		document.body.classList.remove("modal-open");
+	}
+
+	document.querySelectorAll("[data-host-card]").forEach((card) => {
+		card.addEventListener("click", () => openHostModal(card));
+		card.addEventListener("keydown", (e) => {
+			if (e.key === "Enter" || e.key === " ") {
+				e.preventDefault();
+				openHostModal(card);
+			}
+		});
+	});
+
+	hostModal?.querySelectorAll("[data-host-modal-close]").forEach((btn) => {
+		btn.addEventListener("click", closeHostModal);
+	});
+
+	document.addEventListener("keydown", (e) => {
+		if (e.key === "Escape" && hostModal && !hostModal.hidden) closeHostModal();
+	});
 });

@@ -701,7 +701,3 @@ def create_tables():
     _sync_databases()
     _seed_demo_events()
 
-
-
-
-

@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="Host your events with JOD Events. List performances, conferences, weddings, expositions, parties, sports and more with end-to-end event management solutions." />
+	<title>Host Your Event | JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=16" />
+	<link rel="stylesheet" href="css/responsive.css?v=16" />
+</head>
+<body class="sub-page host-page">
+	<!-- ── Splash Screen ──────────────────────────────────── -->
+	<div class="splash-screen" id="splashScreen">
+		<div class="splash-bg">
+			<div class="splash-orb orb-1"></div>
+			<div class="splash-orb orb-2"></div>
+			<div class="splash-orb orb-3"></div>
+		</div>
+		<div class="splash-content">
+			<div class="splash-logo-wrap">
+				<div class="splash-logo-ring"></div>
+				<img class="splash-logo" src="images/JOD Events Logo.png" alt="JOD Events" />
+			</div>
+			<div class="splash-text">
+				<h1 class="splash-title">JOD Events</h1>
+				<p class="splash-tagline">Creating Experiences That People Remember</p>
+			</div>
+		</div>
+	</div>
+
+	<!-- ── Background Canvas ──────────────────────────────── -->
+	<canvas class="bg-canvas" id="bgCanvas"></canvas>
+	<div class="bg-gradient-layer"></div>
+
+	<!-- ── Site Shell ─────────────────────────────────────── -->
+	<div class="site-shell" id="top">
+		<div id="header"></div>
+
+		<main>
+			<!-- ── Hero ────────────────────────────────────── -->
+			<section class="policy-hero host-hero section-dark" aria-labelledby="host-hero-title">
+				<div class="glow-layer"></div>
+				<div class="container policy-hero-content host-hero-content">
+					<span class="pill pill-dark">&#10024; Partner With Us</span>
+					<h1 id="host-hero-title">Ready to list your event? <em>We handle the rest.</em></h1>
+					<p>From corporate conferences and music gigs to weddings and sports tournaments — JOD Events enables your event with end-to-end solutions from the moment you register to the final closing applause.</p>
+					<div class="button-row host-hero-cta">
+						<a class="button button-primary" href="account-setup.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();}">List Your Event Now <span aria-hidden="true">&#8594;</span></a>
+						<a class="button button-outline-light" href="#what-can-you-host">Explore Categories</a>
+					</div>
+				</div>
+			</section>
+
+			<!-- ── What can you host ───────────────────────── -->
+			<section class="section host-cards-section" id="what-can-you-host" aria-labelledby="host-cat-title">
+				<div class="container">
+					<div class="section-heading">
+						<span class="pill pill-light-orange">&#10024; Event Categories</span>
+						<h2 id="host-cat-title">What can you <em>host?</em></h2>
+						<p>As your full-service event partner, we enable every type of event — from intimate performances to city-scale expositions. Click any category to learn more.</p>
+					</div>
+					<div class="host-card-grid host-card-grid-blue">
+						<article class="host-card reveal" tabindex="0" data-host-card
+							data-icon="performances"
+							data-title="Performances"
+							data-description="Get everything from a music gig to a theatrical performance, comedy shows, dance recitals and live artist showcases."
+							data-examples="Live Concerts,Stand-Up Comedy,Theatre Shows,Dance Recitals">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<circle cx="24" cy="40" r="10"></circle>
+									<path d="M42 14 L42 44"></path>
+									<path d="M42 44 C42 44 44 20 54 18"></path>
+									<path d="M49 18 C50 22 47 24 42 24"></path>
+									<path d="M30 22 L30 36"></path>
+									<path d="M32 24 L32 34"></path>
+									<circle cx="24" cy="40" r="3"></circle>
+								</svg>
+							</div>
+							<h3>Performances</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal reveal-delay-1" tabindex="0" data-host-card
+							data-icon="experiences"
+							data-title="Experiences"
+							data-description="Immersive themed experiences, pop-ups, heritage walks, adventure camps, workshops and curated lifestyle events."
+							data-examples="Themed Pop-Ups,Heritage Walks,Adventure Camps,Workshops">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M16 52 L16 34 L24 26 L24 52 Z"></path>
+									<path d="M28 52 L28 38 L36 30 L36 52 Z"></path>
+									<path d="M40 52 L40 42 L48 34 L48 52 Z"></path>
+									<path d="M10 52 L54 52"></path>
+									<path d="M20 20 C20 17 22 15 24 15 C26 15 27 16 28 18 C29 16 30 15 32 15 C34 15 36 17 36 20"></path>
+									<path d="M22 10 C23 8 25 7 27 8 C29 9 29 11 28 12"></path>
+									<path d="M36 10 C37 8 39 7 41 8 C43 9 43 11 42 12"></path>
+								</svg>
+							</div>
+							<h3>Experiences</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal reveal-delay-2" tabindex="0" data-host-card
+							data-icon="expositions"
+							data-title="Expositions"
+							data-description="Trade shows, art exhibitions, product expos, career fairs, consumer mela and large-scale B2B / B2C exhibitions."
+							data-examples="Trade Shows,Art Exhibitions,Product Expos,Career Fairs">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M20 12 L20 52 L48 52 L48 12 Z"></path>
+									<path d="M20 12 L34 12 L34 52"></path>
+									<path d="M48 12 L34 12"></path>
+									<path d="M44 18 L26 18"></path>
+									<path d="M44 24 L26 24"></path>
+									<path d="M44 30 L26 30"></path>
+									<path d="M44 36 L26 36"></path>
+									<path d="M44 42 L26 42"></path>
+									<path d="M16 56 L52 56"></path>
+									<path d="M18 52 L18 56"></path>
+									<path d="M50 52 L50 56"></path>
+								</svg>
+							</div>
+							<h3>Expositions</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal reveal-delay-3" tabindex="0" data-host-card
+							data-icon="parties"
+							data-title="Parties"
+							data-description="Birthday celebrations, anniversaries, private social gatherings, kitty parties, themed nights and New Year / festival bashes."
+							data-examples="Birthday Parties,Anniversaries,Kitty Parties,Themed Nights">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<circle cx="32" cy="36" r="18"></circle>
+									<path d="M32 18 L32 8"></path>
+									<path d="M30 10 C30 10 32 14 34 10"></path>
+									<path d="M46 22 L52 16"></path>
+									<path d="M50 18 C51 20 49 21 48 20"></path>
+									<path d="M18 22 L12 16"></path>
+									<path d="M14 18 C15 20 13 21 12 20"></path>
+									<path d="M52 40 L60 36"></path>
+									<path d="M56 38 C57 40 55 41 54 40"></path>
+									<circle cx="26" cy="32" r="2"></circle>
+									<circle cx="38" cy="32" r="2"></circle>
+									<path d="M24 40 C24 44 30 48 32 44 C34 48 40 44 40 40"></path>
+									<path d="M32 54 L32 58"></path>
+								</svg>
+							</div>
+							<h3>Parties</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal" tabindex="0" data-host-card
+							data-icon="sports"
+							data-title="Sports"
+							data-description="Corporate tournaments, inter-college leagues, marathon runs, esports events and professional / amateur sports meets."
+							data-examples="Corporate Tournaments,College Leagues,Marathons,Esports">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="14" y="14" width="36" height="36" rx="4"></rect>
+									<path d="M14 32 L50 32"></path>
+									<circle cx="32" cy="32" r="8"></circle>
+									<path d="M32 14 L32 24"></path>
+									<path d="M32 40 L32 50"></path>
+									<circle cx="28" cy="30" r="2" fill="currentColor"></circle>
+									<circle cx="36" cy="34" r="2" fill="currentColor"></circle>
+								</svg>
+							</div>
+							<h3>Sports</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal reveal-delay-1" tabindex="0" data-host-card
+							data-icon="conferences"
+							data-title="Conferences"
+							data-description="Corporate summits, annual general meetings, industry conferences, tech symposiums and keynote speaker forums."
+							data-examples="Corporate Summits,AGMs,Industry Conferences,Tech Symposiums">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M32 10 C32 10 22 16 22 26 C22 32 26 36 32 36 C38 36 42 32 42 26 C42 16 32 10 32 10 Z"></path>
+									<circle cx="32" cy="50" r="6"></circle>
+									<path d="M32 36 L32 44"></path>
+									<path d="M22 48 C22 48 18 42 18 38"></path>
+									<path d="M42 48 C42 48 46 42 46 38"></path>
+									<path d="M14 54 L22 48"></path>
+									<path d="M50 54 L42 48"></path>
+								</svg>
+							</div>
+							<h3>Conferences</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+					</div>
+					<div class="host-section-cta">
+						<a class="button button-primary" href="account-setup.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();}">List Your Show <span aria-hidden="true">&#8594;</span></a>
+					</div>
+				</div>
+			</section>
+
+			<!-- ── Services we offer ───────────────────────── -->
+			<section class="section host-cards-section host-services-section" id="services-offer" aria-labelledby="services-offer-title">
+				<div class="container">
+					<div class="section-heading">
+						<span class="pill pill-light-orange">&#10024; Our Services</span>
+						<h2 id="services-offer-title">What are the services <em>we offer?</em></h2>
+						<p>After successful collaborations with the best event organisers over the past decade and a half, we're well equipped to bring your vision to life.</p>
+					</div>
+					<div class="host-card-grid host-card-grid-pink">
+						<article class="host-card reveal" tabindex="0" data-host-card
+							data-icon="sales-marketing"
+							data-title="Online Sales & Marketing"
+							data-description="Reach the right audiences with our digital marketing engine — targeted campaigns, SEO, social media promotions, influencer outreach and conversion-optimised listing pages."
+							data-examples="Social Campaigns,SEO,Influencer Outreach,Email Marketing"
+							data-service="true">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M32 54 L32 22"></path>
+									<path d="M22 32 C22 32 28 42 32 42 C36 42 42 32 42 32"></path>
+									<path d="M16 22 C16 22 22 38 32 38 C42 38 48 22 48 22"></path>
+									<path d="M32 6 L32 14"></path>
+									<path d="M26 10 C28 12 28 14 32 14 C36 14 36 12 38 10"></path>
+									<path d="M24 52 L40 52 L38 58 L26 58 Z"></path>
+								</svg>
+							</div>
+							<h3>Online Sales &amp; Marketing</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal reveal-delay-1" tabindex="0" data-host-card
+							data-icon="pricing"
+							data-title="Pricing"
+							data-description="Smart pricing strategies with demand-based tiers, group discounts, early-bird offers, coupon management and revenue-maximising configurations."
+							data-examples="Dynamic Pricing,Early-Bird Offers,Group Discounts,Coupons"
+							data-service="true">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="14" y="10" width="32" height="40" rx="4"></rect>
+									<path d="M46 22 L54 18 L54 42 L46 38"></path>
+									<path d="M22 20 L22 24"></path>
+									<path d="M30 20 L30 24"></path>
+									<path d="M38 20 L38 24"></path>
+									<path d="M20 30 L40 30"></path>
+									<path d="M20 30 C20 24 26 20 30 24 C34 28 28 34 28 34"></path>
+									<path d="M28 40 L38 40"></path>
+								</svg>
+							</div>
+							<h3>Pricing</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal reveal-delay-2" tabindex="0" data-host-card
+							data-icon="food-beverages"
+							data-title="Food &amp; Beverages"
+							data-description="Curated F&amp;B solutions — multi-cuisine catering, food courts, beverage stalls, themed kiosks and vendor coordination with hygiene-first standards."
+							data-examples="Multi-Cuisine Catering,Food Courts,Beverage Stalls,Kiosks"
+							data-service="true">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M10 42 C10 34 16 32 22 32 L42 32 C48 32 54 34 54 42 L54 56 L10 56 Z"></path>
+									<path d="M16 32 L16 26 C16 20 20 16 26 16 C28 16 30 17 32 18"></path>
+									<path d="M42 12 L42 28"></path>
+									<path d="M42 12 C42 12 36 12 36 18 C36 22 40 24 42 24"></path>
+									<path d="M42 24 C44 24 48 22 48 18 C48 12 42 12 42 12"></path>
+									<path d="M42 32 L42 28"></path>
+									<path d="M22 46 L42 46"></path>
+									<path d="M10 60 L54 60"></path>
+								</svg>
+							</div>
+							<h3>Food &amp; beverages, stalls and the works!</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal reveal-delay-3" tabindex="0" data-host-card
+							data-icon="on-ground"
+							data-title="On-Ground Support"
+							data-description="Dedicated on-ground event team, crowd management, gate entry controls, ushering, first-response setup and end-to-end execution support."
+							data-examples="Event Crew,Crowd Management,Gate Entry,Ushers"
+							data-service="true">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M22 18 C22 14 26 10 32 10 C38 10 42 14 42 18 C42 22 38 26 32 26 C26 26 22 22 22 18 Z"></path>
+									<path d="M20 54 L20 42 C20 36 24 34 32 34 C40 34 44 36 44 42 L44 54"></path>
+									<path d="M14 58 L50 58"></path>
+									<path d="M10 38 L14 40 L20 32"></path>
+									<path d="M8 46 L14 44 L20 50"></path>
+									<path d="M54 38 L50 40 L44 32"></path>
+									<path d="M56 46 L50 44 L44 50"></path>
+								</svg>
+							</div>
+							<h3>On ground support &amp; gate entry management</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal" tabindex="0" data-host-card
+							data-icon="reports"
+							data-title="Reports &amp; Insights"
+							data-description="Live dashboards, attendance analytics, ticket sales breakdowns, audience demographics, revenue reports and actionable business insights."
+							data-examples="Live Dashboards,Attendance Analytics,Sales Breakdown,Demographics"
+							data-service="true">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="12" y="10" width="40" height="44" rx="3"></rect>
+									<path d="M20 44 L20 30"></path>
+									<path d="M28 44 L28 22"></path>
+									<path d="M36 44 L36 34"></path>
+									<path d="M44 44 L44 18"></path>
+									<path d="M18 50 L46 50"></path>
+								</svg>
+							</div>
+							<h3>Reports &amp; business insights</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+						<article class="host-card reveal reveal-delay-1" tabindex="0" data-host-card
+							data-icon="pos-rfid"
+							data-title="POS, RFID &amp; More"
+							data-description="Point-of-sale systems, contactless RFID wristbands, turnstile access gates, QR scanning, cashless payments and access control hardware."
+							data-examples="POS Systems,RFID Wristbands,Turnstiles,QR Scanning"
+							data-service="true">
+							<div class="host-card-icon">
+								<svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="18" y="14" width="20" height="34" rx="4"></rect>
+									<path d="M24 22 L24 26"></path>
+									<path d="M32 22 L32 26"></path>
+									<path d="M22 34 L34 34"></path>
+									<path d="M22 40 L34 40"></path>
+									<path d="M38 32 C44 32 52 30 52 24 C52 18 44 18 44 22"></path>
+									<path d="M48 28 C50 30 50 32 48 34"></path>
+								</svg>
+							</div>
+							<h3>POS, RFID, Turnstiles &amp; more…</h3>
+							<span class="host-info-btn" aria-label="More info"><span>i</span></span>
+						</article>
+					</div>
+					<p class="host-services-note">Apart from these must-haves for any event, we also support a host of other services like SEO for your event, custom pricing for your tickets, vendor coordination, licensing, stage production, AV setup and more.</p>
+					<div class="host-section-cta">
+						<a class="button button-primary" href="account-setup.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();}">List Your Show <span aria-hidden="true">&#8594;</span></a>
+					</div>
+				</div>
+			</section>
+
+			<!-- ── Final CTA ───────────────────────────────── -->
+			<section class="section section-dark final-cta host-final-cta" id="contact-host">
+				<div class="glow-layer"></div>
+				<div class="container narrow">
+					<div class="pill pill-dark">&#10024; Ready when you are</div>
+					<h2>Your event listing starts <em>with one click.</em></h2>
+					<p>Whether you're planning a music gig, a corporate summit, a grand wedding or a sports tournament — JOD Events is ready to power your event from ticket sales to the closing applause.</p>
+					<div class="button-row centered">
+						<a class="button button-primary" href="account-setup.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();}">List Your Event Now <span aria-hidden="true">&#8594;</span></a>
+						<a class="button button-outline-light" href="tel:+910000000000">&#9742; Talk to Our Team</a>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div id="footer"></div>
+	</div>
+
+	<!-- ── Host Card Modal ───────────────────────────────── -->
+	<div class="host-modal-backdrop" data-host-modal hidden>
+		<button class="host-modal-close-backdrop" type="button" aria-label="Close details" data-host-modal-close></button>
+		<div class="host-modal" role="dialog" aria-modal="true" aria-labelledby="host-modal-title">
+			<button class="host-modal-close" type="button" aria-label="Close" data-host-modal-close>&times;</button>
+			<div class="host-modal-body">
+				<div class="host-modal-icon" data-host-modal-icon></div>
+				<h2 id="host-modal-title" data-host-modal-title></h2>
+				<p data-host-modal-description></p>
+				<div class="host-modal-examples">
+					<h4>Get listed among these</h4>
+					<div class="host-examples-row" data-host-modal-examples></div>
+				</div>
+				<div class="host-modal-cta">
+					<a class="button button-primary" href="account-setup.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();}"" data-host-modal-close>List Your Show <span aria-hidden="true">&#8594;</span></a>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script src="js/include.js?v=11"></script>
+	<script src="js/auth.js?v=11"></script>
+	<script src="js/script.js?v=14"></script>
+</body>
+</html>

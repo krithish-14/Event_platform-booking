@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Volunteer QR Scanner &amp; Ticket Verification | JOD Events</title>
+		<link rel="stylesheet" href="css/style.css" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css" />
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+		<style>
+			body {
+				background-color: #0f172a;
+				color: #ffffff;
+				font-family: 'Inter', sans-serif;
+				min-height: 100vh;
+				display: flex;
+				flex-direction: column;
+				margin: 0;
+			}
+			.scanner-card {
+				background: #1e293b;
+				border: 1px solid #334155;
+				border-radius: 16px;
+				padding: 2rem;
+				max-width: 540px;
+				width: 100%;
+				margin: 2rem auto;
+				box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+			}
+			.viewfinder {
+				position: relative;
+				width: 100%;
+				height: 280px;
+				background: #020617;
+				border-radius: 12px;
+				overflow: hidden;
+				border: 2px solid #2563eb;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				margin: 1.5rem 0;
+			}
+			.scan-box {
+				position: absolute;
+				width: 180px;
+				height: 180px;
+				border: 3px dashed #10b981;
+				border-radius: 16px;
+				box-shadow: 0 0 0 9999px rgba(0,0,0,0.6);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Header -->
+		<header style="background: #1e293b; border-bottom: 1px solid #334155; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between;">
+			<div style="display: flex; align-items: center; gap: 0.8rem;">
+				<div style="width: 10px; height: 10px; background: #10b981; border-radius: 50%;"></div>
+				<h2 style="font-size: 1.1rem; font-weight: 800; color: #ffffff; margin: 0;">Event Day Gate Scanner Portal</h2>
+			</div>
+			<span id="gateBadge" style="background: #2563eb; color: #ffffff; padding: 0.3rem 0.8rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem;">
+				Assigned Gate: Gate 1 (Main Entrance)
+			</span>
+		</header>
+
+		<!-- Main Content -->
+		<main style="flex: 1; padding: 1.5rem; display: flex; flex-direction: column; align-items: center;">
+			
+			<div class="scanner-card">
+				<div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 1rem; margin-bottom: 1rem;">
+					<div>
+						<h3 style="font-size: 1.2rem; font-weight: 800; color: #ffffff; margin-bottom: 0.2rem;">Attendee Ticket Verification</h3>
+						<p style="font-size: 0.82rem; color: #94a3b8; margin: 0;">Restricted Scanner Session • Scans directly sync with Host Event Day Operations</p>
+					</div>
+					<div style="text-align: right;">
+						<span style="font-size: 0.75rem; color: #94a3b8;">Scanned Today</span>
+						<h4 id="scannedCount" style="font-size: 1.3rem; font-weight: 800; color: #10b981; margin: 0;">0</h4>
+					</div>
+				</div>
+
+				<!-- Viewfinder Area -->
+				<div class="viewfinder">
+					<div class="scan-box">
+						<span style="font-size: 0.72rem; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(0,0,0,0.7); padding: 0.2rem 0.5rem; border-radius: 4px;">Point Camera at QR</span>
+					</div>
+				</div>
+
+				<!-- Manual Code Input Fallback -->
+				<div style="display: flex; gap: 0.5rem; margin-bottom: 1.2rem;">
+					<input type="text" id="volQrInput" class="setup-input" placeholder="Or type QR Ticket Code (e.g. TICKET-98742)..." style="background: #0f172a; border-color: #334155; color: #ffffff; padding-left: 0.9rem;" />
+					<button type="button" id="btnVolVerify" class="publish-gradient-btn" style="padding: 0 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem;">Verify</button>
+				</div>
+
+				<!-- Result Overlay -->
+				<div id="volScanResult" style="display: none; padding: 1rem; border-radius: 10px; font-size: 0.9rem; line-height: 1.4; margin-bottom: 1.2rem;"></div>
+
+				<!-- Simulation Controls -->
+				<div style="display: flex; gap: 0.8rem; border-top: 1px solid #334155; padding-top: 1.2rem;">
+					<button type="button" id="btnVolSimValid" style="flex: 1; background: #10b981; color: #ffffff; border: none; padding: 0.7rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer;">
+						Simulate Valid Entry
+					</button>
+					<button type="button" id="btnVolSimDuplicate" style="flex: 1; background: #ef4444; color: #ffffff; border: none; padding: 0.7rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer;">
+						Simulate Duplicate Alert
+					</button>
+				</div>
+			</div>
+
+		</main>
+
+		<script>
+			// Extract url parameters
+			const urlParams = new URLSearchParams(window.location.search);
+			const gate = urlParams.get('gate');
+			const code = urlParams.get('code');
+			
+			if (gate) {
+				document.getElementById('gateBadge').textContent = `Assigned Gate: ${gate}`;
+			}
+
+			let count = 0;
+			const scannedCount = document.getElementById('scannedCount');
+			const volScanResult = document.getElementById('volScanResult');
+
+			function showSuccess(attendee, tier, ticketCode) {
+				count++;
+				scannedCount.textContent = count;
+				volScanResult.style.display = 'block';
+				volScanResult.style.background = '#064e3b';
+				volScanResult.style.border = '1px solid #059669';
+				volScanResult.style.color = '#a7f3d0';
+				volScanResult.innerHTML = `
+					<strong>VALID ENTRY ALLOWED</strong><br />
+					Attendee: <strong>${attendee}</strong><br />
+					Access Tier: <strong>${tier}</strong><br />
+					Ticket ID: ${ticketCode} • Verified at ${new Date().toLocaleTimeString()}
+				`;
+			}
+
+			function showDuplicate(attendee, ticketCode) {
+				volScanResult.style.display = 'block';
+				volScanResult.style.background = '#7f1d1d';
+				volScanResult.style.border = '1px solid #dc2626';
+				volScanResult.style.color = '#fecaca';
+				volScanResult.innerHTML = `
+					<strong>ENTRY DENIED — DUPLICATE TICKET!</strong><br />
+					Attendee: <strong>${attendee}</strong><br />
+					Ticket ID: ${ticketCode}<br />
+					Warning: Already checked in earlier at Gate 1!
+				`;
+			}
+
+			document.getElementById('btnVolSimValid').addEventListener('click', () => {
+				showSuccess('Demo Attendee', 'VIP Pass Tier', 'TICKET-DEMO-VIP');
+			});
+
+			document.getElementById('btnVolSimDuplicate').addEventListener('click', () => {
+				showDuplicate('Ananya Sharma', 'TICKET-55412-GEN');
+			});
+
+			document.getElementById('btnVolVerify').addEventListener('click', () => {
+				const val = document.getElementById('volQrInput').value.trim();
+				if (!val) return alert('Please enter a ticket code');
+				showSuccess('Verified Attendee', 'General Pass', val);
+			});
+		</script>
+	</body>
+</html>

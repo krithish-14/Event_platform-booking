@@ -1,0 +1,2038 @@
+{
+  "email_otps": {
+    "row_count": 12,
+    "pks": [
+      "id"
+    ],
+    "fks": [],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "otp_code",
+        "type": "character varying(6)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamp without time zone",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "is_verified",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_attendance_checkins": {
+    "row_count": 0,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      },
+      {
+        "col": "registration_id",
+        "target_table": "event_registrations",
+        "target_col": "id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "registration_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "attendee_name",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "attendee_email",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "scan_method",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_communications": {
+    "row_count": 0,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "audience",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "channel",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "subject",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "message",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "attachment_url",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "schedule_date",
+        "type": "date",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "schedule_time",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "delivery_status",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "failed_reason",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_design": {
+    "row_count": 0,
+    "pks": [
+      "design_id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "design_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "banner_image",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "logo",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "theme_color",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "font",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "gallery_images",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "about_event",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "highlights",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "speaker_details",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "sponsor_details",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "social_links",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "custom_sections",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_entry_gates": {
+    "row_count": 0,
+    "pks": [
+      "gate_id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "gate_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "gate_name",
+        "type": "character varying(150)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "gate_code",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "gate_description",
+        "type": "character varying(300)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_management": {
+    "row_count": 3,
+    "pks": [
+      "event_id"
+    ],
+    "fks": [
+      {
+        "col": "customer_id",
+        "target_table": "users",
+        "target_col": "customer_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "event_title",
+        "type": "character varying(300)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_category",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "event_type",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "event_mode",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "event_start_date",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "event_end_date",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "event_start_time",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "event_end_time",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "venue",
+        "type": "character varying(300)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "address",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "organizer_name",
+        "type": "character varying(200)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "organizer_email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "organizer_phone",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "event_status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "tickets_json",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "agenda_json",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_registration_forms": {
+    "row_count": 0,
+    "pks": [
+      "form_id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "form_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "form_json",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "questions_json",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "required_fields",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "field_order",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "settings_json",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "published",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_registration_settings": {
+    "row_count": 0,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "registration_status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "registration_start_date",
+        "type": "date",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "registration_end_date",
+        "type": "date",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "max_capacity",
+        "type": "integer",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "allow_waitlist",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "approval_required",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "registration_type",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "auto_confirmation",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "confirmation_email",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "cancellation_policy",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_registration_tickets": {
+    "row_count": 0,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      },
+      {
+        "col": "settings_id",
+        "target_table": "event_registration_settings",
+        "target_col": "id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "settings_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "ticket_name",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "ticket_type",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "price",
+        "type": "double precision",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "quantity",
+        "type": "integer",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "sales_start",
+        "type": "date",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "sales_end",
+        "type": "date",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "available_seats",
+        "type": "integer",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_registrations": {
+    "row_count": 0,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      },
+      {
+        "col": "ticket_id",
+        "target_table": "event_registration_tickets",
+        "target_col": "id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "ticket_id",
+        "type": "uuid",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "attendee_name",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "attendee_email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "attendee_phone",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "registration_number",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "payment_status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "checkin_status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "event_staff_scanners": {
+    "row_count": 0,
+    "pks": [
+      "scanner_id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      },
+      {
+        "col": "gate_id",
+        "target_table": "event_entry_gates",
+        "target_col": "gate_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "scanner_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "gate_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "passcode",
+        "type": "character varying(100)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "scans_processed",
+        "type": "integer",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "events": {
+    "row_count": 0,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "customer_id",
+        "target_table": "users",
+        "target_col": "customer_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "title",
+        "type": "character varying(300)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "location",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "venue",
+        "type": "character varying(300)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "category",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "image_url",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "start_date",
+        "type": "timestamp without time zone",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "end_date",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "price",
+        "type": "double precision",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "capacity",
+        "type": "integer",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "is_published",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "is_cancelled",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "exhibitors": {
+    "row_count": 0,
+    "pks": [
+      "exhibitor_id"
+    ],
+    "fks": [
+      {
+        "col": "event_id",
+        "target_table": "event_management",
+        "target_col": "event_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "exhibitor_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "company_name",
+        "type": "character varying(300)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "contact_name",
+        "type": "character varying(200)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "contact_email",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "contact_phone",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "website",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "logo_url",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "booth_number",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "booth_type",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "industry",
+        "type": "character varying(150)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "company_description",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "address",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "social_links",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "category",
+        "type": "character varying(150)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "package",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "form_definitions": {
+    "row_count": 2,
+    "pks": [
+      "id"
+    ],
+    "fks": [],
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": "NO",
+        "default": "nextval('form_definitions_id_seq'::regclass)"
+      },
+      {
+        "name": "organizer_email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "form_title",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "form_description",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "is_published",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "schema_json",
+        "type": "json",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "theme_json",
+        "type": "json",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "form_submissions": {
+    "row_count": 0,
+    "pks": [
+      "id"
+    ],
+    "fks": [],
+    "columns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": "NO",
+        "default": "nextval('form_submissions_id_seq'::regclass)"
+      },
+      {
+        "name": "form_id",
+        "type": "integer",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "event_id",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "user_email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "form_version",
+        "type": "integer",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "answers_json",
+        "type": "json",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "submission_time",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "host_registration_logs": {
+    "row_count": 0,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "customer_id",
+        "target_table": "users",
+        "target_col": "customer_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "org_name",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "action",
+        "type": "character varying(50)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "timestamp",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "organizer_accounts": {
+    "row_count": 2,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "customer_id",
+        "target_table": "users",
+        "target_col": "customer_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "org_name",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "pan_number",
+        "type": "character varying(20)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "org_address",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "has_gstin",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "accepted_undertaking",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "itr_filed",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "state",
+        "type": "character varying(100)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "contact_full_name",
+        "type": "character varying(200)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "contact_email",
+        "type": "character varying(255)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "contact_mobile",
+        "type": "character varying(20)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "beneficiary_name",
+        "type": "character varying(200)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "account_type",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "bank_name",
+        "type": "character varying(150)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "account_number",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "bank_ifsc",
+        "type": "character varying(20)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "gstin_number",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "pan_card_url",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "cancelled_cheque_url",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "host_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "user_logins": {
+    "row_count": 19,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "customer_id",
+        "target_table": "users",
+        "target_col": "customer_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "ip_address",
+        "type": "character varying(50)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "user_agent",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "login_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "user_signups": {
+    "row_count": 9,
+    "pks": [
+      "id"
+    ],
+    "fks": [
+      {
+        "col": "customer_id",
+        "target_table": "users",
+        "target_col": "customer_id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "username",
+        "type": "character varying(100)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "full_name",
+        "type": "character varying(200)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "signup_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "city",
+        "type": "character varying(150)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "location_pin",
+        "type": "character varying(20)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "latitude",
+        "type": "numeric",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "longitude",
+        "type": "numeric",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  },
+  "users": {
+    "row_count": 10,
+    "pks": [
+      "customer_id"
+    ],
+    "fks": [],
+    "columns": [
+      {
+        "name": "email",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "username",
+        "type": "character varying(100)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "full_name",
+        "type": "character varying(200)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "hashed_password",
+        "type": "character varying(255)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "bio",
+        "type": "text",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "avatar_url",
+        "type": "character varying(500)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "is_admin",
+        "type": "boolean",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp without time zone",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "character varying(50)",
+        "nullable": "NO",
+        "default": null
+      },
+      {
+        "name": "city",
+        "type": "character varying(150)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "location_pin",
+        "type": "character varying(20)",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "latitude",
+        "type": "numeric",
+        "nullable": "YES",
+        "default": null
+      },
+      {
+        "name": "longitude",
+        "type": "numeric",
+        "nullable": "YES",
+        "default": null
+      }
+    ]
+  }
+}
