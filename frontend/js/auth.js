@@ -75,12 +75,10 @@ window.JodAuth = (() => {
 			sessionStorage.removeItem("jod_access_token");
 			localStorage.removeItem("jod_user");
 			sessionStorage.removeItem("jod_user");
-<<<<<<< HEAD
 			sessionStorage.removeItem("verified_organizer_email");
 			Object.keys(sessionStorage).forEach((k) => {
 				if (k.startsWith("verified_organizer_")) sessionStorage.removeItem(k);
 			});
-=======
 			if (window.JodLocation && typeof window.JodLocation.clearLocationSession === "function") {
 				window.JodLocation.clearLocationSession();
 			} else {
@@ -108,7 +106,6 @@ window.JodAuth = (() => {
 					return target;
 				}
 			}
->>>>>>> origin/satheesh-feature
 		} catch (_) {}
 		return "index.html";
 	}
