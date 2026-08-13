@@ -453,7 +453,6 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
             
         # Record User Signup Audit Log for Google Auth
         try:
-            from backend.models import UserSignupLog
             signup_log = UserSignupLog(
                 customer_id=user.customer_id,
                 email=user.email,
@@ -462,7 +461,8 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
             )
             db.add(signup_log)
             db.commit()
-        except Exception:
+        except Exception as e:
+            print(f"Failed to record UserSignupLog: {e}")
             pass
 
         # Sync to backup SQLite database

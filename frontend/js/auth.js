@@ -753,6 +753,9 @@ window.JodAuth = (() => {
 		
 		try {
 			const res = await fetch(`${API_BASE}/api/auth/google/url`);
+			if (!res.ok) {
+				throw new Error("Backend rejected Google Auth URL generation");
+			}
 			const data = await res.json();
 			if (data.url) {
 				window.location.href = data.url;
@@ -761,7 +764,8 @@ window.JodAuth = (() => {
 			}
 		} catch (e) {
 			if (btn) btn.classList.remove("is-loading");
-			if (alertElement) showAlert(alertElement, "error", "Failed to start Google Auth. Check connection.");
+			console.warn("Falling back to Google Dev Modal:", e.message);
+			openGoogleDevModal(btn, alertElement);
 		}
 	}
 
