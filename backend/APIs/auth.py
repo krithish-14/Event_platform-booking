@@ -184,8 +184,6 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         full_name=payload.full_name.strip() if payload.full_name else None,
         hashed_password=get_password_hash(payload.password),
     )
-        hashed_password=get_password_hash(payload.password),
-    )
     try:
         db.add(user)
         db.commit()

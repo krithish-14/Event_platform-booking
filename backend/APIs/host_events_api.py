@@ -13,14 +13,14 @@ from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from Models.base import get_db
-from Models.user import User
-from Models.organizer import OrganizerAccount
-from Models.host_event import (
+from Models import (
+    get_db,
+    User,
+    OrganizerAccount,
     EventManagement,
     EventDesign,
     EventRegistrationForm,
-    EventRegistrationSettings,
+    EventRegistrationSetting as EventRegistrationSettings,
     EventRegistrationTicket,
     EventRegistration,
     EventCommunication,

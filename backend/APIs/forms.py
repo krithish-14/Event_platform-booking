@@ -9,8 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
-from Models.base import get_db
-from Models.form_builder import FormDefinition, FormSubmission
+from Models import get_db, FormDefinition, FormSubmission
 
 router = APIRouter(prefix="/api/forms", tags=["Dynamic Form Builder"])
 

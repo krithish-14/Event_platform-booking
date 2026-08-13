@@ -10,11 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
-from Models.base import get_db
-from Models.organizer import EmailOTP, OrganizerAccount
-
-from Models.user import User
-from Models.audit_logs import HostRegistrationLog
+from Models import get_db, EmailOTP, OrganizerAccount, User, HostRegistrationLog
 from Authentication.dependencies import get_current_user, get_current_user_optional
 
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
