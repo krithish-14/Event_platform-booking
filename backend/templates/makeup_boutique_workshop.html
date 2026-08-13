@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Book tickets for Makeup & Boutique Workshop on JOD Events Platform." />
+    <title>Makeup & Boutique Workshop — JOD Events</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap"
+        rel="stylesheet">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/css/style.css?v=15" />
+    <link rel="stylesheet" href="/css/event-details.css?v=3" />
+</head>
+
+<body class="event-details-page category-theme-workshop" id="eventBody">
+
+    <!-- Header Navigation -->
+    <div id="header"></div>
+
+    <main class="event-details-container" id="mainContent">
+        <!-- ── Title & Header Bar ─────────────────────────────────────────── -->
+        <div class="event-title-bar">
+            <div>
+                <h1 class="event-main-title" id="eventTitle">Makeup & Boutique Workshop</h1>
+                <div class="event-meta-top">
+                    <span id="headerVenue">📍 Express Avenue, Chennai</span>
+                    <span>•</span>
+                    <span id="headerCategory">💄 Workshop & Fashion</span>
+                </div>
+            </div>
+            <button class="btn-share" id="btnShare" type="button" onclick="copyEventShareLink()">
+                <span>🔗</span> Share Event
+            </button>
+        </div>
+
+        <!-- ── Main Grid Layout ───────────────────────────────────────────── -->
+        <div class="event-details-grid">
+
+            <!-- Left Column: Media, Description, Artists, Highlights, Terms -->
+            <div class="event-left-column">
+
+                <!-- Hero Banner Image & Overlay Badges -->
+                <div class="event-hero-banner">
+                    <img id="eventImage"
+                        src="/images/event-workshop.png"
+                        alt="Makeup & Boutique Workshop Banner" />
+                    <div class="banner-gradient-shade"></div>
+                    <div class="banner-overlay-tags">
+                        <div class="category-badge-list">
+                            <span class="category-tag" id="eventHeroBadge">💄 Interactive Masterclass</span>
+                            <span class="category-tag" id="eventCategoryTag">Workshop & Fashion</span>
+                            <span class="category-tag" id="eventFormatTag"
+                                style="border-color: #34d399; color: #34d399;">In-person</span>
+                        </div>
+                        <div class="interested-counter">
+                            <span>🔥</span> <span id="interestedText">151 are interested</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event Description Section -->
+                <div class="section-block">
+                    <h2 class="section-block-title">About The Event</h2>
+                    <div class="event-description-text" id="eventDescription">
+                        An exclusive hands-on masterclass on professional makeup artistry, boutique styling, and fashion trends. Learn bridal glam, contouring techniques, saree draping, and boutique curation from industry-leading beauty master artists and fashion stylists.
+                    </div>
+                </div>
+
+                <!-- Artist / Performer / Instructor Section -->
+                <div class="section-block" id="performersSection">
+                    <h2 class="section-block-title" id="performersTitle">Workshop Instructors & Master Stylists</h2>
+                    <div class="performers-grid" id="performersGrid">
+                        <div class="performer-card">
+                            <img class="performer-avatar"
+                                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80"
+                                alt="Ananya Sharma" />
+                            <h3 class="performer-name">Ananya Sharma</h3>
+                            <p class="performer-role">Master Makeup Artist & Educator</p>
+                        </div>
+                        <div class="performer-card">
+                            <img class="performer-avatar"
+                                src="https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=400&q=80"
+                                alt="Ritu Kumar Studio Team" />
+                            <h3 class="performer-name">Ritu Kumar Studio Team</h3>
+                            <p class="performer-role">Boutique & Couture Designers</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Highlights Section -->
+                <div class="section-block" id="highlightsSection">
+                    <h2 class="section-block-title" id="highlightsTitle">Workshop Highlights & Hands-on Sessions</h2>
+                    <div class="highlights-grid" id="highlightsGrid">
+                        <div class="highlight-card">
+                            <img src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=600&q=80"
+                                alt="Hands-on Makeup Masterclass" />
+                            <div class="highlight-content">
+                                <h4 class="highlight-title">Hands-on Makeup Masterclass</h4>
+                                <p class="highlight-desc">Live interactive demonstration and professional kit showcase</p>
+                            </div>
+                        </div>
+                        <div class="highlight-card">
+                            <img src="https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=600&q=80"
+                                alt="Boutique Styling & Draping" />
+                            <div class="highlight-content">
+                                <h4 class="highlight-title">Boutique Styling & Draping</h4>
+                                <p class="highlight-desc">Personalized styling advice and boutique trend guide</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terms & Conditions Section -->
+                <div class="section-block">
+                    <h2 class="section-block-title">Terms & Conditions</h2>
+                    <ul class="terms-list" id="termsList">
+                        <li>Single entry pass per registrant.</li>
+                        <li>Practice makeup kits will be provided at the venue.</li>
+                        <li>Please carry a valid photo ID proof along with your e-ticket.</li>
+                        <li>Tickets once booked cannot be exchanged, cancelled, or refunded.</li>
+                    </ul>
+                </div>
+
+                <!-- Recommended Events Section -->
+                <div class="section-block" id="recommendedBlock">
+                    <h2 class="section-block-title">You May Also Like</h2>
+                    <div class="recommended-grid" id="recommendedGrid">
+                        <a href="event-details.html?id=22222222-2222-2222-2222-222222222222" class="rec-card">
+                            <img src="https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=400&q=80"
+                                alt="Chennai Business Leaders Summit 2026" />
+                            <div class="rec-card-body">
+                                <h3 class="rec-card-title">Chennai Business Leaders Summit 2026</h3>
+                                <p class="rec-card-meta">📍 ITC Grand Chola, Chennai</p>
+                                <div class="rec-card-price">₹4,999 onwards</div>
+                            </div>
+                        </a>
+                        <a href="event-details.html?id=33333333-3333-3333-3333-333333333333" class="rec-card">
+                            <img src="https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=400&q=80"
+                                alt="BrandLaunchpad" />
+                            <div class="rec-card-body">
+                                <h3 class="rec-card-title">BrandLaunchpad - Product Reveal Night</h3>
+                                <p class="rec-card-meta">📍 Phoenix MarketCity, Chennai</p>
+                                <div class="rec-card-price">₹1,299 onwards</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Sticky Event Info Box -->
+            <div class="event-right-column">
+                <div class="event-info-sidebar">
+                    <div class="info-box-card">
+
+                        <div class="info-header">
+                            <span class="event-format-badge" id="infoFormatBadge">In-person</span>
+                            <div class="price-main-display">
+                                Ticket Starts at <span id="displayPrice">₹499</span>
+                            </div>
+                        </div>
+
+                        <!-- Date & Schedule -->
+                        <div class="info-item">
+                            <div class="info-icon">📅</div>
+                            <div class="info-text-group">
+                                <h4>Date & Time</h4>
+                                <p id="infoSchedule">Sat, 25 Sep 2026 • 10:00 AM</p>
+                            </div>
+                        </div>
+
+                        <!-- Duration -->
+                        <div class="info-item">
+                            <div class="info-icon">⏱️</div>
+                            <div class="info-text-group">
+                                <h4>Duration</h4>
+                                <p id="infoDuration">4 hours</p>
+                            </div>
+                        </div>
+
+                        <!-- Age Limit & Language -->
+                        <div class="info-item">
+                            <div class="info-icon">👤</div>
+                            <div class="info-text-group">
+                                <h4>Age & Language</h4>
+                                <p id="infoAgeLang">14yrs + | English & Tamil</p>
+                            </div>
+                        </div>
+
+                        <!-- Venue / Address -->
+                        <div class="info-item">
+                            <div class="info-icon">📍</div>
+                            <div class="info-text-group">
+                                <h4>Venue Location</h4>
+                                <p id="infoVenue">Express Avenue, Chennai</p>
+                                <small style="color: var(--text-secondary);" id="infoLocation">Express Avenue Mall, Royapettah, Chennai</small>
+                            </div>
+                        </div>
+
+                        <!-- Tickets Breakdown Section (Multiple Categories, Single Book Now Button) -->
+                        <div class="tickets-section">
+                            <div class="tickets-title">Select Ticket Category</div>
+                            <div id="ticketsList">
+                                <div class="ticket-type-option selected" onclick="selectTicketOption(this, 499, 'Silver Access')">
+                                    <div>
+                                        <div class="ticket-name">Silver Access</div>
+                                        <div class="ticket-status">Available</div>
+                                    </div>
+                                    <div class="ticket-price">₹499</div>
+                                </div>
+                                <div class="ticket-type-option" onclick="selectTicketOption(this, 999, 'Gold VIP')">
+                                    <div>
+                                        <div class="ticket-name">Gold VIP</div>
+                                        <div class="ticket-status">Filling Fast</div>
+                                    </div>
+                                    <div class="ticket-price">₹999</div>
+                                </div>
+                                <div class="ticket-type-option" onclick="selectTicketOption(this, 1499, 'Front Row Fan Zone')">
+                                    <div>
+                                        <div class="ticket-name">Front Row Fan Zone</div>
+                                        <div class="ticket-status">Limited Seats</div>
+                                    </div>
+                                    <div class="ticket-price">₹1,499</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Book Now Primary CTA Button (Single Button Positioned Below All Categories) -->
+                        <button class="btn-book-now" type="button" onclick="triggerBookingModal()">
+                            Book Now 🎟️
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Mobile Secondary Floating Sticky Bottom Action Bar -->
+    <div class="sticky-bottom-bar">
+        <div class="sticky-bottom-bar-content">
+            <div class="bar-price-group">
+                <p>Starts from</p>
+                <h3 id="mobileStickyPrice">₹499</h3>
+            </div>
+            <button class="btn-book-now" type="button" style="width: auto; padding: 0.75rem 2rem;"
+                onclick="triggerBookingModal()">
+                Book Now 🎟️
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Copy Notification -->
+    <div class="toast-msg" id="toastMsg">Link copied to clipboard!</div>
+
+    <!-- Scripts -->
+    <script src="/js/include.js?v=10"></script>
+    <script src="/js/health.js?v=1"></script>
+    <script src="/js/auth.js?v=10"></script>
+    <script src="/js/profile.js?v=1"></script>
+    <script src="/js/location.js?v=2"></script>
+    <script src="/js/search.js?v=1"></script>
+    <script src="/js/script.js?v=14"></script>
+    <script src="/js/event-details.js?v=3"></script>
+</body>
+
+</html>

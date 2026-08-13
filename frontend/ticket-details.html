@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="View your confirmed event E-Ticket, QR code validation, bill summary, receiver details, and invoice on JOD Events." />
+	<title>View E-Ticket & Invoice — JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=14" />
+	<link rel="stylesheet" href="css/responsive.css?v=14" />
+	<link rel="stylesheet" href="css/ticket-details.css?v=2" />
+</head>
+<body class="sub-page ticket-page">
+	<div id="header"></div>
+
+	<main class="ticket-main-section">
+		<div class="container narrow">
+			<!-- Top Navigation & Header -->
+			<div class="ticket-top-nav">
+				<a href="orders.html" class="back-link">← Back to Your Orders</a>
+				<div class="header-badges">
+					<span class="status-badge badge-confirmed" id="ticketStatusBadge">CONFIRMED</span>
+					<span class="order-id-label" id="ticketOrderIdCode">#JOD-000000</span>
+				</div>
+			</div>
+
+			<!-- Main BookMyShow Style M-Ticket Card Box -->
+			<div class="ticket-mticket-wrapper">
+				<div class="ticket-card-box mticket-card" id="printableTicketArea">
+					<!-- Notch cutouts on sides -->
+					<div class="mticket-notch notch-left-top"></div>
+					<div class="mticket-notch notch-right-top"></div>
+
+					<!-- Section 1: Event Header -->
+					<div class="mticket-header-section">
+						<div class="mticket-poster">
+							<img src="images/hero-event.jpg" alt="Event Poster" id="ticketEventImg" />
+						</div>
+						<div class="mticket-event-details">
+							<h1 id="ticketEventTitle">Loading Event Details…</h1>
+							<div class="mticket-format-tag" id="ticketFormatLang">English, Live Event</div>
+							<div class="mticket-meta-item mticket-datetime">
+								<span id="ticketEventDateTime">--</span>
+							</div>
+							<div class="mticket-meta-item mticket-venue">
+								<span id="ticketEventVenue">--</span>
+							</div>
+						</div>
+						<div class="mticket-watermark">M-Ticket</div>
+					</div>
+
+					<!-- Toggle Bar -->
+					<button class="mticket-toggle-btn" type="button" id="btnToggleDetails">
+						<span id="toggleDetailsText">Tap to hide details</span> <span>▲</span>
+					</button>
+
+					<!-- Collapsible Content Section -->
+					<div class="mticket-collapsible-content" id="collapsibleTicketDetails">
+						<!-- Section 2: Seating & Quantity Block -->
+						<div class="mticket-seating-block">
+							<div class="mticket-count" id="ticketCountVal">1 Ticket(s)</div>
+							<div class="mticket-zone-title" id="ticketCategoryVal">Standard Access</div>
+							<div class="mticket-seats" id="ticketSeatVal">General Admission</div>
+						</div>
+
+						<!-- Section 3: Large Center QR Code Section -->
+						<div class="mticket-qr-block">
+							<div class="mticket-qr-frame">
+								<img src="" alt="Ticket Secure QR Code" id="ticketQrCodeImg" />
+							</div>
+							<div class="mticket-booking-id-text" id="ticketBookingIdText">BOOKING ID: #000000-JOD</div>
+							<div class="mticket-token-text" id="ticketQrCodeText">Token: JOD-TKT-VALIDATION-KEY</div>
+						</div>
+
+						<!-- Policy Banner & Support -->
+						<div class="mticket-policy-bar" id="ticketPolicyBanner">
+							<span>Cancellation available up to 24h prior to showtime</span>
+						</div>
+
+						<div class="mticket-support-row">
+							<a href="javascript:void(0);" class="mticket-support-btn" id="btnContactSupport">
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+								</svg>
+								<span>Contact support</span>
+							</a>
+						</div>
+					</div>
+
+					<!-- Stub Notch & Dotted Divider -->
+					<div class="mticket-stub-divider">
+						<div class="mticket-notch notch-left-bottom"></div>
+						<div class="mticket-notch notch-right-bottom"></div>
+					</div>
+
+					<!-- Section 4: Bottom Pricing Summary -->
+					<div class="mticket-price-summary">
+						<div class="mticket-total-row">
+							<div class="mticket-total-left">
+								<span class="mticket-total-label">Total Amount</span>
+								<span class="mticket-savings-badge" id="ticketSavingsBadge">₹180.00 saved</span>
+							</div>
+							<div class="mticket-total-price" id="billTotal">₹0.00</div>
+						</div>
+
+						<div class="mticket-itemized-list">
+							<div class="mticket-item-row">
+								<span>Ticket price (<span id="billQty">x1</span>)</span>
+								<span id="billSubtotal">₹0.00</span>
+							</div>
+							<div class="mticket-item-row">
+								<span>Convenience fee &amp; GST (18%)</span>
+								<span id="billGst">₹0.00</span>
+							</div>
+							<div class="mticket-item-row mticket-row-mode">
+								<span>Payment Mode</span>
+								<span id="billPaymentMode">UPI / Credit Card</span>
+							</div>
+						</div>
+
+						<!-- Hidden elements for test compatibility & legacy details -->
+						<div style="display:none;">
+							<span id="ticketIdVal">--</span>
+							<span id="ticketCategoryBadge">Standard</span>
+							<span id="ticketBookedTimeVal">--</span>
+							<span id="ticketStatusVal">Active</span>
+							<span id="billUnitPrice">₹0</span>
+							<span id="billPaymentId">PAY-000</span>
+							<span id="receiverName">--</span>
+							<span id="receiverEmail">--</span>
+							<span id="receiverPhone">--</span>
+						</div>
+					</div>
+
+				</div>
+			</div>
+
+			<!-- Action Options Buttons at Bottom -->
+			<div class="ticket-actions-bar">
+				<button class="button button-primary btn-action" type="button" id="btnDownloadTicket">
+					Download Ticket 🎟️
+				</button>
+				<button class="button button-outline-light btn-action" type="button" id="btnDownloadInvoice">
+					Download Invoice 📄
+				</button>
+				<button class="button button-danger btn-action" type="button" id="btnCancelTicket">
+					Cancel Ticket ❌
+				</button>
+			</div>
+		</div>
+	</main>
+
+	<div id="footer"></div>
+
+	<!-- Scripts -->
+	<script src="js/include.js?v=10"></script>
+	<script src="js/health.js?v=1"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/profile.js?v=1"></script>
+	<script src="js/location.js?v=2"></script>
+	<script src="js/search.js?v=1"></script>
+	<script src="js/script.js?v=14"></script>
+	<script src="js/ticket-details.js?v=2"></script>
+</body>
+</html>

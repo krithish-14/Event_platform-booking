@@ -386,7 +386,111 @@
 	white-space: nowrap;
 }
 
-/* ── Social login (placeholder) ────────────────────────────── */
+/* ── Social login / Google OAuth ───────────────────────────── */
+.btn-google-auth {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: .75rem;
+	width: 100%;
+	padding: .75rem 1.25rem;
+	border: 1.5px solid var(--border);
+	border-radius: .875rem;
+	background: #ffffff;
+	color: #3c4043;
+	font-family: var(--body);
+	font-size: .9375rem;
+	font-weight: 600;
+	cursor: pointer;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+	transition: background-color .2s, border-color .2s, box-shadow .2s, transform .15s;
+	position: relative;
+	margin-bottom: .25rem;
+}
+.btn-google-auth:hover {
+	background-color: #f8fafd;
+	border-color: #dadce0;
+	box-shadow: 0 4px 12px rgba(60, 64, 67, 0.12);
+	transform: translateY(-1px);
+}
+.btn-google-auth:active {
+	background-color: #f1f3f4;
+	box-shadow: 0 1px 3px rgba(60, 64, 67, 0.15);
+	transform: translateY(0);
+}
+.btn-google-auth:disabled {
+	opacity: .6;
+	cursor: not-allowed;
+	transform: none;
+}
+.btn-google-icon {
+	width: 20px;
+	height: 20px;
+	flex-shrink: 0;
+}
+.btn-google-auth .btn-spinner {
+	display: none;
+	width: 1rem;
+	height: 1rem;
+	border: 2px solid rgba(60, 64, 67, .3);
+	border-top-color: #4285f4;
+	border-radius: 50%;
+	animation: spin .7s linear infinite;
+}
+.btn-google-auth.is-loading .btn-spinner { display: block; }
+.btn-google-auth.is-loading .btn-google-icon { display: none; }
+.btn-google-auth.is-loading .btn-label { opacity: .7; }
+
+/* ── Google Dev Modal Dialog ─────────────────────────────── */
+.google-modal-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.75);
+	backdrop-filter: blur(8px);
+	padding: 1rem;
+	animation: fadeIn .25s ease-out;
+}
+
+.google-modal-box {
+	width: 100%;
+	max-width: 440px;
+	border-radius: 1.25rem;
+	background: #221e1a;
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	padding: 1.75rem;
+	box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+	animation: slideUp .3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.google-modal-header {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.g-chip {
+	padding: .35rem .75rem;
+	border-radius: 2rem;
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	background: rgba(255, 255, 255, 0.06);
+	color: rgba(255, 255, 255, 0.85);
+	font-size: .75rem;
+	cursor: pointer;
+	transition: background .2s, border-color .2s;
+}
+
+.g-chip:hover {
+	background: var(--primary);
+	border-color: var(--primary);
+	color: #fff;
+}
+
 .auth-social-row {
 	display: grid;
 	grid-template-columns: 1fr 1fr;

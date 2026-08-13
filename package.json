@@ -1,0 +1,13 @@
+{
+  "name": "jod-events-platform",
+  "version": "1.0.0",
+  "description": "Event Booking Platform — JOD Events with FastAPI backend & dynamic recommendations",
+  "main": "backend/start_servers.py",
+  "scripts": {
+    "start": "python backend/start_servers.py",
+    "dev": "python backend/start_servers.py"
+  },
+  "keywords": ["event-booking", "fastapi", "geolocation", "haversine"],
+  "author": "JOD Events Team",
+  "license": "MIT"
+}

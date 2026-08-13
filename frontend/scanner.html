@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="JOD Events Gate Scanner — Live QR Ticket Entry Verification & Check-In Portal for Event Staff." />
+	<title>Staff Ticket Scanner — JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=14" />
+	<link rel="stylesheet" href="css/responsive.css?v=14" />
+	<style>
+		:root {
+			--scanner-bg: #0d0f12;
+			--card-bg: rgba(22, 27, 34, 0.85);
+			--card-border: rgba(255, 255, 255, 0.12);
+			--accent-green: #22c55e;
+			--accent-red: #ef4444;
+			--accent-amber: #f59e0b;
+		}
+		body.scanner-body {
+			background-color: var(--scanner-bg);
+			color: #f3f4f6;
+			font-family: 'Inter', system-ui, -apple-system, sans-serif;
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+		}
+		.scanner-header {
+			background: rgba(13, 15, 18, 0.95);
+			backdrop-filter: blur(12px);
+			border-bottom: 1px solid var(--card-border);
+			padding: 1rem 1.5rem;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			position: sticky;
+			top: 0;
+			z-index: 100;
+		}
+		.brand-badge {
+			display: flex;
+			align-items: center;
+			gap: 0.75rem;
+		}
+		.brand-badge img {
+			height: 36px;
+		}
+		.brand-title {
+			font-size: 1.1rem;
+			font-weight: 700;
+			color: #fff;
+			margin: 0;
+		}
+		.brand-subtitle {
+			font-size: 0.75rem;
+			color: #9ca3af;
+		}
+		.staff-badge {
+			background: rgba(255, 117, 8, 0.15);
+			color: #ff7508;
+			border: 1px solid rgba(255, 117, 8, 0.4);
+			padding: 0.35rem 0.85rem;
+			border-radius: 999px;
+			font-size: 0.8rem;
+			font-weight: 600;
+		}
+
+		.scanner-main {
+			max-width: 680px;
+			width: 100%;
+			margin: 2rem auto;
+			padding: 0 1rem;
+			flex: 1;
+		}
+
+		.scanner-card {
+			background: var(--card-bg);
+			border: 1px solid var(--card-border);
+			border-radius: 20px;
+			padding: 1.5rem;
+			box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+			backdrop-filter: blur(16px);
+			margin-bottom: 1.5rem;
+		}
+
+		.mode-toggle-bar {
+			display: flex;
+			gap: 0.5rem;
+			background: rgba(255, 255, 255, 0.05);
+			padding: 0.35rem;
+			border-radius: 12px;
+			margin-bottom: 1.25rem;
+		}
+		.mode-btn {
+			flex: 1;
+			background: transparent;
+			border: none;
+			color: #9ca3af;
+			padding: 0.6rem 1rem;
+			font-size: 0.85rem;
+			font-weight: 600;
+			border-radius: 8px;
+			cursor: pointer;
+			transition: all 0.2s ease;
+		}
+		.mode-btn.active {
+			background: #ff7508;
+			color: #fff;
+			box-shadow: 0 4px 12px rgba(255, 117, 8, 0.3);
+		}
+
+		.viewport-wrapper {
+			position: relative;
+			width: 100%;
+			height: 320px;
+			background: #000;
+			border-radius: 16px;
+			overflow: hidden;
+			border: 2px dashed rgba(255, 117, 8, 0.4);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		#scannerVideo {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+		.scan-overlay {
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.scan-box-guide {
+			width: 220px;
+			height: 220px;
+			border: 2px solid #ff7508;
+			border-radius: 16px;
+			box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.5);
+			position: relative;
+		}
+		.scan-line {
+			position: absolute;
+			width: 100%;
+			height: 2px;
+			background: #ff7508;
+			box-shadow: 0 0 12px #ff7508;
+			animation: scanAnim 2s infinite ease-in-out;
+		}
+		@keyframes scanAnim {
+			0% { top: 10%; }
+			50% { top: 90%; }
+			100% { top: 10%; }
+		}
+
+		.camera-controls {
+			display: flex;
+			gap: 0.75rem;
+			margin-top: 1rem;
+		}
+		.cam-btn {
+			flex: 1;
+			background: rgba(255, 255, 255, 0.08);
+			border: 1px solid var(--card-border);
+			color: #e5e7eb;
+			padding: 0.65rem 1rem;
+			border-radius: 10px;
+			font-size: 0.85rem;
+			font-weight: 600;
+			cursor: pointer;
+			transition: background 0.2s;
+		}
+		.cam-btn:hover {
+			background: rgba(255, 255, 255, 0.15);
+		}
+
+		/* Manual Input Accordion */
+		.manual-input-box {
+			margin-top: 1.25rem;
+			padding-top: 1.25rem;
+			border-top: 1px solid var(--card-border);
+		}
+		.manual-input-box label {
+			font-size: 0.8rem;
+			color: #9ca3af;
+			display: block;
+			margin-bottom: 0.5rem;
+		}
+		.manual-form-row {
+			display: flex;
+			gap: 0.5rem;
+		}
+		.manual-token-input {
+			flex: 1;
+			background: rgba(0, 0, 0, 0.4);
+			border: 1px solid var(--card-border);
+			border-radius: 10px;
+			padding: 0.7rem 1rem;
+			color: #fff;
+			font-family: monospace;
+			font-size: 0.9rem;
+		}
+		.manual-token-input:focus {
+			border-color: #ff7508;
+			outline: none;
+		}
+
+		/* Scan Result Modal / Card */
+		.result-banner {
+			border-radius: 16px;
+			padding: 1.5rem;
+			margin-top: 1.5rem;
+			display: none;
+			animation: slideUp 0.3s ease;
+		}
+		@keyframes slideUp {
+			from { opacity: 0; transform: translateY(12px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+
+		.result-valid {
+			background: rgba(34, 197, 94, 0.15);
+			border: 2px solid var(--accent-green);
+			color: #f0fdf4;
+		}
+		.result-invalid {
+			background: rgba(239, 68, 68, 0.15);
+			border: 2px solid var(--accent-red);
+			color: #fef2f2;
+		}
+		.result-used {
+			background: rgba(245, 158, 11, 0.15);
+			border: 2px solid var(--accent-amber);
+			color: #fffbeb;
+		}
+
+		.result-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			margin-bottom: 1rem;
+		}
+		.status-title {
+			font-size: 1.4rem;
+			font-weight: 800;
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+		}
+		.result-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+			gap: 1rem;
+			margin-top: 1rem;
+			background: rgba(0, 0, 0, 0.25);
+			padding: 1rem;
+			border-radius: 12px;
+		}
+		.result-item-label {
+			font-size: 0.725rem;
+			color: rgba(255, 255, 255, 0.6);
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+		}
+		.result-item-val {
+			font-size: 0.95rem;
+			font-weight: 700;
+			margin-top: 0.2rem;
+		}
+
+		.btn-reset-scan {
+			width: 100%;
+			margin-top: 1.25rem;
+			background: #ff7508;
+			color: #fff;
+			border: none;
+			padding: 0.85rem;
+			border-radius: 12px;
+			font-weight: 700;
+			font-size: 0.95rem;
+			cursor: pointer;
+		}
+
+		/* Audit Log Table */
+		.history-section {
+			margin-top: 2rem;
+		}
+		.history-title {
+			font-size: 0.95rem;
+			font-weight: 700;
+			color: #9ca3af;
+			margin-bottom: 0.75rem;
+		}
+		.history-list {
+			background: var(--card-bg);
+			border: 1px solid var(--card-border);
+			border-radius: 14px;
+			overflow: hidden;
+		}
+		.history-item {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 0.75rem 1rem;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+			font-size: 0.85rem;
+		}
+		.history-item:last-child {
+			border-bottom: none;
+		}
+		.badge-mini {
+			padding: 0.2rem 0.5rem;
+			border-radius: 6px;
+			font-size: 0.7rem;
+			font-weight: 700;
+		}
+		.badge-mini-valid { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+		.badge-mini-used { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+		.badge-mini-invalid { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+	</style>
+</head>
+<body class="scanner-body">
+
+	<!-- Header -->
+	<header class="scanner-header">
+		<div class="brand-badge">
+			<img src="images/JOD Events Logo.png" alt="JOD Events Logo" />
+			<div>
+				<h1 class="brand-title">JOD Events Gate Scanner</h1>
+				<span class="brand-subtitle">Venue Entry Verification System</span>
+			</div>
+		</div>
+		<div class="staff-badge" id="staffUserBadge">🛡️ Staff: Gate Staff #1</div>
+	</header>
+
+	<!-- Main Container -->
+	<main class="scanner-main">
+
+		<div class="scanner-card">
+			<!-- Mode Selector -->
+			<div class="mode-toggle-bar">
+				<button class="mode-btn active" id="btnModeCheckin" type="button">Scan &amp; Check-In Entry</button>
+				<button class="mode-btn" id="btnModeVerify" type="button">Verify Only</button>
+			</div>
+
+			<!-- Live Video Scanner Viewport -->
+			<div class="viewport-wrapper">
+				<video id="scannerVideo" playsinline></video>
+				<div class="scan-overlay">
+					<div class="scan-box-guide">
+						<div class="scan-line"></div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Camera Controls -->
+			<div class="camera-controls">
+				<button class="cam-btn" id="btnStartCamera" type="button">📷 Start Camera</button>
+				<button class="cam-btn" id="btnSwitchCamera" type="button">🔄 Switch Camera</button>
+			</div>
+
+			<!-- Manual Token Entry Option -->
+			<div class="manual-input-box">
+				<label for="manualTokenInput">Manual Token / Barcode Input (Format: JOD-TKT-...)</label>
+				<div class="manual-form-row">
+					<input type="text" id="manualTokenInput" class="manual-token-input" placeholder="Paste or type JOD-TKT-..." />
+					<button class="button button-primary button-sm" id="btnSubmitManualToken" type="button">Process</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Dynamic Result Banner -->
+		<div class="result-banner" id="resultBanner">
+			<div class="result-header">
+				<div class="status-title" id="resultStatusTitle">✅ ENTRY ALLOWED</div>
+				<span class="badge-mini badge-mini-valid" id="resultBadgeTag">VALID TICKET</span>
+			</div>
+			<div id="resultMessageText" style="font-size: 0.95rem; margin-bottom: 0.75rem;">Ticket successfully checked in.</div>
+
+			<div class="result-grid">
+				<div>
+					<div class="result-item-label">Event</div>
+					<div class="result-item-val" id="resEvent">--</div>
+				</div>
+				<div>
+					<div class="result-item-label">Customer Name</div>
+					<div class="result-item-val" id="resCustomer">--</div>
+				</div>
+				<div>
+					<div class="result-item-label">Ticket Access</div>
+					<div class="result-item-val" id="resCategory">--</div>
+				</div>
+				<div>
+					<div class="result-item-label">Seat / Zone</div>
+					<div class="result-item-val" id="resSeat">--</div>
+				</div>
+				<div>
+					<div class="result-item-label">Token Code</div>
+					<div class="result-item-val" id="resToken" style="font-family: monospace; font-size: 0.8rem;">--</div>
+				</div>
+				<div>
+					<div class="result-item-label">Timestamp</div>
+					<div class="result-item-val" id="resTime">--</div>
+				</div>
+			</div>
+
+			<button class="btn-reset-scan" id="btnScanNext" type="button">Scan Next Ticket 📸</button>
+		</div>
+
+		<!-- Session Scan History Log -->
+		<div class="history-section">
+			<div class="history-title">Recent Gate Scans (Current Session)</div>
+			<div class="history-list" id="scanHistoryContainer">
+				<div style="padding: 1rem; text-align: center; color: #6b7280; font-size: 0.85rem;">No tickets scanned yet in this session.</div>
+			</div>
+		</div>
+
+	</main>
+
+	<!-- jsQR Engine Library for Camera Processing -->
+	<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+	<script src="js/health.js?v=1"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/scanner.js?v=1"></script>
+</body>
+</html>

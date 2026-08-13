@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="Your saved events and wishlist on JOD Events." />
+	<title>Your Wishlist | JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<style>
+		.page-hero {
+			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
+			padding: 4.5rem 0 2.5rem;
+			color: #fff;
+			position: relative;
+			overflow: hidden;
+		}
+		.page-hero::before {
+			content: '';
+			position: absolute; inset: 0;
+			background: radial-gradient(ellipse at 70% 50%, rgba(255,117,8,.18) 0%, transparent 65%);
+			pointer-events: none;
+		}
+		.hero-content h1 {
+			font-size: 2rem;
+			margin: 0 0 .35rem;
+			font-family: var(--display);
+		}
+		.hero-content p {
+			color: rgba(255,255,255,.7);
+			font-size: .95rem;
+			margin: 0;
+		}
+
+		.wishlist-section { padding: 3rem 0 4rem; }
+
+		.wishlist-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+			gap: 1.5rem;
+		}
+
+		.wishlist-card {
+			background: #fff;
+			border-radius: 16px;
+			border: 1px solid var(--border);
+			overflow: hidden;
+			box-shadow: 0 2px 12px rgba(38,35,31,.05);
+			transition: transform .22s, box-shadow .22s;
+			display: flex;
+			flex-direction: column;
+		}
+		.wishlist-card:hover {
+			transform: translateY(-4px);
+			box-shadow: 0 12px 32px rgba(38,35,31,.1);
+		}
+
+		.card-media {
+			position: relative;
+			height: 160px;
+			background: linear-gradient(135deg, #25211c, #3d2a14);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 1rem;
+		}
+		.card-media img {
+			max-height: 100px;
+			object-fit: contain;
+		}
+		.card-remove-btn {
+			position: absolute;
+			top: 10px; right: 10px;
+			width: 2rem; height: 2rem;
+			border-radius: 50%;
+			background: rgba(0,0,0,.5);
+			color: #fff;
+			border: none;
+			cursor: pointer;
+			display: flex; align-items: center; justify-content: center;
+			font-size: .9rem;
+			transition: background .2s;
+		}
+		.card-remove-btn:hover { background: #e53e3e; }
+
+		.card-body {
+			padding: 1.25rem;
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+		}
+		.card-body h3 {
+			font-size: 1.05rem;
+			margin: 0 0 .5rem;
+			color: var(--foreground);
+		}
+		.card-meta {
+			font-size: .825rem;
+			color: var(--muted);
+			margin-bottom: 1rem;
+			display: flex;
+			flex-direction: column;
+			gap: .35rem;
+		}
+		.card-footer {
+			margin-top: auto;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding-top: .75rem;
+			border-top: 1px solid var(--border);
+		}
+		.card-price {
+			font-weight: 700;
+			font-size: 1.1rem;
+			color: var(--primary);
+		}
+
+		.empty-wishlist {
+			text-align: center;
+			padding: 4rem 1rem;
+			background: #fff;
+			border-radius: 16px;
+			border: 1px solid var(--border);
+			grid-column: 1 / -1;
+		}
+		.empty-wishlist-icon { font-size: 3.5rem; margin-bottom: 1rem; }
+	</style>
+</head>
+<body class="sub-page">
+	<!-- Splash -->
+	<div class="splash-screen" id="splashScreen">
+		<div class="splash-bg">
+			<div class="splash-orb orb-1"></div>
+			<div class="splash-orb orb-2"></div>
+			<div class="splash-orb orb-3"></div>
+		</div>
+		<div class="splash-content">
+			<div class="splash-logo-wrap">
+				<div class="splash-logo-ring"></div>
+				<img class="splash-logo" src="images/JOD Events Logo.png" alt="JOD Events" />
+			</div>
+			<div class="splash-text">
+				<h1 class="splash-title">JOD Events</h1>
+				<p class="splash-tagline">Creating Experiences That People Remember</p>
+			</div>
+		</div>
+	</div>
+
+	<canvas class="bg-canvas" id="bgCanvas"></canvas>
+	<div class="bg-gradient-layer"></div>
+
+	<div class="site-shell" id="top">
+		<div id="header"></div>
+
+		<main>
+			<section class="page-hero">
+				<div class="container">
+					<div class="hero-content">
+						<h1>Your Wishlist</h1>
+						<p>Events you've saved to attend later. Book your tickets before seats sell out!</p>
+					</div>
+				</div>
+			</section>
+
+			<section class="wishlist-section">
+				<div class="container">
+					<div class="wishlist-grid" id="wishlistGrid">
+						<!-- Wishlist Item 1 -->
+						<div class="wishlist-card">
+							<div class="card-media">
+								<img src="images/JOD Events Logo.png" alt="Summit" />
+								<button class="card-remove-btn" title="Remove from wishlist" onclick="removeWishlistItem(this)">&times;</button>
+							</div>
+							<div class="card-body">
+								<h3>Chennai Business Leaders Summit 2026</h3>
+								<div class="card-meta">
+									<span>📅 Aug 15, 2026</span>
+									<span>📍 ITC Grand Chola, Chennai</span>
+								</div>
+								<div class="card-footer">
+									<div class="card-price">From ₹2,499</div>
+									<a href="index.html#upcoming" class="button button-sm button-primary">Book Now &rarr;</a>
+								</div>
+							</div>
+						</div>
+
+						<!-- Wishlist Item 2 -->
+						<div class="wishlist-card">
+							<div class="card-media">
+								<img src="images/JOD Events Logo.png" alt="Music Fest" />
+								<button class="card-remove-btn" title="Remove from wishlist" onclick="removeWishlistItem(this)">&times;</button>
+							</div>
+							<div class="card-body">
+								<h3>South India Music & Cultural Festival</h3>
+								<div class="card-meta">
+									<span>📅 Sep 28, 2026</span>
+									<span>📍 YMCA Grounds, Chennai</span>
+								</div>
+								<div class="card-footer">
+									<div class="card-price">From ₹999</div>
+									<a href="index.html#upcoming" class="button button-sm button-primary">Book Now &rarr;</a>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div id="footer"></div>
+	</div>
+
+	<script src="js/include.js?v=10"></script>
+	<script src="js/health.js?v=1"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/profile.js?v=1"></script>
+	<script src="js/location.js?v=2"></script>
+	<script src="js/script.js?v=13"></script>
+	<script>
+		// Auth check
+		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
+		}
+		function removeWishlistItem(btn) {
+			const card = btn.closest(".wishlist-card");
+			card.remove();
+			const grid = document.getElementById("wishlistGrid");
+			if (grid.children.length === 0) {
+				grid.innerHTML = `
+					<div class="empty-wishlist">
+						<div class="empty-wishlist-icon">💖</div>
+						<h3>Your wishlist is empty</h3>
+						<p style="color:var(--muted);margin-bottom:1.5rem;">Explore upcoming events and save your favorites!</p>
+						<a href="index.html#upcoming" class="button button-primary">Explore Events &rarr;</a>
+					</div>`;
+			}
+		}
+	</script>
+</body>
+</html>

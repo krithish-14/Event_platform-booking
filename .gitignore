@@ -38,6 +38,9 @@ ENV/
 backend.log
 frontend.log
 logs/
+
+# SQLite database (runtime artifact — never commit)
+*.db
 .coverage
 htmlcov/
 .pytest_cache/

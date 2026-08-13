@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="Manage your account profile, profile picture, security, and preferences on JOD Events." />
+	<title>Settings | JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<style>
+		.page-hero {
+			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
+			padding: 4.5rem 0 2.5rem;
+			color: #fff;
+			position: relative;
+			overflow: hidden;
+		}
+		.page-hero::before {
+			content: '';
+			position: absolute; inset: 0;
+			background: radial-gradient(ellipse at 70% 50%, rgba(255,117,8,.18) 0%, transparent 65%);
+			pointer-events: none;
+		}
+		.hero-content h1 {
+			font-size: 2rem;
+			margin: 0 0 .35rem;
+			font-family: var(--display);
+		}
+		.hero-content p {
+			color: rgba(255,255,255,.7);
+			font-size: .95rem;
+			margin: 0;
+		}
+
+		.settings-section { padding: 3rem 0 4rem; }
+
+		.settings-grid {
+			display: flex;
+			flex-direction: column;
+			gap: 1.75rem;
+		}
+
+		.settings-nav {
+			background: #fff;
+			border-radius: 16px;
+			border: 1px solid var(--border);
+			padding: .625rem;
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			gap: .625rem;
+			flex-wrap: wrap;
+			box-shadow: 0 2px 12px rgba(38,35,31,.04);
+		}
+		.snav-item {
+			display: inline-flex;
+			align-items: center;
+			gap: .625rem;
+			padding: .65rem 1.25rem;
+			border-radius: 12px;
+			font-weight: 600;
+			font-size: .9rem;
+			color: var(--muted);
+			cursor: pointer;
+			transition: background .2s, color .2s, box-shadow .2s;
+			border: none;
+			background: none;
+			width: auto;
+			text-align: center;
+			white-space: nowrap;
+		}
+		.snav-item:hover {
+			background: rgba(255,117,8,.08);
+			color: var(--primary);
+		}
+		.snav-item.is-active {
+			background: var(--primary);
+			color: #fff;
+			box-shadow: 0 4px 14px rgba(255,117,8,.25);
+		}
+
+		@media (max-width: 600px) {
+			.settings-nav {
+				flex-direction: column;
+				align-items: stretch;
+			}
+			.snav-item {
+				width: 100%;
+				justify-content: flex-start;
+			}
+		}
+
+		.settings-card {
+			background: #fff;
+			border-radius: 16px;
+			border: 1px solid var(--border);
+			padding: 2rem;
+			box-shadow: 0 2px 12px rgba(38,35,31,.04);
+			margin-bottom: 1.5rem;
+		}
+		.settings-card h2 {
+			font-size: 1.25rem;
+			margin: 0 0 1.25rem;
+			color: var(--foreground);
+			padding-bottom: .75rem;
+			border-bottom: 1px solid var(--border);
+		}
+
+		/* Avatar Upload Box */
+		.settings-avatar-flex {
+			display: flex;
+			align-items: center;
+			gap: 1.5rem;
+			margin-bottom: 1.75rem;
+		}
+		.settings-avatar {
+			width: 5rem;
+			height: 5rem;
+			border-radius: 50%;
+			background: var(--brand-gradient);
+			color: #fff;
+			font-size: 1.75rem;
+			font-weight: 700;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			border: 3px solid rgba(255,117,8,.3);
+			overflow: hidden;
+			box-shadow: 0 0 0 4px rgba(255,117,8,.12);
+			flex-shrink: 0;
+		}
+		.settings-avatar img {
+			width: 100%; height: 100%; object-fit: cover;
+		}
+		.avatar-btns {
+			display: flex;
+			gap: .75rem;
+			align-items: center;
+		}
+
+		.form-grid {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 1.25rem;
+		}
+		@media (max-width: 600px) {
+			.form-grid { grid-template-columns: 1fr; }
+		}
+
+		.form-group {
+			display: flex;
+			flex-direction: column;
+			gap: .4rem;
+		}
+		.form-group label {
+			font-size: .85rem;
+			font-weight: 600;
+			color: var(--foreground);
+		}
+		.form-input {
+			padding: .75rem 1rem;
+			border-radius: 10px;
+			border: 1px solid var(--border);
+			font-size: .925rem;
+			outline: none;
+			transition: border-color .2s, box-shadow .2s;
+		}
+		.form-input:focus {
+			border-color: var(--primary);
+			box-shadow: 0 0 0 3px rgba(255,117,8,.15);
+		}
+
+		.toast-msg {
+			padding: .75rem 1.25rem;
+			border-radius: 10px;
+			font-size: .875rem;
+			font-weight: 600;
+			margin-top: 1rem;
+			display: none;
+		}
+		.toast-success { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+		.toast-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+		/* Password Constraints & Strength Meter */
+		.pw-rules-card {
+			background: #fafaf9;
+			border: 1px solid #e7e5e4;
+			border-radius: 12px;
+			padding: .875rem 1rem;
+			margin-top: .625rem;
+		}
+		.pw-rules-title {
+			font-size: .8rem;
+			font-weight: 700;
+			color: var(--foreground);
+			margin-bottom: .4rem;
+			text-transform: uppercase;
+			letter-spacing: .03em;
+		}
+		.pw-rules-list {
+			list-style: none;
+			padding: 0;
+			margin: 0;
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+			gap: .35rem .75rem;
+		}
+		.pw-rule-item {
+			font-size: .8rem;
+			color: var(--muted);
+			display: flex;
+			align-items: center;
+			gap: .4rem;
+			transition: color .2s ease;
+		}
+		.pw-rule-item .rule-icon {
+			font-weight: 800;
+			font-size: .85rem;
+			color: #dc2626;
+			display: inline-block;
+			width: 1rem;
+			text-align: center;
+		}
+		.pw-rule-item.is-valid {
+			color: #15803d;
+			font-weight: 600;
+		}
+		.pw-rule-item.is-valid .rule-icon {
+			color: #16a34a;
+		}
+
+		.pw-strength-wrap {
+			margin-top: .625rem;
+		}
+		.pw-strength-meter {
+			height: 6px;
+			background: #e7e5e4;
+			border-radius: 999px;
+			overflow: hidden;
+			margin-bottom: .35rem;
+		}
+		.pw-meter-bar {
+			height: 100%;
+			width: 0%;
+			border-radius: 999px;
+			transition: width .25s ease, background-color .25s ease;
+		}
+		.pw-meter-bar.score-1 { width: 20%; background-color: #ef4444; }
+		.pw-meter-bar.score-2 { width: 40%; background-color: #f97316; }
+		.pw-meter-bar.score-3 { width: 60%; background-color: #eab308; }
+		.pw-meter-bar.score-4 { width: 80%; background-color: #84cc16; }
+		.pw-meter-bar.score-5 { width: 100%; background-color: #22c55e; }
+
+		.pw-strength-text {
+			font-size: .78rem;
+			font-weight: 600;
+			color: var(--muted);
+		}
+		.pw-strength-text span {
+			font-weight: 700;
+		}
+		.pw-strength-text span.score-1 { color: #dc2626; }
+		.pw-strength-text span.score-2 { color: #ea580c; }
+		.pw-strength-text span.score-3 { color: #ca8a04; }
+		.pw-strength-text span.score-4 { color: #65a30d; }
+		.pw-strength-text span.score-5 { color: #16a34a; }
+
+		.pw-match-status {
+			font-size: .8rem;
+			font-weight: 600;
+			margin-top: .4rem;
+		}
+		.pw-match-status.match { color: #16a34a; }
+		.pw-match-status.no-match { color: #dc2626; }
+
+		.form-input.has-error {
+			border-color: #ef4444 !important;
+			box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+		}
+		.pw-input-wrap {
+			position: relative;
+			display: flex;
+			align-items: center;
+		}
+		.pw-input-wrap input {
+			width: 100%;
+			padding-right: 2.5rem;
+		}
+		.pw-toggle-btn {
+			position: absolute;
+			right: .75rem;
+			background: none;
+			border: none;
+			cursor: pointer;
+			font-size: .95rem;
+			opacity: .6;
+			padding: 0;
+			transition: opacity .2s;
+		}
+		.pw-toggle-btn:hover { opacity: 1; }
+
+		/* ── Notification Section Styles ───────────────────────── */
+		.notif-header-flex {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			flex-wrap: wrap;
+			gap: .75rem;
+			padding-bottom: .75rem;
+			border-bottom: 1px solid var(--border);
+			margin-bottom: 1.25rem;
+		}
+		.notif-header-flex h2 {
+			margin: 0;
+			border: none;
+			padding: 0;
+		}
+		.notif-actions {
+			display: flex;
+			gap: .5rem;
+		}
+
+		.pref-group {
+			display: flex;
+			flex-direction: column;
+			gap: 1rem;
+			margin-bottom: 1.75rem;
+			padding-bottom: 1.5rem;
+			border-bottom: 1px dashed var(--border);
+		}
+		.pref-item {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 1rem;
+		}
+		.pref-info h4 {
+			margin: 0 0 .2rem;
+			font-size: .925rem;
+			color: var(--foreground);
+		}
+		.pref-info p {
+			margin: 0;
+			font-size: .8rem;
+			color: var(--muted);
+		}
+
+		/* Toggle Switch */
+		.switch {
+			position: relative;
+			display: inline-block;
+			width: 44px;
+			height: 24px;
+			flex-shrink: 0;
+		}
+		.switch input {
+			opacity: 0;
+			width: 0;
+			height: 0;
+		}
+		.slider {
+			position: absolute;
+			cursor: pointer;
+			inset: 0;
+			background-color: #d6d3d1;
+			transition: .25s;
+			border-radius: 999px;
+		}
+		.slider:before {
+			position: absolute;
+			content: "";
+			height: 18px;
+			width: 18px;
+			left: 3px;
+			bottom: 3px;
+			background-color: white;
+			transition: .25s;
+			border-radius: 50%;
+			box-shadow: 0 1px 3px rgba(0,0,0,.2);
+		}
+		input:checked + .slider {
+			background-color: var(--primary);
+		}
+		input:checked + .slider:before {
+			transform: translateX(20px);
+		}
+
+		/* Notifications List Feed */
+		.notif-feed {
+			display: flex;
+			flex-direction: column;
+			gap: .875rem;
+		}
+		.notif-card {
+			display: flex;
+			align-items: flex-start;
+			gap: 1rem;
+			padding: 1rem;
+			background: #fafaf9;
+			border-radius: 12px;
+			border: 1px solid var(--border);
+			transition: background .2s, border-color .2s;
+			position: relative;
+		}
+		.notif-card.unread {
+			background: #fffdfa;
+			border-color: rgba(255,117,8,.3);
+		}
+		.notif-card.unread::before {
+			content: '';
+			position: absolute;
+			left: 6px; top: 50%;
+			transform: translateY(-50%);
+			width: 6px; height: 6px;
+			background: var(--primary);
+			border-radius: 50%;
+		}
+		.notif-icon {
+			width: 2.25rem;
+			height: 2.25rem;
+			border-radius: 10px;
+			background: rgba(255,117,8,.1);
+			color: var(--primary);
+			display: flex; align-items: center; justify-content: center;
+			font-size: 1.1rem;
+			flex-shrink: 0;
+		}
+		.notif-body { flex: 1; min-width: 0; }
+		.notif-title {
+			font-size: .875rem;
+			font-weight: 700;
+			color: var(--foreground);
+			margin: 0 0 .25rem;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+		.notif-desc {
+			font-size: .825rem;
+			color: var(--muted);
+			margin: 0;
+			line-height: 1.4;
+		}
+		.notif-time {
+			font-size: .75rem;
+			color: #a8a29e;
+			white-space: nowrap;
+		}
+
+		.notif-empty-state {
+			text-align: center;
+			padding: 3rem 1rem;
+			background: #fafaf9;
+			border-radius: 16px;
+			border: 1px dashed var(--border);
+			display: none;
+		}
+		.notif-empty-icon {
+			font-size: 3rem;
+			margin-bottom: .75rem;
+		}
+		.notif-empty-title {
+			font-size: 1.1rem;
+			font-weight: 700;
+			color: var(--foreground);
+			margin: 0 0 .35rem;
+		}
+		.notif-empty-desc {
+			font-size: .85rem;
+			color: var(--muted);
+			max-width: 400px;
+			margin: 0 auto;
+			line-height: 1.5;
+		}
+	</style>
+</head>
+<body class="sub-page">
+	<!-- Splash -->
+	<div class="splash-screen" id="splashScreen">
+		<div class="splash-bg">
+			<div class="splash-orb orb-1"></div>
+			<div class="splash-orb orb-2"></div>
+			<div class="splash-orb orb-3"></div>
+		</div>
+		<div class="splash-content">
+			<div class="splash-logo-wrap">
+				<div class="splash-logo-ring"></div>
+				<img class="splash-logo" src="images/JOD Events Logo.png" alt="JOD Events" />
+			</div>
+			<div class="splash-text">
+				<h1 class="splash-title">JOD Events</h1>
+				<p class="splash-tagline">Creating Experiences That People Remember</p>
+			</div>
+		</div>
+	</div>
+
+	<canvas class="bg-canvas" id="bgCanvas"></canvas>
+	<div class="bg-gradient-layer"></div>
+
+	<div class="site-shell" id="top">
+		<div id="header"></div>
+
+		<main>
+			<section class="page-hero">
+				<div class="container">
+					<div class="hero-content">
+						<h1>Account Settings</h1>
+						<p>Manage your profile details, picture, security, and notification preferences.</p>
+					</div>
+				</div>
+			</section>
+
+			<section class="settings-section">
+				<div class="container">
+					<div class="settings-grid">
+						<!-- Sidebar -->
+						<div class="settings-nav">
+							<button class="snav-item is-active" type="button" onclick="scrollToSection('profileSection')">👤 Profile & Photo</button>
+							<button class="snav-item" type="button" onclick="scrollToSection('securitySection')">🔒 Security & Password</button>
+							<button class="snav-item" type="button" onclick="scrollToSection('notificationsSection')">🔔 Notifications</button>
+						</div>
+
+						<!-- Content Area -->
+						<div>
+							<!-- Profile Settings -->
+							<div class="settings-card" id="profileSection">
+								<h2>Profile & Avatar</h2>
+
+								<div class="settings-avatar-flex">
+									<div class="settings-avatar profile-avatar" id="settingsAvatar">
+										<!-- Filled by JS -->
+									</div>
+									<div class="avatar-btns">
+										<label class="button button-sm button-primary" for="settingsPhotoInput" style="cursor:pointer;">
+											Upload Picture
+										</label>
+										<input type="file" id="settingsPhotoInput" accept="image/*" style="display:none;" />
+										<button class="button button-sm button-ghost" type="button" id="settingsRemovePhotoBtn">Remove</button>
+									</div>
+								</div>
+
+								<form id="profileForm">
+										<div class="form-group">
+											<label for="setFullName">Full Name</label>
+											<input type="text" id="setFullName" class="form-input" placeholder="Your Full Name" />
+										</div>
+
+										<div class="form-group">
+											<label for="setUsername">Username</label>
+											<input type="text" id="setUsername" class="form-input" placeholder="Username" readonly style="background:#f9fafb;" />
+										</div>
+										<div class="form-group">
+											<label for="setEmail">Email Address</label>
+											<input type="email" id="setEmail" class="form-input" placeholder="your.email@example.com" />
+										</div>
+										<div class="form-group">
+											<label for="setLocationCity">Your Location (City)</label>
+											<input type="text" id="setLocationCity" class="form-input" placeholder="e.g. Chennai" />
+										</div>
+									</div>
+
+									<div style="margin-top:1.5rem;">
+										<button class="button button-primary" type="submit">Save Changes</button>
+									</div>
+									<div class="toast-msg toast-success" id="profileToast">✓ Profile details updated successfully!</div>
+								</form>
+							</div>
+
+							<!-- Security Section -->
+							<div class="settings-card" id="securitySection">
+								<h2>Security & Password</h2>
+								<form id="securityForm" novalidate>
+									<div class="form-group" style="margin-bottom:1.25rem;">
+										<label for="currentPw">Current Password</label>
+										<div class="pw-input-wrap">
+											<input type="password" id="currentPw" class="form-input" placeholder="••••••••" required />
+											<button type="button" class="pw-toggle-btn" onclick="togglePwVisibility('currentPw', this)" aria-label="Toggle password visibility">👁</button>
+										</div>
+									</div>
+
+									<div class="form-grid">
+										<div class="form-group">
+											<label for="newPw">New Password</label>
+											<div class="pw-input-wrap">
+												<input type="password" id="newPw" class="form-input" placeholder="Enter new password" required />
+												<button type="button" class="pw-toggle-btn" onclick="togglePwVisibility('newPw', this)" aria-label="Toggle password visibility">👁</button>
+											</div>
+
+											<!-- Strength Meter -->
+											<div class="pw-strength-wrap">
+												<div class="pw-strength-meter">
+													<div class="pw-meter-bar" id="pwMeterBar"></div>
+												</div>
+												<div class="pw-strength-text" id="pwStrengthText">Strength: <span>Enter password</span></div>
+											</div>
+										</div>
+
+										<div class="form-group">
+											<label for="confirmNewPw">Confirm New Password</label>
+											<div class="pw-input-wrap">
+												<input type="password" id="confirmNewPw" class="form-input" placeholder="Re-enter new password" required />
+												<button type="button" class="pw-toggle-btn" onclick="togglePwVisibility('confirmNewPw', this)" aria-label="Toggle password visibility">👁</button>
+											</div>
+											<div class="pw-match-status" id="pwMatchStatus"></div>
+										</div>
+									</div>
+
+									<!-- Password Requirements Checklist -->
+									<div class="pw-rules-card">
+										<div class="pw-rules-title">Password Requirements:</div>
+										<ul class="pw-rules-list">
+											<li id="ruleLength" class="pw-rule-item"><span class="rule-icon">✖</span> Minimum 8 characters</li>
+											<li id="ruleUpper" class="pw-rule-item"><span class="rule-icon">✖</span> At least 1 uppercase letter (A-Z)</li>
+											<li id="ruleLower" class="pw-rule-item"><span class="rule-icon">✖</span> At least 1 lowercase letter (a-z)</li>
+											<li id="ruleNumber" class="pw-rule-item"><span class="rule-icon">✖</span> At least 1 number (0-9)</li>
+											<li id="ruleSpecial" class="pw-rule-item"><span class="rule-icon">✖</span> At least 1 special character (!@#$%^&*)</li>
+										</ul>
+									</div>
+
+									<div style="margin-top:1.5rem;">
+										<button class="button button-primary" type="submit">Update Password</button>
+									</div>
+
+									<div class="toast-msg toast-error" id="securityErrorToast"></div>
+									<div class="toast-msg toast-success" id="securityToast">✓ Password updated successfully!</div>
+								</form>
+							</div>
+
+							<!-- Notifications Section -->
+							<div class="settings-card" id="notificationsSection">
+								<div class="notif-header-flex">
+									<h2>🔔 Notifications & Activity</h2>
+									<div class="notif-actions">
+										<button type="button" class="button button-sm button-ghost" id="markReadBtn" style="font-size:.78rem;">Mark All as Read</button>
+										<button type="button" class="button button-sm button-ghost" id="clearNotifsBtn" style="font-size:.78rem;color:#dc2626;">Clear All</button>
+									</div>
+								</div>
+
+								<!-- Notification Preferences Toggles -->
+								<div class="pref-group">
+									<div class="pref-item">
+										<div class="pref-info">
+											<h4>Booking & Ticket Emails</h4>
+											<p>Receive immediate email receipts and digital E-Tickets for your event bookings.</p>
+										</div>
+										<label class="switch">
+											<input type="checkbox" checked />
+											<span class="slider"></span>
+										</label>
+									</div>
+									<div class="pref-item">
+										<div class="pref-info">
+											<h4>Upcoming Event Reminders</h4>
+											<p>Get notified 24 hours prior to scheduled events you are registered for.</p>
+										</div>
+										<label class="switch">
+											<input type="checkbox" checked />
+											<span class="slider"></span>
+										</label>
+									</div>
+									<div class="pref-item">
+										<div class="pref-info">
+											<h4>Special Offers & Recommendations</h4>
+											<p>Receive curated event invites and early-bird discount offers.</p>
+										</div>
+										<label class="switch">
+											<input type="checkbox" />
+											<span class="slider"></span>
+										</label>
+									</div>
+								</div>
+
+								<!-- Active Notifications Feed -->
+								<div class="notif-feed" id="notifFeed">
+									<div class="notif-card unread">
+										<div class="notif-icon">🎟️</div>
+										<div class="notif-body">
+											<div class="notif-title">
+												<span>Booking Confirmed</span>
+												<span class="notif-time">2 hours ago</span>
+											</div>
+											<p class="notif-desc">Your 2 VIP Passes for <strong>Chennai Business Leaders Summit 2026</strong> are confirmed. E-Tickets are ready in Your Orders.</p>
+										</div>
+									</div>
+
+									<div class="notif-card unread">
+										<div class="notif-icon">✨</div>
+										<div class="notif-body">
+											<div class="notif-title">
+												<span>Upcoming Event Reminder</span>
+												<span class="notif-time">1 day ago</span>
+											</div>
+											<p class="notif-desc"><strong>Tech Founders & Innovation Meet 2025</strong> starts in 3 days at Le Royal Méridien, Chennai.</p>
+										</div>
+									</div>
+
+									<div class="notif-card">
+										<div class="notif-icon">🎁</div>
+										<div class="notif-body">
+											<div class="notif-title">
+												<span>Special Early-Bird Offer</span>
+												<span class="notif-time">3 days ago</span>
+											</div>
+											<p class="notif-desc">Enjoy 15% off VIP Passes for <strong>South India Music & Cultural Festival</strong> using promo code <code>JODFEST15</code>.</p>
+										</div>
+									</div>
+								</div>
+
+								<!-- Empty State -->
+								<div class="notif-empty-state" id="notifEmptyState">
+									<div class="notif-empty-icon">🔔</div>
+									<div class="notif-empty-title">You're all caught up!</div>
+									<div class="notif-empty-desc">No new notifications right now. We'll notify you whenever there are updates on your bookings, saved events, or special announcements.</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div id="footer"></div>
+	</div>
+
+	<script src="js/include.js?v=10"></script>
+	<script src="js/health.js?v=1"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/profile.js?v=1"></script>
+	<script src="js/location.js?v=2"></script>
+	<script src="js/script.js?v=13"></script>
+	<script>
+		// Auth check
+		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
+		}
+
+		function getUser() {
+			try {
+				const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+				return raw ? JSON.parse(raw) : null;
+			} catch (_) { return null; }
+		}
+
+		function renderSettingsAvatar() {
+			const avatarEl = document.getElementById("settingsAvatar");
+			if (!avatarEl) return;
+			const saved = localStorage.getItem("jod_profile_avatar");
+			const user = getUser();
+			if (saved) {
+				avatarEl.innerHTML = `<img src="${saved}" alt="Profile picture" />`;
+			} else {
+				avatarEl.textContent = window.JodProfile ? window.JodProfile.getInitials() : "?";
+			}
+		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			const user = getUser();
+			if (user) {
+				document.getElementById("setFullName").value = user.full_name || user.username || "";
+
+				document.getElementById("setUsername").value = user.username || "";
+				document.getElementById("setEmail").value = user.email || "";
+				const city = user.city || localStorage.getItem("jod_user_city") || "";
+				const cityInp = document.getElementById("setLocationCity");
+				if (cityInp) cityInp.value = city;
+			}
+
+			renderSettingsAvatar();
+
+			// Photo upload with Crop Modal
+			const fileInput = document.getElementById("settingsPhotoInput");
+			if (fileInput) {
+				fileInput.addEventListener("change", (e) => {
+					const file = e.target.files[0];
+					if (!file) return;
+					if (window.JodCropModal) {
+						window.JodCropModal.open(file, () => {
+							renderSettingsAvatar();
+						});
+					} else {
+						const reader = new FileReader();
+						reader.onload = (ev) => {
+							const dataUrl = ev.target.result;
+							if (window.JodProfile) {
+								window.JodProfile.setProfilePicture(dataUrl);
+							} else {
+								localStorage.setItem("jod_profile_avatar", dataUrl);
+							}
+							renderSettingsAvatar();
+						};
+						reader.readAsDataURL(file);
+					}
+					e.target.value = "";
+				});
+			}
+
+			// Notifications actions
+			const markReadBtn = document.getElementById("markReadBtn");
+			if (markReadBtn) {
+				markReadBtn.addEventListener("click", () => {
+					document.querySelectorAll(".notif-card").forEach(card => card.classList.remove("unread"));
+				});
+			}
+
+			const clearNotifsBtn = document.getElementById("clearNotifsBtn");
+			if (clearNotifsBtn) {
+				clearNotifsBtn.addEventListener("click", () => {
+					const feed = document.getElementById("notifFeed");
+					const empty = document.getElementById("notifEmptyState");
+					if (feed) feed.style.display = "none";
+					if (empty) empty.style.display = "block";
+				});
+			}
+
+			// Hash navigation check
+			function checkHashScroll() {
+				const hash = window.location.hash.replace("#", "");
+				if (hash === "notificationsSection" || hash === "notifications") {
+					scrollToSection("notificationsSection");
+				} else if (hash === "securitySection" || hash === "security") {
+					scrollToSection("securitySection");
+				} else if (hash === "profileSection" || hash === "profile") {
+					scrollToSection("profileSection");
+				}
+			}
+			checkHashScroll();
+			window.addEventListener("hashchange", checkHashScroll);
+
+			// Remove photo
+			const removeBtn = document.getElementById("settingsRemovePhotoBtn");
+			if (removeBtn) {
+				removeBtn.addEventListener("click", () => {
+					if (window.JodProfile) {
+						window.JodProfile.removeProfilePicture();
+					} else {
+						localStorage.removeItem("jod_profile_avatar");
+					}
+					renderSettingsAvatar();
+				});
+			}
+
+			// Profile form submit
+			document.getElementById("profileForm").addEventListener("submit", (e) => {
+				e.preventDefault();
+				const fullName = document.getElementById("setFullName").value.trim();
+				const email = document.getElementById("setEmail").value.trim();
+				const city = document.getElementById("setLocationCity") ? document.getElementById("setLocationCity").value.trim() : "";
+				let u = getUser() || {};
+				u.full_name = fullName;
+				u.email = email;
+				if (city) u.city = city;
+				try {
+					if (localStorage.getItem("jod_user")) localStorage.setItem("jod_user", JSON.stringify(u));
+					if (sessionStorage.getItem("jod_user")) sessionStorage.setItem("jod_user", JSON.stringify(u));
+				} catch (_) {}
+				if (city && window.fallbackManualEntry) {
+					window.fallbackManualEntry(city).catch(() => {});
+				} else if (city && window.updateProfileLocation) {
+					window.updateProfileLocation(city);
+				}
+				const toast = document.getElementById("profileToast");
+				toast.style.display = "block";
+				setTimeout(() => toast.style.display = "none", 3000);
+			});
+
+			// Security form submit
+			document.getElementById("securityForm").addEventListener("submit", (e) => {
+				e.preventDefault();
+				const errorToast = document.getElementById("securityErrorToast");
+				const successToast = document.getElementById("securityToast");
+				errorToast.style.display = "none";
+				successToast.style.display = "none";
+
+				const currentPw = document.getElementById("currentPw").value;
+				const newPw = document.getElementById("newPw").value;
+				const confirmPw = document.getElementById("confirmNewPw").value;
+
+				if (!currentPw) {
+					document.getElementById("currentPw").classList.add("has-error");
+					showError(errorToast, "Please enter your current password.");
+					return;
+				}
+				document.getElementById("currentPw").classList.remove("has-error");
+
+				const rules = checkPwRules(newPw);
+				const allPassed = Object.values(rules).every(Boolean);
+				if (!allPassed) {
+					document.getElementById("newPw").classList.add("has-error");
+					showError(errorToast, "New password does not meet all requirements.");
+					return;
+				}
+				document.getElementById("newPw").classList.remove("has-error");
+
+				if (newPw !== confirmPw) {
+					document.getElementById("confirmNewPw").classList.add("has-error");
+					showError(errorToast, "Passwords do not match.");
+					return;
+				}
+				document.getElementById("confirmNewPw").classList.remove("has-error");
+
+				successToast.style.display = "block";
+				e.target.reset();
+				resetPwUI();
+				setTimeout(() => successToast.style.display = "none", 3000);
+			});
+
+			/* ── Password rules check ─────────────────────────── */
+			function checkPwRules(pw) {
+				return {
+					length:  pw.length >= 8,
+					upper:   /[A-Z]/.test(pw),
+					lower:   /[a-z]/.test(pw),
+					number:  /[0-9]/.test(pw),
+					special: /[^A-Za-z0-9]/.test(pw),
+				};
+			}
+
+			function updateRuleUI(rules) {
+				const ruleMap = {
+					length: "ruleLength",
+					upper: "ruleUpper",
+					lower: "ruleLower",
+					number: "ruleNumber",
+					special: "ruleSpecial",
+				};
+				for (const [key, id] of Object.entries(ruleMap)) {
+					const el = document.getElementById(id);
+					if (!el) continue;
+					const icon = el.querySelector(".rule-icon");
+					if (rules[key]) {
+						el.classList.add("is-valid");
+						icon.textContent = "✔";
+					} else {
+						el.classList.remove("is-valid");
+						icon.textContent = "✖";
+					}
+				}
+			}
+
+			function calcStrength(pw) {
+				if (!pw) return 0;
+				let score = 0;
+				if (pw.length >= 8) score++;
+				if (/[A-Z]/.test(pw)) score++;
+				if (/[a-z]/.test(pw)) score++;
+				if (/[0-9]/.test(pw)) score++;
+				if (/[^A-Za-z0-9]/.test(pw)) score++;
+				return score;
+			}
+
+			const strengthLabels = ["", "Very Weak", "Weak", "Fair", "Strong", "Very Strong"];
+
+			function updateStrengthMeter(pw) {
+				const score = calcStrength(pw);
+				const bar = document.getElementById("pwMeterBar");
+				const text = document.getElementById("pwStrengthText");
+
+				bar.className = "pw-meter-bar";
+				if (score > 0) bar.classList.add("score-" + score);
+
+				if (!pw) {
+					text.innerHTML = `Strength: <span>Enter password</span>`;
+				} else {
+					text.innerHTML = `Strength: <span class="score-${score}">${strengthLabels[score]}</span>`;
+				}
+			}
+
+			function updateMatchStatus() {
+				const newPw = document.getElementById("newPw").value;
+				const confirmPw = document.getElementById("confirmNewPw").value;
+				const el = document.getElementById("pwMatchStatus");
+				if (!confirmPw) {
+					el.textContent = "";
+					el.className = "pw-match-status";
+					document.getElementById("confirmNewPw").classList.remove("has-error");
+					return;
+				}
+				if (newPw === confirmPw) {
+					el.textContent = "✔ Passwords match";
+					el.className = "pw-match-status match";
+					document.getElementById("confirmNewPw").classList.remove("has-error");
+				} else {
+					el.textContent = "✖ Passwords do not match";
+					el.className = "pw-match-status no-match";
+					document.getElementById("confirmNewPw").classList.add("has-error");
+				}
+			}
+
+			function resetPwUI() {
+				updateRuleUI({ length: false, upper: false, lower: false, number: false, special: false });
+				updateStrengthMeter("");
+				document.getElementById("pwMatchStatus").textContent = "";
+				document.getElementById("pwMatchStatus").className = "pw-match-status";
+				["currentPw", "newPw", "confirmNewPw"].forEach(id => {
+					document.getElementById(id).classList.remove("has-error");
+				});
+			}
+
+			function showError(el, msg) {
+				el.textContent = "⚠ " + msg;
+				el.style.display = "block";
+				setTimeout(() => el.style.display = "none", 4000);
+			}
+
+			const newPwInput = document.getElementById("newPw");
+			const confirmPwInput = document.getElementById("confirmNewPw");
+
+			newPwInput.addEventListener("input", () => {
+				const pw = newPwInput.value;
+				updateRuleUI(checkPwRules(pw));
+				updateStrengthMeter(pw);
+				newPwInput.classList.remove("has-error");
+				if (confirmPwInput.value) updateMatchStatus();
+			});
+
+			confirmPwInput.addEventListener("input", () => {
+				updateMatchStatus();
+			});
+		});
+
+		function scrollToSection(id) {
+			const el = document.getElementById(id);
+			if (!el) return;
+			el.scrollIntoView({ behavior: 'smooth' });
+			document.querySelectorAll(".snav-item").forEach(btn => {
+				const attr = btn.getAttribute("onclick") || "";
+				if (attr.includes(id)) {
+					btn.classList.add("is-active");
+				} else {
+					btn.classList.remove("is-active");
+				}
+			});
+		}
+
+		function togglePwVisibility(inputId, btn) {
+			const input = document.getElementById(inputId);
+			if (input.type === "password") {
+				input.type = "text";
+				btn.textContent = "🙈";
+			} else {
+				input.type = "password";
+				btn.textContent = "👁";
+			}
+		}
+	</script>
+</body>
+</html>

@@ -35,12 +35,15 @@ def get_current_user(
     if payload is None:
         raise credentials_exception
 
-    user_id: str = payload.get("sub")
-    if user_id is None:
+    customer_id: str = payload.get("customer_id") or payload.get("sub")
+    if customer_id is None:
         raise credentials_exception
 
-    # Query user by customer_id (the primary key)
-    user = db.query(User).filter(User.customer_id == user_id).first()
+    user = db.query(User).filter(User.customer_id == customer_id).first()
+    if user is None and payload.get("email"):
+        user = db.query(User).filter(User.email == payload.get("email")).first()
+    if user is None:
+        user = db.query(User).filter(User.id == customer_id).first()
     if user is None:
         raise credentials_exception
     if not user.is_active:
@@ -70,9 +73,12 @@ def get_current_user_optional(
         payload = decode_access_token(token)
         if not payload:
             return None
-        user_id = payload.get("sub")
+        user_id = payload.get("customer_id") or payload.get("sub")
         if not user_id:
             return None
-        return db.query(User).filter(User.customer_id == user_id, User.is_active == True).first()
+        user = db.query(User).filter(User.customer_id == user_id, User.is_active == True).first()
+        if not user and payload.get("email"):
+            user = db.query(User).filter(User.email == payload.get("email"), User.is_active == True).first()
+        return user
     except Exception:
         return None

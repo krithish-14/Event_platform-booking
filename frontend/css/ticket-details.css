@@ -1,0 +1,448 @@
+/* ─────────────────────────────────────────────────────────────
+   JOD Events — BookMyShow-Style M-Ticket Redesign Styles
+   ───────────────────────────────────────────────────────────── */
+
+.ticket-page {
+	background: #0f1115;
+	color: #ffffff;
+}
+
+.ticket-main-section {
+	padding: 2rem 0 4rem;
+}
+
+/* ── Top Navigation Bar ──────────────────────────────────── */
+.ticket-top-nav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 1.5rem;
+	flex-wrap: wrap;
+	gap: 1rem;
+}
+
+.back-link {
+	color: rgba(255, 255, 255, .8);
+	font-size: .925rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: color .2s;
+}
+
+.back-link:hover {
+	color: var(--primary);
+}
+
+.header-badges {
+	display: flex;
+	align-items: center;
+	gap: .75rem;
+}
+
+.status-badge {
+	padding: .35rem .85rem;
+	border-radius: 2rem;
+	font-size: .8rem;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.badge-confirmed {
+	border: 1px solid #2ecc71;
+	background: rgba(46, 204, 113, .15);
+	color: #2ecc71;
+	box-shadow: 0 0 12px rgba(46, 204, 113, .2);
+}
+
+.badge-cancelled {
+	border: 1px solid #e74c3c;
+	background: rgba(231, 76, 60, .15);
+	color: #e74c3c;
+	box-shadow: 0 0 12px rgba(231, 76, 60, .2);
+}
+
+.order-id-label {
+	color: rgba(255, 255, 255, .6);
+	font-size: .875rem;
+	font-weight: 600;
+	font-family: monospace;
+}
+
+/* ── BookMyShow Style M-Ticket Wrapper ───────────────────── */
+.ticket-mticket-wrapper {
+	max-width: 480px;
+	margin: 0 auto 2rem;
+	position: relative;
+}
+
+.mticket-card {
+	background: #ffffff;
+	color: #111827;
+	border-radius: 1.25rem;
+	padding: 1.5rem 1.5rem 1.25rem;
+	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+	position: relative;
+	overflow: hidden;
+}
+
+/* Side Notches */
+.mticket-notch {
+	position: absolute;
+	width: 24px;
+	height: 24px;
+	background-color: #0f1115;
+	border-radius: 50%;
+	z-index: 10;
+}
+.notch-left-top { top: 220px; left: -12px; }
+.notch-right-top { top: 220px; right: -12px; }
+.notch-left-bottom { bottom: -12px; left: -12px; }
+.notch-right-bottom { bottom: -12px; right: -12px; }
+
+/* Section 1: Header (Poster + Info) */
+.mticket-header-section {
+	display: flex;
+	gap: 1rem;
+	align-items: flex-start;
+	position: relative;
+	padding-bottom: 1.25rem;
+}
+
+.mticket-poster {
+	width: 76px;
+	height: 100px;
+	border-radius: 8px;
+	overflow: hidden;
+	background: #e5e7eb;
+	flex-shrink: 0;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.mticket-poster img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.mticket-event-details {
+	flex: 1;
+	padding-right: 1.5rem;
+}
+
+.mticket-event-details h1 {
+	font-size: 1.25rem;
+	font-weight: 800;
+	color: #111827;
+	margin: 0 0 0.25rem;
+	line-height: 1.3;
+}
+
+.mticket-format-tag {
+	font-size: 0.8rem;
+	color: #6b7280;
+	margin-bottom: 0.5rem;
+	font-weight: 500;
+}
+
+.mticket-meta-item {
+	font-size: 0.85rem;
+	color: #374151;
+	margin-bottom: 0.2rem;
+
+}
+
+.mticket-datetime span {
+	font-weight: 700;
+	color: #111827;
+}
+
+.mticket-venue span {
+	color: #6b7280;
+}
+
+.mticket-watermark {
+	position: absolute;
+	right: -8px;
+	top: 0;
+	font-size: 0.725rem;
+	font-weight: 700;
+	color: #9ca3af;
+	writing-mode: vertical-rl;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	opacity: 0.45;
+}
+
+/* Collapsible Toggle Bar */
+.mticket-toggle-btn {
+	width: 100%;
+	background: #f3f4f6;
+	border: none;
+	padding: 0.55rem 1rem;
+	border-radius: 20px;
+	font-size: 0.825rem;
+	font-weight: 600;
+	color: #374151;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	margin-bottom: 1.25rem;
+	transition: background 0.2s;
+}
+
+.mticket-toggle-btn:hover {
+	background: #e5e7eb;
+}
+
+.mticket-collapsible-content {
+	transition: max-height 0.3s ease, opacity 0.3s ease;
+	overflow: hidden;
+}
+
+.mticket-collapsible-content.collapsed {
+	max-height: 0 !important;
+	opacity: 0 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+/* Section 2: Seating Block */
+.mticket-seating-block {
+	text-align: center;
+	margin-bottom: 1.25rem;
+}
+
+.mticket-count {
+	font-size: 0.85rem;
+	color: #6b7280;
+	margin-bottom: 0.2rem;
+}
+
+.mticket-zone-title {
+	font-size: 1.4rem;
+	font-weight: 800;
+	color: #111827;
+	margin-bottom: 0.25rem;
+}
+
+.mticket-seats {
+	font-size: 0.85rem;
+	color: #4b5563;
+	font-weight: 600;
+}
+
+/* Section 3: Center QR Code Block */
+.mticket-qr-block {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 1.25rem;
+}
+
+.mticket-qr-frame {
+	width: 165px;
+	height: 165px;
+	padding: 0.5rem;
+	background: #ffffff;
+	border: 1px solid #e5e7eb;
+	border-radius: 12px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+	margin-bottom: 0.75rem;
+}
+
+.mticket-qr-frame img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.mticket-booking-id-text {
+	font-size: 0.95rem;
+	font-weight: 800;
+	color: #111827;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.mticket-token-text {
+	font-size: 0.75rem;
+	color: #ff7508;
+	font-family: monospace;
+	font-weight: 700;
+	margin-top: 0.25rem;
+}
+
+/* Section 4: Policy Banner & Support */
+.mticket-policy-bar {
+	background: #f8fafc;
+	border-radius: 8px;
+	padding: 0.6rem 0.85rem;
+	text-align: center;
+	font-size: 0.8rem;
+	color: #64748b;
+	margin-bottom: 1rem;
+}
+
+.mticket-support-row {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 1.25rem;
+}
+
+.mticket-support-btn {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.25rem;
+	color: #94a3b8;
+	text-decoration: none;
+	font-size: 0.78rem;
+	font-weight: 500;
+	transition: color 0.2s;
+}
+
+.mticket-support-btn:hover {
+	color: #ff7508;
+}
+
+.mticket-support-btn svg {
+	color: #64748b;
+}
+
+/* Dotted Stub Divider */
+.mticket-stub-divider {
+	position: relative;
+	border-top: 2px dashed #e2e8f0;
+	margin: 0 -1.5rem 1.25rem;
+}
+
+/* Section 5: Bottom Price Summary */
+.mticket-price-summary {
+	padding-top: 0.25rem;
+}
+
+.mticket-total-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.85rem;
+}
+
+.mticket-total-left {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+}
+
+.mticket-total-label {
+	font-size: 0.95rem;
+	font-weight: 800;
+	color: #111827;
+}
+
+.mticket-savings-badge {
+	font-size: 0.775rem;
+	color: #16a34a;
+	font-weight: 700;
+	background: rgba(34, 197, 94, 0.1);
+	padding: 0.2rem 0.5rem;
+	border-radius: 4px;
+}
+
+.mticket-total-price {
+	font-size: 1.15rem;
+	font-weight: 800;
+	color: #111827;
+}
+
+.mticket-itemized-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	font-size: 0.825rem;
+	color: #6b7280;
+}
+
+.mticket-item-row {
+	display: flex;
+	justify-content: space-between;
+}
+
+.mticket-row-mode {
+	margin-top: 0.25rem;
+	padding-top: 0.35rem;
+	border-top: 1px dashed #f1f5f9;
+	color: #4b5563;
+	font-weight: 500;
+}
+
+/* ── Bottom Action Buttons ───────────────────────────────── */
+.ticket-actions-bar {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	flex-wrap: wrap;
+	max-width: 480px;
+	margin: 0 auto;
+}
+
+.btn-action {
+	flex: 1;
+	justify-content: center;
+	padding: 0.85rem 1.25rem;
+	font-size: 0.925rem;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.button-danger {
+	border: 1px solid #e74c3c;
+	background: rgba(231, 76, 60, .2);
+	color: #ff6b6b;
+}
+
+.button-danger:hover {
+	background: #e74c3c;
+	color: #fff;
+}
+
+/* ── Print & PDF Formatting ──────────────────────────────── */
+@media print {
+	#header, #footer, .ticket-top-nav, .ticket-actions-bar, .mticket-toggle-btn {
+		display: none !important;
+	}
+
+	body, .ticket-page {
+		background: #ffffff !important;
+		color: #000000 !important;
+	}
+
+	.ticket-main-section {
+		padding: 0 !important;
+	}
+
+	.ticket-mticket-wrapper {
+		max-width: 100% !important;
+		margin: 0 !important;
+	}
+
+	.mticket-card {
+		border: 1px solid #000000 !important;
+		box-shadow: none !important;
+		padding: 1.5rem !important;
+		page-break-inside: avoid;
+	}
+
+	.mticket-collapsible-content.collapsed {
+		max-height: none !important;
+		opacity: 1 !important;
+	}
+
+	.mticket-notch {
+		display: none !important;
+	}
+}

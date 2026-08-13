@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="Manage your event bookings, tickets, and order history on JOD Events." />
+	<title>Your Orders | JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<style>
+		/* ── Orders Page ─────────────────────────────────────── */
+		.page-hero {
+			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
+			padding: 4.5rem 0 2.5rem;
+			color: #fff;
+			position: relative;
+			overflow: hidden;
+		}
+		.page-hero::before {
+			content: '';
+			position: absolute; inset: 0;
+			background: radial-gradient(ellipse at 70% 50%, rgba(255,117,8,.18) 0%, transparent 65%);
+			pointer-events: none;
+		}
+		.hero-content h1 {
+			font-size: 2rem;
+			margin: 0 0 .35rem;
+			font-family: var(--display);
+		}
+		.hero-content p {
+			color: rgba(255,255,255,.7);
+			font-size: .95rem;
+			margin: 0;
+		}
+
+		.orders-section { padding: 3rem 0 4rem; }
+
+		.orders-filter-bar {
+			display: flex;
+			gap: .75rem;
+			margin-bottom: 2rem;
+			border-bottom: 1px solid var(--border);
+			padding-bottom: .75rem;
+			overflow-x: auto;
+		}
+		.filter-tab {
+			background: none;
+			border: none;
+			padding: .5rem 1.125rem;
+			font-size: .9rem;
+			font-weight: 600;
+			color: var(--muted);
+			cursor: pointer;
+			border-radius: 999px;
+			transition: all .2s ease;
+			white-space: nowrap;
+		}
+		.filter-tab:hover {
+			color: var(--primary);
+			background: rgba(255,117,8,.08);
+		}
+		.filter-tab.is-active {
+			background: var(--primary);
+			color: #fff;
+			box-shadow: 0 4px 14px rgba(255,117,8,.3);
+		}
+
+		.order-card {
+			background: #fff;
+			border-radius: 16px;
+			border: 1px solid var(--border);
+			padding: 1.5rem;
+			margin-bottom: 1.25rem;
+			box-shadow: 0 2px 12px rgba(38,35,31,.04);
+			display: grid;
+			grid-template-columns: 100px 1fr auto;
+			gap: 1.5rem;
+			align-items: center;
+			transition: transform .2s, box-shadow .2s;
+		}
+		.order-card:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 8px 24px rgba(38,35,31,.08);
+		}
+		@media (max-width: 680px) {
+			.order-card {
+				grid-template-columns: 1fr;
+				gap: 1rem;
+			}
+		}
+
+		.order-thumb {
+			width: 100px;
+			height: 80px;
+			border-radius: 12px;
+			overflow: hidden;
+			background: #f4efea;
+			flex-shrink: 0;
+		}
+		.order-thumb img {
+			width: 100%; height: 100%; object-fit: cover;
+		}
+		.order-details h3 {
+			font-size: 1.1rem;
+			margin: 0 0 .35rem;
+			color: var(--foreground);
+		}
+		.order-meta {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 1rem;
+			font-size: .825rem;
+			color: var(--muted);
+			margin-bottom: .5rem;
+		}
+		.order-meta span { display: flex; align-items: center; gap: .35rem; }
+		.order-id { font-size: .78rem; color: #9ca3af; font-family: monospace; }
+
+		.badge {
+			display: inline-flex;
+			align-items: center;
+			padding: .25rem .75rem;
+			border-radius: 999px;
+			font-size: .75rem;
+			font-weight: 700;
+			letter-spacing: .02em;
+			text-transform: uppercase;
+		}
+		.badge-confirmed { background: rgba(34,197,94,.12); color: #16a34a; }
+		.badge-upcoming { background: rgba(255,117,8,.12); color: var(--primary); }
+		.badge-completed { background: rgba(107,114,128,.12); color: #4b5563; }
+
+		.order-action {
+			display: flex;
+			flex-direction: column;
+			align-items: flex-end;
+			gap: .75rem;
+		}
+		@media (max-width: 680px) {
+			.order-action { align-items: flex-start; }
+		}
+		.order-price {
+			font-size: 1.25rem;
+			font-weight: 700;
+			color: var(--foreground);
+		}
+	</style>
+</head>
+<body class="sub-page">
+	<!-- Splash -->
+	<div class="splash-screen" id="splashScreen">
+		<div class="splash-bg">
+			<div class="splash-orb orb-1"></div>
+			<div class="splash-orb orb-2"></div>
+			<div class="splash-orb orb-3"></div>
+		</div>
+		<div class="splash-content">
+			<div class="splash-logo-wrap">
+				<div class="splash-logo-ring"></div>
+				<img class="splash-logo" src="images/JOD Events Logo.png" alt="JOD Events" />
+			</div>
+			<div class="splash-text">
+				<h1 class="splash-title">JOD Events</h1>
+				<p class="splash-tagline">Creating Experiences That People Remember</p>
+			</div>
+		</div>
+	</div>
+
+	<canvas class="bg-canvas" id="bgCanvas"></canvas>
+	<div class="bg-gradient-layer"></div>
+
+	<div class="site-shell" id="top">
+		<div id="header"></div>
+
+		<main>
+			<section class="page-hero">
+				<div class="container">
+					<div class="hero-content">
+						<h1>Your Orders & Bookings</h1>
+						<p>View your upcoming event tickets, registration status, and past event receipts.</p>
+					</div>
+				</div>
+			</section>
+
+			<section class="orders-section">
+				<div class="container">
+					<div class="orders-filter-bar">
+						<button class="filter-tab is-active" data-filter="all">All Orders</button>
+						<button class="filter-tab" data-filter="upcoming">Upcoming</button>
+						<button class="filter-tab" data-filter="completed">Completed</button>
+					</div>
+
+					<div class="orders-list" id="ordersListContainer">
+						<div style="text-align:center;padding:3rem;color:var(--muted)">Loading your tickets & orders…</div>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div id="footer"></div>
+	</div>
+
+	<script src="js/include.js?v=10"></script>
+	<script src="js/health.js?v=1"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/profile.js?v=1"></script>
+	<script src="js/location.js?v=2"></script>
+	<script src="js/script.js?v=13"></script>
+	<script>
+		// Auth check & filter tabs logic
+		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
+		}
+
+		let allBookingsData = [];
+
+		function getLocalBookingsCache() {
+			try {
+				const raw = localStorage.getItem("jod_user_bookings");
+				return raw ? JSON.parse(raw) : [];
+			} catch (_) {
+				return [];
+			}
+		}
+
+		function saveLocalBookingsCache(bookings) {
+			try {
+				localStorage.setItem("jod_user_bookings", JSON.stringify(bookings));
+			} catch (_) {}
+		}
+
+		async function renderOrders(filter = "all") {
+			const container = document.getElementById("ordersListContainer");
+			if (!container) return;
+
+			if (!allBookingsData || allBookingsData.length === 0) {
+				container.innerHTML = `
+					<div style="background:#fff;border-radius:16px;border:1px solid var(--border);padding:3.5rem 1.5rem;text-align:center;color:var(--muted)">
+						<div style="font-size:3rem;margin-bottom:1rem;">🎟️</div>
+						<h3 style="font-size:1.15rem;color:var(--foreground);margin:0 0 .5rem;">No Event Bookings Found</h3>
+						<p style="font-size:.9rem;margin:0 0 1.25rem;">You haven't purchased any tickets yet. Explore upcoming events and book your seats!</p>
+						<a href="index.html#upcoming" class="button button-primary button-sm" style="display:inline-flex;align-items:center;gap:.5rem;">Explore Events &rarr;</a>
+					</div>`;
+				return;
+			}
+
+			const filtered = allBookingsData.filter(b => {
+				const isCancelled = (b.status || "").toUpperCase() === "CANCELLED";
+				const isUpcoming = !isCancelled && (b.event_start_date ? new Date(b.event_start_date) > new Date() : true);
+				if (filter === "upcoming") return isUpcoming;
+				if (filter === "completed") return !isUpcoming || isCancelled;
+				return true;
+			});
+
+			if (filtered.length === 0) {
+				container.innerHTML = `<div style="background:#fff;border-radius:16px;border:1px solid var(--border);padding:2.5rem;text-align:center;color:var(--muted)">No ${filter} bookings found.</div>`;
+				return;
+			}
+
+			let html = "";
+			filtered.forEach(b => {
+				const isCancelled = (b.status || "").toUpperCase() === "CANCELLED";
+				const isUpcoming = !isCancelled && (b.event_start_date ? new Date(b.event_start_date) > new Date() : true);
+
+				let statusBadge = `<span class="badge badge-upcoming">Upcoming</span>`;
+				if (isCancelled) {
+					statusBadge = `<span class="badge" style="background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid #e74c3c;">Cancelled</span>`;
+				} else if (!isUpcoming) {
+					statusBadge = `<span class="badge badge-completed">Completed</span>`;
+				}
+
+				const dateStr = b.event_start_date ? new Date(b.event_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Date TBA";
+				const shortId = (b.booking_id || "00000000").substring(0, 8).toUpperCase();
+
+				html += `
+					<div class="order-card" data-status="${isCancelled ? 'cancelled' : (isUpcoming ? 'upcoming' : 'completed')}" style="cursor: pointer;" onclick="window.location.href='ticket-details.html?id=${b.booking_id}'">
+						<div class="order-thumb">
+							<img src="${b.image_url || 'images/JOD Events Logo.png'}" alt="Event Ticket" style="object-fit:cover;padding:0;background:#fff;" />
+						</div>
+						<div class="order-details">
+							${statusBadge}
+							<h3>${b.event_title || 'Event Booking'}</h3>
+							<div class="order-meta">
+								<span>📅 ${dateStr}</span>
+								<span>📍 ${b.event_venue || 'Venue details in ticket'}</span>
+								<span>🎟️ ${b.ticket_type || 'Access Pass'} (x${b.quantity || 1})</span>
+							</div>
+							<div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem;flex-wrap:wrap;">
+								<span class="order-id">Order ID: #JOD-${shortId}</span>
+							</div>
+						</div>
+						<div class="order-action" onclick="event.stopPropagation()">
+							<div class="order-price">₹${Number(b.total_price || 0).toLocaleString('en-IN')}</div>
+							<a class="button button-sm button-primary" href="ticket-details.html?id=${b.booking_id}">View Ticket &amp; QR 🎟️</a>
+						</div>
+					</div>`;
+			});
+
+			container.innerHTML = html;
+		}
+
+		async function fetchUserOrders() {
+			const localCache = getLocalBookingsCache();
+			if (localCache.length > 0) {
+				allBookingsData = localCache;
+				renderOrders("all");
+			}
+
+			try {
+				const apiBase = (window.JodAuth && typeof window.JodAuth.getApiBase === "function") ? window.JodAuth.getApiBase() : "http://127.0.0.1:8001";
+				const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+				if (!token) return;
+
+				const res = await fetch(`${apiBase}/api/bookings/my-bookings`, {
+					headers: { "Authorization": `Bearer ${token}` }
+				});
+				if (res.ok) {
+					const remoteData = await res.json();
+					if (Array.isArray(remoteData)) {
+						// Merge remote and local data by booking_id
+						const mergedMap = new Map();
+						localCache.forEach(b => mergedMap.set(b.booking_id, b));
+						remoteData.forEach(b => {
+							// If remote has status update or newer, prioritize remote
+							mergedMap.set(b.booking_id, { ...mergedMap.get(b.booking_id), ...b });
+						});
+						allBookingsData = Array.from(mergedMap.values()).sort((a, b) => new Date(b.booked_at || 0) - new Date(a.booked_at || 0));
+						saveLocalBookingsCache(allBookingsData);
+						renderOrders("all");
+					}
+				}
+			} catch (_) {}
+		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			fetchUserOrders();
+
+			document.querySelectorAll(".filter-tab").forEach(tab => {
+				tab.addEventListener("click", () => {
+					document.querySelectorAll(".filter-tab").forEach(t => t.classList.remove("is-active"));
+					tab.classList.add("is-active");
+					renderOrders(tab.dataset.filter);
+				});
+			});
+		});
+
+	</script>
+</body>
+</html>

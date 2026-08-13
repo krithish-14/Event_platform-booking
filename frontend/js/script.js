@@ -355,44 +355,43 @@
 		const auth = window.JodAuth || DefaultAuth;
 		const loggedIn = auth.isLoggedIn();
 
-		console.log("[Auth Debug] Navigation UI Update:", {
-			is_logged_in: loggedIn,
-			desktop_group: Boolean(desktopGroup),
-			mobile_group: Boolean(mobileGroup)
-		});
-
 		if (loggedIn) {
-			const user = auth.getUser() || {};
-			const displayName = user.full_name || user.username || (user.email ? user.email.split("@")[0] : "Account");
-			const initials = (displayName || "?").slice(0, 2).toUpperCase();
+			if (window.JodProfile && typeof window.JodProfile.renderProfileWidget === "function") {
+				if (desktopGroup) window.JodProfile.renderProfileWidget(desktopGroup);
+				if (mobileGroup) window.JodProfile.renderMobileAuthGroup(mobileGroup);
+			} else {
+				const user = auth.getUser() || {};
+				const displayName = user.full_name || user.username || (user.email ? user.email.split("@")[0] : "Account");
+				const initials = (displayName || "?").slice(0, 2).toUpperCase();
 
-			if (desktopGroup) {
-				desktopGroup.innerHTML = `
-					<div class="auth-user-block" style="display:flex;align-items:center;gap:.75rem;">
-						<div class="user-avatar" title="${displayName}" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;letter-spacing:.02em;box-shadow:0 2px 8px rgba(255,117,8,0.3);">${initials}</div>
-						<div style="line-height:1.2;">
-							<div style="font-size:.85rem;font-weight:700;color:#ffffff;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}</div>
-							<button id="nav-logout-btn" type="button" style="background:none;border:0;padding:0;color:#ff7508;font-weight:600;font-size:.78rem;cursor:pointer;">Logout</button>
-						</div>
-					</div>`;
-				const btn = desktopGroup.querySelector("#nav-logout-btn");
-				if (btn) btn.addEventListener("click", onLogoutClick);
-			}
-
-			if (mobileGroup) {
-				mobileGroup.innerHTML = `
-					<div style="padding:1rem .5rem .5rem;">
-						<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem;">
-							<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${initials}</div>
-							<div style="line-height:1.15;">
-								<div style="font-weight:600;color:#ffffff;">${displayName}</div>
-								<div style="font-size:.75rem;color:#94a3b8;">${user.email || ""}</div>
+				if (desktopGroup) {
+					desktopGroup.innerHTML = `
+						<div class="auth-user-block" style="display:flex;align-items:center;gap:.75rem;">
+							<div class="user-avatar" title="${displayName}" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;letter-spacing:.02em;box-shadow:0 2px 8px rgba(255,117,8,0.3);">${initials}</div>
+							<div style="line-height:1.2;">
+								<div style="font-size:.85rem;font-weight:700;color:#ffffff;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}</div>
+								<button id="nav-logout-btn" type="button" style="background:none;border:0;padding:0;color:#ff7508;font-weight:600;font-size:.78rem;cursor:pointer;">Logout</button>
 							</div>
-						</div>
-						<button class="button button-login" id="mobile-logout-btn" type="button" style="width:100%;background:#fef2e6;color:#ff7508;border:1px solid #ffcd9a;">Logout</button>
-					</div>`;
-				const btn = mobileGroup.querySelector("#mobile-logout-btn");
-				if (btn) btn.addEventListener("click", onLogoutClick);
+						</div>`;
+					const btn = desktopGroup.querySelector("#nav-logout-btn");
+					if (btn) btn.addEventListener("click", onLogoutClick);
+				}
+
+				if (mobileGroup) {
+					mobileGroup.innerHTML = `
+						<div style="padding:1rem .5rem .5rem;">
+							<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem;">
+								<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${initials}</div>
+								<div style="line-height:1.15;">
+									<div style="font-weight:600;color:#ffffff;">${displayName}</div>
+									<div style="font-size:.75rem;color:#94a3b8;">${user.email || ""}</div>
+								</div>
+							</div>
+							<button class="button button-login" id="mobile-logout-btn" type="button" style="width:100%;background:#fef2e6;color:#ff7508;border:1px solid #ffcd9a;">Logout</button>
+						</div>`;
+					const btn = mobileGroup.querySelector("#mobile-logout-btn");
+					if (btn) btn.addEventListener("click", onLogoutClick);
+				}
 			}
 		} else {
 			if (desktopGroup && !desktopGroup.querySelector("#nav-login-btn")) {
@@ -439,6 +438,18 @@
 
 (window.includesReady || Promise.resolve()).then(() => {
 	"use strict";
+
+	/* ── Location flow (homepage) ─────────────── */
+	if (window.JodLocation) {
+		const pending = (() => {
+			try { return sessionStorage.getItem("jod_location_pending") === "1"; } catch (_) { return false; }
+		})();
+		if (pending) {
+			window.JodLocation.initLocationFlow({ force: true }).catch(() => {});
+		} else {
+			window.JodLocation.applyCachedRecommendations();
+		}
+	}
 
 	const pad = (value) => String(value).padStart(2, "0");
 
@@ -548,6 +559,70 @@
 	try { modalWasShown = sessionStorage.getItem("jod-upcoming-modal-shown") === "1"; } catch (error) { void error; }
 	if (modal && !modalWasShown) {
 		window.setTimeout(() => { modal.hidden = false; document.body.classList.add("modal-open"); }, 1800);
+	}
+
+	/* ── Guest Auth Modal for Live Trending Events ───────────── */
+	const guestAuthModal = document.getElementById("guestAuthModal");
+	const guestAuthModalCloseBtn = document.getElementById("guestAuthModalCloseBtn");
+	const guestAuthModalCloseBackdrop = document.getElementById("guestAuthModalCloseBackdrop");
+	const guestAuthCancelBtn = document.getElementById("guestAuthCancelBtn");
+	const guestAuthSignupBtn = document.getElementById("guestAuthSignupBtn");
+
+	function closeGuestAuthModal() {
+		if (!guestAuthModal) return;
+		guestAuthModal.hidden = true;
+		document.body.classList.remove("guest-modal-open");
+	}
+
+	function openGuestAuthModal(targetUrl) {
+		if (!guestAuthModal) return;
+		if (targetUrl) {
+			try { sessionStorage.setItem("jod_redirect_after_login", targetUrl); } catch (_) {}
+			if (guestAuthSignupBtn) {
+				guestAuthSignupBtn.href = `signup.html?redirect=${encodeURIComponent(targetUrl)}`;
+			}
+		} else if (guestAuthSignupBtn) {
+			guestAuthSignupBtn.href = "signup.html";
+		}
+		guestAuthModal.hidden = false;
+		document.body.classList.add("guest-modal-open");
+	}
+
+	if (guestAuthModal) {
+		guestAuthModalCloseBtn?.addEventListener("click", closeGuestAuthModal);
+		guestAuthModalCloseBackdrop?.addEventListener("click", closeGuestAuthModal);
+		guestAuthCancelBtn?.addEventListener("click", closeGuestAuthModal);
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape" && guestAuthModal && !guestAuthModal.hidden) {
+				closeGuestAuthModal();
+			}
+		});
+	}
+
+	const upcomingSection = document.getElementById("upcoming");
+	if (upcomingSection) {
+		upcomingSection.addEventListener("click", (e) => {
+			const card = e.target.closest(".event-card");
+			if (!card) return;
+
+			const isLoggedIn = Auth.isLoggedIn && Auth.isLoggedIn();
+			if (!isLoggedIn) {
+				e.preventDefault();
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+
+				const linkEl = card.querySelector("a.card-link");
+				let targetUrl = linkEl ? linkEl.getAttribute("href") : null;
+				if (!targetUrl) {
+					const onclickAttr = card.getAttribute("onclick") || "";
+					const match = onclickAttr.match(/href=['"]([^'"]+)['"]/);
+					if (match) targetUrl = match[1];
+				}
+				if (!targetUrl) targetUrl = "event-details.html";
+
+				openGuestAuthModal(targetUrl);
+			}
+		}, true);
 	}
 
 	const year = document.querySelector("[data-year]");

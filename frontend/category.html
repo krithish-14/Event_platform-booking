@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="Explore events by category on JOD Events — Workshops, Corporate Conferences, Concerts, Standup Comedy, Weddings, and more." />
+	<title>Browse Events by Category — JOD Events</title>
+	<link rel="stylesheet" href="css/style.css?v=14" />
+	<link rel="stylesheet" href="css/responsive.css?v=14" />
+	<link rel="stylesheet" href="css/category.css?v=1" />
+</head>
+<body class="sub-page category-page">
+	<div id="header"></div>
+
+	<main class="category-main">
+		<!-- ── Category Header & Top Sub-Topics ────────────────────────── -->
+		<section class="category-hero-section">
+			<div class="container">
+				<div class="category-header-info">
+					<span class="pill pill-light-orange" id="categoryPillBadge">✨ Explore Category</span>
+					<h1 class="category-title" id="categoryTitle">Events In Chennai</h1>
+					<p class="category-subtitle" id="categorySubtitle">Discover upcoming experiences, workshops, and gatherings tailored for you.</p>
+				</div>
+
+				<!-- Horizontal Sub-category / Sub-topic Pill Chips Bar -->
+				<div class="subtopics-bar" id="subtopicsBar">
+					<button class="subtopic-chip active" type="button" data-subtopic="all">All Events</button>
+					<button class="subtopic-chip" type="button" data-subtopic="arts">Arts &amp; Crafts</button>
+					<button class="subtopic-chip" type="button" data-subtopic="food">Food &amp; Drinks</button>
+					<button class="subtopic-chip" type="button" data-subtopic="education">Education</button>
+					<button class="subtopic-chip" type="button" data-subtopic="masterclass">Masterclass</button>
+					<button class="subtopic-chip" type="button" data-subtopic="wellness">Wellness</button>
+					<button class="subtopic-chip" type="button" data-subtopic="business">Business</button>
+					<button class="subtopic-chip" type="button" data-subtopic="fashion">Fashion &amp; Beauty</button>
+					<button class="subtopic-chip" type="button" data-subtopic="technology">Technology</button>
+					<button class="subtopic-chip" type="button" data-subtopic="upskill">Upskill</button>
+				</div>
+			</div>
+		</section>
+
+		<!-- ── Category Layout Container (Sidebar + Main Grid) ────────── -->
+		<section class="category-content-section">
+			<div class="container cat-layout">
+				<!-- Left Sidebar Filter Panel -->
+				<aside class="cat-sidebar" id="catSidebar">
+					<div class="sidebar-header">
+						<h3>Filters</h3>
+						<button class="btn-clear-all" type="button" id="btnClearAllFilters">Clear All</button>
+					</div>
+
+					<!-- Filter Accordion 1: Categories -->
+					<div class="filter-group">
+						<div class="filter-group-header">
+							<span>Categories</span>
+							<button class="btn-clear-group" type="button" data-clear="category">Clear</button>
+						</div>
+						<div class="filter-chips-grid" id="filterCategoriesList">
+							<button class="filter-chip active" type="button" data-category="all">All</button>
+							<button class="filter-chip" type="button" data-category="workshop">Workshops</button>
+							<button class="filter-chip" type="button" data-category="corporate">Corporate</button>
+							<button class="filter-chip" type="button" data-category="comedy">Standup Comedy</button>
+							<button class="filter-chip" type="button" data-category="festival">Festivals</button>
+							<button class="filter-chip" type="button" data-category="wedding">Weddings</button>
+							<button class="filter-chip" type="button" data-category="launch">Product Launch</button>
+							<button class="filter-chip" type="button" data-category="sports">Sports</button>
+						</div>
+					</div>
+
+					<!-- Filter Accordion 2: Date -->
+					<div class="filter-group">
+						<div class="filter-group-header">
+							<span>Date</span>
+							<button class="btn-clear-group" type="button" data-clear="date">Clear</button>
+						</div>
+						<div class="filter-chips-grid" id="filterDateList">
+							<button class="filter-chip active" type="button" data-date="all">All Dates</button>
+							<button class="filter-chip" type="button" data-date="today">Today</button>
+							<button class="filter-chip" type="button" data-date="tomorrow">Tomorrow</button>
+							<button class="filter-chip" type="button" data-date="weekend">This Weekend</button>
+						</div>
+					</div>
+
+					<!-- Filter Accordion 3: Event Format -->
+					<div class="filter-group">
+						<div class="filter-group-header">
+							<span>Format</span>
+							<button class="btn-clear-group" type="button" data-clear="format">Clear</button>
+						</div>
+						<div class="filter-chips-grid" id="filterFormatList">
+							<button class="filter-chip active" type="button" data-format="all">All Formats</button>
+							<button class="filter-chip" type="button" data-format="in-person">In-Person</button>
+							<button class="filter-chip" type="button" data-format="online">Online Streaming</button>
+							<button class="filter-chip" type="button" data-format="hybrid">Hybrid</button>
+						</div>
+					</div>
+
+					<!-- Filter Accordion 4: Price -->
+					<div class="filter-group">
+						<div class="filter-group-header">
+							<span>Price</span>
+							<button class="btn-clear-group" type="button" data-clear="price">Clear</button>
+						</div>
+						<div class="filter-chips-grid" id="filterPriceList">
+							<button class="filter-chip active" type="button" data-price="all">All</button>
+							<button class="filter-chip" type="button" data-price="free">Free</button>
+							<button class="filter-chip" type="button" data-price="0-500">₹0 - 500</button>
+							<button class="filter-chip" type="button" data-price="501-2000">₹501 - 2000</button>
+							<button class="filter-chip" type="button" data-price="above-2000">Above ₹2000</button>
+						</div>
+					</div>
+				</aside>
+
+				<!-- Right Main Events Area -->
+				<div class="cat-main-content">
+					<div class="results-bar">
+						<div class="results-info">
+							<span class="results-count" id="resultsCount">Loading events…</span>
+							<div class="active-tags-container" id="activeTagsContainer"></div>
+						</div>
+					</div>
+
+					<!-- Events Grid -->
+					<div class="category-events-grid" id="categoryEventsGrid">
+						<!-- Dynamic Event Cards rendered via category.js -->
+					</div>
+
+					<!-- Empty State Container -->
+					<div class="cat-empty-state" id="catEmptyState" hidden>
+						<div class="empty-state-icon">🔍</div>
+						<h3>No Events Found</h3>
+						<p>We couldn't find any events matching your selected filters. Try clearing some filters to explore more events.</p>
+						<button class="button button-primary" type="button" id="btnResetFilters">Reset Filters</button>
+					</div>
+				</div>
+			</div>
+		</section>
+	</main>
+
+	<div id="footer"></div>
+
+	<!-- Scripts -->
+	<script src="js/include.js?v=10"></script>
+	<script src="js/health.js?v=1"></script>
+	<script src="js/auth.js?v=10"></script>
+	<script src="js/profile.js?v=1"></script>
+	<script src="js/location.js?v=2"></script>
+	<script src="js/search.js?v=1"></script>
+	<script src="js/script.js?v=14"></script>
+	<script src="js/category.js?v=1"></script>
+</body>
+</html>

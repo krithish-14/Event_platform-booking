@@ -17,9 +17,11 @@ router = APIRouter()
 # ── Schemas ───────────────────────────────────────────────────────────────────
 class UserProfileResponse(BaseModel):
     id: str
+    customer_id: str
     email: str
     username: str
     full_name: Optional[str]
+    city: Optional[str] = None
     bio: Optional[str]
     avatar_url: Optional[str]
     is_active: bool
@@ -31,6 +33,7 @@ class UserProfileResponse(BaseModel):
 
 class UserUpdateRequest(BaseModel):
     full_name: Optional[str] = None
+    city: Optional[str] = None
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
 
@@ -56,10 +59,13 @@ def update_my_profile(
     return current_user
 
 
-@router.get("/{username}", response_model=UserProfileResponse)
-def get_user_by_username(username: str, db: Session = Depends(get_db)):
-    """Get a public user profile by username."""
-    user = db.query(User).filter(User.username == username).first()
+@router.get("/{identifier}", response_model=UserProfileResponse)
+def get_user_by_id_or_username(identifier: str, db: Session = Depends(get_db)):
+    """Get a public user profile by username or customer_id."""
+    user = db.query(User).filter(
+        (User.username == identifier) | (User.customer_id == identifier)
+    ).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     return user
+

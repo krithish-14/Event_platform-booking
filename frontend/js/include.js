@@ -74,6 +74,24 @@
 		}
 	}
 
+	// Global click listener to track return URL before navigating to login/signup
+	document.addEventListener("click", (e) => {
+		const link = e.target.closest("a[href*='login.html'], a[href*='signup.html']");
+		if (!link) return;
+		const currentFile = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+		if (currentFile !== "login.html" && currentFile !== "signup.html") {
+			const fullTarget = window.location.pathname + window.location.search + window.location.hash;
+			try {
+				sessionStorage.setItem("jod_redirect_after_login", fullTarget);
+			} catch (_) {}
+			const href = link.getAttribute("href");
+			if (href && !href.includes("redirect=")) {
+				const sep = href.includes("?") ? "&" : "?";
+				link.setAttribute("href", `${href}${sep}redirect=${encodeURIComponent(fullTarget)}`);
+			}
+		}
+	});
+
 	const promises = [];
 	const headerEl = document.getElementById("header");
 	if (headerEl) promises.push(loadComponent("header", "components/header.html"));
@@ -85,6 +103,9 @@
 		setTimeout(() => {
 			if (typeof window.updateNavAuth === "function") {
 				window.updateNavAuth();
+			}
+			if (window.JodSearch && typeof window.JodSearch.initSearch === "function") {
+				window.JodSearch.initSearch();
 			}
 			window.dispatchEvent(new Event("includesLoaded"));
 		}, 0);
