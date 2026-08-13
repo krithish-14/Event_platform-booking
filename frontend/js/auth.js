@@ -501,8 +501,8 @@ window.JodAuth = (() => {
 			});
 		}
 
-		signupForm.addEventListener("submit", async (e) => {
-			e.preventDefault();
+		async function doSignup(e) {
+			if (e && e.preventDefault) e.preventDefault();
 			clearErrors(signupForm);
 			hideAlert(alertEl);
 
@@ -617,7 +617,9 @@ window.JodAuth = (() => {
 			} finally {
 				setLoading(submitBtn, false);
 			}
-		});
+		}
+
+		signupForm.addEventListener("submit", doSignup);
 
 		// Proactive page-load health check for signup form
 		if (window.JodHealth) {
