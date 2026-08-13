@@ -503,7 +503,6 @@ window.JodAuth = (() => {
 
 		signupForm.addEventListener("submit", async (e) => {
 			e.preventDefault();
->>>>>>> origin/krithish-feature
 			clearErrors(signupForm);
 			hideAlert(alertEl);
 
