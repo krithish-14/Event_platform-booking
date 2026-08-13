@@ -30,6 +30,23 @@
 			</div>
 		</div>
 	</div>
+	<script>
+		(function() {
+			function autoDismissSplash() {
+				var s = document.getElementById("splashScreen");
+				if (s) {
+					s.classList.add("is-hidden");
+					setTimeout(function() { s.style.display = "none"; }, 650);
+				}
+			}
+			setTimeout(autoDismissSplash, 1800);
+			if (document.readyState === "complete" || document.readyState === "interactive") {
+				setTimeout(autoDismissSplash, 1000);
+			} else {
+				window.addEventListener("DOMContentLoaded", function() { setTimeout(autoDismissSplash, 1000); });
+			}
+		})();
+	</script>
 
 	<!-- ── Background canvas ──────────────────────────────── -->
 	<canvas class="bg-canvas" id="bgCanvas"></canvas>

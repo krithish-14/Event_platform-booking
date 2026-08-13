@@ -617,7 +617,7 @@ window.JodAuth = (() => {
 			} finally {
 				setLoading(submitBtn, false);
 			}
-		}
+		});
 
 		// Proactive page-load health check for signup form
 		if (window.JodHealth) {

@@ -393,7 +393,6 @@
 					if (btn) btn.addEventListener("click", onLogoutClick);
 				}
 			}
-			}
 		} else {
 			if (desktopGroup && !desktopGroup.querySelector("#nav-login-btn")) {
 				desktopGroup.innerHTML = `
