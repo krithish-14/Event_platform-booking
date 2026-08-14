@@ -315,7 +315,7 @@
 			const imgUrl = item.image_url || "images/hero-event.jpg";
 
 			return `
-				<article class="cat-event-card" onclick="window.location.href='${targetUrl}'">
+				<article class="cat-event-card" data-event-id="${item.id}" data-target-url="${targetUrl}" onclick="if(window.JodAuth && !window.JodAuth.isLoggedIn()){event.preventDefault();event.stopPropagation();window.JodAuth.openGuestAuthModal('${targetUrl}');}else{window.location.href='${targetUrl}';}">
 					<div class="cat-card-image">
 						<img src="${imgUrl}" alt="${item.title}" loading="lazy" />
 						<span class="date-overlay-badge">📅 ${dateShort}</span>

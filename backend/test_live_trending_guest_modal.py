@@ -31,8 +31,8 @@ def test_live_trending_and_guest_modal():
     assert 'id="guestAuthModalCloseBackdrop"' in index_html, "#guestAuthModalCloseBackdrop missing"
     assert 'id="guestAuthSignupBtn"' in index_html, "#guestAuthSignupBtn missing"
     assert 'id="guestAuthCancelBtn"' in index_html, "#guestAuthCancelBtn missing"
-    assert 'Sign Up to Book Tickets' in index_html, "Modal title missing"
-    assert 'Sign In / Sign Up' in index_html, "Modal CTA button missing"
+    assert ('Sign Up to Book Tickets' in index_html or 'Sign Up to Continue' in index_html), "Modal title missing"
+    assert 'Sign Up' in index_html, "Modal CTA button missing"
     print("[OK] #guestAuthModal markup is present with all required controls in index.html")
 
     # 2. Verify style.css

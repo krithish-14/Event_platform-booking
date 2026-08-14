@@ -11,11 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
-from Models.base import get_db
-from Models.organizer import EmailOTP, OrganizerAccount
-
-from Models.user import User
-from Models.audit_logs import HostRegistrationLog
+from Models import get_db, EmailOTP, OrganizerAccount, User, HostRegistrationLog
 from Authentication.dependencies import get_current_user, get_current_user_optional
 
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
@@ -332,14 +328,20 @@ def save_account_setup(
 
 @router.get("/account-setup")
 def get_account_setup(
-    email: str = Query(..., description="Organizer email address"),
+    email: Optional[str] = Query(None, description="Organizer email address"),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """Fetch saved organizer account details by email."""
-    email_clean = email.lower().strip()
+    """Fetch saved organizer account details by authenticated token or email."""
+    if not current_user and not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token or email is required."
+        )
 
-    if current_user and current_user.email.lower() != email_clean:
+    email_clean = (email or (current_user.email if current_user else "")).lower().strip()
+
+    if current_user and email and current_user.email.lower() != email_clean:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not authorized to view another user's host account."

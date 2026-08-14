@@ -18,16 +18,6 @@ window.JodAuth = (() => {
 		try {
 			let token = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token");
 			if (token === "null" || token === "undefined") token = null;
-			if (!token) {
-				const user = getUser();
-				if (user && user.email) {
-					token = "session_token_" + btoa(user.email);
-					try {
-						localStorage.setItem("jod_access_token", token);
-						sessionStorage.setItem("jod_access_token", token);
-					} catch (_) {}
-				}
-			}
 			return token || null;
 		} catch (_) { return null; }
 	}
@@ -37,7 +27,9 @@ window.JodAuth = (() => {
 			const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
 			if (raw && raw !== "null" && raw !== "undefined") {
 				const parsed = JSON.parse(raw);
-				if (parsed && typeof parsed === "object") return parsed;
+				if (parsed && typeof parsed === "object" && (parsed.email || parsed.id || parsed.customer_id)) {
+					return parsed;
+				}
 			}
 			const verifiedEmail = sessionStorage.getItem("verified_organizer_email");
 			if (verifiedEmail) {
@@ -47,10 +39,6 @@ window.JodAuth = (() => {
 					full_name: verifiedEmail.split("@")[0],
 					is_organizer: true
 				};
-				try {
-					localStorage.setItem("jod_user", JSON.stringify(fallbackUser));
-					sessionStorage.setItem("jod_user", JSON.stringify(fallbackUser));
-				} catch (_) {}
 				return fallbackUser;
 			}
 			return null;
@@ -59,10 +47,11 @@ window.JodAuth = (() => {
 
 	function isLoggedIn() {
 		try {
-			const token = getToken();
 			const user = getUser();
-			const hasEmail = Boolean(sessionStorage.getItem("verified_organizer_email"));
-			return Boolean(token || user || hasEmail);
+			const token = getToken();
+			if (user && (user.id || user.customer_id || user.email)) return true;
+			if (token && token !== "null" && token !== "undefined" && token.length > 5) return true;
+			return false;
 		} catch (_) {
 			return false;
 		}
@@ -299,11 +288,19 @@ window.JodAuth = (() => {
 				} else {
 					try {
 						const remember = loginForm.querySelector("#rememberMe")?.checked;
-						const storage = remember ? localStorage : sessionStorage;
-						storage.setItem("jod_access_token", data.access_token);
-						storage.setItem("jod_user", JSON.stringify(data.user));
-					} catch (_) { }
-
+						if (remember) {
+							localStorage.setItem("jod_access_token", data.access_token);
+							localStorage.setItem("jod_user", JSON.stringify(data.user));
+						} else {
+							sessionStorage.setItem("jod_access_token", data.access_token);
+							sessionStorage.setItem("jod_user", JSON.stringify(data.user));
+						}
+						// Keep both storages in sync for cross-page compatibility
+						localStorage.setItem("jod_access_token", data.access_token);
+						sessionStorage.setItem("jod_access_token", data.access_token);
+						localStorage.setItem("jod_user", JSON.stringify(data.user));
+						sessionStorage.setItem("jod_user", JSON.stringify(data.user));
+					} catch (_) {}
 
 					console.log("[Auth Debug] Login Successful:", {
 						user_id: data.user?.id,
@@ -315,11 +312,8 @@ window.JodAuth = (() => {
 					});
 
 					showAlert(alertEl, "success", "Login successful! Redirecting…");
-
-					// Defer location flow to homepage (GPS needs time + secure context)
 					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
 
-					// Smart redirect: check if user is a submitted/verified organizer
 					setTimeout(async () => {
 						try {
 							const userEmail = data.user && data.user.email;
@@ -341,8 +335,8 @@ window.JodAuth = (() => {
 						} catch (e) {
 							console.warn("[Auth Debug] Organizer check exception:", e);
 						}
-						console.log("[Auth Debug] Redirecting to Authenticated Home Page (index.html)");
-						window.location.href = "index.html";
+						const targetUrl = getRedirectTarget();
+						window.location.href = targetUrl;
 					}, 900);
 				}
 			} catch (err) {
@@ -505,7 +499,8 @@ window.JodAuth = (() => {
 			});
 		}
 
-		async function doSignup() {
+		async function doSignup(e) {
+			if (e && e.preventDefault) e.preventDefault();
 			clearErrors(signupForm);
 			hideAlert(alertEl);
 
@@ -578,7 +573,7 @@ window.JodAuth = (() => {
 				try { data = await res.json(); } catch (_) { }
 
 				if (!res.ok) {
-					const detail = data.detail || "Registration failed. Please try again.";
+					const detail = data.detail || `Registration failed (${res.status}). Please try again.`;
 					if (detail.toLowerCase().includes("email")) {
 						setError(signupForm.querySelector("#signupEmail"), detail);
 						setLiveStatus(emailInput, false, detail);
@@ -587,9 +582,8 @@ window.JodAuth = (() => {
 						setError(signupForm.querySelector("#signupUsername"), detail);
 						setLiveStatus(usernameInput, false, detail);
 						usernameAvailable = false;
-					} else {
-						showAlert(alertEl, "error", detail);
 					}
+					showAlert(alertEl, "error", detail);
 				} else {
 					try {
 						localStorage.setItem("jod_access_token", data.access_token);
@@ -623,6 +617,8 @@ window.JodAuth = (() => {
 			}
 		}
 
+		signupForm.addEventListener("submit", doSignup);
+
 		// Proactive page-load health check for signup form
 		if (window.JodHealth) {
 			window.JodHealth.checkBackendHealth().then((isOnline) => {
@@ -644,7 +640,7 @@ window.JodAuth = (() => {
 
 	/* ── Google OAuth Integration ────────────────────────────── */
 	async function handleGoogleCredentialResponse(response, alertEl, btnEl) {
-		if (!response || !response.credential) {
+		if (!response || (!response.credential && !response.code)) {
 			if (alertEl) showAlert(alertEl, "error", "Google authentication was cancelled or failed.");
 			return;
 		}
@@ -659,7 +655,12 @@ window.JodAuth = (() => {
 				pincode = localStorage.getItem("jod_user_pincode") || sessionStorage.getItem("jod_user_pincode") || null;
 			}
 
-			const payload = { credential: response.credential };
+			const payload = {};
+			if (response.credential) payload.credential = response.credential;
+			if (response.code) {
+				payload.code = response.code;
+				payload.redirect_uri = window.location.origin + window.location.pathname;
+			}
 			if (city) payload.city = city;
 			if (pincode) payload.location_pincode = pincode;
 
@@ -702,12 +703,24 @@ window.JodAuth = (() => {
 	let googleClientConfig = { client_id: "", enabled: false };
 
 	async function initGoogleAuth() {
+		// 1. Check if we returned from Google OAuth redirect
+		const params = new URLSearchParams(window.location.search);
+		const code = params.get("code");
+		const alertEl = document.querySelector("#signupForm .form-alert, #loginForm .form-alert");
+		const btnEl = document.getElementById("googleSignupBtn") || document.getElementById("googleLoginBtn");
+
+		if (code) {
+			// Remove the code from the URL so it doesn't linger or get reused
+			window.history.replaceState({}, document.title, window.location.pathname);
+			if (alertEl) showAlert(alertEl, "info", "Finalizing Google authentication...");
+			await handleGoogleCredentialResponse({ code }, alertEl, btnEl);
+			return;
+		}
+
 		try {
 			const res = await fetch(`${API_BASE}/api/auth/google/config`);
 			if (res.ok) googleClientConfig = await res.json();
 		} catch (_) {}
-
-		const alertEl = document.querySelector("#signupForm .form-alert, #loginForm .form-alert");
 
 		if (googleClientConfig.client_id && !window.google?.accounts?.id) {
 			const script = document.createElement("script");
@@ -719,9 +732,7 @@ window.JodAuth = (() => {
 					window.google.accounts.id.initialize({
 						client_id: googleClientConfig.client_id,
 						callback: (resp) => {
-							const activeBtn = document.getElementById("googleSignupBtn") || document.getElementById("googleLoginBtn");
-							const activeAlert = (document.getElementById("googleSignupBtn") ? document.querySelector("#signupForm .form-alert") : document.querySelector("#loginForm .form-alert")) || alertEl;
-							handleGoogleCredentialResponse(resp, activeAlert, activeBtn);
+							handleGoogleCredentialResponse(resp, alertEl, btnEl);
 						},
 					});
 				} catch (_) {}
@@ -730,18 +741,30 @@ window.JodAuth = (() => {
 		}
 	}
 
-	function triggerGoogleFlow(btn, alertElement) {
-		if (window.google?.accounts?.id && googleClientConfig.client_id) {
-			try {
-				window.google.accounts.id.prompt((notification) => {
-					if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-						openGoogleDevModal(btn, alertElement);
-					}
-				});
-			} catch (_) {
-				openGoogleDevModal(btn, alertElement);
+	async function triggerGoogleFlow(btn, alertElement) {
+		if (btn) btn.classList.add("is-loading");
+		
+		// Preserve redirect URI if present
+		const params = new URLSearchParams(window.location.search);
+		const redirect = params.get("redirect");
+		if (redirect) {
+			sessionStorage.setItem("jod_redirect", redirect);
+		}
+		
+		try {
+			const res = await fetch(`${API_BASE}/api/auth/google/url`);
+			if (!res.ok) {
+				throw new Error("Backend rejected Google Auth URL generation");
 			}
-		} else {
+			const data = await res.json();
+			if (data.url) {
+				window.location.href = data.url;
+			} else {
+				throw new Error("No URL returned from backend");
+			}
+		} catch (e) {
+			if (btn) btn.classList.remove("is-loading");
+			console.warn("Falling back to Google Dev Modal:", e.message);
 			openGoogleDevModal(btn, alertElement);
 		}
 	}
@@ -838,6 +861,7 @@ window.JodAuth = (() => {
 	// Global Event Delegation for Google Auth Buttons
 	document.addEventListener("click", (e) => {
 		const targetBtn = e.target.closest("#googleSignupBtn, #googleLoginBtn, .btn-google-auth");
+		console.log("Global click caught on auth button:", targetBtn);
 		if (targetBtn) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -864,32 +888,277 @@ window.JodAuth = (() => {
 		}
 	}
 
+	/* ── Guest Auth Modal (Universal) ────────────────────────── */
+	function ensureGuestModal() {
+		let modal = document.getElementById("guestAuthModal");
+		if (!modal) {
+			modal = document.createElement("div");
+			modal.id = "guestAuthModal";
+			modal.className = "modal-backdrop guest-auth-modal-backdrop";
+			modal.setAttribute("role", "dialog");
+			modal.setAttribute("aria-modal", "true");
+			modal.setAttribute("aria-labelledby", "guestAuthModalTitle");
+			modal.hidden = true;
+			modal.innerHTML = `
+				<button class="modal-close-backdrop" type="button" aria-label="Close modal" id="guestAuthModalCloseBackdrop"></button>
+				<div class="guest-auth-modal-box">
+					<button class="guest-auth-modal-close" type="button" aria-label="Close" id="guestAuthModalCloseBtn">&times;</button>
+					<div class="guest-auth-modal-header">
+						<div class="guest-auth-modal-icon">
+							<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+								<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+							</svg>
+						</div>
+						<span class="pill pill-light-orange" id="guestAuthModalBadge">ACCOUNT REQUIRED</span>
+					</div>
+					<div class="guest-auth-modal-body">
+						<h3 id="guestAuthModalTitle">Sign Up to Book Tickets</h3>
+						<p id="guestAuthModalDesc">You need to sign up or log in to view event details and reserve tickets for Live Trending Events.</p>
+					</div>
+					<div class="guest-auth-modal-actions">
+						<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html">
+							Sign Up <span aria-hidden="true">&rarr;</span>
+						</a>
+						<button class="button button-ghost-light" type="button" id="guestAuthCancelBtn">Maybe Later</button>
+					</div>
+					<div class="guest-auth-modal-switch">
+						Already have an account? <a href="login.html" id="guestAuthLoginLink">Log In</a>
+					</div>
+				</div>
+			`;
+			document.body.appendChild(modal);
+		}
+
+		// Bind close handlers
+		const closeBtn = modal.querySelector("#guestAuthModalCloseBtn");
+		const backdrop = modal.querySelector("#guestAuthModalCloseBackdrop");
+		const cancelBtn = modal.querySelector("#guestAuthCancelBtn");
+
+		const closeHandler = () => closeGuestAuthModal();
+		if (closeBtn && !closeBtn._hasCloseHandler) {
+			closeBtn.addEventListener("click", closeHandler);
+			closeBtn._hasCloseHandler = true;
+		}
+		if (backdrop && !backdrop._hasCloseHandler) {
+			backdrop.addEventListener("click", closeHandler);
+			backdrop._hasCloseHandler = true;
+		}
+		if (cancelBtn && !cancelBtn._hasCloseHandler) {
+			cancelBtn.addEventListener("click", closeHandler);
+			cancelBtn._hasCloseHandler = true;
+		}
+
+		return modal;
+	}
+
+	function closeGuestAuthModal() {
+		const modal = document.getElementById("guestAuthModal");
+		if (modal) {
+			modal.hidden = true;
+		}
+		if (typeof document !== "undefined" && document.body) {
+			document.body.classList.remove("guest-modal-open");
+		}
+	}
+
+	function openGuestAuthModal(optionsOrUrl) {
+		const modal = ensureGuestModal();
+		let targetUrl = "index.html";
+		let title = "Sign Up to Book Tickets";
+		let desc = "Please sign up or log in to access this feature.";
+		let badge = "ACCOUNT REQUIRED";
+
+		if (typeof optionsOrUrl === "string") {
+			targetUrl = optionsOrUrl;
+			if (targetUrl.includes("host-your-event") || targetUrl.includes("account-setup")) {
+				title = "Sign Up to Host Your Event";
+				desc = "Please sign up or log in to access this feature.";
+				badge = "HOST YOUR EVENT";
+			} else if (targetUrl.includes("makeup-boutique") || targetUrl.includes("event-details")) {
+				title = "Sign Up to Book Tickets";
+				desc = "You need to sign up or log in to view event details and reserve tickets for Live Trending Events.";
+				badge = "ACCOUNT REQUIRED";
+			} else {
+				title = "Sign Up to Continue";
+				desc = "Please sign up or log in to access this feature.";
+			}
+		} else if (optionsOrUrl && typeof optionsOrUrl === "object") {
+			targetUrl = optionsOrUrl.targetUrl || targetUrl;
+			title = optionsOrUrl.title || title;
+			desc = optionsOrUrl.message || optionsOrUrl.desc || "Please sign up or log in to access this feature.";
+			if (optionsOrUrl.badge) badge = optionsOrUrl.badge;
+		}
+
+		// Save redirect URL in sessionStorage
+		if (targetUrl) {
+			try {
+				sessionStorage.setItem("jod_redirect_after_login", targetUrl);
+			} catch (_) {}
+		}
+
+		const titleEl = modal.querySelector("#guestAuthModalTitle");
+		const descEl = modal.querySelector("#guestAuthModalDesc");
+		const badgeEl = modal.querySelector("#guestAuthModalBadge");
+		const signupBtn = modal.querySelector("#guestAuthSignupBtn");
+		const loginLink = modal.querySelector("#guestAuthLoginLink");
+
+		if (titleEl) titleEl.textContent = title;
+		if (descEl) descEl.textContent = desc;
+		if (badgeEl) badgeEl.textContent = badge;
+
+		const redirectParam = targetUrl ? `?redirect=${encodeURIComponent(targetUrl)}` : "";
+		if (signupBtn) {
+			signupBtn.href = `signup.html${redirectParam}`;
+			signupBtn.innerHTML = `Sign Up <span aria-hidden="true">&rarr;</span>`;
+		}
+		if (loginLink) loginLink.href = `login.html${redirectParam}`;
+
+		modal.hidden = false;
+		if (document.body) {
+			document.body.classList.add("guest-modal-open");
+		}
+	}
+
+	if (typeof document !== "undefined") {
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape") {
+				const modal = document.getElementById("guestAuthModal");
+				if (modal && !modal.hidden) {
+					closeGuestAuthModal();
+				}
+			}
+		});
+	}
+
+	// Global Click Interception for Guest Users
+	if (typeof document !== "undefined") {
+		document.addEventListener("click", (e) => {
+			const page = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+			if (page === "login.html" || page === "signup.html") return;
+
+			// If user is already logged in, let normal interactions proceed
+			if (isLoggedIn()) return;
+
+			// 1. "Host Your Event" links & buttons
+			const hostLink = e.target.closest("a[href*='host-your-event'], a[href*='account-setup'], [data-host-flow]");
+			if (hostLink) {
+				e.preventDefault();
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+				openGuestAuthModal({
+					title: "Sign Up to Host Your Event",
+					message: "Create your account or log in to list events, publish registration forms, and manage your attendees with JOD Events.",
+					targetUrl: "account-setup.html",
+					badge: "✨ Host Your Event"
+				});
+				return;
+			}
+
+			// 2. Event Cards, Carousel Slides, Event Details / Booking Buttons
+			const eventTarget = e.target.closest(".event-card, .cat-event-card, [data-event-id], .featured-event, .hero-featured-image, a.card-link, a[href*='event-details.html'], a[href*='makeup-boutique-workshop.html'], .btn-book-now, .hero-copy .button-gold");
+			if (eventTarget) {
+				// Don't intercept if clicking the modal itself or carousel navigation arrows
+				if (e.target.closest("#guestAuthModal, .carousel-arrow, .modal-close, [data-modal-close], #navAuth")) return;
+
+				e.preventDefault();
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+
+				let targetUrl = "event-details.html";
+				if (eventTarget.tagName === "A" && eventTarget.getAttribute("href")) {
+					targetUrl = eventTarget.getAttribute("href");
+				} else {
+					const innerLink = eventTarget.querySelector("a[href*='event-details'], a[href*='makeup-boutique'], a.card-link");
+					if (innerLink && innerLink.getAttribute("href")) {
+						targetUrl = innerLink.getAttribute("href");
+					} else {
+						const onclickAttr = eventTarget.getAttribute("onclick") || "";
+						const match = onclickAttr.match(/href=['"]([^'"]+)['"]/);
+						if (match) {
+							targetUrl = match[1];
+						} else if (eventTarget.dataset && eventTarget.dataset.eventId) {
+							targetUrl = `event-details.html?id=${eventTarget.dataset.eventId}`;
+						}
+					}
+				}
+
+				openGuestAuthModal({
+					title: "Sign Up to Book Tickets",
+					message: "You need to sign up or log in to view event details and reserve tickets for Live Trending Events.",
+					targetUrl: targetUrl,
+					badge: "🎟️ Account Required"
+				});
+			}
+		}, true);
+	}
+
 	async function navigateToHostFlow(e) {
 		if (e && typeof e.preventDefault === "function") e.preventDefault();
 		const u = getUser();
 		if (!u || !isLoggedIn()) {
-			window.location.href = "account-setup.html";
+			openGuestAuthModal({
+				title: "Sign Up to Host Your Event",
+				message: "Create your account or log in to list events, publish registration forms, and manage your attendees with JOD Events.",
+				targetUrl: "account-setup.html",
+				badge: "✨ Host Your Event"
+			});
 			return;
 		}
 
-		const userEmail = (u.email || "").toLowerCase().trim();
-
 		const token = getToken();
 		try {
-			const res = await fetch(`${API_BASE}/api/organizers/account-setup?email=${encodeURIComponent(u.email)}`, {
+			const res = await fetch(`${API_BASE}/api/organizers/account-setup`, {
 				headers: token ? { "Authorization": `Bearer ${token}` } : {}
 			});
 			if (res.ok) {
 				const data = await res.json();
 				const acc = data.account;
 				if (acc && (acc.status === "submitted" || acc.status === "verified")) {
-					window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(u.email)}`;
+					window.location.href = "organizer-dashboard.html";
 					return;
 				}
 			}
 		} catch (_) {}
 
-		window.location.href = `account-setup.html?email=${encodeURIComponent(u.email)}`;
+		window.location.href = "account-setup.html";
+	}
+
+	function handleGuestOrNavigate(e, targetUrl, type) {
+		if (e) {
+			if (typeof e.preventDefault === "function") e.preventDefault();
+			if (typeof e.stopPropagation === "function") e.stopPropagation();
+			if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+		}
+		if (isLoggedIn()) {
+			if (type === "host") {
+				navigateToHostFlow(e);
+			} else {
+				window.location.href = targetUrl || "event-details.html";
+			}
+			return false;
+		}
+
+		if (type === "host") {
+			openGuestAuthModal({
+				title: "Sign Up to Host Your Event",
+				message: "Please sign up or log in to access this feature.",
+				targetUrl: targetUrl || "account-setup.html",
+				badge: "HOST YOUR EVENT"
+			});
+		} else {
+			openGuestAuthModal({
+				title: "Sign Up to Book Tickets",
+				message: "Please sign up or log in to access this feature.",
+				targetUrl: targetUrl || "event-details.html",
+				badge: "ACCOUNT REQUIRED"
+			});
+		}
+		return false;
+	}
+
+	if (typeof window !== "undefined") {
+		window.handleGuestOrNavigate = handleGuestOrNavigate;
 	}
 
 	/* ── Expose Public API ─────────────────────────────────── */
@@ -906,6 +1175,11 @@ window.JodAuth = (() => {
 		validateSession,
 		initGoogleAuth,
 		handleGoogleCredentialResponse,
+		openGuestAuthModal,
+		closeGuestAuthModal,
+		showGuestModal: openGuestAuthModal,
+		handleGuestOrNavigate,
 	};
 })();
+
 

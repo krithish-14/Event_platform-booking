@@ -141,7 +141,7 @@ def _event_to_response(event: Event, distance_km: Optional[float] = None) -> Eve
         end_date=event.end_date,
         price=event.price,
         capacity=event.capacity,
-        event_format=event.event_format or "In-person",
+        event_format=event.event_format,
         duration=event.duration,
         age_limit=event.age_limit,
         language=event.language,
@@ -151,8 +151,8 @@ def _event_to_response(event: Event, distance_km: Optional[float] = None) -> Eve
         terms=event.terms,
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
-        customer_id=str(event.customer_id) if event.customer_id else None,
-        created_at=event.created_at,
+        customer_id=getattr(event, "customer_id", None) or "CUST-SYSTEM",
+        created_at=event.created_at or datetime.utcnow(),
     )
 
 
@@ -242,7 +242,12 @@ def create_new_event(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Please complete organizer verification before publishing an event."
             )
-    return create_event(db, payload, customer_id=current_user.customer_id)
+    event = create_event(
+        db, payload,
+        customer_id=current_user.customer_id,
+        organizer_id=getattr(current_user, "id", None),
+    )
+    return _event_to_response(event)
 
 
 @router.put("/{event_id}", response_model=EventResponse)
@@ -273,7 +278,8 @@ def update_existing_event(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Please complete organizer verification before publishing an event."
             )
-    return update_event(db, event, payload)
+    updated = update_event(db, event, payload)
+    return _event_to_response(updated)
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)

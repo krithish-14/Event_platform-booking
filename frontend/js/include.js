@@ -100,6 +100,9 @@
 
 	window.includesReady = Promise.all(promises).then(() => {
 		updateNavigation();
+		if (window.JodSearch && typeof window.JodSearch.initSearch === "function") {
+			window.JodSearch.initSearch();
+		}
 		setTimeout(() => {
 			if (typeof window.updateNavAuth === "function") {
 				window.updateNavAuth();

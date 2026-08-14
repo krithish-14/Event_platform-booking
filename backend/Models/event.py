@@ -1,5 +1,5 @@
 """
-Event SQLAlchemy model.
+Event SQLAlchemy model aligned with JOD Events database specification.
 """
 
 import uuid
@@ -20,31 +20,32 @@ class Event(Base):
     venue        = Column(String(300), nullable=True)
     latitude     = Column(Float, nullable=True)
     longitude    = Column(Float, nullable=True)
-    category     = Column(String(100), nullable=True)           # e.g. Music, Tech, Sports
+    category     = Column(String(100), nullable=True)
     image_url    = Column(String(500), nullable=True)
     start_date   = Column(DateTime, nullable=False)
     end_date     = Column(DateTime, nullable=True)
-    price        = Column(Float, default=0.0)
-    capacity     = Column(Integer, nullable=True)               # None = unlimited
-    event_format = Column(String(100), default="In-person")      # e.g. In-person, Hybrid, Virtual
-    duration     = Column(String(100), nullable=True)          # e.g. "1 hour 30 mins"
-    age_limit    = Column(String(50), nullable=True)           # e.g. "10yrs +"
-    language     = Column(String(100), nullable=True)          # e.g. "English", "Tamil"
-    performers   = Column(Text, nullable=True)                 # JSON string of artist/performer objects
-    highlights   = Column(Text, nullable=True)                 # JSON string of past achievement objects/photos
-    ticket_types = Column(Text, nullable=True)                 # JSON string of ticket categories
-    terms        = Column(Text, nullable=True)                 # Terms & conditions text
-    is_published = Column(Boolean, default=False)
-    is_cancelled = Column(Boolean, default=False)
-    customer_id  = Column(String(100), ForeignKey("users.customer_id", onupdate="CASCADE", ondelete="CASCADE"), nullable=True, index=True)
+    price        = Column(Float, default=0.0, nullable=True)
+    capacity     = Column(Integer, nullable=True)
+    event_format = Column(String(100), default="In-person", nullable=True)
+    duration     = Column(String(100), nullable=True)
+    age_limit    = Column(String(50), nullable=True)
+    language     = Column(String(100), nullable=True)
+    performers   = Column(Text, nullable=True)
+    highlights   = Column(Text, nullable=True)
+    ticket_types = Column(Text, nullable=True)
+    terms        = Column(Text, nullable=True)
+    is_published = Column(Boolean, default=False, nullable=True)
+    is_cancelled = Column(Boolean, default=False, nullable=True)
+    organizer_id = Column(GUID, ForeignKey("users.id"), nullable=True)
+    customer_id  = Column(String(50), ForeignKey("users.customer_id", onupdate="CASCADE", ondelete="CASCADE"), nullable=True, index=True)
     host_id      = Column(String(50), nullable=True, index=True)
-    created_at   = Column(DateTime, default=datetime.utcnow)
-    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at   = Column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
     # Relationships
-    organizer = relationship("User", back_populates="events", foreign_keys=[customer_id])
-    bookings  = relationship("Booking", back_populates="event", cascade="all, delete-orphan")
+    organizer     = relationship("User", foreign_keys=[organizer_id], back_populates="events")
+    customer_user = relationship("User", foreign_keys=[customer_id], back_populates="customer_events")
+    bookings      = relationship("Booking", back_populates="event", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Event(id={self.id}, title={self.title}, customer_id={self.customer_id})>"
-

@@ -24,7 +24,7 @@ from Services.auth_service import (
 from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES
 from Authentication.dependencies import get_current_user
 import random
-from Models.audit_logs import UserSignupLog, UserLoginLog
+from Models import UserSignup as UserSignupLog, UserLogin as UserLoginLog
 
 router = APIRouter()
 
@@ -61,6 +61,10 @@ class UserRegisterRequest(BaseModel):
     username: str
     full_name: str | None = None
     password: str
+    avatar_url: str | None = None
+    bio: str | None = None
+    city: str | None = None
+    location_pincode: str | None = None
 
     @field_validator("username")
     @classmethod
@@ -101,7 +105,7 @@ class GoogleAuthRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    customer_id: str
+    customer_id: str | None = None
     email: str
     username: str
     full_name: str | None
@@ -131,10 +135,9 @@ def _serialize_user(user) -> dict:
     if user is None:
         return None
     role = "admin" if bool(getattr(user, "is_admin", False)) else "attendee"
-    cid = str(getattr(user, "customer_id", user.id))
     return {
-        "id": str(user.id) if hasattr(user, "id") and user.id else cid,
-        "customer_id": cid,
+        "id": str(getattr(user, "id", user.customer_id)),
+        "customer_id": str(user.customer_id) if user.customer_id else None,
         "email": user.email,
         "username": user.username,
         "full_name": user.full_name,
@@ -145,7 +148,6 @@ def _serialize_user(user) -> dict:
         "is_admin": bool(getattr(user, "is_admin", False)),
         "role": role,
     }
-
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -160,14 +162,33 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(func.lower(func.trim(User.username)) == username_clean.lower()).first():
         raise HTTPException(status_code=400, detail="Username already taken.")
 
-    customer_id = generate_customer_id(db)
+    # Check secondary SQLite database if exists
+    try:
+        import sqlite3
+        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sqlite_path = os.path.join(project_backend, "jod_events.db")
+        if os.path.exists(sqlite_path):
+            s_conn = sqlite3.connect(sqlite_path)
+            s_cur = s_conn.cursor()
+            s_cur.execute("SELECT id FROM users WHERE lower(trim(email)) = ?", (email_clean,))
+            row = s_cur.fetchone()
+            s_conn.close()
+            if row:
+                raise HTTPException(status_code=400, detail="User already exists")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
     user = User(
-        customer_id=customer_id,
         email=email_clean,
         username=username_clean,
         full_name=payload.full_name.strip() if payload.full_name else None,
         hashed_password=get_password_hash(payload.password),
+        avatar_url=payload.avatar_url,
+        bio=payload.bio,
+        city=payload.city,
+        location_pin=payload.location_pincode,
     )
     try:
         db.add(user)
@@ -185,24 +206,40 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         s_conn = sqlite3.connect(sqlite_path)
         s_cur = s_conn.cursor()
         s_cur.execute("""
-            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, 1, 0)
+            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, avatar_url, bio, city, location_pin, is_active, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
             ON CONFLICT(email) DO NOTHING
-        """, (str(user.id), str(user.customer_id), user.email, user.username, user.full_name, user.hashed_password))
+        """, (
+            str(user.id),
+            str(user.customer_id),
+            user.email,
+            user.username,
+            user.full_name,
+            user.hashed_password,
+            user.avatar_url,
+            user.bio,
+            user.city,
+            user.location_pin
+        ))
         s_conn.commit()
         s_conn.close()
     except Exception:
         pass
 
     # Record User Signup Audit Log in user_signups table
-    signup_log = UserSignupLog(
-        customer_id=user.customer_id,
-        email=user.email,
-        username=user.username,
-        full_name=user.full_name,
-    )
-    db.add(signup_log)
-    db.commit()
+    try:
+        signup_log = UserSignupLog(
+            customer_id=user.customer_id,
+            email=user.email,
+            username=user.username,
+            full_name=user.full_name,
+            city=user.city,
+            location_pin=user.location_pin,
+        )
+        db.add(signup_log)
+        db.commit()
+    except Exception:
+        pass
 
     token = create_access_token(
         data={
@@ -244,13 +281,16 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
         db.refresh(user)
 
     # Record User Login Audit Log in user_logins table
-    login_log = UserLoginLog(
-        customer_id=user.customer_id,
-        email=user.email,
-        status="SUCCESS",
-    )
-    db.add(login_log)
-    db.commit()
+    try:
+        login_log = UserLoginLog(
+            customer_id=user.customer_id,
+            email=user.email,
+            status="SUCCESS",
+        )
+        db.add(login_log)
+        db.commit()
+    except Exception:
+        pass
 
     token = create_access_token(
         data={
@@ -279,7 +319,7 @@ def google_config():
 def google_auth_url():
     """Generates the Google OAuth 2.0 Authorization URL for browser popup / redirect login."""
     client_id = os.getenv("GOOGLE_CLIENT_ID", "")
-    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:8001/api/auth/google/callback")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5500/login.html")
     if not client_id or client_id == "your-google-client-id.apps.googleusercontent.com":
         raise HTTPException(status_code=400, detail="Google OAuth is not configured on the server.")
 
@@ -298,7 +338,7 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
     if payload.code and not token:
         client_id = os.getenv("GOOGLE_CLIENT_ID", "")
         client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
-        redirect_uri = payload.redirect_uri or os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:8001/api/auth/google/callback")
+        redirect_uri = payload.redirect_uri or os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5500/login.html")
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 token_resp = await client.post(
@@ -358,7 +398,7 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
     full_name = google_user_info.get("name") or google_user_info.get("given_name")
     avatar_url = google_user_info.get("picture")
 
-    # 3. Lookup existing user: Reject Google login/registration if email already exists
+    # 3. Lookup existing user: If they exist, log them in (Secure account linking).
     existing_user = db.query(User).filter(func.lower(func.trim(User.email)) == email).first()
 
     # Also check secondary SQLite backup DB if present
@@ -370,75 +410,106 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
             if os.path.exists(sqlite_path):
                 s_conn = sqlite3.connect(sqlite_path)
                 s_cur = s_conn.cursor()
+                # Query the existing user by email
                 s_cur.execute("SELECT id FROM users WHERE lower(trim(email)) = ?", (email,))
                 row = s_cur.fetchone()
                 s_conn.close()
                 if row:
-                    existing_user = True
+                    # If they exist in SQLite but not Postgres, we ideally should sync them to Postgres.
+                    # For simplicity, we just won't throw an error, we will recreate them in Postgres if missing.
+                    pass
         except Exception:
             pass
 
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already exists",
+        user = existing_user
+        # Update avatar if missing
+        if avatar_url and not user.avatar_url:
+            user.avatar_url = avatar_url
+            db.commit()
+            db.refresh(user)
+    else:
+        # Generate unique username
+        base_username = email.split("@")[0]
+        base_username = re.sub(r"[^a-zA-Z0-9_.@-]", "", base_username)
+        if len(base_username) < 3:
+            base_username = f"user_{base_username}"
+        if len(base_username) > 80:
+            base_username = base_username[:80]
+
+        candidate_username = base_username
+        counter = 1
+        while db.query(User).filter(func.lower(User.username) == candidate_username.lower()).first():
+            candidate_username = f"{base_username}{secrets.randbelow(9000) + 1000}"
+            counter += 1
+            if counter > 50:
+                candidate_username = f"user_{secrets.token_hex(4)}"
+                break
+
+        # Generate secure random password for database compliance
+        random_password = secrets.token_urlsafe(32) + "A1!"
+        hashed_pw = get_password_hash(random_password)
+
+        user = User(
+            email=email,
+            username=candidate_username,
+            full_name=full_name.strip() if full_name else None,
+            avatar_url=avatar_url,
+            hashed_password=hashed_pw,
+            city=payload.city.strip() if payload.city else None,
+            location_pincode=payload.location_pincode.strip() if payload.location_pincode else None,
         )
+        try:
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User already exists",
+            )
+            
+        # Record User Signup Audit Log for Google Auth
+        try:
+            signup_log = UserSignupLog(
+                customer_id=user.customer_id,
+                email=user.email,
+                registration_method="GOOGLE",
+                status="COMPLETED"
+            )
+            db.add(signup_log)
+            db.commit()
+        except Exception as e:
+            print(f"Failed to record UserSignupLog: {e}")
+            pass
 
-    # Generate unique username
-    base_username = email.split("@")[0]
-    base_username = re.sub(r"[^a-zA-Z0-9_.@-]", "", base_username)
-    if len(base_username) < 3:
-        base_username = f"user_{base_username}"
-    if len(base_username) > 80:
-        base_username = base_username[:80]
+        # Sync to backup SQLite database
+        try:
+            import sqlite3
+            project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sqlite_path = os.path.join(project_backend, "jod_events.db")
+            s_conn = sqlite3.connect(sqlite_path)
+            s_cur = s_conn.cursor()
+            s_cur.execute("""
+                INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin)
+                VALUES (?, ?, ?, ?, ?, ?, 1, 0)
+                ON CONFLICT(email) DO NOTHING
+            """, (str(user.id), str(user.customer_id), user.email, user.username, user.full_name, user.hashed_password))
+            s_conn.commit()
+            s_conn.close()
+        except Exception:
+            pass
 
-    candidate_username = base_username
-    counter = 1
-    while db.query(User).filter(func.lower(User.username) == candidate_username.lower()).first():
-        candidate_username = f"{base_username}{secrets.randbelow(9000) + 1000}"
-        counter += 1
-        if counter > 50:
-            candidate_username = f"user_{secrets.token_hex(4)}"
-            break
-
-    # Generate secure random password for database compliance
-    random_password = secrets.token_urlsafe(32) + "A1!"
-    hashed_pw = get_password_hash(random_password)
-
-    user = User(
-        email=email,
-        username=candidate_username,
-        full_name=full_name.strip() if full_name else None,
-        avatar_url=avatar_url,
-        hashed_password=hashed_pw,
-        city=payload.city.strip() if payload.city else None,
-        location_pincode=payload.location_pincode.strip() if payload.location_pincode else None,
-    )
+    # Record User Login Audit Log
     try:
-        db.add(user)
+        login_log = UserLoginLog(
+            customer_id=user.customer_id,
+            email=user.email,
+            status="SUCCESS",
+        )
+        db.add(login_log)
         db.commit()
-        db.refresh(user)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already exists",
-        )
-
-    # 3. Sync to backup SQLite database
-    try:
-        import sqlite3
-        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        sqlite_path = os.path.join(project_backend, "jod_events.db")
-        s_conn = sqlite3.connect(sqlite_path)
-        s_cur = s_conn.cursor()
-        s_cur.execute("""
-            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, 1, 0)
-            ON CONFLICT(email) DO NOTHING
-        """, (str(user.id), str(user.customer_id), user.email, user.username, user.full_name, user.hashed_password))
-        s_conn.commit()
-        s_conn.close()
     except Exception:
         pass
 

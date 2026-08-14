@@ -10,12 +10,12 @@ load_dotenv()
 from APIs.auth import router as auth_router
 from APIs.events import router as events_router
 from APIs.users import router as users_router
-from APIs.organizers import router as organizers_router
-from APIs.forms import router as forms_router
-from APIs.host_events_api import router as host_events_router
 from APIs.location import router as location_router
 from APIs.bookings import router as bookings_router
 from APIs.tickets import router as tickets_router
+from APIs.organizers import router as organizers_router
+from APIs.forms import router as forms_router
+from APIs.host_events_api import router as host_events_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
@@ -68,7 +68,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Static Uploads & Jinja2 Templates Integration ─────────────────────────────
+# ── Static Uploads & Jinja2 Templates ─────────────────────────
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.requests import Request
@@ -90,11 +90,11 @@ templates = Jinja2Templates(directory=[templates_path, frontend_path])
 app.include_router(auth_router,        prefix="/api/auth",        tags=["Authentication"])
 app.include_router(events_router,      prefix="/api/events",      tags=["Events"])
 app.include_router(users_router,       prefix="/api/users",       tags=["Users"])
-app.include_router(organizers_router,  prefix="/api/organizers",  tags=["Organizers"])
-app.include_router(host_events_router, prefix="/api/host-events",  tags=["Host Events"])
 app.include_router(location_router,    prefix="/api/location",    tags=["Location"])
 app.include_router(bookings_router,    prefix="/api/bookings",    tags=["Bookings"])
 app.include_router(tickets_router,     prefix="/api/tickets",     tags=["Tickets"])
+app.include_router(organizers_router,  prefix="/api/organizers",  tags=["Organizers"])
+app.include_router(host_events_router, prefix="/api/host-events", tags=["Host Events"])
 app.include_router(forms_router)
 
 

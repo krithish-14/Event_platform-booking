@@ -50,6 +50,22 @@ class GUID(TypeDecorator):
             return uuid.UUID(str(value))
         return value
 
+
+from sqlalchemy.types import JSON as GenericJSON
+from sqlalchemy.dialects.postgresql import JSONB
+
+
+class JSONType(TypeDecorator):
+    """Platform-independent JSON type. Uses PostgreSQL's JSONB type, otherwise generic JSON."""
+    impl = GenericJSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(JSONB)
+        return dialect.type_descriptor(GenericJSON)
+
+
 # ── Lazy engine/session creation ─────────────────────────────
 _engine = None
 _SessionLocal = None
@@ -206,9 +222,13 @@ def _migrate_tables(engine=None):
         if "users" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("users")}
             user_migrations = [
+                ("id", "UUID" if is_pg else "VARCHAR(36)"),
                 ("customer_id", "VARCHAR(100)"),
                 ("city", "VARCHAR(200)"),
+                ("location_pin", "VARCHAR(20)"),
                 ("location_pincode", "VARCHAR(20)"),
+                ("latitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("longitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("location_lat", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("location_lon", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("bio", "TEXT"),
@@ -225,6 +245,24 @@ def _migrate_tables(engine=None):
                             print(f"  [DB MIGRATION] Added column users.{col_name}", flush=True)
                         except Exception as e:
                             print(f"  [DB MIGRATION WARN] Could not add column users.{col_name}: {e}", flush=True)
+
+                # Backfill users.id for rows missing internal GUID
+                try:
+                    refreshed_cols = {c["name"] for c in inspector.get_columns("users")}
+                    if "id" in refreshed_cols:
+                        if is_pg:
+                            conn.execute(text("UPDATE users SET id = gen_random_uuid() WHERE id IS NULL;"))
+                        else:
+                            import uuid as _uuid
+                            rows = conn.execute(text("SELECT customer_id FROM users WHERE id IS NULL OR id = ''")).fetchall()
+                            for r in rows:
+                                conn.execute(
+                                    text("UPDATE users SET id = :uid WHERE customer_id = :cid"),
+                                    {"uid": str(_uuid.uuid4()), "cid": r[0]}
+                                )
+                        conn.commit()
+                except Exception as e:
+                    print(f"  [DB MIGRATION WARN] Could not backfill users.id: {e}", flush=True)
                 
                 # Backfill missing or legacy customer_ids to CUST-<number> format
                 try:
@@ -290,6 +328,8 @@ def _migrate_tables(engine=None):
         if "events" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("events")}
             event_migrations = [
+                ("organizer_id", "UUID" if is_pg else "VARCHAR(36)"),
+                ("customer_id", "VARCHAR(50)"),
                 ("latitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("longitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("venue", "VARCHAR(300)"),
@@ -745,21 +785,10 @@ def _seed_demo_events():
 
 def create_tables():
     """Create all tables defined in models and sync users across DBs. Called on app startup."""
-    from Models.user import User  # noqa: F401
-    from Models.event import Event  # noqa: F401
-    from Models.booking import Booking  # noqa: F401
-    from Models.ticket import Ticket  # noqa: F401
-    from Models.organizer import OrganizerAccount, EmailOTP  # noqa: F401
-    from Models.form_builder import FormDefinition, FormSubmission  # noqa: F401
-    from Models.audit_logs import UserSignupLog, UserLoginLog, HostRegistrationLog  # noqa: F401
-    from Models.host_event import (  # noqa: F401
-        EventManagement, EventDesign, EventRegistrationForm,
-        EventRegistrationSettings, EventRegistrationTicket,
-        EventRegistration, EventCommunication, EventAttendanceCheckin,
-        Exhibitor, EventEntryGate, EventStaffScanner
-    )
+    import Models  # noqa: F401
     engine = get_engine()
     _migrate_tables(engine)
     Base.metadata.create_all(bind=engine)
     _sync_databases()
     _seed_demo_events()
+

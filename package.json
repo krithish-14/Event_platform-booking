@@ -7,7 +7,15 @@
     "start": "python backend/start_servers.py",
     "dev": "python backend/start_servers.py"
   },
-  "keywords": ["event-booking", "fastapi", "geolocation", "haversine"],
+  "keywords": [
+    "event-booking",
+    "fastapi",
+    "geolocation",
+    "haversine"
+  ],
   "author": "JOD Events Team",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^25.6.0"
+  }
 }
