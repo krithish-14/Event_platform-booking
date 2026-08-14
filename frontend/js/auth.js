@@ -298,19 +298,12 @@ window.JodAuth = (() => {
 					showAlert(alertEl, "error", data.detail || `Login failed (${res.status}). Please try again.`);
 				} else {
 					try {
-<<<<<<< HEAD
-						localStorage.setItem("jod_access_token", data.access_token);
-						sessionStorage.setItem("jod_access_token", data.access_token);
-						localStorage.setItem("jod_user", JSON.stringify(data.user));
-						sessionStorage.setItem("jod_user", JSON.stringify(data.user));
-					} catch (_) {}
-=======
 						const remember = loginForm.querySelector("#rememberMe")?.checked;
 						const storage = remember ? localStorage : sessionStorage;
 						storage.setItem("jod_access_token", data.access_token);
 						storage.setItem("jod_user", JSON.stringify(data.user));
 					} catch (_) { }
->>>>>>> origin/satheesh-feature
+
 
 					console.log("[Auth Debug] Login Successful:", {
 						user_id: data.user?.id,
@@ -322,7 +315,9 @@ window.JodAuth = (() => {
 					});
 
 					showAlert(alertEl, "success", "Login successful! Redirecting…");
-<<<<<<< HEAD
+
+					// Defer location flow to homepage (GPS needs time + secure context)
+					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
 
 					// Smart redirect: check if user is a submitted/verified organizer
 					setTimeout(async () => {
@@ -349,12 +344,6 @@ window.JodAuth = (() => {
 						console.log("[Auth Debug] Redirecting to Authenticated Home Page (index.html)");
 						window.location.href = "index.html";
 					}, 900);
-=======
-					// Defer location flow to homepage (GPS needs time + secure context)
-					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
-					const targetUrl = getRedirectTarget();
-					setTimeout(() => { window.location.href = targetUrl; }, 900);
->>>>>>> origin/satheesh-feature
 				}
 			} catch (err) {
 				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
@@ -417,7 +406,6 @@ window.JodAuth = (() => {
 		initTogglePw(signupForm.querySelector("#toggleSignupPw"), signupForm.querySelector("#signupPassword"));
 		initTogglePw(signupForm.querySelector("#toggleConfirmPw"), signupForm.querySelector("#signupConfirmPassword"));
 
-<<<<<<< HEAD
 		/* ── Live availability helpers ─────────────────────── */
 		function setLiveStatus(inputEl, available, message) {
 			if (!inputEl) return;
@@ -517,11 +505,7 @@ window.JodAuth = (() => {
 			});
 		}
 
-		signupForm.addEventListener("submit", async (e) => {
-			e.preventDefault();
-=======
 		async function doSignup() {
->>>>>>> origin/satheesh-feature
 			clearErrors(signupForm);
 			hideAlert(alertEl);
 
@@ -594,7 +578,6 @@ window.JodAuth = (() => {
 				try { data = await res.json(); } catch (_) { }
 
 				if (!res.ok) {
-<<<<<<< HEAD
 					const detail = data.detail || "Registration failed. Please try again.";
 					if (detail.toLowerCase().includes("email")) {
 						setError(signupForm.querySelector("#signupEmail"), detail);
@@ -607,9 +590,6 @@ window.JodAuth = (() => {
 					} else {
 						showAlert(alertEl, "error", detail);
 					}
-=======
-					showAlert(alertEl, "error", data.detail || `Registration failed (${res.status}). Please try again.`);
->>>>>>> origin/satheesh-feature
 				} else {
 					try {
 						localStorage.setItem("jod_access_token", data.access_token);

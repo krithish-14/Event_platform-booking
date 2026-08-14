@@ -2,16 +2,42 @@
 Launcher: starts backend (FastAPI on 8001) and frontend (static on 5500)
 as subprocesses, redirecting their stdout/stderr to files so Windows cp1252
 console encoding can't kill them.
+
+Robustness:
+- Skips spawning a server if its port is already bound (reuses running instance).
+- Keeps the launcher alive as long as at least one of the servers is still
+  running (uses `or` semantics, never terminates a healthy sibling).
 """
 import io
 import os
+import socket
 import subprocess
 import sys
 import time
 import threading
+from typing import List, Optional, Tuple
 
 
-def launch(cmd, cwd, logfile):
+BACKEND_HOST = "127.0.0.1"
+BACKEND_PORT = 8001
+FRONTEND_HOST = "127.0.0.1"
+FRONTEND_PORT = 5500
+
+
+def port_in_use(host: str, port: int) -> bool:
+    """Return True if `host:port` already has a TCP listener bound."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.settimeout(0.3)
+        return s.connect_ex((host, port)) == 0
+    finally:
+        try:
+            s.close()
+        except OSError:
+            pass
+
+
+def launch(cmd, cwd, logfile) -> Tuple[subprocess.Popen, io.TextIOWrapper]:
     """Run a cmd in background, streaming output to logfile."""
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
@@ -30,6 +56,31 @@ def launch(cmd, cwd, logfile):
     return p, f
 
 
+Service = Tuple[str, Optional[subprocess.Popen], Optional[io.TextIOWrapper]]
+
+
+def watch(proc: Optional[subprocess.Popen], label: str, log: Optional[io.TextIOWrapper]):
+    """Watch `proc` until it exits (or return immediately if proc is None)."""
+    if proc is None:
+        print("[launcher] %s already running (port bound); skipped spawning." % label)
+        return
+    try:
+        while proc.poll() is None:
+            time.sleep(0.5)
+    finally:
+        try:
+            if proc.poll() is None:
+                proc.terminate()
+        except Exception:
+            pass
+        try:
+            if log is not None:
+                log.close()
+        except Exception:
+            pass
+    print("[launcher] %s exited with code %s" % (label, proc.returncode))
+
+
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(here)
@@ -37,65 +88,75 @@ def main():
     venv_python = os.path.join(here, ".venv", "Scripts", "python.exe")
     python_exe = venv_python if os.path.exists(venv_python) else sys.executable
 
-    backend, backend_log = launch(
-        [python_exe, "-u", "-m", "uvicorn", "FastAPI.main:app", "--host", "127.0.0.1", "--port", "8001", "--reload", "--log-level", "info"],
-        cwd=os.path.join(project_root, "backend"),
-        logfile=os.path.join(here, "backend.log"),
-    )
+    services: List[Service] = []
+
+    if port_in_use(BACKEND_HOST, BACKEND_PORT):
+        backend, backend_log = None, None
+        print("[launcher] backend port %s:%d already bound — reusing running instance"
+              % (BACKEND_HOST, BACKEND_PORT))
+    else:
+        backend, backend_log = launch(
+            [
+                python_exe, "-u", "-m", "uvicorn", "FastAPI.main:app",
+                "--host", BACKEND_HOST, "--port", str(BACKEND_PORT),
+                "--reload", "--log-level", "info",
+            ],
+            cwd=os.path.join(project_root, "backend"),
+            logfile=os.path.join(here, "backend.log"),
+        )
+    services.append(("backend", backend, backend_log))
 
     frontend_script = (
         "import sys; sys.stdout.reconfigure(encoding='utf-8', errors='replace');"
         "import socketserver, http.server;"
-        "PORT=5500;"
-        "H=('127.0.0.1',PORT);"
+        "PORT=%d;"
+        "H=('%s',PORT);"
         "Handler=http.server.SimpleHTTPRequestHandler;"
         "httpd=socketserver.TCPServer(H, Handler, bind_and_activate=False);"
         "httpd.allow_reuse_address=True;"
         "httpd.server_bind(); httpd.server_activate();"
-        "sys.stdout.write('Serving on http://127.0.0.1:%d\\n' % PORT); sys.stdout.flush();"
+        "sys.stdout.write('Serving on http://%s:%d\\n'); sys.stdout.flush();"
         "httpd.serve_forever()"
-    )
-    frontend, frontend_log = launch(
-        [sys.executable, "-u", "-c", frontend_script],
-        cwd=os.path.join(project_root, "frontend"),
-        logfile=os.path.join(here, "frontend.log"),
-    )
+    ) % (FRONTEND_PORT, FRONTEND_HOST, FRONTEND_HOST, FRONTEND_PORT)
 
-    print("[launcher] backend pid=%s log=%s" % (backend.pid, backend_log.name))
-    print("[launcher] frontend pid=%s log=%s" % (frontend.pid, frontend_log.name))
-    print("[launcher] Frontend: http://127.0.0.1:5500/index.html")
-    print("[launcher] Backend:  http://127.0.0.1:8001 (docs: /docs)")
+    if port_in_use(FRONTEND_HOST, FRONTEND_PORT):
+        frontend, frontend_log = None, None
+        print("[launcher] frontend port %s:%d already bound — reusing running instance"
+              % (FRONTEND_HOST, FRONTEND_PORT))
+    else:
+        frontend, frontend_log = launch(
+            [sys.executable, "-u", "-c", frontend_script],
+            cwd=os.path.join(project_root, "frontend"),
+            logfile=os.path.join(here, "frontend.log"),
+        )
+    services.append(("frontend", frontend, frontend_log))
+
+    for label, proc, log in services:
+        if proc is not None:
+            print("[launcher] %s pid=%s log=%s" % (label, proc.pid, log.name))
+    print("[launcher] Frontend: http://%s:%d/index.html" % (FRONTEND_HOST, FRONTEND_PORT))
+    print("[launcher] Backend:  http://%s:%d (docs: /docs)" % (BACKEND_HOST, BACKEND_PORT))
     print("[launcher] Press Ctrl+C or close this window to stop both servers.")
 
-    def watch(proc, label, log):
-        try:
-            while proc.poll() is None:
-                time.sleep(0.5)
-        finally:
-            try:
-                if proc.poll() is None:
-                    proc.terminate()
-            except Exception:
-                pass
-            try:
-                log.close()
-            except Exception:
-                pass
-        print("[launcher] %s exited with code %s" % (label, proc.returncode))
+    threads: List[threading.Thread] = []
+    for label, proc, log in services:
+        t = threading.Thread(target=watch, args=(proc, label, log), daemon=True)
+        t.start()
+        threads.append(t)
 
     try:
-        t1 = threading.Thread(target=watch, args=(backend, "backend", backend_log), daemon=True)
-        t2 = threading.Thread(target=watch, args=(frontend, "frontend", frontend_log), daemon=True)
-        t1.start(); t2.start()
-        while t1.is_alive() and t2.is_alive():
+        while any(t.is_alive() for t in threads):
             time.sleep(1)
     except KeyboardInterrupt:
         pass
     finally:
-        for p in (backend, frontend):
+        for label, proc, _log in services:
+            if proc is None:
+                continue
             try:
-                if p.poll() is None:
-                    p.terminate()
+                if proc.poll() is None:
+                    print("[launcher] terminating %s (pid=%s)" % (label, proc.pid))
+                    proc.terminate()
             except Exception:
                 pass
 

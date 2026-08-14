@@ -766,7 +766,21 @@ function initFormBuilder() {
 	}
 
 	// Publish Form API Handler
-	async function publishFormLive() {
+	async function publishFormLive(e) {
+		// When form-builder.js is loaded inside organizer-dashboard.html, let the
+		// dashboard's own organizer-dashboard.js publish handler drive the flow.
+		// This avoids double-submits and accidental navigation ("Stitch bug").
+		const insideDashboard = (
+			typeof window === "object" &&
+			window.location &&
+			/organizer-dashboard/i.test(window.location.pathname || "")
+		);
+		if (insideDashboard) {
+			// Dashboard publish handler (organizer-dashboard.js) owns this.
+			// Return early; do NOT open published-form.html here.
+			return;
+		}
+
 		const btn = document.getElementById("btnPublishForm");
 		const origLabel = btn ? btn.innerHTML : "Publish Form";
 

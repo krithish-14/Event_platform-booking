@@ -34,7 +34,8 @@ class EventManagement(Base):
     organizer_name   = Column(String(200), nullable=True)
     organizer_email  = Column(String(255), nullable=False, index=True)
     organizer_phone  = Column(String(50), nullable=True)
-    event_status     = Column(String(50), default="draft")  # draft, published, cancelled
+    event_status     = Column(String(50), default="draft")  # draft, ready_to_publish, published, cancelled
+    published_at     = Column(DateTime, nullable=True)
     tickets_json     = Column(JSON, nullable=True)
     agenda_json      = Column(JSON, nullable=True)
     created_at       = Column(DateTime, default=datetime.utcnow)

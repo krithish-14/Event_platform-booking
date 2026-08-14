@@ -2520,9 +2520,10 @@ body.sub-page .policy-hero {
 }
 
 .splash-screen.is-hidden {
-	opacity: 0;
-	visibility: hidden;
-	pointer-events: none;
+	opacity: 0 !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
+	display: none !important;
 }
 
 .splash-screen.is-replay,

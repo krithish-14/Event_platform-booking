@@ -236,13 +236,13 @@ def _migrate_tables(engine=None):
                         except Exception:
                             pass
 
-                    rows = conn.execute(text("SELECT id, customer_id FROM users WHERE customer_id IS NULL OR customer_id = '' OR customer_id NOT LIKE 'CUST-%'")).fetchall()
+                    rows = conn.execute(text("SELECT customer_id FROM users WHERE customer_id IS NULL OR customer_id = '' OR customer_id NOT LIKE 'CUST-%'")).fetchall()
                     for r in rows:
-                        uid, old_cid = r[0], r[1]
+                        old_cid = r[0]
                         new_cust_id = f"CUST-{random.randint(100000, 999999)}"
                         conn.execute(
-                            text("UPDATE users SET customer_id = :cid WHERE id = :uid"),
-                            {"cid": new_cust_id, "uid": uid}
+                            text("UPDATE users SET customer_id = :cid WHERE customer_id = :old_cid"),
+                            {"cid": new_cust_id, "old_cid": old_cid}
                         )
                         if "bookings" in tables and old_cid:
                             conn.execute(
@@ -301,6 +301,8 @@ def _migrate_tables(engine=None):
                 ("highlights", "TEXT"),
                 ("ticket_types", "TEXT"),
                 ("terms", "TEXT"),
+                ("host_id", "VARCHAR(50)"),
+                ("customer_id", "VARCHAR(100)"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in event_migrations:
@@ -342,6 +344,75 @@ def _migrate_tables(engine=None):
                         except Exception as e:
                             print(f"  [DB MIGRATION WARN] Could not add column bookings.{col_name}: {e}", flush=True)
                 conn.commit()
+
+        if "organizer_accounts" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("organizer_accounts")}
+            org_migrations = [
+                ("rejection_reason", "TEXT"),
+                ("submitted_at", "TIMESTAMP" if is_pg else "DATETIME"),
+                ("verified_at", "TIMESTAMP" if is_pg else "DATETIME"),
+                ("beneficiary_name", "VARCHAR(200)"),
+                ("account_type", "VARCHAR(50)"),
+                ("bank_name", "VARCHAR(150)"),
+                ("account_number", "VARCHAR(50)"),
+                ("bank_ifsc", "VARCHAR(20)"),
+                ("pan_card_url", "VARCHAR(500)"),
+                ("cancelled_cheque_url", "VARCHAR(500)"),
+                ("pan_number", "VARCHAR(20)"),
+                ("contact_full_name", "VARCHAR(200)"),
+                ("contact_email", "VARCHAR(255)"),
+                ("contact_mobile", "VARCHAR(20)"),
+                ("org_name", "VARCHAR(255)"),
+                ("host_id", "VARCHAR(50)"),
+                ("customer_id", "VARCHAR(50)"),
+                ("status", "VARCHAR(50)"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in org_migrations:
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE organizer_accounts ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE organizer_accounts ADD COLUMN {col_name} {col_type};"))
+                            print(f"  [DB MIGRATION] Added column organizer_accounts.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column organizer_accounts.{col_name}: {e}", flush=True)
+                conn.commit()
+
+        if "event_management" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("event_management")}
+            em_migrations = [
+                ("host_id", "VARCHAR(50)"),
+                ("customer_id", "VARCHAR(50)"),
+                ("event_category", "VARCHAR(100)"),
+                ("event_type", "VARCHAR(100)"),
+                ("event_mode", "VARCHAR(100)"),
+                ("event_start_date", "TIMESTAMP" if is_pg else "DATETIME"),
+                ("event_end_date", "TIMESTAMP" if is_pg else "DATETIME"),
+                ("event_start_time", "VARCHAR(50)"),
+                ("event_end_time", "VARCHAR(50)"),
+                ("venue", "VARCHAR(300)"),
+                ("address", "TEXT"),
+                ("organizer_name", "VARCHAR(200)"),
+                ("organizer_phone", "VARCHAR(50)"),
+                ("event_status", "VARCHAR(50)"),
+                ("published_at", "TIMESTAMP" if is_pg else "DATETIME"),
+                ("tickets_json", "JSON" if is_pg else "TEXT"),
+                ("agenda_json", "JSON" if is_pg else "TEXT"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in em_migrations:
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE event_management ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE event_management ADD COLUMN {col_name} {col_type};"))
+                            print(f"  [DB MIGRATION] Added column event_management.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column event_management.{col_name}: {e}", flush=True)
+                conn.commit()
     except Exception as exc:
         print(f"  [WARN] Auto-migration check: {exc}", flush=True)
 
@@ -354,18 +425,18 @@ def _seed_demo_events():
     try:
         with engine.connect() as conn:
             # Ensure an organizer user exists
-            org_res = conn.execute(text("SELECT id FROM users LIMIT 1")).fetchone()
+            org_res = conn.execute(text("SELECT customer_id FROM users LIMIT 1")).fetchone()
             if org_res:
                 org_id = str(org_res[0])
             else:
-                org_id = "00000000-0000-0000-0000-000000000001"
+                org_id = "CUST-000001"
                 conn.execute(
                     text("""
-                        INSERT INTO users (id, email, username, full_name, hashed_password, is_active, is_admin, created_at, updated_at)
-                        VALUES (:id, 'organizer@jodevents.com', 'jod_organizer', 'JOD Events Organizer', 'hashed_pass_placeholder', true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        INSERT INTO users (customer_id, email, username, full_name, hashed_password, is_active, is_admin, created_at, updated_at)
+                        VALUES (:cid, 'organizer@jodevents.com', 'jod_organizer', 'JOD Events Organizer', 'hashed_pass_placeholder', true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ON CONFLICT (email) DO NOTHING
                     """),
-                    {"id": org_id}
+                    {"cid": org_id}
                 )
                 conn.commit()
 
@@ -420,7 +491,7 @@ def _seed_demo_events():
                     "terms": "1. Tickets are non-refundable.\n2. Age restriction: 10 years and above.\n3. Photography and recording strictly prohibited.\n4. Gates open 45 minutes prior to showtime.",
                     "is_published": True,
                     "is_cancelled": False,
-                    "organizer_id": org_id,
+                    "customer_id": org_id,
                 },
                 {
                     "id": "22222222-2222-2222-2222-222222222222",
@@ -467,7 +538,7 @@ def _seed_demo_events():
                     "terms": "1. Formal business attire required.\n2. ID card verification at entrance.\n3. Includes 5-star networking lunch.",
                     "is_published": True,
                     "is_cancelled": False,
-                    "organizer_id": org_id,
+                    "customer_id": org_id,
                 },
                 {
                     "id": "33333333-3333-3333-3333-333333333333",
@@ -508,7 +579,7 @@ def _seed_demo_events():
                     "terms": "1. Entry subject to security check.\n2. Early arrival recommended.",
                     "is_published": True,
                     "is_cancelled": False,
-                    "organizer_id": org_id,
+                    "customer_id": org_id,
                 },
                 {
                     "id": "44444444-4444-4444-4444-444444444444",
@@ -548,7 +619,7 @@ def _seed_demo_events():
                     "terms": "1. Pass valid for 2 guests.\n2. Prior RSVP required.",
                     "is_published": True,
                     "is_cancelled": False,
-                    "organizer_id": org_id,
+                    "customer_id": org_id,
                 },
                 {
                     "id": "55555555-5555-5555-5555-555555555555",
@@ -588,7 +659,7 @@ def _seed_demo_events():
                     "terms": "1. Single entry pass.\n2. Plastic bottles strictly prohibited.",
                     "is_published": True,
                     "is_cancelled": False,
-                    "organizer_id": org_id,
+                    "customer_id": org_id,
                 },
                 {
                     "id": "66666666-6666-6666-6666-666666666666",
@@ -640,7 +711,7 @@ def _seed_demo_events():
                     "terms": "1. Single entry pass per registrant.\n2. Practice makeup kits will be provided at the venue.\n3. Tickets are non-refundable.",
                     "is_published": True,
                     "is_cancelled": False,
-                    "organizer_id": org_id,
+                    "customer_id": org_id,
                 }
             ]
 
@@ -649,12 +720,12 @@ def _seed_demo_events():
                     id, title, description, location, venue, latitude, longitude,
                     category, image_url, start_date, end_date, price, capacity,
                     event_format, duration, age_limit, language, performers, highlights,
-                    ticket_types, terms, is_published, is_cancelled, organizer_id, created_at, updated_at
+                    ticket_types, terms, is_published, is_cancelled, customer_id, created_at, updated_at
                 ) VALUES (
                     :id, :title, :description, :location, :venue, :latitude, :longitude,
                     :category, :image_url, :start_date, :end_date, :price, :capacity,
                     :event_format, :duration, :age_limit, :language, :performers, :highlights,
-                    :ticket_types, :terms, :is_published, :is_cancelled, :organizer_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    :ticket_types, :terms, :is_published, :is_cancelled, :customer_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 ) ON CONFLICT (id) DO NOTHING
             """)
 

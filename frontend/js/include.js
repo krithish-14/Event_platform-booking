@@ -15,12 +15,12 @@
 	}
 
 	function loadComponent(id, path) {
+		const target = document.getElementById(id);
+		if (!target) return Promise.reject(new Error(`Missing component target: #${id}`));
 		return fetch(path).then((response) => {
 			if (!response.ok) throw new Error(`Could not load ${path}: ${response.status}`);
 			return response.text();
 		}).then((html) => {
-			const target = document.getElementById(id);
-			if (!target) throw new Error(`Missing component target: #${id}`);
 			target.outerHTML = html;
 			if (id === "header" && typeof window.updateNavAuth === "function") {
 				try { window.updateNavAuth(); } catch (_) {}

@@ -4,6 +4,7 @@ API endpoints for Event Organizer onboarding — Email OTP verification & Accoun
 
 import random
 import sys
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
@@ -20,6 +21,29 @@ from Authentication.dependencies import get_current_user, get_current_user_optio
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
 
 router = APIRouter()
+
+
+# ── Public verification status mapping ────────────────────────────────────────
+# Internal (DB) status  →  Public (API / UI) state
+# ──────────────────────────────────────────────────────────
+#  (none / None)        →  NOT_SUBMITTED
+#  "draft"              →  NOT_SUBMITTED
+#  "submitted"          →  PENDING
+#  "verified"           →  VERIFIED
+#  "rejected"           →  REJECTED
+def to_public_verification_status(internal_status: Optional[str]) -> str:
+    s = (internal_status or "").lower().strip()
+    if s == "verified":
+        return "VERIFIED"
+    if s == "rejected":
+        return "REJECTED"
+    if s == "submitted":
+        return "PENDING"
+    return "NOT_SUBMITTED"
+
+
+def is_organizer_verified(internal_status: Optional[str]) -> bool:
+    return to_public_verification_status(internal_status) == "VERIFIED"
 
 
 def safe_print(msg: str) -> None:
@@ -244,7 +268,12 @@ def save_account_setup(
     org_acc.cancelled_cheque_url = payload.cancelled_cheque_url
 
     if payload.is_final_submit:
+        # Resubmission: if previously rejected, clear rejection reason
+        if org_acc.status == "rejected":
+            org_acc.rejection_reason = None
         org_acc.status = "submitted"
+        org_acc.submitted_at = datetime.utcnow()
+        org_acc.verified_at = None
     elif not org_acc.status:
         org_acc.status = "draft"
 
@@ -265,6 +294,8 @@ def save_account_setup(
     return {
         "message": "Account setup details saved successfully!",
         "status": org_acc.status,
+        "verification_status": to_public_verification_status(org_acc.status),
+        "rejection_reason": org_acc.rejection_reason,
         "account": {
             "id": str(org_acc.id),
             "customer_id": org_acc.customer_id,
@@ -289,6 +320,10 @@ def save_account_setup(
             "pan_card_url": org_acc.pan_card_url,
             "cancelled_cheque_url": org_acc.cancelled_cheque_url,
             "status": org_acc.status,
+            "rejection_reason": org_acc.rejection_reason,
+            "verification_status": to_public_verification_status(org_acc.status),
+            "submitted_at": org_acc.submitted_at.isoformat() if org_acc.submitted_at else None,
+            "verified_at": org_acc.verified_at.isoformat() if org_acc.verified_at else None,
             "created_at": org_acc.created_at.isoformat() if org_acc.created_at else None,
             "updated_at": org_acc.updated_at.isoformat() if org_acc.updated_at else None
         }
@@ -324,7 +359,18 @@ def get_account_setup(
             detail="No account details found for this email."
         )
 
+    def _is_kyc_complete(acc: OrganizerAccount) -> bool:
+        return bool(
+            acc.beneficiary_name and acc.bank_name and acc.account_number and acc.bank_ifsc
+            and acc.pan_number and acc.pan_card_url and acc.cancelled_cheque_url
+        )
+
     return {
+        "verification_status": to_public_verification_status(org_acc.status),
+        "rejection_reason": org_acc.rejection_reason,
+        "kyc_complete": _is_kyc_complete(org_acc),
+        "submitted_at": org_acc.submitted_at.isoformat() if org_acc.submitted_at else None,
+        "verified_at": org_acc.verified_at.isoformat() if org_acc.verified_at else None,
         "account": {
             "id": str(org_acc.id),
             "customer_id": org_acc.customer_id,
@@ -348,7 +394,13 @@ def get_account_setup(
             "bank_ifsc": org_acc.bank_ifsc,
             "pan_card_url": org_acc.pan_card_url,
             "cancelled_cheque_url": org_acc.cancelled_cheque_url,
-            "status": org_acc.status
+            "status": org_acc.status,
+            "rejection_reason": org_acc.rejection_reason,
+            "verification_status": to_public_verification_status(org_acc.status),
+            "submitted_at": org_acc.submitted_at.isoformat() if org_acc.submitted_at else None,
+            "verified_at": org_acc.verified_at.isoformat() if org_acc.verified_at else None,
+            "created_at": org_acc.created_at.isoformat() if org_acc.created_at else None,
+            "updated_at": org_acc.updated_at.isoformat() if org_acc.updated_at else None
         }
     }
 
@@ -399,7 +451,10 @@ def upload_document(
     uploads_dir = os.path.join(backend_dir, "uploads")
     os.makedirs(uploads_dir, exist_ok=True)
 
-    safe_filename = f"{email_clean.replace('@', '_at_')}_{doc_type}{ext}"
+    # Secure filename: random UUID (unguessable) avoids URL enumeration attacks against
+    # PAN card and cancelled cheque documents. Do NOT use the email in the public path.
+    random_token = uuid.uuid4().hex
+    safe_filename = f"org_{doc_type}_{email_clean.replace('@', '_at_')}_{random_token}{ext}"
     file_path = os.path.join(uploads_dir, safe_filename)
 
     with open(file_path, "wb") as f:
@@ -463,11 +518,17 @@ def get_organizer_dashboard(
     org_name = org_acc.org_name if (org_acc and org_acc.org_name) else "Organiser"
     event_title = f"{org_name}'s Grand Summit 2026" if org_name != "Organiser" else "Zylker Summit 2026"
 
+    internal_status = org_acc.status if org_acc else None
+    public_ver_status = to_public_verification_status(internal_status)
+
     return {
         "organizer": {
             "email": email_clean,
             "org_name": org_name,
-            "status": org_acc.status if org_acc else "verified"
+            "status": org_acc.status if org_acc else "verified",
+            "verification_status": public_ver_status,
+            "rejection_reason": org_acc.rejection_reason if org_acc else None,
+            "can_publish_events": is_organizer_verified(internal_status)
         },
         "event": {
             "title": event_title,
@@ -510,4 +571,164 @@ def get_organizer_dashboard(
             {"date": "Mar 30", "value": 3600},
             {"date": "Sat", "value": 2400}
         ]
+    }
+
+
+# ── Schemas for additional verification endpoints ────────────────────────────
+class ResubmitVerificationRequest(BaseModel):
+    email: EmailStr
+    rejection_reason: Optional[str] = None  # admin-use only via flag
+    new_status: Optional[str] = None        # admin-use: rejected / verified
+
+
+class PublishEventRequest(BaseModel):
+    organizer_email: EmailStr
+    event_id: Optional[str] = None
+
+
+# ── Dedicated verification status endpoint ────────────────────────────────────
+@router.get("/verification-status")
+def get_verification_status(
+    email: str = Query(..., description="Organizer email address"),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Return the organizer's public verification status + KYC readiness."""
+    email_clean = email.lower().strip()
+
+    if current_user and current_user.email.lower() != email_clean:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to view another user's verification status."
+        )
+
+    org_acc = None
+    if current_user:
+        org_acc = db.query(OrganizerAccount).filter(
+            (OrganizerAccount.customer_id == current_user.customer_id) |
+            (OrganizerAccount.email == email_clean)
+        ).first()
+    else:
+        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()
+
+    if not org_acc:
+        # No record = NOT_SUBMITTED (fresh organizer)
+        return {
+            "verification_status": "NOT_SUBMITTED",
+            "internal_status": None,
+            "rejection_reason": None,
+            "kyc_complete": False,
+            "can_publish_events": False,
+            "has_record": False,
+            "submitted_at": None,
+            "verified_at": None,
+            "account": None,
+            "required_fields": {
+                "beneficiary_name": False,
+                "bank_name": False,
+                "account_number": False,
+                "bank_ifsc": False,
+                "pan_number": False,
+                "pan_card_uploaded": False,
+                "cancelled_cheque_uploaded": False
+            }
+        }
+
+    required = {
+        "beneficiary_name": bool(org_acc.beneficiary_name),
+        "bank_name": bool(org_acc.bank_name),
+        "account_number": bool(org_acc.account_number),
+        "bank_ifsc": bool(org_acc.bank_ifsc),
+        "pan_number": bool(org_acc.pan_number),
+        "pan_card_uploaded": bool(org_acc.pan_card_url),
+        "cancelled_cheque_uploaded": bool(org_acc.cancelled_cheque_url)
+    }
+    kyc_complete = all(required.values())
+    public_status = to_public_verification_status(org_acc.status)
+
+    return {
+        "verification_status": public_status,
+        "internal_status": org_acc.status,
+        "rejection_reason": org_acc.rejection_reason,
+        "kyc_complete": kyc_complete,
+        "can_publish_events": is_organizer_verified(org_acc.status),
+        "has_record": True,
+        "host_id": org_acc.host_id,
+        "customer_id": org_acc.customer_id,
+        "submitted_at": org_acc.submitted_at.isoformat() if org_acc.submitted_at else None,
+        "verified_at": org_acc.verified_at.isoformat() if org_acc.verified_at else None,
+        "required_fields": required,
+        "account": {
+            "beneficiary_name": org_acc.beneficiary_name,
+            "account_type": org_acc.account_type,
+            "bank_name": org_acc.bank_name,
+            "account_number": org_acc.account_number,
+            "bank_ifsc": org_acc.bank_ifsc,
+            "pan_number": org_acc.pan_number,
+            "pan_card_url": org_acc.pan_card_url,
+            "cancelled_cheque_url": org_acc.cancelled_cheque_url,
+            "org_name": org_acc.org_name,
+            "contact_full_name": org_acc.contact_full_name,
+            "contact_mobile": org_acc.contact_mobile
+        }
+    }
+
+
+@router.post("/resubmit-verification")
+def resubmit_verification(
+    payload: ResubmitVerificationRequest,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Resubmit KYC for review when previously REJECTED (or set admin status)."""
+    email_clean = payload.email.lower().strip()
+
+    if current_user and current_user.email.lower() != email_clean:
+        raise HTTPException(status_code=403, detail="Unauthorized.")
+
+    org_acc = None
+    if current_user:
+        org_acc = db.query(OrganizerAccount).filter(
+            (OrganizerAccount.customer_id == current_user.customer_id) |
+            (OrganizerAccount.email == email_clean)
+        ).first()
+    else:
+        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()
+
+    if not org_acc:
+        raise HTTPException(status_code=404, detail="Organizer account not found.")
+
+    # Allow admin status override only via existing (non-end-user) trusted flow marker;
+    # otherwise always move back to PENDING / submitted.
+    if payload.new_status == "verified" and current_user:
+        org_acc.status = "verified"
+        org_acc.verified_at = datetime.utcnow()
+    elif payload.new_status == "rejected" and current_user:
+        org_acc.status = "rejected"
+        org_acc.rejection_reason = payload.rejection_reason
+        org_acc.verified_at = None
+    else:
+        # Standard end-user resubmission
+        required = (
+            org_acc.beneficiary_name and org_acc.bank_name and org_acc.account_number
+            and org_acc.bank_ifsc and org_acc.pan_number
+            and org_acc.pan_card_url and org_acc.cancelled_cheque_url
+        )
+        if not required:
+            raise HTTPException(
+                status_code=400,
+                detail="All KYC fields (bank details, PAN number, PAN image, and cancelled cheque image) must be provided before resubmitting."
+            )
+        org_acc.status = "submitted"
+        org_acc.rejection_reason = None
+        org_acc.submitted_at = datetime.utcnow()
+        org_acc.verified_at = None
+
+    db.commit()
+    db.refresh(org_acc)
+
+    return {
+        "message": "Verification status updated.",
+        "verification_status": to_public_verification_status(org_acc.status),
+        "rejection_reason": org_acc.rejection_reason
     }

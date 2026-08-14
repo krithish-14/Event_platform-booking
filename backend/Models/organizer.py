@@ -83,9 +83,14 @@ class OrganizerAccount(Base):
     cancelled_cheque_url = Column(String(500), nullable=True)
 
     # ── Status ────────────────────────────────────────────────────────────────
-    status     = Column(String(50), default="draft")  # draft / submitted / verified
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Core status values (internal): draft / submitted / verified / rejected
+    # Mapped to public enum: NOT_SUBMITTED / PENDING / VERIFIED / REJECTED
+    status           = Column(String(50), default="draft")
+    rejection_reason = Column(Text, nullable=True)
+    submitted_at     = Column(DateTime, nullable=True)
+    verified_at      = Column(DateTime, nullable=True)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # ── Relationship: organizer -> user (via customer_id) ─────────────────────
     user = relationship(

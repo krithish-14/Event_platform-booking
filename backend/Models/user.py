@@ -19,8 +19,11 @@ class User(Base):
     __tablename__ = "users"
 
     # ── Identifiers ─────────────────────────────────────────────────────────────
-    id          = Column(GUID, primary_key=True, default=uuid.uuid4, index=True)
-    customer_id = Column(String(100), unique=True, nullable=False, index=True, default=generate_customer_id)
+    customer_id = Column(String(100), primary_key=True, index=True, default=generate_customer_id)
+
+    @property
+    def id(self):
+        return self.customer_id
 
     # ── Identity ──────────────────────────────────────────────────────────────
     email           = Column(String(255), unique=True, nullable=False, index=True)
@@ -49,10 +52,9 @@ class User(Base):
     latitude          = Column(Float,       nullable=True)   # alias for latitude
     longitude         = Column(Float,       nullable=True)   # alias for longitude
 
-    # ── Relationships ─────────────────────────────────────────────────────────
-    events   = relationship("Event", back_populates="organizer", cascade="all, delete-orphan")
+    # ── Relationships ─────────────────────────────────────────────────────────────
+    events   = relationship("Event", back_populates="organizer", cascade="all, delete-orphan", foreign_keys="[Event.customer_id]")
     bookings = relationship("Booking", back_populates="customer", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(customer_id={self.customer_id}, email={self.email})>"
-

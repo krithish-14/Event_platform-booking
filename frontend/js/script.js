@@ -30,15 +30,12 @@
 		if (!splashScreen) return;
 		clearSplashTimers();
 		splashScreen.classList.add("is-hidden");
-		splashTimer = setTimeout(() => {
-			splashScreen.style.display = "none";
-			splashTimer = null;
-			try {
-				sessionStorage.setItem("jod-splash-shown", "true");
-			} catch (err) {
-				void err;
-			}
-		}, 650);
+		splashScreen.style.display = "none";
+		try {
+			sessionStorage.setItem("jod-splash-shown", "true");
+		} catch (err) {
+			void err;
+		}
 	}
 
 	function showSplash() {
@@ -64,8 +61,8 @@
 			splashScreen.classList.add("is-hidden");
 		} else {
 			showSplash();
-			// Auto-hide after 2.5s
-			splashTimer = setTimeout(hideSplash, 2500);
+			// Auto-hide after 2s
+			splashTimer = setTimeout(hideSplash, 2000);
 		}
 	}
 
@@ -149,10 +146,7 @@
 		ctx.beginPath();
 		ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
 		ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha})`;
-		ctx.shadowColor = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha * 0.8})`;
-		ctx.shadowBlur = 8;
 		ctx.fill();
-		ctx.shadowBlur = 0;
 	};
 
 	function initParticles() {
@@ -419,21 +413,8 @@
 	window.addEventListener("load", () => { applyAuthVisibility(); updateNavAuth(); });
 	window.addEventListener("includesLoaded", () => { applyAuthVisibility(); updateNavAuth(); });
 
-	// MutationObserver: whenever header component is injected, instantly transform auth navigation
-	try {
-		const observer = new MutationObserver(() => {
-			const desktopGroup = document.querySelector(".nav-auth");
-			const mobileGroup = document.querySelector(".mobile-auth-group");
-			if (desktopGroup || mobileGroup) {
-				const auth = window.JodAuth || DefaultAuth;
-				if (auth.isLoggedIn() && !document.querySelector(".auth-user-block")) {
-					updateNavAuth();
-					applyAuthVisibility(true);
-				}
-			}
-		});
-		observer.observe(document.documentElement, { childList: true, subtree: true });
-	} catch (_) {}
+	// Nav auth update is triggered on load, includesLoaded, and DOMContentLoaded
+
 })();
 
 (window.includesReady || Promise.resolve()).then(() => {

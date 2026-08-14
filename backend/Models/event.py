@@ -36,14 +36,13 @@ class Event(Base):
     terms        = Column(Text, nullable=True)                 # Terms & conditions text
     is_published = Column(Boolean, default=False)
     is_cancelled = Column(Boolean, default=False)
-    organizer_id = Column(GUID, ForeignKey("users.id"), nullable=True)
     customer_id  = Column(String(100), ForeignKey("users.customer_id", onupdate="CASCADE", ondelete="CASCADE"), nullable=True, index=True)
     host_id      = Column(String(50), nullable=True, index=True)
     created_at   = Column(DateTime, default=datetime.utcnow)
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    organizer = relationship("User", back_populates="events", foreign_keys=[organizer_id], primaryjoin="Event.organizer_id == User.id")
+    organizer = relationship("User", back_populates="events", foreign_keys=[customer_id])
     bookings  = relationship("Booking", back_populates="event", cascade="all, delete-orphan")
 
     def __repr__(self):

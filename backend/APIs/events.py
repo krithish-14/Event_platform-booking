@@ -15,6 +15,8 @@ from Authentication.dependencies import get_current_user
 from Models.base import get_db
 from Models.event import Event
 from Models.user import User
+from Models.organizer import OrganizerAccount
+from APIs.organizers import to_public_verification_status, is_organizer_verified
 from Services.event_service import (
     create_event,
     get_event_by_id,
@@ -102,7 +104,7 @@ class EventResponse(BaseModel):
     terms: Optional[str] = None
     is_published: bool
     is_cancelled: bool
-    customer_id: str
+    customer_id: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -149,7 +151,7 @@ def _event_to_response(event: Event, distance_km: Optional[float] = None) -> Eve
         terms=event.terms,
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
-        organizer_id=str(event.organizer_id),
+        customer_id=str(event.customer_id) if event.customer_id else None,
         created_at=event.created_at,
     )
 
@@ -229,7 +231,17 @@ def create_new_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new event. Requires authentication."""
+    """Create a new event. Requires authentication. is_published=True blocked unless organizer is VERIFIED."""
+    if payload.is_published:
+        org_acc = db.query(OrganizerAccount).filter(
+            (OrganizerAccount.customer_id == current_user.customer_id) |
+            (OrganizerAccount.email == current_user.email.lower())
+        ).first()
+        if not org_acc or not is_organizer_verified(org_acc.status):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Please complete organizer verification before publishing an event."
+            )
     return create_event(db, payload, customer_id=current_user.customer_id)
 
 
@@ -240,12 +252,27 @@ def update_existing_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update an event. Only the organizer can update."""
+    """Update an event. Only the organizer can update. is_published=True blocked unless VERIFIED."""
     event = get_event_by_id(db, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
     if event.customer_id != current_user.customer_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized.")
+
+    transitioning_to_publish = (
+        payload.is_published is True
+        and (not getattr(event, "is_published", False))
+    )
+    if transitioning_to_publish:
+        org_acc = db.query(OrganizerAccount).filter(
+            (OrganizerAccount.customer_id == current_user.customer_id) |
+            (OrganizerAccount.email == current_user.email.lower())
+        ).first()
+        if not org_acc or not is_organizer_verified(org_acc.status):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Please complete organizer verification before publishing an event."
+            )
     return update_event(db, event, payload)
 
 

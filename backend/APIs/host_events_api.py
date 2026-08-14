@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from Models.base import get_db
 from Models.user import User
 from Models.organizer import OrganizerAccount
+from APIs.organizers import to_public_verification_status, is_organizer_verified
 from Models.host_event import (
     EventManagement,
     EventDesign,
@@ -261,15 +262,72 @@ def save_manage_event(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """UPSERT endpoint for Manage Event step."""
+    """UPSERT endpoint for Manage Event step with VERIFIED-only publish gate."""
     customer_id, host_id = resolve_host_identifiers(db, payload.organizer_email, current_user)
     email_clean = payload.organizer_email.lower().strip()
+
+    # ── PUBLISH VERIFICATION GATE (backend-enforced) ─────────────────────────
+    requested_publish = (
+        payload.event_status
+        and isinstance(payload.event_status, str)
+        and payload.event_status.lower() in ("published", "publish", "live")
+    )
+
+    org_acc = db.query(OrganizerAccount).filter(
+        (OrganizerAccount.email == email_clean) |
+        (OrganizerAccount.customer_id == customer_id) |
+        (OrganizerAccount.host_id == host_id)
+    ).first()
+
+    public_ver_status = to_public_verification_status(org_acc.status if org_acc else None)
+    rejection_reason = org_acc.rejection_reason if org_acc else None
+
+    if requested_publish:
+        # Gate #1: must be authenticated (not anonymous)
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to publish an event."
+            )
+        if current_user.email.lower() != email_clean:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only publish events for your own organizer account."
+            )
+        # Gate #2: must have organizer record and be VERIFIED
+        if not org_acc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Please complete organizer verification before publishing an event."
+            )
+        if not is_organizer_verified(org_acc.status):
+            msg_map = {
+                "NOT_SUBMITTED": "Please complete organizer verification before publishing an event.",
+                "PENDING": "Your organizer verification is currently under review. You can publish this event after verification is approved.",
+                "REJECTED": f"Your organizer verification was rejected. {rejection_reason or 'Please update your verification details and resubmit.'}"
+            }
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=msg_map.get(public_ver_status, "Organizer verification required before publishing.")
+            )
 
     event = None
     if payload.event_id:
         try:
             event_uuid = uuid.UUID(payload.event_id)
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
+            # Ownership check when publishing existing event
+            if event and requested_publish:
+                owner_ok = (
+                    (event.organizer_email and event.organizer_email.lower() == email_clean) or
+                    (event.customer_id and event.customer_id == customer_id) or
+                    (event.host_id and event.host_id == host_id)
+                )
+                if not owner_ok:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You do not own this event and cannot publish it."
+                    )
         except ValueError:
             pass
 
@@ -299,7 +357,15 @@ def save_manage_event(
     if payload.address: event.address = payload.address
     if payload.organizer_name: event.organizer_name = payload.organizer_name
     if payload.organizer_phone: event.organizer_phone = payload.organizer_phone
-    if payload.event_status: event.event_status = payload.event_status
+    if payload.event_status:
+        if payload.event_status.lower() in ("published", "publish", "live"):
+            if requested_publish:
+                event.event_status = "published"
+                event.published_at = getattr(event, "published_at", None) or datetime.utcnow()
+            else:
+                event.event_status = "draft"
+        else:
+            event.event_status = payload.event_status
     if payload.event_start_time is not None: event.event_start_time = payload.event_start_time
     if payload.event_end_time is not None: event.event_end_time = payload.event_end_time
     if payload.event_start_date:
@@ -331,6 +397,11 @@ def save_manage_event(
         "event_id": str(event.event_id),
         "customer_id": event.customer_id,
         "host_id": event.host_id,
+        "organizer_verification": {
+            "verification_status": public_ver_status,
+            "can_publish_events": is_organizer_verified(org_acc.status if org_acc else None),
+            "rejection_reason": rejection_reason
+        },
         "event": {
             "event_id": str(event.event_id),
             "event_title": event.event_title,

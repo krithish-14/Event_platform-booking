@@ -218,22 +218,447 @@ async function initOrganizerDashboard() {
 		}
 	} catch (_) {}
 
-	// ── Access Control: verify account status gracefully ──────
-	try {
-		const checkRes = await fetch(`${API_BASE}/account-setup?email=${encodeURIComponent(email)}`, {
-			headers: getAuthHeaders()
-		});
+	// ── Organizer Verification State Management ──────────────────────────────
+	let currentVerificationInfo = null;
 
-		if (checkRes.ok) {
-			const checkData = await checkRes.json();
-			const accStatus = checkData.account ? checkData.account.status : "draft";
-
-			if (accStatus !== "submitted" && accStatus !== "verified") {
-				console.log("Account setup in draft mode:", accStatus);
+	async function fetchVerificationStatus(forceRefresh) {
+		try {
+			const res = await fetch(`${API_BASE}/verification-status?email=${encodeURIComponent(email)}`, {
+				headers: getAuthHeaders()
+			});
+			if (!res.ok) {
+				// No record / 404 etc — treat as NOT_SUBMITTED
+				currentVerificationInfo = {
+					verification_status: "NOT_SUBMITTED",
+					can_publish_events: false,
+					required_fields: {
+						beneficiary_name: false,
+						bank_name: false,
+						account_number: false,
+						bank_ifsc: false,
+						pan_number: false,
+						pan_card_uploaded: false,
+						cancelled_cheque_uploaded: false
+					},
+					has_record: false
+				};
+				return currentVerificationInfo;
 			}
+			const data = await res.json();
+			currentVerificationInfo = data;
+			return currentVerificationInfo;
+		} catch (err) {
+			console.warn("verification-status fetch failed:", err);
+			currentVerificationInfo = {
+				verification_status: "NOT_SUBMITTED",
+				can_publish_events: false,
+				required_fields: {
+					beneficiary_name: false,
+					bank_name: false,
+					account_number: false,
+					bank_ifsc: false,
+					pan_number: false,
+					pan_card_uploaded: false,
+					cancelled_cheque_uploaded: false
+				},
+				has_record: false
+			};
+			return currentVerificationInfo;
 		}
-	} catch (err) {
-		console.log("Dashboard authorization check warning:", err);
+	}
+
+	function showVerificationOverlay() {
+		const overlay = document.getElementById("organizerVerificationOverlay");
+		if (overlay) {
+			overlay.style.display = "flex";
+		}
+	}
+
+	function hideVerificationOverlay() {
+		const overlay = document.getElementById("organizerVerificationOverlay");
+		if (overlay) {
+			overlay.style.display = "none";
+		}
+	}
+
+	function progressStepClass(idx, completed) {
+		return completed ? "✓" : "○";
+	}
+
+	function renderVerificationPanel(info) {
+		const panel = document.getElementById("organizerVerificationPanel");
+		if (!panel) return;
+
+		const status = info.verification_status || "NOT_SUBMITTED";
+		const account = info.account || {};
+		const req = info.required_fields || {};
+		const rejection = info.rejection_reason;
+
+		const steps = [
+			{ label: "Bank Details", key: "bank", ok: !!(account.beneficiary_name && account.bank_name && account.account_number && account.bank_ifsc) },
+			{ label: "PAN Card", key: "pan", ok: !!(account.pan_number && req.pan_card_uploaded) },
+			{ label: "Cancelled Cheque", key: "cheque", ok: !!req.cancelled_cheque_uploaded },
+			{ label: "Verification Review", key: "review", ok: status === "VERIFIED" }
+		];
+
+		let headerHtml = `
+			<div style="padding:1.75rem 2rem; background:linear-gradient(135deg, #1e40af 0%, #2563eb 100%); color:#ffffff; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;">
+				<div>
+					<div style="font-size:0.75rem; font-weight:700; opacity:0.9; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:0.4rem;">Organizer Verification</div>
+					<h2 style="margin:0; font-size:1.55rem; font-weight:800;">Complete Your KYC to Publish Events</h2>
+					<p style="margin:0.4rem 0 0; opacity:0.92; font-size:0.92rem; line-height:1.45;">All information is encrypted and used exclusively for payout verification.</p>
+				</div>
+				${status === "VERIFIED" ? `
+					<div style="background:rgba(255,255,255,0.15); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">✓ VERIFIED</div>
+				` : status === "PENDING" ? `
+					<div style="background:rgba(255,255,255,0.15); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">⏳ UNDER REVIEW</div>
+				` : status === "REJECTED" ? `
+					<div style="background:rgba(239,68,68,0.25); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">✗ REJECTED</div>
+				` : `
+					<div style="background:rgba(255,255,255,0.15); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">○ NOT SUBMITTED</div>
+				`}
+			</div>
+
+			<!-- Progress Indicator -->
+			<div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:0.6rem; padding:1.15rem 2rem; background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+				${steps.map((s, i) => `
+					<div style="display:flex; align-items:center; gap:0.55rem;">
+						<div style="width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:800;
+							background:${s.ok ? '#10b981' : (status === 'PENDING' && i === 3 ? '#f59e0b' : '#e2e8f0')};
+							color:${s.ok || (status === 'PENDING' && i === 3) ? '#ffffff' : '#64748b'};">
+							${s.ok ? '✓' : (status === 'PENDING' && i === 3 ? '◷' : (i + 1))}
+						</div>
+						<div style="font-size:0.8rem; font-weight:700; color:${s.ok ? '#065f46' : '#334155'};">${s.label}</div>
+					</div>
+				`).join('')}
+			</div>
+		`;
+
+		let bodyHtml = "";
+
+		if (status === "PENDING") {
+			bodyHtml = `
+				<div style="padding:2.5rem 2rem; text-align:center;">
+					<div style="font-size:3.2rem; margin-bottom:0.8rem;">⏳</div>
+					<h3 style="margin:0 0 0.5rem; font-size:1.35rem; font-weight:800; color:#0f172a;">Verification is under review</h3>
+					<p style="margin:0 0 1.5rem; color:#475569; line-height:1.55;">
+						We have received your organizer KYC documents and are currently verifying them.
+						<br/>You will be able to publish events immediately after approval.
+					</p>
+					<div style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:1rem 1.2rem; border-radius:10px; font-size:0.9rem; font-weight:600; max-width:540px; margin:0 auto 1.5rem; text-align:left;">
+						Your organizer verification is currently under review. You can publish this event after verification is approved.
+					</div>
+					<button id="btnKycPendingClose" type="button" style="background:#2563eb; color:#fff; padding:0.65rem 1.6rem; border:none; border-radius:8px; font-weight:700; font-size:0.92rem; cursor:pointer;">
+						Close & Return to Dashboard
+					</button>
+				</div>
+			`;
+		} else if (status === "VERIFIED") {
+			bodyHtml = `
+				<div style="padding:2.5rem 2rem; text-align:center;">
+					<div style="font-size:3.2rem; margin-bottom:0.8rem;">✅</div>
+					<h3 style="margin:0 0 0.5rem; font-size:1.35rem; font-weight:800; color:#0f172a;">Organizer verification completed successfully</h3>
+					<p style="margin:0 0 1.5rem; color:#475569; line-height:1.55;">
+						You can now publish events. Your payout bank details have been locked for security.
+					</p>
+					<button id="btnKycPendingClose" type="button" style="background:#10b981; color:#fff; padding:0.65rem 1.6rem; border:none; border-radius:8px; font-weight:700; font-size:0.92rem; cursor:pointer;">
+						Continue to Dashboard
+					</button>
+				</div>
+			`;
+		} else {
+			// NOT_SUBMITTED or REJECTED → show KYC form
+			const isRejected = status === "REJECTED";
+			bodyHtml = `
+				<div style="padding:1.75rem 2rem; overflow-y:auto; flex:1;">
+					${isRejected ? `
+						<div style="background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:1rem 1.1rem; border-radius:10px; margin-bottom:1.25rem;">
+							<div style="font-weight:800; margin-bottom:0.35rem; font-size:0.95rem;">Your verification was rejected</div>
+							<div style="font-size:0.88rem; line-height:1.45;">
+								<strong>Reason:</strong> ${rejection || 'Please review and update your details, then resubmit for verification.'}
+							</div>
+						</div>
+					` : ''}
+
+					<form id="kycForm" autocomplete="off" novalidate>
+						<div style="margin-bottom:1.4rem;">
+							<div style="font-size:1.05rem; font-weight:800; color:#0f172a; margin-bottom:0.9rem; display:flex; align-items:center; gap:0.4rem;">
+								<span style="background:#eff6ff; color:#1e40af; width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:0.8rem;">1</span>
+								Bank Account Details
+							</div>
+							<div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem;">
+								<div>
+									<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Account Holder Name (Beneficiary) <span style="color:#ef4444;">*</span></label>
+									<input type="text" id="kyc_beneficiary_name" class="setup-input" style="width:100%; padding:0.6rem 0.85rem; border:1.5px solid #cbd5e1; border-radius:8px; font-size:0.92rem;" placeholder="As per bank records" value="${account.beneficiary_name || ''}" required />
+								</div>
+								<div>
+									<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Bank Name <span style="color:#ef4444;">*</span></label>
+									<input type="text" id="kyc_bank_name" class="setup-input" style="width:100%; padding:0.6rem 0.85rem; border:1.5px solid #cbd5e1; border-radius:8px; font-size:0.92rem;" placeholder="e.g. HDFC Bank" value="${account.bank_name || ''}" required />
+								</div>
+								<div>
+									<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Account Number <span style="color:#ef4444;">*</span></label>
+									<input type="text" id="kyc_account_number" class="setup-input" style="width:100%; padding:0.6rem 0.85rem; border:1.5px solid #cbd5e1; border-radius:8px; font-size:0.92rem;" placeholder="Bank account number" value="${account.account_number || ''}" required />
+								</div>
+								<div>
+									<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Account Type</label>
+									<select id="kyc_account_type" class="setup-input" style="width:100%; padding:0.6rem 0.85rem; border:1.5px solid #cbd5e1; border-radius:8px; font-size:0.92rem; background:#fff;">
+										<option value="">Select account type</option>
+										<option value="Savings" ${account.account_type === 'Savings' ? 'selected' : ''}>Savings</option>
+										<option value="Current" ${account.account_type === 'Current' ? 'selected' : ''}>Current</option>
+										<option value="NRE" ${account.account_type === 'NRE' ? 'selected' : ''}>NRE</option>
+										<option value="NRO" ${account.account_type === 'NRO' ? 'selected' : ''}>NRO</option>
+									</select>
+								</div>
+								<div>
+									<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">IFSC Code <span style="color:#ef4444;">*</span></label>
+									<input type="text" id="kyc_bank_ifsc" class="setup-input" style="width:100%; padding:0.6rem 0.85rem; border:1.5px solid #cbd5e1; border-radius:8px; font-size:0.92rem; text-transform:uppercase;" placeholder="e.g. HDFC0001234" value="${account.bank_ifsc || ''}" required />
+								</div>
+							</div>
+						</div>
+
+						<div style="margin-bottom:1.4rem;">
+							<div style="font-size:1.05rem; font-weight:800; color:#0f172a; margin-bottom:0.9rem; display:flex; align-items:center; gap:0.4rem;">
+								<span style="background:#eff6ff; color:#1e40af; width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:0.8rem;">2</span>
+								PAN Card
+							</div>
+							<div style="display:grid; grid-template-columns:1fr 1.1fr; gap:0.9rem; align-items:start;">
+								<div>
+									<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">PAN Number <span style="color:#ef4444;">*</span></label>
+									<input type="text" id="kyc_pan_number" class="setup-input" style="width:100%; padding:0.6rem 0.85rem; border:1.5px solid #cbd5e1; border-radius:8px; font-size:0.92rem; text-transform:uppercase;" maxlength="10" placeholder="ABCDE1234F" value="${account.pan_number || ''}" required />
+								</div>
+								<div>
+									<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Upload PAN Card Image <span style="color:#ef4444;">*</span></label>
+									<input type="file" id="kyc_pan_file" accept=".jpg,.jpeg,.png,.pdf" style="width:100%; padding:0.55rem; border:1.5px dashed #cbd5e1; border-radius:8px; font-size:0.86rem; background:#f8fafc;" />
+									${account.pan_card_url ? `<div id="kyc_pan_existing" style="margin-top:0.5rem; font-size:0.82rem; color:#166534; font-weight:600;">✓ PAN document on file. You may upload a new copy to replace it.</div>` : ''}
+									<div id="kyc_pan_file_error" style="color:#dc2626; font-size:0.78rem; font-weight:600; margin-top:0.25rem; display:none;"></div>
+								</div>
+							</div>
+						</div>
+
+						<div style="margin-bottom:1.4rem;">
+							<div style="font-size:1.05rem; font-weight:800; color:#0f172a; margin-bottom:0.9rem; display:flex; align-items:center; gap:0.4rem;">
+								<span style="background:#eff6ff; color:#1e40af; width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:0.8rem;">3</span>
+								Cancelled Cheque
+							</div>
+							<div>
+								<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Upload Cancelled Cheque Image <span style="color:#ef4444;">*</span></label>
+								<input type="file" id="kyc_cheque_file" accept=".jpg,.jpeg,.png,.pdf" style="width:100%; padding:0.55rem; border:1.5px dashed #cbd5e1; border-radius:8px; font-size:0.86rem; background:#f8fafc;" />
+								${account.cancelled_cheque_url ? `<div id="kyc_cheque_existing" style="margin-top:0.5rem; font-size:0.82rem; color:#166534; font-weight:600;">✓ Cancelled cheque on file. You may upload a new copy to replace it.</div>` : ''}
+								<div id="kyc_cheque_file_error" style="color:#dc2626; font-size:0.78rem; font-weight:600; margin-top:0.25rem; display:none;"></div>
+							</div>
+						</div>
+
+						<div id="kycStatusMessage" style="display:none; margin-bottom:1rem; padding:0.85rem 1rem; border-radius:8px; font-size:0.88rem; font-weight:600;"></div>
+
+						<div style="display:flex; justify-content:space-between; align-items:center; gap:0.8rem; padding-top:1rem; border-top:1px solid #e2e8f0;">
+							${status === "NOT_SUBMITTED" ? `<button id="btnKycSkip" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#475569; padding:0.6rem 1.2rem; border-radius:8px; font-weight:700; font-size:0.9rem; cursor:pointer;">Complete Later</button>` : ''}
+							<div style="display:flex; gap:0.7rem;">
+								<button id="btnKycSaveDraft" type="button" style="background:#ffffff; border:1.5px solid #2563eb; color:#2563eb; padding:0.6rem 1.2rem; border-radius:8px; font-weight:700; font-size:0.9rem; cursor:pointer;">Save Draft</button>
+								<button id="btnKycSubmit" type="button" style="background:linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color:#fff; padding:0.6rem 1.5rem; border:none; border-radius:8px; font-weight:700; font-size:0.92rem; cursor:pointer;">
+									${isRejected ? 'Update & Resubmit for Verification' : 'Submit for Verification'}
+								</button>
+							</div>
+						</div>
+					</form>
+				</div>
+			`;
+		}
+
+		panel.innerHTML = headerHtml + bodyHtml;
+
+		// Wire up handlers inside panel
+		const btnClose = document.getElementById("btnKycPendingClose");
+		if (btnClose) {
+			btnClose.addEventListener("click", () => {
+				hideVerificationOverlay();
+			});
+		}
+		const btnSkip = document.getElementById("btnKycSkip");
+		if (btnSkip) {
+			btnSkip.addEventListener("click", () => {
+				hideVerificationOverlay();
+			});
+		}
+
+		// KYC form actions
+		const btnSaveDraft = document.getElementById("btnKycSaveDraft");
+		const btnSubmit = document.getElementById("btnKycSubmit");
+		if (btnSaveDraft) {
+			btnSaveDraft.addEventListener("click", () => submitKycForm(false));
+		}
+		if (btnSubmit) {
+			btnSubmit.addEventListener("click", () => submitKycForm(true));
+		}
+	}
+
+	function setKycStatusMessage(msg, type) {
+		const el = document.getElementById("kycStatusMessage");
+		if (!el) return;
+		el.style.display = "block";
+		if (type === "error") {
+			el.style.background = "#fef2f2";
+			el.style.color = "#991b1b";
+			el.style.border = "1px solid #fecaca";
+		} else if (type === "success") {
+			el.style.background = "#f0fdf4";
+			el.style.color = "#166534";
+			el.style.border = "1px solid #bbf7d0";
+		} else {
+			el.style.background = "#eff6ff";
+			el.style.color = "#1e40af";
+			el.style.border = "1px solid #bfdbfe";
+		}
+		el.textContent = msg;
+	}
+
+	async function uploadDocument(docType, fileInputId) {
+		const input = document.getElementById(fileInputId);
+		if (!input || !input.files || input.files.length === 0) {
+			return null;
+		}
+		const file = input.files[0];
+		const allowed = [".jpg", ".jpeg", ".png", ".pdf"];
+		const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
+		if (allowed.indexOf(ext) < 0) {
+			const err = document.getElementById(docType === "pan_card" ? "kyc_pan_file_error" : "kyc_cheque_file_error");
+			if (err) { err.textContent = "Invalid file format. Please upload .jpg, .png, or .pdf (max 2MB)."; err.style.display = "block"; }
+			throw new Error("Invalid file format");
+		}
+		if (file.size > 2 * 1024 * 1024) {
+			const err = document.getElementById(docType === "pan_card" ? "kyc_pan_file_error" : "kyc_cheque_file_error");
+			if (err) { err.textContent = "File too large. Max size is 2MB."; err.style.display = "block"; }
+			throw new Error("File too large");
+		}
+		const fd = new FormData();
+		fd.append("email", email);
+		fd.append("doc_type", docType);
+		fd.append("file", file);
+		const res = await fetch(`${API_BASE}/upload-document`, {
+			method: "POST",
+			headers: getAuthHeaders(),
+			body: fd
+		});
+		const data = await res.json();
+		if (!res.ok) throw new Error(data.detail || "Document upload failed");
+		return data.file_url;
+	}
+
+	async function submitKycForm(isFinalSubmit) {
+		const getVal = (id) => {
+			const el = document.getElementById(id);
+			return el ? (el.value || "").trim() : "";
+		};
+		const setErr = (id, msg) => {
+			const el = document.getElementById(id);
+			if (!el) return;
+			el.style.border = msg ? "1.5px solid #ef4444" : "1.5px solid #cbd5e1";
+		};
+
+		const beneficiary_name = getVal("kyc_beneficiary_name");
+		const bank_name = getVal("kyc_bank_name");
+		const account_number = getVal("kyc_account_number");
+		const bank_ifsc = getVal("kyc_bank_ifsc");
+		const account_type = getVal("kyc_account_type") || (currentVerificationInfo && currentVerificationInfo.account ? currentVerificationInfo.account.account_type : null);
+		const pan_number = getVal("kyc_pan_number");
+
+		let valid = true;
+		if (isFinalSubmit) {
+			if (!beneficiary_name) { setErr("kyc_beneficiary_name", true); valid = false; }
+			if (!bank_name) { setErr("kyc_bank_name", true); valid = false; }
+			if (!account_number) { setErr("kyc_account_number", true); valid = false; }
+			if (!bank_ifsc) { setErr("kyc_bank_ifsc", true); valid = false; }
+			if (!pan_number || pan_number.length < 8) { setErr("kyc_pan_number", true); valid = false; }
+		}
+		if (!valid) {
+			setKycStatusMessage("Please complete all required fields before submitting.", "error");
+			return;
+		}
+
+		const existingPan = (currentVerificationInfo && currentVerificationInfo.account) ? currentVerificationInfo.account.pan_card_url : null;
+		const existingCheque = (currentVerificationInfo && currentVerificationInfo.account) ? currentVerificationInfo.account.cancelled_cheque_url : null;
+
+		let pan_card_url = existingPan || null;
+		let cancelled_cheque_url = existingCheque || null;
+
+		try {
+			setKycStatusMessage("Uploading documents...", "info");
+			const panInput = document.getElementById("kyc_pan_file");
+			const chequeInput = document.getElementById("kyc_cheque_file");
+			const panHasFile = panInput && panInput.files && panInput.files.length > 0;
+			const chequeHasFile = chequeInput && chequeInput.files && chequeInput.files.length > 0;
+
+			if (panHasFile) {
+				pan_card_url = await uploadDocument("pan_card", "kyc_pan_file");
+			} else if (isFinalSubmit && !pan_card_url) {
+				const err = document.getElementById("kyc_pan_file_error");
+				if (err) { err.textContent = "PAN card image is required."; err.style.display = "block"; }
+				throw new Error("PAN card upload required");
+			}
+
+			if (chequeHasFile) {
+				cancelled_cheque_url = await uploadDocument("cancelled_cheque", "kyc_cheque_file");
+			} else if (isFinalSubmit && !cancelled_cheque_url) {
+				const err = document.getElementById("kyc_cheque_file_error");
+				if (err) { err.textContent = "Cancelled cheque image is required."; err.style.display = "block"; }
+				throw new Error("Cancelled cheque upload required");
+			}
+
+			setKycStatusMessage("Saving verification details...", "info");
+
+			const payload = {
+				email: email,
+				beneficiary_name: beneficiary_name || null,
+				bank_name: bank_name || null,
+				account_number: account_number || null,
+				bank_ifsc: bank_ifsc || null,
+				account_type: account_type || null,
+				pan_number: pan_number || null,
+				pan_card_url: pan_card_url,
+				cancelled_cheque_url: cancelled_cheque_url,
+				org_name: (currentVerificationInfo && currentVerificationInfo.account) ? (currentVerificationInfo.account.org_name || null) : null,
+				contact_full_name: (currentVerificationInfo && currentVerificationInfo.account) ? (currentVerificationInfo.account.contact_full_name || null) : null,
+				contact_mobile: (currentVerificationInfo && currentVerificationInfo.account) ? (currentVerificationInfo.account.contact_mobile || null) : null,
+				is_final_submit: isFinalSubmit
+			};
+
+			const res = await fetch(`${API_BASE}/account-setup`, {
+				method: "POST",
+				headers: Object.assign({}, getAuthHeaders(), { "Content-Type": "application/json" }),
+				body: JSON.stringify(payload)
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.detail || "Failed to save KYC details");
+
+			// Refresh verification info
+			await fetchVerificationStatus(true);
+
+			if (isFinalSubmit) {
+				setKycStatusMessage("Your verification details have been submitted successfully and are currently under review.", "success");
+				setTimeout(() => {
+					renderVerificationPanel(currentVerificationInfo);
+				}, 1200);
+			} else {
+				setKycStatusMessage("Draft saved.", "success");
+			}
+
+			// If now VERIFIED (unlikely but possible), auto-close after short delay
+			if (currentVerificationInfo && currentVerificationInfo.verification_status === "VERIFIED") {
+				setTimeout(() => hideVerificationOverlay(), 1000);
+			}
+		} catch (err) {
+			setKycStatusMessage(err.message || "Submission failed. Please check your details and try again.", "error");
+		}
+	}
+
+	// ── Access Control: enforce verification status (BLOCKING gate) ──────────
+	await fetchVerificationStatus(true);
+	const vs = currentVerificationInfo ? currentVerificationInfo.verification_status : "NOT_SUBMITTED";
+	if (vs !== "VERIFIED") {
+		// Show overlay; NOT_SUBMITTED and REJECTED show editable form; PENDING shows review notice
+		showVerificationOverlay();
+		renderVerificationPanel(currentVerificationInfo || { verification_status: vs });
+	} else {
+		hideVerificationOverlay();
 	}
 
 	const dashEventTitle = document.getElementById("dashEventTitle");
@@ -1628,10 +2053,66 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-	// Load Profile & Locked Bank Details for Settings Tab
+	// Load Profile & Bank Details for Settings Tab (status-aware: only lock when VERIFIED)
 	async function loadProfileAndBankDetails() {
 		const profEmail = document.getElementById("profEmail");
 		if (profEmail) profEmail.value = email;
+
+		// Use current verification info if available; otherwise fetch account-setup
+		let vs = "NOT_SUBMITTED";
+		let rejection = null;
+		if (currentVerificationInfo && currentVerificationInfo.verification_status) {
+			vs = currentVerificationInfo.verification_status;
+			rejection = currentVerificationInfo.rejection_reason;
+		}
+
+		// Inject status banner + CTA into settings tab
+		const sectionSettings = document.getElementById("sectionSettings");
+		if (sectionSettings) {
+			let existingBanner = document.getElementById("settingsVerificationBanner");
+			if (!existingBanner) {
+				existingBanner = document.createElement("div");
+				existingBanner.id = "settingsVerificationBanner";
+				sectionSettings.insertBefore(existingBanner, sectionSettings.firstChild.nextSibling);
+			}
+			let bannerBg = "#f8fafc", bannerBorder = "#e2e8f0", bannerColor = "#475569", bannerTitle = "Verification Status", bannerIcon = "○", bannerSub = "", ctaLabel = null, ctaAction = null;
+
+			if (vs === "VERIFIED") {
+				bannerBg = "#f0fdf4"; bannerBorder = "#bbf7d0"; bannerColor = "#166534";
+				bannerIcon = "✓"; bannerTitle = "Organizer Verified";
+				bannerSub = "Your verification has been approved. Bank details are locked for payout security.";
+			} else if (vs === "PENDING") {
+				bannerBg = "#fffbeb"; bannerBorder = "#fde68a"; bannerColor = "#92400e";
+				bannerIcon = "◷"; bannerTitle = "Verification Under Review";
+				bannerSub = "Your KYC documents have been submitted and are under review. You can publish events after approval.";
+			} else if (vs === "REJECTED") {
+				bannerBg = "#fef2f2"; bannerBorder = "#fecaca"; bannerColor = "#991b1b";
+				bannerIcon = "✗"; bannerTitle = "Verification Rejected";
+				bannerSub = rejection ? `Reason: ${rejection}. Please update your details and resubmit.` : "Your verification was rejected. Please update your details and resubmit.";
+				ctaLabel = "Update & Resubmit Verification";
+				ctaAction = () => window.openOrganizerVerificationPanel && window.openOrganizerVerificationPanel();
+			} else {
+				bannerBg = "#eff6ff"; bannerBorder = "#bfdbfe"; bannerColor = "#1e40af";
+				bannerIcon = "!"; bannerTitle = "KYC Required to Publish Events";
+				bannerSub = "Complete your organizer verification (bank details, PAN card, and cancelled cheque) to enable publishing and payouts.";
+				ctaLabel = "Complete Verification";
+				ctaAction = () => window.openOrganizerVerificationPanel && window.openOrganizerVerificationPanel();
+			}
+
+			existingBanner.style.cssText = `background:${bannerBg}; border:1.5px solid ${bannerBorder}; color:${bannerColor}; padding:1rem 1.25rem; border-radius:12px; margin-bottom:1.5rem; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;`;
+			existingBanner.innerHTML = `
+				<div style="display:flex; gap:0.85rem; align-items:flex-start;">
+					<div style="width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.65); border:1.5px solid ${bannerBorder}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1rem; flex-shrink:0;">${bannerIcon}</div>
+					<div>
+						<div style="font-weight:800; font-size:0.98rem; margin-bottom:0.15rem;">${bannerTitle}</div>
+						<div style="font-size:0.86rem; line-height:1.5; font-weight:500; opacity:0.95;">${bannerSub}</div>
+					</div>
+				</div>
+				${ctaLabel ? `<button id="settingsVerificationBannerCta" type="button" style="background:${bannerColor}; color:#fff; padding:0.5rem 1.05rem; border:none; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer; white-space:nowrap;">${ctaLabel}</button>` : ''}
+			`;
+			const ctaBtn = document.getElementById("settingsVerificationBannerCta");
+			if (ctaBtn && ctaAction) ctaBtn.addEventListener("click", ctaAction);
+		}
 
 		try {
 			const res = await fetch(`${API_BASE}/account-setup?email=${encodeURIComponent(email)}`, {
@@ -1660,19 +2141,42 @@ async function initOrganizerDashboard() {
 					if (acc.pan_number && profPan) profPan.value = acc.pan_number;
 					if (acc.org_address && profAddress) profAddress.value = acc.org_address;
 
-					// Locked Read-Only Bank Details
+					// Bank Details: Read-only if VERIFIED; editable placeholders otherwise via banner CTA
 					const profBankBeneficiary = document.getElementById("profBankBeneficiary");
 					const profBankName = document.getElementById("profBankName");
 					const profBankAccountType = document.getElementById("profBankAccountType");
 					const profBankAccountNumber = document.getElementById("profBankAccountNumber");
 					const profBankIfsc = document.getElementById("profBankIfsc");
 
+					const isVerified = vs === "VERIFIED";
+
+					[profBankBeneficiary, profBankName, profBankAccountType, profBankAccountNumber, profBankIfsc].forEach(inp => {
+						if (!inp) return;
+						if (isVerified) {
+							inp.setAttribute("readonly", "readonly");
+							inp.setAttribute("disabled", "disabled");
+							inp.style.backgroundColor = "#f1f5f9";
+							inp.style.cursor = "not-allowed";
+							inp.style.color = "#334155";
+							inp.style.fontWeight = "700";
+						} else {
+							inp.removeAttribute("readonly");
+							inp.removeAttribute("disabled");
+							inp.style.backgroundColor = "";
+							inp.style.cursor = "";
+							inp.style.color = "";
+							inp.style.fontWeight = "";
+						}
+					});
+
 					if (acc.beneficiary_name && profBankBeneficiary) profBankBeneficiary.value = acc.beneficiary_name;
 					if (acc.bank_name && profBankName) profBankName.value = acc.bank_name;
 					if (acc.account_type && profBankAccountType) profBankAccountType.value = acc.account_type.toUpperCase();
 					if (acc.account_number && profBankAccountNumber) {
 						const rawAcc = acc.account_number;
-						profBankAccountNumber.value = rawAcc.length > 4 ? `•••• •••• ${rawAcc.slice(-4)}` : rawAcc;
+						profBankAccountNumber.value = isVerified
+							? (rawAcc.length > 4 ? `•••• •••• ${rawAcc.slice(-4)}` : rawAcc)
+							: rawAcc;
 					}
 					if (acc.bank_ifsc && profBankIfsc) profBankIfsc.value = acc.bank_ifsc;
 
@@ -2410,31 +2914,266 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-	// Final Step 4: Publish Event Handler
+	// Final Step 4: Publish Event Handler (verification-gated)
 	const btnPublishForm = document.getElementById("btnPublishForm");
 	const btnTopPublish = document.getElementById("btnTopPublish");
 
-	function handleFinalPublish() {
-		hasEvent = true;
-		sessionStorage.setItem(`has_event_${email}`, "true");
-		const title = eventTitleInput ? eventTitleInput.value.trim() : "My Published Event";
-		dashEventTitle.textContent = title;
+	let _publishEventId = sessionStorage.getItem(`active_event_id_${email}`) || null;
 
-		showNotification(`🎉 Event "${title}" successfully created, designed & published live!`);
-		switchTab("overview");
+	async function ensureCurrentEventExists() {
+		// Gets (or creates) the current EventManagement draft for this organizer via the host-events API.
+		try {
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/current?email=${encodeURIComponent(email)}`, {
+				headers: getAuthHeaders()
+			});
+			if (res.ok) {
+				const data = await res.json();
+				if (data && data.event && data.event.event_id) {
+					_publishEventId = data.event.event_id;
+					sessionStorage.setItem(`active_event_id_${email}`, String(_publishEventId));
+					return data.event;
+				}
+			}
+		} catch (_) {}
+		return null;
+	}
+
+	function collectManageEventPayload() {
+		// Try to read Manage tab form inputs (if present) for validation.
+		const titleInput = document.getElementById("eventTitleInput");
+		const title = (titleInput && titleInput.value && titleInput.value.trim()) ||
+			(dashEventTitle && dashEventTitle.textContent && dashEventTitle.textContent.trim()) ||
+			"My Published Event";
+		return {
+			event_title: title,
+			event_id: _publishEventId || null
+		};
+	}
+
+	async function verifyCurrentEventIsValid(manageData) {
+		const missing = [];
+		if (!manageData.event_title || manageData.event_title === "My Published Event" || manageData.event_title.length < 3) {
+			missing.push("Event title");
+		}
+		// Note: Further validation (dates, venue) could be added here; for now only require a title.
+		return missing;
+	}
+
+	function showPublishGateModal(statusKey, rejectionReason) {
+		let title = "";
+		let message = "";
+		let ctaLabel = "";
+		let ctaAction = null;
+		let colorCls = "";
+
+		if (statusKey === "NOT_SUBMITTED") {
+			title = "Complete Organizer Verification";
+			message = "Please complete organizer verification before publishing an event. We need your bank details, PAN card, and a cancelled cheque to verify your identity and enable payouts.";
+			ctaLabel = "Complete Verification";
+			colorCls = "#2563eb";
+			ctaAction = () => {
+				closePublishGateModal();
+				showVerificationOverlay();
+				if (currentVerificationInfo) renderVerificationPanel(currentVerificationInfo);
+			};
+		} else if (statusKey === "PENDING") {
+			title = "Verification Under Review";
+			message = "Your organizer verification is currently under review. You can publish this event after verification is approved.";
+			ctaLabel = "Close";
+			colorCls = "#f59e0b";
+			ctaAction = closePublishGateModal;
+		} else if (statusKey === "REJECTED") {
+			title = "Verification Was Rejected";
+			message = rejectionReason
+				? `Your organizer verification was rejected: ${rejectionReason}. Please update your verification details and resubmit.`
+				: "Your organizer verification was rejected. Please update your verification details and resubmit.";
+			ctaLabel = "Update & Resubmit Verification";
+			colorCls = "#dc2626";
+			ctaAction = () => {
+				closePublishGateModal();
+				showVerificationOverlay();
+				if (currentVerificationInfo) renderVerificationPanel(currentVerificationInfo);
+			};
+		} else {
+			title = "Verification Required";
+			message = "You must complete organizer verification before you can publish events.";
+			ctaLabel = "Start Verification";
+			colorCls = "#2563eb";
+			ctaAction = () => {
+				closePublishGateModal();
+				showVerificationOverlay();
+			};
+		}
+
+		let modal = document.getElementById("publishGateModal");
+		if (!modal) {
+			modal = document.createElement("div");
+			modal.id = "publishGateModal";
+			modal.style.cssText = "position:fixed; inset:0; z-index:10000; background:rgba(15,23,42,0.7); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:1.25rem;";
+			document.body.appendChild(modal);
+		}
+		modal.style.display = "flex";
+		modal.innerHTML = `
+			<div style="background:#ffffff; border-radius:16px; max-width:520px; width:100%; box-shadow:0 25px 60px rgba(0,0,0,0.35); overflow:hidden;">
+				<div style="padding:1.5rem 1.75rem; background:${colorCls}; color:#fff;">
+					<div style="font-size:0.72rem; font-weight:700; opacity:0.9; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:0.35rem;">Publish Blocked</div>
+					<h3 style="margin:0; font-size:1.25rem; font-weight:800;">${title}</h3>
+				</div>
+				<div style="padding:1.5rem 1.75rem;">
+					<p style="margin:0; color:#334155; line-height:1.55; font-size:0.95rem;">${message}</p>
+				</div>
+				<div style="display:flex; justify-content:flex-end; gap:0.65rem; padding:1rem 1.75rem 1.5rem; border-top:1px solid #e2e8f0; background:#f8fafc;">
+					<button id="publishGateCancel" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#475569; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Close</button>
+					<button id="publishGateCta" type="button" style="background:linear-gradient(135deg, ${colorCls} 0%, ${colorCls} 100%); color:#fff; padding:0.55rem 1.25rem; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">${ctaLabel}</button>
+				</div>
+			</div>
+		`;
+		document.getElementById("publishGateCancel").addEventListener("click", closePublishGateModal);
+		if (ctaAction) document.getElementById("publishGateCta").addEventListener("click", ctaAction);
+	}
+
+	function closePublishGateModal() {
+		const m = document.getElementById("publishGateModal");
+		if (m) {
+			m.style.display = "none";
+			m.innerHTML = "";
+		}
+	}
+
+	function showPublishConfirm(manageData, onConfirm) {
+		let modal = document.getElementById("publishGateModal");
+		if (!modal) {
+			modal = document.createElement("div");
+			modal.id = "publishGateModal";
+			modal.style.cssText = "position:fixed; inset:0; z-index:10000; background:rgba(15,23,42,0.7); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:1.25rem;";
+			document.body.appendChild(modal);
+		}
+		modal.style.display = "flex";
+		modal.innerHTML = `
+			<div style="background:#ffffff; border-radius:16px; max-width:520px; width:100%; box-shadow:0 25px 60px rgba(0,0,0,0.35); overflow:hidden;">
+				<div style="padding:1.5rem 1.75rem; background:linear-gradient(135deg, #059669 0%, #047857 100%); color:#fff;">
+					<div style="font-size:0.72rem; font-weight:700; opacity:0.92; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:0.35rem;">Ready to Go Live</div>
+					<h3 style="margin:0; font-size:1.25rem; font-weight:800;">Publish this event?</h3>
+				</div>
+				<div style="padding:1.5rem 1.75rem;">
+					<p style="margin:0 0 0.75rem; color:#334155; line-height:1.55; font-size:0.95rem;">
+						You are about to publish <strong style="color:#0f172a;">${manageData.event_title || "your event"}</strong>.
+						Once published, attendees can discover and register for it.
+					</p>
+					<div style="display:flex; gap:0.55rem; align-items:center; background:#f0fdf4; color:#166534; padding:0.75rem 1rem; border-radius:8px; border:1px solid #bbf7d0; font-size:0.85rem; font-weight:600;">
+						<span style="font-size:1rem;">✓</span>
+						<span>Organizer verification passed. Proceeding to publish.</span>
+					</div>
+				</div>
+				<div style="display:flex; justify-content:flex-end; gap:0.65rem; padding:1rem 1.75rem 1.5rem; border-top:1px solid #e2e8f0; background:#f8fafc;">
+					<button id="publishConfirmCancel" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#475569; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Cancel</button>
+					<button id="publishConfirmOk" type="button" style="background:linear-gradient(135deg, #10b981 0%, #047857 100%); color:#fff; padding:0.55rem 1.25rem; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">✓ Publish Event Now</button>
+				</div>
+			</div>
+		`;
+		document.getElementById("publishConfirmCancel").addEventListener("click", closePublishGateModal);
+		document.getElementById("publishConfirmOk").addEventListener("click", onConfirm);
+	}
+
+	async function handleFinalPublish() {
+		// Step 1: Refresh verification status (never trust stale cached status for publishing)
+		const info = await fetchVerificationStatus(true);
+		const statusKey = info ? info.verification_status : "NOT_SUBMITTED";
+
+		// Step 2: If not VERIFIED, show gate modal with appropriate CTA.
+		if (statusKey !== "VERIFIED") {
+			showPublishGateModal(statusKey, info ? info.rejection_reason : null);
+			return;
+		}
+
+		// Step 3: VERIFIED. Prepare event data + validate required fields.
+		const manageData = collectManageEventPayload();
+		const missing = await verifyCurrentEventIsValid(manageData);
+		if (missing && missing.length > 0) {
+			alert("Please complete the following before publishing: " + missing.join(", "));
+			if (missing.indexOf("Event title") >= 0) {
+				switchTab("manage");
+			}
+			return;
+		}
+
+		// Step 4: Show confirm dialog. If confirmed, call the publish endpoint.
+		showPublishConfirm(manageData, async () => {
+			closePublishGateModal();
+
+			try {
+				// Make sure we have an event first
+				const cur = await ensureCurrentEventExists();
+				const event_id = (cur && cur.event_id) || _publishEventId || null;
+
+				// Now call host-events manage with event_status=published. Backend gate re-validates organizer status.
+				const payload = {
+					organizer_email: email,
+					event_id: event_id || undefined,
+					event_title: manageData.event_title,
+					event_status: "published"
+				};
+
+				const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {
+					method: "POST",
+					headers: Object.assign({}, getAuthHeaders(), { "Content-Type": "application/json" }),
+					body: JSON.stringify(payload)
+				});
+				const data = await res.json();
+				if (!res.ok) throw new Error(data.detail || "Publishing failed on the server.");
+
+				if (data.event_id) {
+					_publishEventId = data.event_id;
+					sessionStorage.setItem(`active_event_id_${email}`, String(data.event_id));
+				}
+
+				// Update local event status state
+				hasEvent = true;
+				sessionStorage.setItem(`has_event_${email}`, "true");
+				const title = manageData.event_title || "My Published Event";
+				if (dashEventTitle) dashEventTitle.textContent = title;
+				showNotification(`🎉 Event "${title}" successfully created, designed & published live!`);
+
+				switchTab("overview");
+			} catch (err) {
+				// If the backend rejected the publish due to verification gate, show gate again
+				const msg = err && err.message ? err.message : String(err || "");
+				if (/verification|under review|rejected/i.test(msg)) {
+					// Re-fetch status in case backend state is newer
+					const refreshed = await fetchVerificationStatus(true);
+					showPublishGateModal(
+						refreshed ? refreshed.verification_status : "NOT_SUBMITTED",
+						refreshed ? refreshed.rejection_reason : null
+					);
+				} else {
+					alert(msg || "Failed to publish event. Please try again.");
+				}
+			}
+		});
 	}
 
 	if (btnPublishForm) {
-		btnPublishForm.addEventListener("click", () => {
-			setTimeout(handleFinalPublish, 400);
+		btnPublishForm.addEventListener("click", (e) => {
+			if (e && typeof e.preventDefault === "function") e.preventDefault();
+			if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+			handleFinalPublish();
 		});
 	}
 
 	if (btnTopPublish) {
-		btnTopPublish.addEventListener("click", () => {
+		btnTopPublish.addEventListener("click", (e) => {
+			if (e && typeof e.preventDefault === "function") e.preventDefault();
 			handleFinalPublish();
 		});
 	}
+
+	// Expose verification controls globally (so Settings tab or other parts can open the panel)
+	window.openOrganizerVerificationPanel = function () {
+		showVerificationOverlay();
+		fetchVerificationStatus(true).then(() => {
+			renderVerificationPanel(currentVerificationInfo || { verification_status: "NOT_SUBMITTED" });
+		});
+	};
 
 	// ── Information Symbol 'i' Modal Logic ────────────────────────────────────
 	const INFO_DETAILS_DATA = {
