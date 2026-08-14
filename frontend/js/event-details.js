@@ -261,14 +261,28 @@ function showToast(message) {
 }
 
 async function triggerBookingModal() {
-    const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
-    if (!token) {
-        showToast("Please log in to book tickets for this event. Redirecting to login… 🎟️");
+    const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")
+        ? window.JodAuth.isLoggedIn()
+        : Boolean(localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+
+    if (!isAuth) {
         const currentTarget = window.location.pathname + window.location.search + window.location.hash;
-        try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-        setTimeout(() => { window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`; }, 1200);
+        if (window.JodAuth && typeof window.JodAuth.openGuestAuthModal === "function") {
+            window.JodAuth.openGuestAuthModal({
+                title: "Sign Up to Book Tickets",
+                message: "You need to create an account or sign in to select tickets, reserve seats, and complete your booking.",
+                targetUrl: currentTarget,
+                badge: "🎟️ Account Required"
+            });
+        } else {
+            showToast("Please sign up or log in to book tickets. Redirecting… 🎟️");
+            try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+            setTimeout(() => { window.location.href = `signup.html?redirect=${encodeURIComponent(currentTarget)}`; }, 800);
+        }
         return;
     }
+
+    const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
 
     const user = window.JodAuth ? window.JodAuth.getUser() : null;
     const custId = user ? (user.customer_id || user.id) : "assigned customer";

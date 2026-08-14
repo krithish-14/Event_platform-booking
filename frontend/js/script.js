@@ -555,22 +555,38 @@
 	const guestAuthSignupBtn = document.getElementById("guestAuthSignupBtn");
 
 	function closeGuestAuthModal() {
+		if (window.JodAuth && typeof window.JodAuth.closeGuestAuthModal === "function") {
+			window.JodAuth.closeGuestAuthModal();
+			return;
+		}
 		if (!guestAuthModal) return;
 		guestAuthModal.hidden = true;
 		document.body.classList.remove("guest-modal-open");
 	}
 
 	function openGuestAuthModal(targetUrl) {
-		if (!guestAuthModal) return;
+		if (window.JodAuth && typeof window.JodAuth.openGuestAuthModal === "function") {
+			window.JodAuth.openGuestAuthModal({
+				title: "Sign Up to Book Tickets",
+				message: "Please sign up or log in to access this feature.",
+				targetUrl: targetUrl || "event-details.html",
+				badge: "ACCOUNT REQUIRED"
+			});
+			return;
+		}
+		const modal = document.getElementById("guestAuthModal");
+		if (!modal) return;
+		const descEl = modal.querySelector("#guestAuthModalDesc");
+		if (descEl) descEl.textContent = "Please sign up or log in to access this feature.";
+		const signupBtn = modal.querySelector("#guestAuthSignupBtn");
+		if (signupBtn) {
+			signupBtn.href = targetUrl ? `signup.html?redirect=${encodeURIComponent(targetUrl)}` : "signup.html";
+			signupBtn.innerHTML = `Sign Up <span aria-hidden="true">&rarr;</span>`;
+		}
 		if (targetUrl) {
 			try { sessionStorage.setItem("jod_redirect_after_login", targetUrl); } catch (_) {}
-			if (guestAuthSignupBtn) {
-				guestAuthSignupBtn.href = `signup.html?redirect=${encodeURIComponent(targetUrl)}`;
-			}
-		} else if (guestAuthSignupBtn) {
-			guestAuthSignupBtn.href = "signup.html";
 		}
-		guestAuthModal.hidden = false;
+		modal.hidden = false;
 		document.body.classList.add("guest-modal-open");
 	}
 
@@ -591,8 +607,11 @@
 			const card = e.target.closest(".event-card");
 			if (!card) return;
 
-			const isLoggedIn = Auth.isLoggedIn && Auth.isLoggedIn();
-			if (!isLoggedIn) {
+			const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")
+				? window.JodAuth.isLoggedIn()
+				: (typeof DefaultAuth !== "undefined" && DefaultAuth.isLoggedIn ? DefaultAuth.isLoggedIn() : false);
+
+			if (!isAuth) {
 				e.preventDefault();
 				e.stopPropagation();
 				e.stopImmediatePropagation();

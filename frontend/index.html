@@ -80,13 +80,15 @@
 						</div>
 						<div class="button-row">
 							<a class="button button-gold"
-								href="event-details.html?id=22222222-2222-2222-2222-222222222222">Explore Event Details
+								href="event-details.html?id=22222222-2222-2222-2222-222222222222"
+								onclick="if(window.JodAuth && !window.JodAuth.isLoggedIn()){event.preventDefault();event.stopPropagation();window.JodAuth.openGuestAuthModal('event-details.html?id=22222222-2222-2222-2222-222222222222');}">Explore Event Details
 								<span aria-hidden="true">&#8594;</span></a>
 						</div>
 					</div>
 					<div class="featured-event reveal reveal-delay">
 						<div class="featured-image-wrap hero-featured-image">
 							<a href="event-details.html?id=22222222-2222-2222-2222-222222222222"
+								onclick="if(window.JodAuth && !window.JodAuth.isLoggedIn()){event.preventDefault();event.stopPropagation();window.JodAuth.openGuestAuthModal('event-details.html?id=22222222-2222-2222-2222-222222222222');}"
 								style="display: block;">
 								<img src="images/hero-event.jpg" alt="Chennai Business Leaders Summit 2026" />
 								<div class="image-gradient"></div>
@@ -122,7 +124,7 @@
 							<div class="carousel-track" data-carousel-track>
 								<article class="event-card carousel-slide reveal" data-lat="13.0108" data-lon="80.2206"
 									style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=22222222-2222-2222-2222-222222222222'">
+									onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'event-details.html?id=22222222-2222-2222-2222-222222222222', 'event') : (event.preventDefault(), false));">
 									<div class="event-card-image">
 										<img src="images/hero-event.jpg" alt="Chennai Business Leaders Summit 2026" />
 										<span class="card-category">Corporate Conference</span>
@@ -138,13 +140,14 @@
 											<span>&#128205; ITC Grand Chola, Chennai</span>
 										</div>
 										<a class="card-link"
-											href="event-details.html?id=22222222-2222-2222-2222-222222222222">View
+											href="event-details.html?id=22222222-2222-2222-2222-222222222222"
+											onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'event-details.html?id=22222222-2222-2222-2222-222222222222', 'event') : (event.preventDefault(), false));">View
 											Details <span>&#8594;</span></a>
 									</div>
 								</article>
 								<article class="event-card carousel-slide reveal reveal-delay-1" data-lat="12.9958"
 									data-lon="80.2170" style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=33333333-3333-3333-3333-333333333333'">
+									onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'event-details.html?id=33333333-3333-3333-3333-333333333333', 'event') : (event.preventDefault(), false));">
 									<div class="event-card-image">
 										<img src="images/event-launch.jpg" alt="Product reveal night" />
 										<span class="card-category">Product Launch</span>
@@ -159,13 +162,14 @@
 											<span>&#128205; Phoenix MarketCity, Chennai</span>
 										</div>
 										<a class="card-link"
-											href="event-details.html?id=33333333-3333-3333-3333-333333333333">View
+											href="event-details.html?id=33333333-3333-3333-3333-333333333333"
+											onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'event-details.html?id=33333333-3333-3333-3333-333333333333', 'event') : (event.preventDefault(), false));">View
 											Details <span>&#8594;</span></a>
 									</div>
 								</article>
 								<article class="event-card carousel-slide reveal reveal-delay-2" data-lat="13.0067"
 									data-lon="80.2546" style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=44444444-4444-4444-4444-444444444444'">
+									onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'event-details.html?id=44444444-4444-4444-4444-444444444444', 'event') : (event.preventDefault(), false));">
 									<div class="event-card-image">
 										<img src="images/event-wedding.jpg" alt="Wedding showcase" />
 										<span class="card-category">Wedding Showcase</span>
@@ -180,13 +184,14 @@
 											<span>&#128205; Leela Palace, Chennai</span>
 										</div>
 										<a class="card-link"
-											href="event-details.html?id=44444444-4444-4444-4444-444444444444">View
+											href="event-details.html?id=44444444-4444-4444-4444-444444444444"
+											onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'event-details.html?id=44444444-4444-4444-4444-444444444444', 'event') : (event.preventDefault(), false));">View
 											Details <span>&#8594;</span></a>
 									</div>
 								</article>
 								<article class="event-card carousel-slide reveal reveal-delay-3" data-lat="13.0500"
 									data-lon="80.2824" style="cursor: pointer;"
-									onclick="window.location.href='event-details.html?id=55555555-5555-5555-5555-555555555555'">
+									onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'event-details.html?id=55555555-5555-5555-5555-555555555555', 'event') : (event.preventDefault(), false));">
 									<div class="event-card-image">
 										<img src="images/event-festival.jpg" alt="Marina Cultural Fest" />
 										<span class="card-category">Cultural Festival</span>
@@ -201,13 +206,14 @@
 											<span>&#128205; Marina Grounds, Chennai</span>
 										</div>
 										<a class="card-link"
-											href="event-details.html?id=55555555-5555-5555-5555-555555555555">View
+											href="event-details.html?id=55555555-5555-5555-5555-555555555555"
+											onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'event-details.html?id=55555555-5555-5555-5555-555555555555', 'event') : (event.preventDefault(), false));">View
 											Details <span>&#8594;</span></a>
 									</div>
 								</article>
 								<article class="event-card carousel-slide reveal reveal-delay-4" data-lat="13.0600"
 									data-lon="80.2635" data-event-id="66666666-6666-6666-6666-666666666666" style="cursor: pointer;"
-									onclick="window.location.href='makeup-boutique-workshop.html?id=66666666-6666-6666-6666-666666666666'">
+									onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'makeup-boutique-workshop.html?id=66666666-6666-6666-6666-666666666666', 'event') : (event.preventDefault(), false));">
 									<div class="event-card-image">
 										<img src="images/event-workshop.png" alt="Makeup & Boutique Workshop" />
 										<span class="card-category">Workshop & Fashion</span>
@@ -222,7 +228,8 @@
 											<span>&#128205; Express Avenue, Chennai</span>
 										</div>
 										<a class="card-link"
-											href="makeup-boutique-workshop.html?id=66666666-6666-6666-6666-666666666666">View
+											href="makeup-boutique-workshop.html?id=66666666-6666-6666-6666-666666666666"
+											onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'makeup-boutique-workshop.html?id=66666666-6666-6666-6666-666666666666', 'event') : (event.preventDefault(), false));">View
 											Details <span>&#8594;</span></a>
 									</div>
 								</article>
@@ -542,8 +549,13 @@
 		<div class="guest-auth-modal-box">
 			<button class="guest-auth-modal-close" type="button" aria-label="Close" id="guestAuthModalCloseBtn">&times;</button>
 			<div class="guest-auth-modal-header">
-				<div class="guest-auth-modal-icon">🔒</div>
-				<span class="pill pill-light-orange">🎟️ Account Required</span>
+				<div class="guest-auth-modal-icon">
+					<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+						<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+					</svg>
+				</div>
+				<span class="pill pill-light-orange" id="guestAuthModalBadge">ACCOUNT REQUIRED</span>
 			</div>
 			<div class="guest-auth-modal-body">
 				<h3 id="guestAuthModalTitle">Sign Up to Book Tickets</h3>
@@ -551,9 +563,12 @@
 			</div>
 			<div class="guest-auth-modal-actions">
 				<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html">
-					Sign In / Sign Up <span>&#8594;</span>
+					Sign Up <span aria-hidden="true">&#8594;</span>
 				</a>
-				<button class="button button-ghost-light" type="button" id="guestAuthCancelBtn">Explore Other Events</button>
+				<button class="button button-ghost-light" type="button" id="guestAuthCancelBtn">Maybe Later</button>
+			</div>
+			<div class="guest-auth-modal-switch">
+				Already have an account? <a href="login.html" id="guestAuthLoginLink">Log In</a>
 			</div>
 		</div>
 	</div>

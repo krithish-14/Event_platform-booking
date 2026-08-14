@@ -30,7 +30,7 @@
 			<a href="index.html">Home</a>
 			<a href="about.html" aria-current="false">About</a>
 			<a href="services.html">Services</a>
-			<a href="host-your-event.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();}">HostYourEvent</a>
+			<a href="host-your-event.html" onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'account-setup.html', 'host') : (event.preventDefault(), false));">Host Your Event</a>
 			<a class="upcoming-nav-link" href="index.html#upcoming"><span class="pulse-dot small"></span>Upcoming Events
 				<span class="new-badge">New</span></a>
 		</nav>
@@ -53,7 +53,7 @@
 		<a href="index.html">Home</a>
 		<a href="about.html">About</a>
 		<a href="services.html">Services</a>
-		<a href="host-your-event.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();}">HostYourEvent</a>
+		<a href="host-your-event.html" onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'account-setup.html', 'host') : (event.preventDefault(), false));">Host Your Event</a>
 		<a class="mobile-upcoming" href="index.html#upcoming" data-auth-only="true">Upcoming Events - New</a>
 		<div class="mobile-auth-group">
 			<a class="button button-login" href="login.html">Login</a>

@@ -61,6 +61,10 @@ class UserRegisterRequest(BaseModel):
     username: str
     full_name: str | None = None
     password: str
+    avatar_url: str | None = None
+    bio: str | None = None
+    city: str | None = None
+    location_pincode: str | None = None
 
     @field_validator("username")
     @classmethod
@@ -131,7 +135,6 @@ def _serialize_user(user) -> dict:
     if user is None:
         return None
     role = "admin" if bool(getattr(user, "is_admin", False)) else "attendee"
-    cid = user.customer_id
     return {
         "id": str(getattr(user, "id", user.customer_id)),
         "customer_id": str(user.customer_id),
@@ -145,7 +148,6 @@ def _serialize_user(user) -> dict:
         "is_admin": bool(getattr(user, "is_admin", False)),
         "role": role,
     }
-
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -183,6 +185,10 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         username=username_clean,
         full_name=payload.full_name.strip() if payload.full_name else None,
         hashed_password=get_password_hash(payload.password),
+        avatar_url=payload.avatar_url,
+        bio=payload.bio,
+        city=payload.city,
+        location_pin=payload.location_pincode,
     )
     try:
         db.add(user)
@@ -200,10 +206,21 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         s_conn = sqlite3.connect(sqlite_path)
         s_cur = s_conn.cursor()
         s_cur.execute("""
-            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, 1, 0)
+            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, avatar_url, bio, city, location_pin, is_active, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
             ON CONFLICT(email) DO NOTHING
-        """, (str(user.id), str(user.customer_id), user.email, user.username, user.full_name, user.hashed_password))
+        """, (
+            str(user.id),
+            str(user.customer_id),
+            user.email,
+            user.username,
+            user.full_name,
+            user.hashed_password,
+            user.avatar_url,
+            user.bio,
+            user.city,
+            user.location_pin
+        ))
         s_conn.commit()
         s_conn.close()
     except Exception:
@@ -216,6 +233,8 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
             email=user.email,
             username=user.username,
             full_name=user.full_name,
+            city=user.city,
+            location_pin=user.location_pin,
         )
         db.add(signup_log)
         db.commit()

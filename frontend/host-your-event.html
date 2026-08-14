@@ -45,7 +45,7 @@
 					<h1 id="host-hero-title">Ready to list your event? <em>We handle the rest.</em></h1>
 					<p>From corporate conferences and music gigs to weddings and sports tournaments — JOD Events enables your event with end-to-end solutions from the moment you register to the final closing applause.</p>
 					<div class="button-row host-hero-cta">
-						<a class="button button-primary" href="account-setup.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();}">List Your Event Now <span aria-hidden="true">&#8594;</span></a>
+						<a class="button button-primary" href="account-setup.html" onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, 'account-setup.html', 'host') : (event.preventDefault(), false));">List Your Event Now <span aria-hidden="true">&#8594;</span></a>
 						<a class="button button-outline-light" href="#what-can-you-host">Explore Categories</a>
 					</div>
 				</div>
@@ -360,7 +360,7 @@
 					<div class="host-examples-row" data-host-modal-examples></div>
 				</div>
 				<div class="host-modal-cta">
-					<a class="button button-primary" href="account-setup.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();}"" data-host-modal-close>List Your Show <span aria-hidden="true">&#8594;</span></a>
+					<a class="button button-primary" href="account-setup.html" onclick="if(window.JodAuth && typeof window.JodAuth.navigateToHostFlow === 'function'){event.preventDefault();event.stopPropagation();window.JodAuth.navigateToHostFlow(event);}else{event.preventDefault();event.stopPropagation();if(window.JodAuth && typeof window.JodAuth.openGuestAuthModal === 'function'){window.JodAuth.openGuestAuthModal('account-setup.html');}else{window.location.href='signup.html?redirect=account-setup.html';}}" data-host-modal-close>List Your Show <span aria-hidden="true">&#8594;</span></a>
 				</div>
 			</div>
 		</div>
@@ -368,6 +368,7 @@
 
 	<script src="js/include.js?v=11"></script>
 	<script src="js/auth.js?v=11"></script>
+	<script src="js/profile.js?v=1"></script>
 	<script src="js/script.js?v=14"></script>
 </body>
 </html>

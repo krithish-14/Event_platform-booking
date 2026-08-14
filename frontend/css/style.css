@@ -3555,7 +3555,7 @@ body.jod-loc-modal-open {
 	}
 }
 
-/* ── Guest Auth Modal (Live Trending Events) ──────────── */
+/* ── Guest Auth Modal (Live Trending Events & Universal) ──── */
 .guest-auth-modal-backdrop[hidden] {
 	display: none !important;
 }
@@ -3563,53 +3563,53 @@ body.jod-loc-modal-open {
 .guest-auth-modal-backdrop {
 	position: fixed;
 	inset: 0;
-	z-index: 100;
+	z-index: 999999;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	padding: 1.25rem;
-	background: rgba(15, 12, 10, .78);
-	backdrop-filter: blur(8px);
-	-webkit-backdrop-filter: blur(8px);
-	animation: guestModalFadeIn .3s ease-out both;
+	background: rgba(10, 8, 7, 0.85);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	animation: guestModalFadeIn 0.25s ease-out both;
 }
 
 .guest-auth-modal-box {
 	position: relative;
 	z-index: 2;
-	width: min(100%, 28rem);
-	padding: 2.25rem 2rem;
-	border: 1px solid rgba(255, 255, 255, .14);
+	width: min(100%, 430px);
+	padding: 2.25rem 2rem 2rem;
+	border: 1px solid rgba(245, 158, 11, 0.35);
 	border-radius: 1.5rem;
-	background: linear-gradient(145deg, rgba(37, 33, 28, .96) 0%, rgba(25, 22, 18, .98) 100%);
+	background: #181513;
 	color: #fff;
-	box-shadow: 0 25px 60px -15px rgba(0, 0, 0, .6), 0 0 40px rgba(255, 117, 8, .15);
+	box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 35px rgba(245, 158, 11, 0.18);
 	text-align: center;
-	animation: guestModalSlideUp .35s cubic-bezier(0.16, 1, 0.3, 1) both;
+	animation: guestModalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .guest-auth-modal-close {
 	position: absolute;
-	top: 1rem;
-	right: 1rem;
+	top: 1.15rem;
+	right: 1.15rem;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: 2.25rem;
 	height: 2.25rem;
-	border: 1px solid rgba(255, 255, 255, .15);
+	border: 1px solid rgba(255, 255, 255, 0.12);
 	border-radius: 50%;
-	background: rgba(255, 255, 255, .08);
-	color: rgba(255, 255, 255, .8);
-	font-size: 1.35rem;
+	background: rgba(255, 255, 255, 0.08);
+	color: rgba(255, 255, 255, 0.75);
+	font-size: 1.25rem;
 	line-height: 1;
 	cursor: pointer;
-	transition: all .2s ease;
+	transition: all 0.2s ease;
 }
 
 .guest-auth-modal-close:hover {
-	border-color: var(--primary);
-	background: var(--primary);
+	border-color: rgba(255, 255, 255, 0.3);
+	background: rgba(255, 255, 255, 0.18);
 	color: #fff;
 	transform: scale(1.05);
 }
@@ -3618,50 +3618,124 @@ body.jod-loc-modal-open {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: .75rem;
-	margin-bottom: 1rem;
+	gap: 0.85rem;
+	margin-bottom: 0.5rem;
 }
 
 .guest-auth-modal-icon {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 4rem;
-	height: 4rem;
-	border: 1px solid rgba(255, 117, 8, .3);
+	width: 4.25rem;
+	height: 4.25rem;
+	border: 1.5px solid rgba(245, 158, 11, 0.4);
 	border-radius: 50%;
-	background: radial-gradient(circle, rgba(255, 117, 8, .2) 0%, rgba(255, 117, 8, .05) 70%);
-	font-size: 1.85rem;
-	box-shadow: 0 0 20px rgba(255, 117, 8, .25);
+	background: radial-gradient(circle, rgba(245, 158, 11, 0.22) 0%, rgba(245, 158, 11, 0.04) 70%);
+	box-shadow: 0 0 25px rgba(245, 158, 11, 0.25);
+}
+
+.guest-auth-modal-icon svg {
+	width: 28px;
+	height: 28px;
+}
+
+#guestAuthModalBadge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 16px;
+	border: 1px solid rgba(245, 158, 11, 0.4);
+	border-radius: 20px;
+	background: rgba(245, 158, 11, 0.08);
+	color: #f59e0b;
+	font-size: 0.725rem;
+	font-weight: 700;
+	letter-spacing: 1.2px;
+	text-transform: uppercase;
 }
 
 .guest-auth-modal-body h3 {
-	margin: .5rem 0 .65rem;
-	color: #fff;
-	font-size: 1.6rem;
+	margin: 0.85rem 0 0.65rem;
+	color: #ffffff;
+	font-size: 1.65rem;
 	font-weight: 700;
 	line-height: 1.25;
+	letter-spacing: -0.3px;
 }
 
 .guest-auth-modal-body p {
-	margin: 0 0 1.75rem;
-	color: rgba(255, 255, 255, .75);
-	font-size: .925rem;
+	margin: 0 0 1.65rem;
+	color: #9ca3af;
+	font-size: 0.95rem;
 	line-height: 1.5;
 }
 
 .guest-auth-modal-actions {
 	display: flex;
 	flex-direction: column;
-	gap: .75rem;
+	gap: 0.85rem;
 }
 
-.guest-auth-modal-actions .button {
-	width: 100%;
+.guest-auth-modal-actions .guest-auth-submit-btn {
+	display: inline-flex;
+	align-items: center;
 	justify-content: center;
-	padding: .85rem 1.5rem;
-	font-size: .95rem;
+	gap: 8px;
+	width: 100%;
+	padding: 0.95rem 1.5rem;
+	border: none;
+	border-radius: 50px;
+	background: linear-gradient(135deg, #ff8000 0%, #ffa500 100%);
+	color: #ffffff;
+	font-size: 1rem;
 	font-weight: 600;
+	text-decoration: none;
+	box-shadow: 0 4px 15px rgba(255, 128, 0, 0.3);
+	transition: all 0.2s ease;
+}
+
+.guest-auth-modal-actions .guest-auth-submit-btn:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 6px 20px rgba(255, 128, 0, 0.45);
+	background: linear-gradient(135deg, #ff8c1a 0%, #ffb31a 100%);
+}
+
+.guest-auth-modal-actions #guestAuthCancelBtn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	padding: 0.9rem 1.5rem;
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	border-radius: 50px;
+	background: rgba(255, 255, 255, 0.05);
+	color: #ffffff;
+	font-size: 1rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.guest-auth-modal-actions #guestAuthCancelBtn:hover {
+	background: rgba(255, 255, 255, 0.12);
+	border-color: rgba(255, 255, 255, 0.25);
+}
+
+.guest-auth-modal-switch {
+	margin-top: 1.25rem;
+	font-size: 0.875rem;
+	color: #9ca3af;
+}
+
+.guest-auth-modal-switch a {
+	color: #ff9d00;
+	font-weight: 600;
+	text-decoration: underline;
+	margin-left: 0.25rem;
+}
+
+.guest-auth-modal-switch a:hover {
+	color: #ffb833;
 }
 
 @keyframes guestModalFadeIn {
