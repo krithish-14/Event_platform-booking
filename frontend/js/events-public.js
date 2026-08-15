@@ -28,7 +28,7 @@
 	function resolveImage(url) {
 		if (!url) return PLACEHOLDER_IMAGE;
 		if (url.startsWith("http://") || url.startsWith("https://")) return url;
-		if (url.startsWith("/uploads/") || url.startsWith("uploads/")) {
+		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			const base = getApiBase().replace(/\/$/, "");
 			return `${base}/${url.replace(/^\//, "")}`;
 		}

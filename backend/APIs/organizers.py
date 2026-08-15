@@ -466,22 +466,22 @@ def upload_document(
             detail="File size should not be greater than 2MB."
         )
 
-    # Ensure uploads directory exists inside backend
-    here = os.path.dirname(os.path.abspath(__file__))
-    backend_dir = os.path.dirname(here)
-    uploads_dir = os.path.join(backend_dir, "uploads")
-    os.makedirs(uploads_dir, exist_ok=True)
+    from Services.file_storage import public_url, store_bytes
 
-    # Secure filename: random UUID (unguessable) avoids URL enumeration attacks against
-    # PAN card and cancelled cheque documents. Do NOT use the email in the public path.
-    random_token = uuid.uuid4().hex
-    safe_filename = f"org_{doc_type}_{email_clean.replace('@', '_at_')}_{random_token}{ext}"
-    file_path = os.path.join(uploads_dir, safe_filename)
-
-    with open(file_path, "wb") as f:
-        f.write(contents)
-
-    file_url = f"/uploads/{safe_filename}"
+    try:
+        stored = store_bytes(
+            db,
+            data=contents,
+            filename=file.filename or f"{doc_type}{ext}",
+            content_type=file.content_type,
+            kind="kyc",
+            purpose=doc_type,
+            owner_customer_id=current_user.customer_id if current_user else None,
+            owner_email=email_clean,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    file_url = public_url(stored)
 
     # Update Database Record
     org_acc = None

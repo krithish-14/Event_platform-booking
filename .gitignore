@@ -39,6 +39,10 @@ backend.log
 frontend.log
 logs/
 
+# Uploaded identity documents and event images (stored encrypted in the database)
+backend/uploads/
+uploads/
+
 # SQLite database (runtime artifact — never commit)
 *.db
 .coverage

@@ -1124,18 +1124,23 @@ async def upload_design_asset(
     if not is_allowed_image_bytes(contents, file.content_type or ""):
         raise HTTPException(status_code=400, detail=INVALID_IMAGE_TYPE_MESSAGE)
 
-    here = os.path.dirname(os.path.abspath(__file__))
-    uploads_dir = os.path.join(os.path.dirname(here), "uploads")
-    os.makedirs(uploads_dir, exist_ok=True)
+    from Services.file_storage import public_url, store_bytes
 
-    ext = os.path.splitext(file.filename or "")[1].lower()
-    safe_email = email_clean.replace("@", "_at_").replace(".", "_")
-    filename = f"event_{asset_type}_{safe_email}_{uuid_mod.uuid4().hex}{ext}"
-    file_path = os.path.join(uploads_dir, filename)
-    with open(file_path, "wb") as f:
-        f.write(contents)
-
-    file_url = f"/uploads/{filename}"
+    try:
+        stored = store_bytes(
+            db,
+            data=contents,
+            filename=file.filename or f"{asset_type}.jpg",
+            content_type=file.content_type,
+            kind="event_media",
+            purpose=asset_type,
+            owner_customer_id=current_user.customer_id if current_user else None,
+            owner_email=email_clean,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    file_url = public_url(stored)
+    db.commit()
     return {
         "message": f"{asset_type.replace('_', ' ').title()} uploaded successfully.",
         "file_url": file_url,

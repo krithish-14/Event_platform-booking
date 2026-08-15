@@ -17,6 +17,7 @@ from APIs.organizers import router as organizers_router
 from APIs.forms import router as forms_router
 from APIs.host_events_api import router as host_events_router
 from APIs.wishlist import router as wishlist_router
+from APIs.media import router as media_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
@@ -38,6 +39,13 @@ async def lifespan(app: FastAPI):
     try:
         create_tables()
         safe_print("  [OK] Database tables ready.")
+        try:
+            from Services.file_storage import migrate_disk_uploads
+            moved = migrate_disk_uploads()
+            if moved:
+                safe_print(f"  [OK] Moved {moved} upload file(s) into encrypted database storage.")
+        except Exception as migrate_exc:
+            safe_print(f"  [WARN] Could not migrate disk uploads into the database: {migrate_exc}")
     except Exception as exc:
         safe_print(f"  [WARN] Could not connect to PostgreSQL: {exc}")
         safe_print("  [WARN] Auth/Events endpoints requiring the DB will 500 until Postgres is running.")
@@ -69,15 +77,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Static Uploads & Jinja2 Templates ─────────────────────────
+# ── Templates ─────────────────────────────────────────────────
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 from fastapi.requests import Request
 from fastapi.responses import HTMLResponse
-
-uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
-os.makedirs(uploads_dir, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
 templates_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "templates"))
@@ -98,6 +101,7 @@ app.include_router(organizers_router,  prefix="/api/organizers",  tags=["Organiz
 app.include_router(host_events_router, prefix="/api/host-events", tags=["Host Events"])
 app.include_router(wishlist_router,    prefix="/api/wishlist",    tags=["Wishlist"])
 app.include_router(forms_router)
+app.include_router(media_router)
 
 
 

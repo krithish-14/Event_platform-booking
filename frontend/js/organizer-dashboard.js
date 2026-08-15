@@ -181,10 +181,31 @@ async function initOrganizerDashboard() {
 		if (!url) return "";
 		if (url.startsWith("blob:") || url.startsWith("data:")) return url;
 		if (url.startsWith("http://") || url.startsWith("https://")) return url;
-		if (url.startsWith("/uploads/") || url.startsWith("uploads/")) {
+		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
 		}
 		return url;
+	}
+
+	function bindPrivateDocumentLink(el, url) {
+		if (!el || !url) return;
+		const fullUrl = resolveUploadUrl(url);
+		el.href = fullUrl;
+		el.onclick = async (e) => {
+			if (!String(fullUrl).includes("/api/media/private/")) return;
+			e.preventDefault();
+			try {
+				const fetchFn = window.JodAuth && typeof window.JodAuth.fetchAuth === "function"
+					? window.JodAuth.fetchAuth
+					: fetch;
+				const res = await fetchFn(fullUrl);
+				if (!res.ok) throw new Error("Could not open document.");
+				const blob = await res.blob();
+				window.open(URL.createObjectURL(blob), "_blank");
+			} catch (_) {
+				showNotification("Sign in to view this private document.");
+			}
+		};
 	}
 
 	// KYC verification UI is hidden until Admin Portal is implemented.
@@ -2811,8 +2832,8 @@ async function initOrganizerDashboard() {
 					// Documents Links
 					const profPanDocLink = document.getElementById("profPanDocLink");
 					const profChequeDocLink = document.getElementById("profChequeDocLink");
-					if (acc.pan_card_url && profPanDocLink) profPanDocLink.href = acc.pan_card_url;
-					if (acc.cancelled_cheque_url && profChequeDocLink) profChequeDocLink.href = acc.cancelled_cheque_url;
+					if (acc.pan_card_url && profPanDocLink) bindPrivateDocumentLink(profPanDocLink, acc.pan_card_url);
+					if (acc.cancelled_cheque_url && profChequeDocLink) bindPrivateDocumentLink(profChequeDocLink, acc.cancelled_cheque_url);
 				}
 			}
 		} catch (e) {

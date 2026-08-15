@@ -38,7 +38,7 @@ function initFormBuilder() {
 		if (!url) return "";
 		if (url.startsWith("blob:") || url.startsWith("data:")) return url;
 		if (url.startsWith("http://") || url.startsWith("https://")) return url;
-		if (url.startsWith("/uploads/") || url.startsWith("uploads/")) {
+		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
 		}
 		return url;
