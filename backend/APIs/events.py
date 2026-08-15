@@ -11,15 +11,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+import os
 from Authentication.dependencies import get_current_user
 from Models.base import get_db
 from Models.event import Event
 from Models.user import User
 from Models.organizer import OrganizerAccount
 from APIs.organizers import to_public_verification_status, is_organizer_verified
+
+ORGANIZER_VERIFICATION_REQUIRED = os.getenv("ORGANIZER_VERIFICATION_REQUIRED", "false").lower() in ("1", "true", "yes")
 from Services.event_service import (
     create_event,
     get_event_by_id,
+    get_public_event_by_id,
     list_events,
     list_nearby_events,
     search_events,
@@ -187,6 +191,43 @@ def get_nearby_events(
     return [_event_to_response(event, dist) for event, dist in pairs]
 
 
+@router.get("/public", response_model=List[EventResponse])
+def get_public_events(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    category: Optional[str] = None,
+    event_format: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    date_filter: Optional[str] = None,
+    location: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Alias for published-only public event listing."""
+    return get_events(
+        skip=skip,
+        limit=limit,
+        category=category,
+        event_format=event_format,
+        min_price=min_price,
+        max_price=max_price,
+        date_filter=date_filter,
+        location=location,
+        db=db,
+    )
+
+
+@router.get("/public/{event_id}", response_model=EventResponse)
+def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
+    """Get a single published event for public event details pages."""
+    event = get_public_event_by_id(db, event_id)
+    if not event:
+        print(f"[EVENT DETAILS] unavailable event_id={event_id}", flush=True)
+        raise HTTPException(status_code=404, detail="This event is currently unavailable.")
+    print(f"[EVENT DETAILS] event_id={event_id} title={event.title!r} published={event.is_published}", flush=True)
+    return _event_to_response(event)
+
+
 @router.get("/", response_model=List[EventResponse])
 def get_events(
     skip: int = Query(0, ge=0),
@@ -200,28 +241,34 @@ def get_events(
     db: Session = Depends(get_db),
 ):
     """List all published events with optional category, format, price, date, and location filters."""
-    return [
-        _event_to_response(e)
-        for e in list_events(
-            db,
-            skip=skip,
-            limit=limit,
-            category=category,
-            event_format=event_format,
-            min_price=min_price,
-            max_price=max_price,
-            date_filter=date_filter,
-            location=location,
+    events = list_events(
+        db,
+        skip=skip,
+        limit=limit,
+        category=category,
+        event_format=event_format,
+        min_price=min_price,
+        max_price=max_price,
+        date_filter=date_filter,
+        location=location,
+    )
+    try:
+        print(
+            f"[PUBLIC EVENTS] returned={len(events)} category={category!r} "
+            f"titles={[e.title for e in events[:5]]}",
+            flush=True,
         )
-    ]
+    except Exception:
+        pass
+    return [_event_to_response(e) for e in events]
 
 
 @router.get("/{event_id}", response_model=EventResponse)
 def get_event(event_id: UUID, db: Session = Depends(get_db)):
-    """Get a single event by ID."""
-    event = get_event_by_id(db, event_id)
+    """Get a single published event by ID (public catalog)."""
+    event = get_public_event_by_id(db, event_id)
     if not event:
-        raise HTTPException(status_code=404, detail="Event not found.")
+        raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     return _event_to_response(event)
 
 
@@ -232,7 +279,7 @@ def create_new_event(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new event. Requires authentication. is_published=True blocked unless organizer is VERIFIED."""
-    if payload.is_published:
+    if payload.is_published and ORGANIZER_VERIFICATION_REQUIRED:
         org_acc = db.query(OrganizerAccount).filter(
             (OrganizerAccount.customer_id == current_user.customer_id) |
             (OrganizerAccount.email == current_user.email.lower())
@@ -268,7 +315,7 @@ def update_existing_event(
         payload.is_published is True
         and (not getattr(event, "is_published", False))
     )
-    if transitioning_to_publish:
+    if transitioning_to_publish and ORGANIZER_VERIFICATION_REQUIRED:
         org_acc = db.query(OrganizerAccount).filter(
             (OrganizerAccount.customer_id == current_user.customer_id) |
             (OrganizerAccount.email == current_user.email.lower())

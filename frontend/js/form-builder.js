@@ -10,6 +10,116 @@ function initFormBuilder() {
 	const urlParams = new URLSearchParams(window.location.search);
 	let email = currentUser ? currentUser.email : (urlParams.get("email") || sessionStorage.getItem("verified_organizer_email"));
 
+	function resolveActiveEventId() {
+		if (window.JodOrganizer && typeof window.JodOrganizer.getActiveEventId === "function") {
+			const id = window.JodOrganizer.getActiveEventId();
+			if (id) return id;
+		}
+		try {
+			const em = email || sessionStorage.getItem("verified_organizer_email");
+			if (em) return sessionStorage.getItem(`active_event_id_${em}`);
+		} catch (_) {}
+		return null;
+	}
+
+	function getHostEventsApiBase() {
+		return window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
+			? "http://127.0.0.1:8001/api/host-events"
+			: "/api/host-events";
+	}
+
+	function getUploadOrigin() {
+		const api = getHostEventsApiBase();
+		if (api.startsWith("http")) return api.replace(/\/api\/host-events\/?$/, "");
+		return window.location.origin;
+	}
+
+	function resolveUploadUrl(url) {
+		if (!url) return "";
+		if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+		if (url.startsWith("http://") || url.startsWith("https://")) return url;
+		if (url.startsWith("/uploads/") || url.startsWith("uploads/")) {
+			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
+		}
+		return url;
+	}
+
+	function getAuthHeaders() {
+		const token = window.JodAuth ? window.JodAuth.getToken() : null;
+		return token ? { "Authorization": `Bearer ${token}` } : {};
+	}
+
+	async function syncRegistrationFormToHost(eventId, schema, theme, published) {
+		if (!email) return false;
+		const formMeta = {
+			form_title: builderFormTitle ? builderFormTitle.value.trim() : "",
+			form_description: builderFormDesc ? builderFormDesc.value.trim() : "",
+			schema: schema,
+			theme_json: theme || {}
+		};
+		const res = await fetch(`${getHostEventsApiBase()}/registration-form`, {
+			method: "POST",
+			headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+			body: JSON.stringify({
+				organizer_email: email,
+				event_id: eventId || undefined,
+				questions_json: schema,
+				form_json: formMeta,
+				settings_json: theme,
+				published: published === true
+			})
+		});
+		if (!res.ok) {
+			const data = await res.json().catch(() => ({}));
+			const detail = typeof data.detail === "string" ? data.detail : (data.message || "Failed to save registration form.");
+			throw new Error(detail);
+		}
+		return true;
+	}
+
+	function applyThemeObject(themeObj) {
+		if (!themeObj || typeof themeObj !== "object") return;
+		if (themeObj.primary_color && themePrimaryColor) themePrimaryColor.value = themeObj.primary_color;
+		if (themeObj.page_bg_color && themePageBgColor) themePageBgColor.value = themeObj.page_bg_color;
+		if (themeObj.card_bg_color && themeCardBgColor) themeCardBgColor.value = themeObj.card_bg_color;
+		if (themeObj.border_radius && themeBorderRadius) themeBorderRadius.value = themeObj.border_radius;
+		if (themeObj.banner_url && themeBannerUrl) themeBannerUrl.value = themeObj.banner_url;
+		if (themeObj.page_bg_url && themePageBgUrl) themePageBgUrl.value = themeObj.page_bg_url;
+	}
+
+	function loadFromHost(reg) {
+		if (!reg) return;
+		let questionsData = reg.questions_json;
+		let formMeta = reg.form_json;
+		if (typeof formMeta === "string") {
+			try { formMeta = JSON.parse(formMeta); } catch (_) { formMeta = null; }
+		}
+		if (Array.isArray(formMeta)) {
+			if (!questionsData || !questionsData.length) questionsData = formMeta;
+		} else if (formMeta && typeof formMeta === "object") {
+			if (formMeta.form_title && builderFormTitle) builderFormTitle.value = formMeta.form_title;
+			if (formMeta.form_description && builderFormDesc) builderFormDesc.value = formMeta.form_description;
+			if (Array.isArray(formMeta.schema) && formMeta.schema.length) questionsData = formMeta.schema;
+			if (formMeta.theme_json) applyThemeObject(formMeta.theme_json);
+		}
+		if (typeof questionsData === "string") {
+			try { questionsData = JSON.parse(questionsData); } catch (_) { questionsData = []; }
+		}
+		if (Array.isArray(questionsData) && questionsData.length) {
+			questions = questionsData;
+		}
+		let themeObj = reg.settings_json;
+		if (typeof themeObj === "string") {
+			try { themeObj = JSON.parse(themeObj); } catch (_) { themeObj = null; }
+		}
+		applyThemeObject(themeObj);
+		if (reg.form_id) formId = reg.form_id;
+		if (typeof renderBuilderQuestions === "function") {
+			renderBuilderQuestions();
+			renderLivePreview();
+		}
+	}
+
 	if (currentUser && currentUser.id) {
 		const userVerifiedEmail = sessionStorage.getItem(`verified_organizer_${currentUser.id}`);
 		if (userVerifiedEmail) {
@@ -39,6 +149,71 @@ function initFormBuilder() {
 	const filePageBgInput = document.getElementById("filePageBgInput");
 	const btnUploadPageBgFile = document.getElementById("btnUploadPageBgFile");
 
+	const ALLOWED_IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
+	const ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+	const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+	const IMAGE_TYPE_MSG = "Your image is not in this standard file type. Please use JPG, JPEG, PNG, or WEBP.";
+	const IMAGE_SIZE_MSG = "Your image is not in this standard size. Maximum file size is 5MB.";
+
+	function hasAllowedImageMagicBytes(bytes) {
+		if (!bytes || bytes.length < 12) return false;
+		const jpeg = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
+		const png = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+		const webp = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+			&& bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+		return jpeg || png || webp;
+	}
+
+	async function validateImageFile(file) {
+		if (!file) throw new Error(IMAGE_TYPE_MSG);
+		if (file.size > MAX_IMAGE_BYTES) throw new Error(IMAGE_SIZE_MSG);
+		const name = String(file.name || "").toLowerCase();
+		const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
+		const mime = String(file.type || "").toLowerCase();
+		const extOk = ALLOWED_IMAGE_EXTS.includes(ext);
+		const mimeOk = !mime || mime === "application/octet-stream" || ALLOWED_IMAGE_MIMES.includes(mime);
+		if (!extOk || !mimeOk) throw new Error(IMAGE_TYPE_MSG);
+		const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+		if (!hasAllowedImageMagicBytes(header)) throw new Error(IMAGE_TYPE_MSG);
+	}
+
+	function setInlineUploadError(hostEl, message) {
+		if (!hostEl) return;
+		let el = hostEl.querySelector(":scope > .design-upload-error");
+		if (!el) {
+			el = document.createElement("p");
+			el.className = "design-upload-error";
+			el.setAttribute("role", "alert");
+			hostEl.appendChild(el);
+		}
+		el.textContent = message || "";
+		el.style.display = message ? "block" : "none";
+	}
+
+	async function handleThemeImageFile(file, urlInput, uploadBtn, errorHost) {
+		setInlineUploadError(errorHost, "");
+		try {
+			await validateImageFile(file);
+		} catch (err) {
+			setInlineUploadError(errorHost, err.message);
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = (evt) => {
+			if (urlInput) {
+				urlInput.dataset.uploadSrc = evt.target.result;
+				urlInput.value = file.name;
+			}
+			if (uploadBtn) {
+				const shortName = file.name.length > 14 ? `${file.name.substring(0, 14)}...` : file.name;
+				uploadBtn.textContent = `✓ ${shortName}`;
+				uploadBtn.style.color = "#10b981";
+			}
+			renderLivePreview();
+		};
+		reader.readAsDataURL(file);
+	}
+
 	const previewCardContainer = document.getElementById("previewCardContainer");
 	const questionsList = document.getElementById("questionsList");
 	const questionCountLabel = document.getElementById("questionCountLabel");
@@ -48,42 +223,30 @@ function initFormBuilder() {
 	if (btnUploadBannerFile && fileBannerInput) {
 		btnUploadBannerFile.addEventListener("click", () => fileBannerInput.click());
 		fileBannerInput.addEventListener("change", (e) => {
-			if (e.target.files && e.target.files[0]) {
-				const file = e.target.files[0];
-				const reader = new FileReader();
-				reader.onload = (evt) => {
-					// Store actual base64 in data attribute — show only filename in the text field
-					if (themeBannerUrl) {
-						themeBannerUrl.dataset.uploadSrc = evt.target.result;
-						themeBannerUrl.value = file.name;
-					}
-					btnUploadBannerFile.textContent = `✓ ${file.name.substring(0, 14)}...`;
-					btnUploadBannerFile.style.color = "#10b981";
-					renderLivePreview();
-				};
-				reader.readAsDataURL(file);
-			}
+			const file = e.target.files && e.target.files[0];
+			if (!file) return;
+			handleThemeImageFile(
+				file,
+				themeBannerUrl,
+				btnUploadBannerFile,
+				document.getElementById("regBannerUploadHost")
+			);
+			fileBannerInput.value = "";
 		});
 	}
 
 	if (btnUploadPageBgFile && filePageBgInput) {
 		btnUploadPageBgFile.addEventListener("click", () => filePageBgInput.click());
 		filePageBgInput.addEventListener("change", (e) => {
-			if (e.target.files && e.target.files[0]) {
-				const file = e.target.files[0];
-				const reader = new FileReader();
-				reader.onload = (evt) => {
-					// Store actual base64 in data attribute — show only filename in the text field
-					if (themePageBgUrl) {
-						themePageBgUrl.dataset.uploadSrc = evt.target.result;
-						themePageBgUrl.value = file.name;
-					}
-					btnUploadPageBgFile.textContent = `✓ ${file.name.substring(0, 14)}...`;
-					btnUploadPageBgFile.style.color = "#10b981";
-					renderLivePreview();
-				};
-				reader.readAsDataURL(file);
-			}
+			const file = e.target.files && e.target.files[0];
+			if (!file) return;
+			handleThemeImageFile(
+				file,
+				themePageBgUrl,
+				btnUploadPageBgFile,
+				document.getElementById("regBgUploadHost")
+			);
+			filePageBgInput.value = "";
 		});
 	}
 
@@ -529,7 +692,7 @@ function initFormBuilder() {
 		// Outer Page Background Style
 		if (livePreviewWrapper) {
 			if (pageBgUrl) {
-				livePreviewWrapper.style.background = `url('${pageBgUrl}') center/cover no-repeat`;
+				livePreviewWrapper.style.background = `url('${resolveUploadUrl(pageBgUrl).replace(/'/g, "\\'")}') center/cover no-repeat`;
 			} else {
 				livePreviewWrapper.style.background = pageBg;
 			}
@@ -566,7 +729,7 @@ function initFormBuilder() {
 					previewHeader.parentNode.insertBefore(previewBannerImg, previewHeader);
 				}
 			}
-			previewBannerImg.src = bannerUrl;
+			previewBannerImg.src = resolveUploadUrl(bannerUrl);
 			previewBannerImg.style.display = "block";
 		} else if (previewBannerImg) {
 			previewBannerImg.style.display = "none";
@@ -723,6 +886,7 @@ function initFormBuilder() {
 
 		const payload = {
 			organizer_email: email,
+			event_id: resolveActiveEventId(),
 			form_title: builderFormTitle.value.trim() || "Event Registration Form",
 			form_description: builderFormDesc.value.trim() || "",
 			schema_json: questions,
@@ -743,25 +907,37 @@ function initFormBuilder() {
 		try {
 			const res = await fetch(`${API_BASE}/save-draft`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
 				body: JSON.stringify(payload)
 			});
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.detail || "Failed to save draft.");
 
 			formId = data.form_id;
+			await syncRegistrationFormToHost(resolveActiveEventId(), payload.schema_json, payload.theme_json, false);
+
+			const lifecycle = window.JodOrganizer && typeof window.JodOrganizer.getLifecycle === "function"
+				? window.JodOrganizer.getLifecycle()
+				: "draft";
+			const updated = lifecycle === "published" || lifecycle === "live" || lifecycle === "ended";
 			if (formStatusBadge) {
-				formStatusBadge.textContent = "Draft Saved";
-				formStatusBadge.style.background = "#fef3c7";
-				formStatusBadge.style.color = "#b45309";
+				formStatusBadge.textContent = updated ? "Form Updated" : "Draft Saved";
+				formStatusBadge.style.background = updated ? "#f0fdf4" : "#fef3c7";
+				formStatusBadge.style.color = updated ? "#166534" : "#b45309";
 			}
-			if (btn) { btn.textContent = "✓ Draft Saved"; btn.style.color = "#059669"; }
+			const successLabel = updated ? "✓ Registration form updated successfully" : "✓ Registration form saved";
+			if (btn) { btn.textContent = successLabel; btn.style.color = "#059669"; }
+			if (window.showNotification) {
+				window.showNotification(successLabel);
+			}
 			setTimeout(() => {
 				if (btn) { btn.textContent = origLabel; btn.style.color = ""; btn.disabled = false; }
 			}, 2500);
+			return true;
 		} catch (err) {
-			alert(err.message || "Failed to save draft.");
+			alert(err.message || "Failed to save registration form.");
 			if (btn) { btn.textContent = origLabel; btn.disabled = false; }
+			return false;
 		}
 	}
 
@@ -797,6 +973,7 @@ function initFormBuilder() {
 
 		const payload = {
 			organizer_email: email,
+			event_id: resolveActiveEventId(),
 			form_title: builderFormTitle.value.trim() || "Event Registration Form",
 			form_description: builderFormDesc.value.trim() || "",
 			schema_json: questions,
@@ -838,20 +1015,7 @@ function initFormBuilder() {
 			if (formVersionBadge) formVersionBadge.textContent = `Version: ${version}`;
 
 			// Sync to host_events_api table (fire-and-forget)
-			const HOST_API = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-				? "http://127.0.0.1:8001/api/host-events/registration-form"
-				: "/api/host-events/registration-form";
-			fetch(HOST_API, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					organizer_email: email,
-					questions_json: payload.schema_json,
-					form_json: payload.schema_json,
-					settings_json: payload.theme_json,
-					published: true
-				})
-			}).catch(() => {});
+			syncRegistrationFormToHost(resolveActiveEventId(), payload.schema_json, payload.theme_json, true).catch(() => {});
 
 			// Success state on button
 			if (btn) {
@@ -888,6 +1052,49 @@ function initFormBuilder() {
 	if (btnSaveDraftForm) btnSaveDraftForm.addEventListener("click", saveDraftForm);
 	if (btnPublishForm) btnPublishForm.addEventListener("click", publishFormLive);
 
+	async function saveAndPublishForEvent() {
+		await saveDraftForm();
+		const eventId = resolveActiveEventId();
+		const bannerSrc = themeBannerUrl
+			? (themeBannerUrl.dataset.uploadSrc || themeBannerUrl.value.trim())
+			: "";
+		const pageBgSrc = themePageBgUrl
+			? (themePageBgUrl.dataset.uploadSrc || themePageBgUrl.value.trim())
+			: "";
+		const payload = {
+			organizer_email: email,
+			event_id: eventId,
+			form_title: builderFormTitle.value.trim() || "Event Registration Form",
+			form_description: builderFormDesc.value.trim() || "",
+			schema_json: questions,
+			theme_json: {
+				primary_color: themePrimaryColor ? themePrimaryColor.value : "#2563eb",
+				page_bg_color: themePageBgColor ? themePageBgColor.value : "#f8fafc",
+				card_bg_color: themeCardBgColor ? themeCardBgColor.value : "#ffffff",
+				border_radius: themeBorderRadius ? themeBorderRadius.value : "8px",
+				banner_url: bannerSrc,
+				page_bg_url: pageBgSrc
+			}
+		};
+		const res = await fetch(`${API_BASE}/publish`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(payload)
+		});
+		const data = await res.json();
+		if (!res.ok) throw new Error(data.detail || "Failed to publish registration form.");
+		formId = data.form_id;
+		isPublished = true;
+		await syncRegistrationFormToHost(eventId, payload.schema_json, payload.theme_json, true);
+		return data;
+	}
+
+	window.JodFormBuilder = {
+		saveDraft: saveDraftForm,
+		saveAndPublishForEvent,
+		loadFromHost
+	};
+
 	const btnViewFormHost = document.getElementById("btnViewFormHost");
 	async function viewFormHostMode() {
 		if (!formId) {
@@ -910,7 +1117,26 @@ function initFormBuilder() {
 	// Load Form Definition from API
 	async function loadFormDefinition() {
 		try {
-			const res = await fetch(`${API_BASE}/get-form?email=${encodeURIComponent(email)}`);
+			const hostRes = await fetch(
+				`${getHostEventsApiBase()}/current?email=${encodeURIComponent(email)}`,
+				{ headers: getAuthHeaders(), cache: "no-store" }
+			);
+			if (hostRes.ok) {
+				const hostData = await hostRes.json();
+				if (hostData.registration_form) {
+					loadFromHost(hostData.registration_form);
+					renderBuilderQuestions();
+					renderLivePreview();
+					return;
+				}
+			}
+		} catch (e) {
+			console.log("Host registration form not loaded, trying forms API.");
+		}
+		try {
+			const res = await fetch(`${API_BASE}/get-form?email=${encodeURIComponent(email)}`, {
+				headers: getAuthHeaders()
+			});
 			if (res.ok) {
 				const data = await res.json();
 				if (data.form_title && builderFormTitle) builderFormTitle.value = data.form_title;

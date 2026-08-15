@@ -29,10 +29,11 @@ class EventManagement(Base):
     organizer_name   = Column(String(200), nullable=True)
     organizer_email  = Column(String(255), nullable=False)
     organizer_phone  = Column(String(50), nullable=True)
-    event_status     = Column(String(50), default="draft", nullable=True)  # draft / ready_to_publish / published / cancelled
+    event_status     = Column(String(50), default="draft", nullable=True)  # draft / published / cancelled; live/ended computed from dates
     published_at     = Column(DateTime, nullable=True)
     tickets_json     = Column(JSONType, nullable=True)
     agenda_json      = Column(JSONType, nullable=True)
+    policies_json    = Column(JSONType, nullable=True)
     created_at       = Column(DateTime, default=datetime.utcnow, nullable=True)
     updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 

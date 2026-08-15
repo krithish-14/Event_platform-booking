@@ -440,6 +440,7 @@ def _migrate_tables(engine=None):
                 ("published_at", "TIMESTAMP" if is_pg else "DATETIME"),
                 ("tickets_json", "JSON" if is_pg else "TEXT"),
                 ("agenda_json", "JSON" if is_pg else "TEXT"),
+                ("policies_json", "JSON" if is_pg else "TEXT"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in em_migrations:
@@ -790,5 +791,5 @@ def create_tables():
     _migrate_tables(engine)
     Base.metadata.create_all(bind=engine)
     _sync_databases()
-    _seed_demo_events()
+    # Demo/static events are not seeded. Public pages stay empty until a host publishes.
 

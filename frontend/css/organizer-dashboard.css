@@ -882,10 +882,72 @@ canvas#trendChartCanvas {
 	transform: translateY(0);
 }
 
+.reg-image-upload-row {
+	display: grid;
+	grid-template-columns: 11.5rem minmax(0, 1fr) 5.6rem;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.reg-upload-btn {
+	background: #ffffff;
+	border: 1.5px solid #2563eb;
+	color: #2563eb;
+	font-weight: 700;
+	border-radius: 8px;
+	height: 42px;
+	font-size: 0.85rem;
+	cursor: pointer;
+	white-space: nowrap;
+	width: 100%;
+	padding: 0 0.5rem;
+}
+
+.reg-preset-btn {
+	background: #eff6ff;
+	border: 1.5px solid #bfdbfe;
+	color: #2563eb;
+	font-weight: 700;
+	border-radius: 8px;
+	height: 42px;
+	font-size: 0.82rem;
+	cursor: pointer;
+	white-space: nowrap;
+	width: 100%;
+	padding: 0;
+}
+
+.reg-preset-spacer {
+	display: block;
+	height: 42px;
+}
+
+.reg-upload-hint {
+	font-size: 0.74rem;
+	color: #64748b;
+	margin-top: 0.15rem;
+}
+
+.design-upload-error {
+	margin: 0.45rem 0 0;
+	font-size: 0.82rem;
+	font-weight: 600;
+	color: #dc2626;
+	line-height: 1.4;
+}
+
 /* Responsive queries */
 @media (max-width: 1024px) {
 	.kpi-row, .dash-grid-3, .setup-grid-2, .setup-grid-3 {
 		grid-template-columns: 1fr;
+	}
+
+	.reg-image-upload-row {
+		grid-template-columns: 1fr;
+	}
+
+	.reg-preset-spacer {
+		display: none;
 	}
 }
 

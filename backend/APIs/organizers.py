@@ -13,6 +13,7 @@ from pydantic import BaseModel, EmailStr
 
 from Models import get_db, EmailOTP, OrganizerAccount, User, HostRegistrationLog
 from Authentication.dependencies import get_current_user, get_current_user_optional
+from Authentication.jwt_handler import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
 
@@ -167,17 +168,35 @@ def verify_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
     elif user and not org_acc.customer_id:
         org_acc.customer_id = user.customer_id
 
+    if not user and org_acc and org_acc.customer_id:
+        user = db.query(User).filter(User.customer_id == org_acc.customer_id).first()
+
     db.commit()
 
     is_completed = bool(org_acc and org_acc.status in ["submitted", "verified"])
 
-    return {
+    result = {
         "message": "Email verified successfully!",
         "verified": True,
         "email": email,
         "account_status": org_acc.status if org_acc else "draft",
-        "is_completed": is_completed
+        "is_completed": is_completed,
     }
+
+    if user:
+        token = create_access_token(
+            data={
+                "sub": str(user.customer_id or user.email),
+                "customer_id": str(user.customer_id) if user.customer_id else None,
+                "email": user.email,
+                "username": user.username,
+            },
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        )
+        result["access_token"] = token
+        result["token_type"] = "bearer"
+
+    return result
 
 
 @router.post("/account-setup")

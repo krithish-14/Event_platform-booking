@@ -349,7 +349,10 @@
 				: "/api/forms";
 
 			const urlParams = new URLSearchParams(window.location.search);
-			const formId = urlParams.get("formId") || urlParams.get("id");
+			const eventId = urlParams.get("eventId") || urlParams.get("event_id");
+			const formId = urlParams.get("formId") || (!eventId ? urlParams.get("id") : null);
+			const ticketType = urlParams.get("ticket") || "";
+			const ticketPrice = urlParams.get("price") || "";
 			const mode = urlParams.get("mode");
 			const isHostReadOnly = mode === "readOnly" || mode === "preview" || mode === "host";
 
@@ -373,22 +376,30 @@
 			let formData = null;
 			let hasEmailQuestionInSchema = false;
 
-			if (!formId) {
-				showError("Missing Form ID", "No form ID was specified in the URL. Please check the published form link.");
+			if (!formId && !eventId) {
+				showError("Missing Event or Form ID", "No event ID or form ID was specified in the URL. Please use the Book Now link from the event page.");
 				return;
 			}
 
 			// Load Published Form Data from Backend API
 			async function fetchPublishedForm() {
 				try {
-					const modeQuery = isHostReadOnly ? "&mode=readOnly" : "";
-					const res = await fetch(`${API_BASE}/get-form-by-id?form_id=${encodeURIComponent(formId)}${modeQuery}`);
+					let res;
+					if (eventId) {
+						res = await fetch(`${API_BASE}/get-form-by-event?event_id=${encodeURIComponent(eventId)}`);
+					} else {
+						const modeQuery = isHostReadOnly ? "&mode=readOnly" : "";
+						res = await fetch(`${API_BASE}/get-form-by-id?form_id=${encodeURIComponent(formId)}${modeQuery}`);
+					}
 					if (!res.ok) {
 						const errJson = await res.json().catch(() => ({}));
 						throw new Error(errJson.detail || "Form not found or unpublished.");
 					}
 
 					formData = await res.json();
+					if (eventId && !formData.event_id) formData.event_id = eventId;
+					if (ticketType) formData._ticket_type = ticketType;
+					if (ticketPrice) formData._ticket_price = ticketPrice;
 					renderForm(formData);
 				} catch (err) {
 					showError("Form Unavailable", err.message || "Failed to load published form.");
@@ -652,9 +663,9 @@
 				}
 
 				const payload = {
-					form_id: parseInt(formId),
+					form_id: formData.form_id ? parseInt(formData.form_id, 10) : (formId ? parseInt(formId, 10) : null),
 					organizer_email: formData ? formData.organizer_email : "",
-					event_id: formData ? formData.event_id : null,
+					event_id: formData ? (formData.event_id || eventId) : eventId,
 					user_email: userEmail,
 					answers_json: answers
 				};

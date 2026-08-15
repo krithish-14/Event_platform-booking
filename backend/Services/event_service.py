@@ -4,7 +4,7 @@ Event business logic service.
 
 from typing import List, Optional, Tuple
 from uuid import UUID
-from sqlalchemy import or_, extract
+from sqlalchemy import or_, extract, desc
 from sqlalchemy.orm import Session
 
 from Models.user import User
@@ -14,6 +14,26 @@ from Services.geo_service import filter_by_radius
 
 
 from datetime import datetime, timedelta
+from Utils.categories import normalize_category
+
+
+def _apply_category_filter(query, category: Optional[str]):
+    """Filter published events by the exact stored category. No title/alias inference."""
+    if not category or str(category).lower().strip() == "all":
+        return query
+    canonical = normalize_category(category)
+    if not canonical:
+        return query.filter(Event.id.is_(None))
+    return query.filter(Event.category == canonical)
+
+
+def _published_events_query(db: Session):
+    now = datetime.utcnow()
+    return db.query(Event).filter(
+        Event.is_published == True,
+        Event.is_cancelled == False,
+        or_(Event.end_date.is_(None), Event.end_date > now),
+    )
 
 
 def list_events(
@@ -28,9 +48,8 @@ def list_events(
     location: Optional[str] = None,
 ) -> List[Event]:
     """Return published events, optionally filtered by category, format, price, date, and location."""
-    query = db.query(Event).filter(Event.is_published == True, Event.is_cancelled == False)
-    if category and category.lower() != "all":
-        query = query.filter(Event.category.ilike(f"%{category}%"))
+    query = _published_events_query(db)
+    query = _apply_category_filter(query, category)
     if event_format and event_format.lower() != "all":
         query = query.filter(Event.event_format.ilike(f"%{event_format}%"))
     if min_price is not None:
@@ -55,13 +74,32 @@ def list_events(
             sat_start = datetime(now.year, now.month, now.day) + timedelta(days=days_to_sat)
             mon_start = sat_start + timedelta(days=2)
             query = query.filter(Event.start_date >= sat_start, Event.start_date < mon_start)
-    return query.order_by(Event.start_date).offset(skip).limit(limit).all()
+    # Newest published/updated events first so freshly published items appear on Home immediately.
+    return (
+        query.order_by(desc(Event.updated_at), Event.start_date.asc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 
 def get_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
-    """Return a single event by ID."""
+    """Return a single event by ID (any status — organizer/admin use)."""
     return db.query(Event).filter(or_(Event.id == event_id, Event.id == str(event_id))).first()
+
+
+def get_public_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
+    """Return a published, non-cancelled event for public pages."""
+    return (
+        db.query(Event)
+        .filter(
+            or_(Event.id == event_id, Event.id == str(event_id)),
+            Event.is_published == True,
+            Event.is_cancelled == False,
+        )
+        .first()
+    )
 
 
 def create_event(db: Session, payload, customer_id: str, organizer_id=None) -> Event:
@@ -102,9 +140,8 @@ def list_nearby_events(
     category: Optional[str] = None,
 ) -> List[Tuple[Event, float]]:
     """Return published events within radius_km of (lat, lon), sorted by distance."""
-    query = db.query(Event).filter(Event.is_published == True, Event.is_cancelled == False)
-    if category:
-        query = query.filter(Event.category.ilike(f"%{category}%"))
+    query = _published_events_query(db)
+    query = _apply_category_filter(query, category)
     candidates = query.all()
     nearby = filter_by_radius(candidates, lat, lon, radius_km=radius_km)
     return nearby[skip : skip + limit]
@@ -139,7 +176,11 @@ def search_events(
     query = (
         db.query(Event)
         .outerjoin(User, Event.organizer_id == User.id)
-        .filter(Event.is_published == True, Event.is_cancelled == False)
+        .filter(
+            Event.is_published == True,
+            Event.is_cancelled == False,
+            or_(Event.end_date.is_(None), Event.end_date > datetime.utcnow()),
+        )
     )
 
     # Check if query matches a month name

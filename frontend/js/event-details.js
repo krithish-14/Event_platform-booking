@@ -1,95 +1,184 @@
 /**
- * Dynamic Category-Specific Event Details Page Logic — JOD Events
+ * Dynamic Event Details Page — loads published events from API only.
  */
-
 document.addEventListener('DOMContentLoaded', () => {
     initEventDetailsPage();
 });
 
-let currentSelectedPrice = 1999;
+let currentSelectedPrice = 0;
+let currentSelectedTicketType = "General Admission";
 let currentEventData = null;
 
 async function initEventDetailsPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const eventId = urlParams.get('id');
+    const EP = window.JodEventsPublic;
 
-    if (eventId) {
-        await loadEventFromBackend(eventId);
+    showLoadingState();
+
+    if (!eventId) {
+        showUnavailableState("This event is currently unavailable.", "No event was selected.");
+        return;
     }
+
+    if (!EP) {
+        showUnavailableState("Unable to load event details.", "Please refresh the page and try again.");
+        return;
+    }
+
+    await loadEventFromBackend(eventId);
+}
+
+function showLoadingState() {
+    const main = document.getElementById('mainContent');
+    const loading = document.getElementById('eventLoadingState');
+    const unavailable = document.getElementById('eventUnavailableState');
+    if (main) main.style.display = 'none';
+    if (unavailable) unavailable.style.display = 'none';
+    if (loading) loading.style.display = 'block';
+}
+
+function showUnavailableState(title, message) {
+    const main = document.getElementById('mainContent');
+    const loading = document.getElementById('eventLoadingState');
+    const unavailable = document.getElementById('eventUnavailableState');
+    const titleEl = document.getElementById('unavailableTitle');
+    const msgEl = document.getElementById('unavailableMessage');
+    if (loading) loading.style.display = 'none';
+    if (main) main.style.display = 'none';
+    if (unavailable) unavailable.style.display = 'block';
+    if (titleEl) titleEl.textContent = title || 'This event is currently unavailable.';
+    if (msgEl) msgEl.textContent = message || 'The event may be unpublished or no longer available.';
+    document.title = 'Event Unavailable — JOD Events';
+}
+
+function showEventContent() {
+    const main = document.getElementById('mainContent');
+    const loading = document.getElementById('eventLoadingState');
+    const unavailable = document.getElementById('eventUnavailableState');
+    if (loading) loading.style.display = 'none';
+    if (unavailable) unavailable.style.display = 'none';
+    if (main) main.style.display = '';
 }
 
 async function loadEventFromBackend(eventId) {
+    const EP = window.JodEventsPublic;
     try {
-        const response = await fetch(`http://127.0.0.1:8001/api/events/${eventId}`);
-        if (!response.ok) {
-            console.warn('Backend API request returned error status:', response.status);
-            return;
-        }
-        const data = await response.json();
+        const data = await EP.fetchPublishedEventById(eventId);
         currentEventData = data;
         renderEventDOM(data);
+        showEventContent();
+        await loadRecommendedEvents(eventId);
+        EP.startCountdownTicker();
     } catch (err) {
-        console.warn('Could not fetch event from FastAPI backend API, relying on pre-rendered template:', err);
+        console.warn('Event details load failed:', err);
+        showUnavailableState(
+            err.code === 'UNAVAILABLE' ? 'This event is currently unavailable.' : 'Unable to load event details.',
+            err.message || 'Please try again later.'
+        );
+    }
+}
+
+async function loadRecommendedEvents(currentId) {
+    const EP = window.JodEventsPublic;
+    const grid = document.getElementById('recommendedGrid');
+    const block = document.getElementById('recommendedBlock');
+    if (!grid || !EP) return;
+
+    try {
+        const events = await EP.fetchPublishedEvents({ limit: 6 });
+        const others = events.filter(e => e.id !== currentId).slice(0, 2);
+        if (!others.length) {
+            if (block) block.style.display = 'none';
+            return;
+        }
+        grid.innerHTML = others.map(ev => {
+            const url = EP.eventDetailsUrl(ev);
+            const img = EP.resolveImage(ev.image_url);
+            const title = EP.escapeHtml(ev.title || 'Event');
+            const venue = EP.escapeHtml(ev.venue || ev.location || '');
+            const price = EP.formatPrice(ev.price);
+            return `
+                <a href="${url}" class="rec-card">
+                    <img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${EP.PLACEHOLDER_IMAGE}'" />
+                    <div class="rec-card-body">
+                        <h3 class="rec-card-title">${title}</h3>
+                        <p class="rec-card-meta">📍 ${venue}</p>
+                        <div class="rec-card-price">${price}${Number(ev.price) > 0 ? ' onwards' : ''}</div>
+                    </div>
+                </a>
+            `;
+        }).join('');
+    } catch (_) {
+        if (block) block.style.display = 'none';
     }
 }
 
 function getCategoryThemeConfig(category) {
-    const cat = (category || '').toLowerCase();
-    if (cat.includes('corporate') || cat.includes('conference') || cat.includes('business')) {
-        return {
-            themeClass: 'category-theme-corporate',
-            heroBadge: '💼 Executive Summit',
-            performersTitle: 'Keynote Speakers & Panelists',
-            highlightsTitle: 'Summit Highlights & Key Takeaways'
-        };
-    } else if (cat.includes('launch') || cat.includes('product') || cat.includes('tech')) {
-        return {
-            themeClass: 'category-theme-launch',
-            heroBadge: '🚀 Exclusive Product Reveal',
-            performersTitle: 'Innovation Leads & Creators',
-            highlightsTitle: 'Interactive Demo Pods & Reveal Showcase'
-        };
-    } else if (cat.includes('wedding') || cat.includes('luxury') || cat.includes('soiree')) {
-        return {
-            themeClass: 'category-theme-wedding',
-            heroBadge: '💍 Signature Luxury Showcase',
-            performersTitle: 'Featured Designers & Master Artisans',
-            highlightsTitle: 'Couture Walk & Decor Exhibition'
-        };
-    } else if (cat.includes('workshop') || cat.includes('makeup') || cat.includes('boutique') || cat.includes('fashion')) {
-        return {
-            themeClass: 'category-theme-workshop',
-            heroBadge: '💄 Interactive Masterclass',
-            performersTitle: 'Workshop Instructors & Master Stylists',
-            highlightsTitle: 'Workshop Highlights & Hands-on Sessions'
-        };
-    } else if (cat.includes('festival') || cat.includes('cultural') || cat.includes('music')) {
-        return {
+    const cat = (category || '').trim();
+    const themes = {
+        Sports: {
             themeClass: 'category-theme-festival',
-            heroBadge: '🎸 Live Music & Cultural Fest',
-            performersTitle: 'Festival Lineup & Headliners',
-            highlightsTitle: 'Open Air Stages & Festival Highlights'
-        };
-    } else {
-        return {
+            heroBadge: '🏅 Sports Event',
+            performersTitle: 'Athletes & Headliners',
+            highlightsTitle: 'Sponsors',
+            icon: '🏅'
+        },
+        Conferences: {
+            themeClass: 'category-theme-corporate',
+            heroBadge: '💼 Conference',
+            performersTitle: 'Speakers',
+            highlightsTitle: 'Sponsors',
+            icon: '💼'
+        },
+        Performances: {
             themeClass: 'category-theme-comedy',
-            heroBadge: '🎙️ Live Comedy Special',
-            performersTitle: 'Spotlight Artists & Performers',
-            highlightsTitle: 'Show Laughs & Tour Highlights'
-        };
-    }
+            heroBadge: '🎭 Performance',
+            performersTitle: 'Artists',
+            highlightsTitle: 'Sponsors',
+            icon: '🎭'
+        },
+        Experiences: {
+            themeClass: 'category-theme-workshop',
+            heroBadge: '✨ Experience',
+            performersTitle: 'Hosts',
+            highlightsTitle: 'Sponsors',
+            icon: '✨'
+        },
+        Expositions: {
+            themeClass: 'category-theme-launch',
+            heroBadge: '🏛️ Exposition',
+            performersTitle: 'Exhibitors & Speakers',
+            highlightsTitle: 'Sponsors',
+            icon: '🏛️'
+        },
+        Parties: {
+            themeClass: 'category-theme-wedding',
+            heroBadge: '🎉 Party',
+            performersTitle: 'Artists',
+            highlightsTitle: 'Sponsors',
+            icon: '🎉'
+        }
+    };
+    return themes[cat] || {
+        themeClass: 'category-theme-comedy',
+        heroBadge: cat || 'Event',
+        performersTitle: 'Artists & Speakers',
+        highlightsTitle: 'Sponsors',
+        icon: '🎟️'
+    };
 }
 
 function renderEventDOM(event) {
     if (!event) return;
-
+    const EP = window.JodEventsPublic;
     const themeConfig = getCategoryThemeConfig(event.category);
 
-    // Apply category specific theme styling to body while preserving sub-page class
     document.body.classList.remove('category-theme-comedy', 'category-theme-corporate', 'category-theme-launch', 'category-theme-wedding', 'category-theme-festival', 'category-theme-workshop');
     document.body.classList.add('sub-page', 'event-details-page', themeConfig.themeClass);
 
-    // Hero Badge & Section Headings
+    document.title = `${event.title || 'Event Details'} — JOD Events`;
+
     const heroBadgeEl = document.getElementById('eventHeroBadge');
     if (heroBadgeEl) heroBadgeEl.textContent = themeConfig.heroBadge;
 
@@ -99,22 +188,23 @@ function renderEventDOM(event) {
     const hlTitleEl = document.getElementById('highlightsTitle');
     if (hlTitleEl) hlTitleEl.textContent = themeConfig.highlightsTitle;
 
-    // Title & Header Meta
     const titleEl = document.getElementById('eventTitle');
-    if (titleEl && event.title) titleEl.textContent = event.title;
+    if (titleEl) titleEl.textContent = event.title || 'Event';
 
     const venueEl = document.getElementById('headerVenue');
     if (venueEl) venueEl.textContent = `📍 ${event.venue || event.location || 'Event Venue'}`;
 
     const catEl = document.getElementById('headerCategory');
-    if (catEl) catEl.textContent = `🎭 ${event.category || 'Event'}`;
+    if (catEl) catEl.textContent = `${themeConfig.icon || '🎟️'} ${event.category || 'Event'}`;
 
-    // Banner & Badges
     const imgEl = document.getElementById('eventImage');
-    if (imgEl && event.image_url) imgEl.src = event.image_url;
+    if (imgEl) {
+        imgEl.src = EP ? EP.resolveImage(event.image_url) : (event.image_url || 'images/hero-event.jpg');
+        imgEl.alt = event.title || 'Event Banner';
+    }
 
     const catTagEl = document.getElementById('eventCategoryTag');
-    if (catTagEl && event.category) catTagEl.textContent = event.category;
+    if (catTagEl) catTagEl.textContent = event.category || 'Event';
 
     const formatTagEl = document.getElementById('eventFormatTag');
     if (formatTagEl) formatTagEl.textContent = event.event_format || 'In-person';
@@ -122,25 +212,19 @@ function renderEventDOM(event) {
     const infoFormatBadge = document.getElementById('infoFormatBadge');
     if (infoFormatBadge) infoFormatBadge.textContent = event.event_format || 'In-person';
 
-    // Description
     const descEl = document.getElementById('eventDescription');
-    if (descEl && event.description) descEl.textContent = event.description;
+    if (descEl) descEl.textContent = event.description || 'Event details will be shared by the host.';
 
-    // Info Box Metadata
+    const interestedEl = document.getElementById('interestedText');
+    if (interestedEl) interestedEl.textContent = event.category ? `${event.category} event` : 'Published event';
+
     const scheduleEl = document.getElementById('infoSchedule');
-    if (scheduleEl && event.start_date) {
-        try {
-            const dt = new Date(event.start_date);
-            const dateStr = dt.toLocaleDateString('en-US', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
-            const timeStr = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            scheduleEl.textContent = `${dateStr} • ${timeStr}`;
-        } catch (e) {
-            scheduleEl.textContent = event.start_date;
-        }
+    if (scheduleEl && EP) {
+        scheduleEl.textContent = EP.formatDateTimeIST(event.start_date);
     }
 
     const durationEl = document.getElementById('infoDuration');
-    if (durationEl) durationEl.textContent = event.duration || '2 hours';
+    if (durationEl) durationEl.textContent = event.duration || 'See event schedule';
 
     const ageLangEl = document.getElementById('infoAgeLang');
     if (ageLangEl) ageLangEl.textContent = `${event.age_limit || 'All ages'} | ${event.language || 'English'}`;
@@ -151,47 +235,57 @@ function renderEventDOM(event) {
     const infoLocEl = document.getElementById('infoLocation');
     if (infoLocEl) infoLocEl.textContent = event.location || '';
 
-    // Price
+    const countdownEl = document.getElementById('eventCountdown');
+    if (countdownEl && event.start_date && EP) {
+        countdownEl.dataset.countdown = event.start_date;
+        countdownEl.dataset.countdownEnd = event.end_date || '';
+        countdownEl.style.display = '';
+        EP.updateCountdownElement(countdownEl, event.start_date, event.end_date);
+    }
+
     const startingPrice = event.price || 0;
     currentSelectedPrice = startingPrice;
     updatePriceDisplays(startingPrice);
 
-    // Performers Grid
+    const perfSection = document.getElementById('performersSection');
     if (event.performers && Array.isArray(event.performers) && event.performers.length > 0) {
         const pGrid = document.getElementById('performersGrid');
         if (pGrid) {
             pGrid.innerHTML = event.performers.map(p => `
                 <div class="performer-card">
-                    <img class="performer-avatar" src="${p.image_url || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80'}" alt="${p.name || 'Performer'}" />
+                    <img class="performer-avatar" src="${EP ? EP.resolveImage(p.image_url || p.photo_url) : (p.image_url || p.photo_url || 'images/hero-event.jpg')}" alt="${p.name || 'Performer'}" onerror="this.src='images/hero-event.jpg'" />
                     <h3 class="performer-name">${p.name || 'Artist'}</h3>
                     <p class="performer-role">${p.role || 'Performer'}</p>
                 </div>
             `).join('');
         }
+    } else if (perfSection) {
+        perfSection.style.display = 'none';
     }
 
-    // Highlights Grid
     if (event.highlights && Array.isArray(event.highlights) && event.highlights.length > 0) {
         const hGrid = document.getElementById('highlightsGrid');
         if (hGrid) {
             hGrid.innerHTML = event.highlights.map(h => `
                 <div class="highlight-card">
-                    <img src="${h.image_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80'}" alt="${h.title || 'Highlight'}" />
+                    <img src="${EP ? EP.resolveImage(h.image_url || h.logo_url) : (h.image_url || h.logo_url || 'images/hero-event.jpg')}" alt="${h.title || 'Highlight'}" onerror="this.src='images/hero-event.jpg'" />
                     <div class="highlight-content">
                         <h4 class="highlight-title">${h.title || ''}</h4>
-                        <p class="highlight-desc">${h.description || ''}</p>
+                        <p class="highlight-desc">${h.description || h.subtitle || ''}</p>
                     </div>
                 </div>
             `).join('');
         }
+    } else {
+        const hlSection = document.getElementById('highlightsSection');
+        if (hlSection) hlSection.style.display = 'none';
     }
 
-    // Ticket Types Breakdown
     if (event.ticket_types && Array.isArray(event.ticket_types) && event.ticket_types.length > 0) {
         const tList = document.getElementById('ticketsList');
         if (tList) {
             tList.innerHTML = event.ticket_types.map((t, idx) => `
-                <div class="ticket-type-option ${idx === 0 ? 'selected' : ''}" onclick="selectTicketOption(this, ${t.price})">
+                <div class="ticket-type-option ${idx === 0 ? 'selected' : ''}" onclick="selectTicketOption(this, ${t.price}, '${(t.name || '').replace(/'/g, "\\'")}')">
                     <div>
                         <div class="ticket-name">${t.name}</div>
                         <div class="ticket-status">${t.availability || 'Available'}</div>
@@ -199,22 +293,38 @@ function renderEventDOM(event) {
                     <div class="ticket-price">₹${t.price}</div>
                 </div>
             `).join('');
-        }
-    }
-
-    // Terms & Conditions
-    if (event.terms) {
-        const termsList = document.getElementById('termsList');
-        if (termsList) {
-            const lines = event.terms.split('\n').filter(l => l.trim().length > 0);
-            if (lines.length > 0) {
-                termsList.innerHTML = lines.map(l => `<li>${l}</li>`).join('');
+            const first = event.ticket_types[0];
+            if (first) {
+                currentSelectedTicketType = first.name || currentSelectedTicketType;
+                currentSelectedPrice = first.price || currentSelectedPrice;
+                updatePriceDisplays(currentSelectedPrice);
             }
         }
+    } else {
+        const tList = document.getElementById('ticketsList');
+        if (tList) {
+            tList.innerHTML = `
+                <div class="ticket-type-option selected" onclick="selectTicketOption(this, ${startingPrice}, 'General Admission')">
+                    <div>
+                        <div class="ticket-name">General Admission</div>
+                        <div class="ticket-status">Available</div>
+                    </div>
+                    <div class="ticket-price">${startingPrice <= 0 ? 'Free' : '₹' + startingPrice}</div>
+                </div>
+            `;
+        }
+    }
+
+    const termsList = document.getElementById('termsList');
+    if (event.terms && termsList) {
+        const lines = event.terms.split('\n').filter(l => l.trim().length > 0);
+        termsList.innerHTML = lines.length
+            ? lines.map(l => `<li>${l}</li>`).join('')
+            : '<li>Standard event terms apply. Contact the organizer for details.</li>';
+    } else if (termsList) {
+        termsList.innerHTML = '<li>Standard event terms apply. Contact the organizer for details.</li>';
     }
 }
-
-let currentSelectedTicketType = "Silver Access";
 
 function selectTicketOption(element, price, ticketName) {
     const options = document.querySelectorAll('.ticket-type-option');
@@ -235,10 +345,14 @@ function selectTicketOption(element, price, ticketName) {
 
 function updatePriceDisplays(price) {
     const displayPrice = document.getElementById('displayPrice');
-    if (displayPrice) displayPrice.textContent = `₹${Number(price).toLocaleString('en-IN')}`;
+    if (displayPrice) {
+        displayPrice.textContent = Number(price) <= 0 ? 'Free' : `₹${Number(price).toLocaleString('en-IN')}`;
+    }
 
     const mobilePrice = document.getElementById('mobileStickyPrice');
-    if (mobilePrice) mobilePrice.textContent = `₹${Number(price).toLocaleString('en-IN')}`;
+    if (mobilePrice) {
+        mobilePrice.textContent = Number(price) <= 0 ? 'Free' : `₹${Number(price).toLocaleString('en-IN')}`;
+    }
 }
 
 function copyEventShareLink() {
@@ -261,6 +375,14 @@ function showToast(message) {
 }
 
 async function triggerBookingModal() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const eventId = currentEventData ? currentEventData.id : urlParams.get("id");
+
+    if (!eventId || !currentEventData) {
+        showToast("This event is currently unavailable.");
+        return;
+    }
+
     const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")
         ? window.JodAuth.isLoggedIn()
         : Boolean(localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
@@ -270,7 +392,7 @@ async function triggerBookingModal() {
         if (window.JodAuth && typeof window.JodAuth.openGuestAuthModal === "function") {
             window.JodAuth.openGuestAuthModal({
                 title: "Sign Up to Book Tickets",
-                message: "You need to create an account or sign in to select tickets, reserve seats, and complete your booking.",
+                message: "You need to create an account or sign in to complete registration for this event.",
                 targetUrl: currentTarget,
                 badge: "🎟️ Account Required"
             });
@@ -282,98 +404,16 @@ async function triggerBookingModal() {
         return;
     }
 
-    const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
-
-    const user = window.JodAuth ? window.JodAuth.getUser() : null;
-    const custId = user ? (user.customer_id || user.id) : "assigned customer";
-    const urlParams = new URLSearchParams(window.location.search);
-    const eventId = currentEventData ? currentEventData.id : (urlParams.get("id") || "66666666-6666-6666-6666-666666666666");
-    const eventName = currentEventData ? currentEventData.title : (document.getElementById('eventTitle')?.textContent || 'Event');
-    
-    // Resolve ticket type from selected DOM option if available
-    let ticketType = typeof currentSelectedTicketType !== "undefined" ? currentSelectedTicketType : "Silver Access";
+    let ticketType = typeof currentSelectedTicketType !== "undefined" ? currentSelectedTicketType : "General Admission";
     const activeOptName = document.querySelector('.ticket-type-option.selected .ticket-name');
     if (activeOptName && activeOptName.textContent.trim()) {
         ticketType = activeOptName.textContent.trim();
     }
-    const price = typeof currentSelectedPrice !== "undefined" ? currentSelectedPrice : 499;
+    const price = typeof currentSelectedPrice !== "undefined" ? currentSelectedPrice : 0;
 
-    const confirmBook = confirm(`Confirm Booking for ${eventName}?\n\nCustomer ID: ${custId}\nTicket Type: ${ticketType}\nTotal Price: ₹${price}\n\nClick OK to confirm your ticket registration.`);
-    if (!confirmBook) return;
-
-    showToast("Processing ticket booking with Customer ID... 🎟️");
-
-    try {
-        const apiBase = (window.JodAuth && typeof window.JodAuth.getApiBase === "function") ? window.JodAuth.getApiBase() : "http://127.0.0.1:8001";
-        const randomHex = Math.random().toString(36).substring(2, 10).toUpperCase();
-        const payload = {
-            event_id: eventId,
-            ticket_type: ticketType,
-            quantity: 1,
-            total_price: price,
-            payment_id: `PAY-JOD-${randomHex}`,
-            payment_mode: "UPI / Credit Card",
-            seat_number: `Row B, Seat ${Math.floor(Math.random() * 20) + 1}`,
-            receiver_name: user ? (user.full_name || user.username) : "Guest Customer",
-            receiver_email: user ? user.email : "customer@jodevents.com",
-            receiver_phone: "+91 98765 43210"
-        };
-
-        const res = await fetch(`${apiBase}/api/bookings/`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-            const bData = await res.json();
-            try {
-                const cache = JSON.parse(localStorage.getItem("jod_user_bookings") || "[]");
-                cache.unshift(bData);
-                localStorage.setItem("jod_user_bookings", JSON.stringify(cache));
-            } catch (_) {}
-
-            showToast(`Booking Confirmed! Customer ID: ${bData.customer_id}. Opening Your Orders… 🎉`);
-            setTimeout(() => { window.location.href = "orders.html"; }, 1200);
-        } else {
-            const err = await res.json();
-            showToast(err.detail || "Booking failed. Please try again.");
-        }
-    } catch (_) {
-        const mockBooking = {
-            booking_id: `b${Date.now()}-0000-0000-0000-${Math.random().toString(36).substring(2, 10)}`,
-            customer_id: custId,
-            user_name: user ? (user.full_name || user.username) : "Guest Customer",
-            user_email: user ? user.email : "customer@jodevents.com",
-            event_id: eventId,
-            event_title: eventName,
-            event_venue: document.getElementById("eventVenue")?.textContent || "ITC Grand Chola, Chennai",
-            event_start_date: new Date(Date.now() + 86400000 * 5).toISOString(),
-            ticket_type: ticketType,
-            quantity: 1,
-            total_price: price,
-            status: "CONFIRMED",
-            payment_id: `PAY-JOD-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-            payment_mode: "UPI / Credit Card",
-            gst_amount: Math.round(price * 0.18),
-            seat_number: "Row B, Seat 12",
-            receiver_name: user ? (user.full_name || user.username) : "Guest Customer",
-            receiver_email: user ? user.email : "customer@jodevents.com",
-            receiver_phone: "+91 98765 43210",
-            booked_at: new Date().toISOString()
-        };
-
-        try {
-            const cache = JSON.parse(localStorage.getItem("jod_user_bookings") || "[]");
-            cache.unshift(mockBooking);
-            localStorage.setItem("jod_user_bookings", JSON.stringify(cache));
-        } catch (_) {}
-
-        showToast("Booking recorded! Opening Your Orders… 🎟️");
-        setTimeout(() => { window.location.href = "orders.html"; }, 1200);
-    }
+    const regUrl = new URL("published-form.html", window.location.href);
+    regUrl.searchParams.set("eventId", eventId);
+    regUrl.searchParams.set("ticket", ticketType);
+    regUrl.searchParams.set("price", String(price));
+    window.location.href = regUrl.toString();
 }
-

@@ -149,42 +149,14 @@ window.JodSearch = (() => {
         this.currentResults = events || [];
         this.renderResults(query, this.currentResults);
       } catch (err) {
-        // Fallback to local card search if backend offline
-        const localEvents = this.getLocalFallbackEvents(query);
-        this.currentResults = localEvents;
-        this.renderResults(query, localEvents);
+        this.currentResults = [];
+        this.dropdown.innerHTML = `
+          <div class="search-empty-state">
+            <span class="empty-icon">⚠️</span>
+            <p>Unable to load search results. Please try again.</p>
+          </div>
+        `;
       }
-    }
-
-    getLocalFallbackEvents(query) {
-      const cards = document.querySelectorAll(".event-card, .rec-card");
-      const results = [];
-      const qLower = query.toLowerCase();
-
-      cards.forEach((card) => {
-        const title = card.querySelector("h3, .event-card-title, .rec-card-title")?.textContent || "";
-        const location = card.querySelector(".event-meta, .rec-card-meta, p")?.textContent || "";
-        const category = card.dataset.category || "";
-        const id = card.dataset.eventId || card.getAttribute("href")?.split("id=")[1] || "11111111-1111-1111-1111-111111111111";
-
-        if (
-          title.toLowerCase().includes(qLower) ||
-          location.toLowerCase().includes(qLower) ||
-          category.toLowerCase().includes(qLower)
-        ) {
-          results.push({
-            id,
-            title,
-            venue: location,
-            location,
-            category: category || "Event",
-            start_date: new Date().toISOString(),
-            price: 499,
-            image_url: card.querySelector("img")?.src || "",
-          });
-        }
-      });
-      return results;
     }
 
     renderLoading(query) {

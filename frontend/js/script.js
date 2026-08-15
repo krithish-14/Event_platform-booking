@@ -466,8 +466,8 @@
 		document.querySelectorAll("[data-countdown]").forEach(updateCountdown);
 		document.querySelectorAll("[data-card-countdown]").forEach(updateCardCountdown);
 		const summary = document.querySelector("[data-summary-countdown]");
-		if (summary) {
-			const value = getCountdown("2026-08-15T04:30:00Z");
+		if (summary && summary.dataset.countdown) {
+			const value = getCountdown(summary.dataset.countdown);
 			summary.textContent = `${value.days}d ${value.hours}h ${value.minutes}m`;
 		}
 	}
@@ -536,16 +536,14 @@
 		if (!modal) return;
 		modal.hidden = true;
 		document.body.classList.remove("modal-open");
-		try { sessionStorage.setItem("jod-upcoming-modal-shown", "1"); } catch (error) { void error; }
+		try {
+			const eid = modal.dataset.eventId;
+			if (eid) sessionStorage.setItem("jod-upcoming-modal-shown-" + eid, "1");
+		} catch (error) { void error; }
 	};
 	modal?.querySelectorAll("[data-modal-close]").forEach((button) => button.addEventListener("click", closeModal));
 	document.addEventListener("keydown", (event) => { if (event.key === "Escape" && modal && !modal.hidden) closeModal(); });
-
-	let modalWasShown = false;
-	try { modalWasShown = sessionStorage.getItem("jod-upcoming-modal-shown") === "1"; } catch (error) { void error; }
-	if (modal && !modalWasShown) {
-		window.setTimeout(() => { modal.hidden = false; document.body.classList.add("modal-open"); }, 1800);
-	}
+	window.JodCloseFeaturedModal = closeModal;
 
 	/* ── Guest Auth Modal for Live Trending Events ───────────── */
 	const guestAuthModal = document.getElementById("guestAuthModal");
@@ -690,6 +688,15 @@
 	}
 
 	document.querySelectorAll("[data-carousel]").forEach(initCarousel);
+
+	window.addEventListener("jod:events-loaded", () => {
+		document.querySelectorAll("[data-carousel]").forEach((carousel) => {
+			const track = carousel.querySelector("[data-carousel-track]");
+			if (track && track.children.length > 0) {
+				initCarousel(carousel);
+			}
+		});
+	});
 
 	function initCategoryCarousel(carousel) {
 		const viewport = carousel.querySelector("[data-category-viewport]");

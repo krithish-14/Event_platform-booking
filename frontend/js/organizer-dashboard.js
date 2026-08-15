@@ -170,13 +170,277 @@ async function initOrganizerDashboard() {
 		? "http://127.0.0.1:8001/api/host-events"
 		: "/api/host-events";
 
+	function getUploadOrigin() {
+		if (HOST_EVENTS_API_BASE.startsWith("http")) {
+			return HOST_EVENTS_API_BASE.replace(/\/api\/host-events\/?$/, "");
+		}
+		return window.location.origin;
+	}
+
+	function resolveUploadUrl(url) {
+		if (!url) return "";
+		if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+		if (url.startsWith("http://") || url.startsWith("https://")) return url;
+		if (url.startsWith("/uploads/") || url.startsWith("uploads/")) {
+			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
+		}
+		return url;
+	}
+
+	// KYC verification UI is hidden until Admin Portal is implemented.
+	const VERIFICATION_UI_ENABLED = false;
+
 	let activeEventId = null;
 	let activeCustomerId = null;
 	let activeHostId = null;
+	let bannerImageUrl = null;
+	let galleryImageUrls = [];
+	let pendingHostDesignData = null;
+	let pendingManageEvent = null;
+	let pendingRegistrationForm = null;
+	let currentLifecycle = "draft";
+	let canPublishNew = true;
+	let canCreateNew = true;
+	let _publishInFlight = false;
+
+	function apiErrorMessage(data, fallback) {
+		if (!data) return fallback;
+		const d = data.detail;
+		if (typeof d === "string" && d.trim()) return d;
+		if (Array.isArray(d) && d.length) {
+			return d.map((item) => (item && item.msg) ? item.msg : String(item)).join(" ");
+		}
+		if (data.message) return data.message;
+		return fallback;
+	}
+
+	function isPublishedLifecycle() {
+		return currentLifecycle === "published" || currentLifecycle === "live";
+	}
+
+	function toIstIsoFromDatetimeLocal(value) {
+		if (!value) return undefined;
+		if (value.includes("Z") || value.includes("+")) return value;
+		return value.length === 16 ? value + ":00+05:30" : value + "+05:30";
+	}
+
+	function timeFromDatetimeLocal(value) {
+		if (!value || !value.includes("T")) return undefined;
+		return value.split("T")[1];
+	}
+
+	function collectTicketsJson() {
+		const rows = document.querySelectorAll(".ticket-tier-row");
+		const out = [];
+		rows.forEach((row) => {
+			const name = row.querySelector(".ticket-type-input")?.value?.trim();
+			if (!name) return;
+			out.push({
+				name,
+				price: Number(row.querySelector(".ticket-price-input")?.value || 0),
+				qty: Number(row.querySelector(".ticket-qty-input")?.value || 0)
+			});
+		});
+		return out;
+	}
+
+	function collectAgendaJson() {
+		const rows = document.querySelectorAll(".agenda-row");
+		const out = [];
+		rows.forEach((row) => {
+			const title = row.querySelector(".agenda-title-input")?.value?.trim();
+			if (!title) return;
+			out.push({
+				time: row.querySelector(".agenda-time-input")?.value?.trim() || "",
+				title,
+				speaker: row.querySelector(".agenda-speaker-input")?.value?.trim() || ""
+			});
+		});
+		return out;
+	}
 
 	function getAuthHeaders() {
 		const token = window.JodAuth ? window.JodAuth.getToken() : null;
 		return token ? { "Authorization": `Bearer ${token}` } : {};
+	}
+
+	const ALLOWED_IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
+	const ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+	const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+	const IMAGE_TYPE_MSG = "Your image is not in this standard file type. Please use JPG, JPEG, PNG, or WEBP.";
+	const IMAGE_SIZE_MSG = "Your image is not in this standard size. Maximum file size is 5MB.";
+	const BANNER_DIM_MSG = "Your image is not in this standard size. Recommended size is 1200 × 630 px.";
+
+	function hasAllowedImageMagicBytes(bytes) {
+		if (!bytes || bytes.length < 12) return false;
+		const jpeg = bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
+		const png = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+		const webp = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+			&& bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+		return jpeg || png || webp;
+	}
+
+	async function validateImageFile(file, options) {
+		const opts = options || {};
+		if (!file) throw new Error(IMAGE_TYPE_MSG);
+		if (file.size > MAX_IMAGE_BYTES) throw new Error(IMAGE_SIZE_MSG);
+
+		const name = String(file.name || "").toLowerCase();
+		const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
+		const mime = String(file.type || "").toLowerCase();
+		const extOk = ALLOWED_IMAGE_EXTS.includes(ext);
+		const mimeOk = !mime || mime === "application/octet-stream" || ALLOWED_IMAGE_MIMES.includes(mime);
+		if (!extOk || !mimeOk) throw new Error(IMAGE_TYPE_MSG);
+
+		const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+		if (!hasAllowedImageMagicBytes(header)) throw new Error(IMAGE_TYPE_MSG);
+
+		if (opts.requireBannerSize) {
+			const dims = await new Promise((resolve, reject) => {
+				const url = URL.createObjectURL(file);
+				const img = new Image();
+				img.onload = () => {
+					URL.revokeObjectURL(url);
+					resolve({ width: img.naturalWidth, height: img.naturalHeight });
+				};
+				img.onerror = () => {
+					URL.revokeObjectURL(url);
+					reject(new Error(IMAGE_TYPE_MSG));
+				};
+				img.src = url;
+			});
+			if (Math.abs(dims.width - 1200) > 20 || Math.abs(dims.height - 630) > 20) {
+				throw new Error(BANNER_DIM_MSG);
+			}
+		}
+	}
+
+	function formatDesignUploadError(err) {
+		const msg = err && err.message ? String(err.message) : "";
+		if (/standard file type|wrong file type|valid image file|jpg, jpeg, png/i.test(msg)) {
+			return IMAGE_TYPE_MSG;
+		}
+		if (/standard size|too large|5mb|5 mb|1200/i.test(msg)) {
+			if (/1200/.test(msg)) return BANNER_DIM_MSG;
+			return IMAGE_SIZE_MSG;
+		}
+		if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+			return "Could not upload the image. Check your connection and try again.";
+		}
+		return msg || IMAGE_TYPE_MSG;
+	}
+
+	function setInlineUploadError(hostEl, message) {
+		if (!hostEl) return;
+		let el = hostEl.querySelector(":scope > .design-upload-error");
+		if (!el) {
+			el = document.createElement("p");
+			el.className = "design-upload-error";
+			el.setAttribute("role", "alert");
+			el.style.cssText = "margin:0.45rem 0 0; font-size:0.82rem; font-weight:600; color:#dc2626; line-height:1.4;";
+			hostEl.appendChild(el);
+		}
+		el.textContent = message || "";
+		el.style.display = message ? "block" : "none";
+	}
+
+	async function uploadDesignAsset(file, assetType) {
+		if (!file || !email) throw new Error("Missing file or organizer email.");
+		await validateImageFile(file, { requireBannerSize: assetType === "banner" });
+		const fd = new FormData();
+		fd.append("email", email);
+		fd.append("asset_type", assetType);
+		fd.append("file", file);
+		let res;
+		try {
+			res = await fetch(`${HOST_EVENTS_API_BASE}/upload-asset`, {
+				method: "POST",
+				headers: getAuthHeaders(),
+				body: fd
+			});
+		} catch (networkErr) {
+			throw new Error("Could not upload the image. Check your connection and try again.");
+		}
+		const data = await res.json().catch(() => ({}));
+		if (!res.ok) {
+			const detail = data.detail;
+			const text = typeof detail === "string" ? detail : IMAGE_TYPE_MSG;
+			throw new Error(text);
+		}
+		return data.file_url;
+	}
+
+	function collectSponsorDetails() {
+		const rows = document.querySelectorAll("#sponsorsRows .sponsor-row");
+		const out = [];
+		rows.forEach(row => {
+			const name = row.querySelector(".sponsor-name-input")?.value?.trim();
+			if (!name) return;
+			const tierEl = row.querySelector(".sponsor-tier-select") || row.querySelector(".sponsor-tier-input");
+			out.push({
+				name,
+				tier: tierEl ? tierEl.value : "",
+				logo_url: row.dataset.logoUrl || ""
+			});
+		});
+		return out;
+	}
+
+	function collectSpeakerDetails() {
+		const rows = document.querySelectorAll("#artistsRows .artist-row");
+		const out = [];
+		rows.forEach(row => {
+			const name = row.querySelector(".artist-name-input")?.value?.trim();
+			if (!name) return;
+			out.push({
+				name,
+				role: row.querySelector(".artist-role-input")?.value?.trim() || "",
+				photo_url: row.dataset.photoUrl || ""
+			});
+		});
+		return out;
+	}
+
+	function collectPoliciesJson() {
+		return {
+			event_policy: document.getElementById("policyEventInput")?.value?.trim() || "",
+			cancellation_policy: document.getElementById("policyCancellationInput")?.value?.trim() || "",
+			refund_policy: document.getElementById("policyRefundInput")?.value?.trim() || "",
+			terms_and_conditions: document.getElementById("policyTermsInput")?.value?.trim() || "",
+			privacy_policy: document.getElementById("policyPrivacyInput")?.value?.trim() || "",
+			age_policy: document.getElementById("policyAgeInput")?.value?.trim() || ""
+		};
+	}
+
+	function populatePoliciesFromJson(policies) {
+		if (!policies || typeof policies !== "object") return;
+		const map = [
+			["policyEventInput", "event_policy"],
+			["policyCancellationInput", "cancellation_policy"],
+			["policyRefundInput", "refund_policy"],
+			["policyTermsInput", "terms_and_conditions"],
+			["policyPrivacyInput", "privacy_policy"],
+			["policyAgeInput", "age_policy"]
+		];
+		map.forEach(([id, key]) => {
+			const el = document.getElementById(id);
+			if (el && policies[key]) el.value = policies[key];
+		});
+	}
+
+	function populateDesignRows(sponsors, speakers) {
+		const sRows = document.getElementById("sponsorsRows");
+		const aRows = document.getElementById("artistsRows");
+		if (sRows) {
+			sRows.innerHTML = "";
+			const list = (sponsors && sponsors.length) ? sponsors : [{}];
+			list.forEach(s => sRows.appendChild(createSponsorRowHtml(s.name || "", s.tier || "Title Sponsor", s.logo_url || "")));
+		}
+		if (aRows) {
+			aRows.innerHTML = "";
+			const list = (speakers && speakers.length) ? speakers : [{}];
+			list.forEach(s => aRows.appendChild(createArtistRowHtml(s.name || "", s.role || "", s.photo_url || "")));
+		}
 	}
 
 	const currentUser = window.JodAuth ? window.JodAuth.getUser() : null;
@@ -193,29 +457,23 @@ async function initOrganizerDashboard() {
 	} catch (_) {}
 
 	if (!email) {
-		window.location.href = "host-your-event.html";
+		window.location.href = "login.html?redirect=" + encodeURIComponent("organizer-dashboard.html");
 		return;
 	}
 
-	// Persist session to guarantee returning to index.html or other pages maintains logged-in state
+	// Require authenticated session — do not fabricate tokens
+	const isLoggedIn = window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn();
+	if (!isLoggedIn) {
+		window.location.href = "login.html?redirect=" + encodeURIComponent(`organizer-dashboard.html?email=${encodeURIComponent(email)}`);
+		return;
+	}
+
+	if (currentUser && currentUser.email && currentUser.email.toLowerCase() !== email.toLowerCase()) {
+		email = currentUser.email;
+	}
+
 	try {
 		sessionStorage.setItem("verified_organizer_email", email);
-		const existingUser = window.JodAuth ? window.JodAuth.getUser() : null;
-		if (!existingUser || !existingUser.email) {
-			const uObj = {
-				email: email,
-				username: email.split("@")[0],
-				full_name: email.split("@")[0],
-				is_organizer: true
-			};
-			localStorage.setItem("jod_user", JSON.stringify(uObj));
-			sessionStorage.setItem("jod_user", JSON.stringify(uObj));
-		}
-		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
-			const tok = "organizer_token_" + btoa(email);
-			localStorage.setItem("jod_access_token", tok);
-			sessionStorage.setItem("jod_access_token", tok);
-		}
 	} catch (_) {}
 
 	// ── Organizer Verification State Management ──────────────────────────────
@@ -650,13 +908,16 @@ async function initOrganizerDashboard() {
 		}
 	}
 
-	// ── Access Control: enforce verification status (BLOCKING gate) ──────────
-	await fetchVerificationStatus(true);
-	const vs = currentVerificationInfo ? currentVerificationInfo.verification_status : "NOT_SUBMITTED";
-	if (vs !== "VERIFIED") {
-		// Show overlay; NOT_SUBMITTED and REJECTED show editable form; PENDING shows review notice
-		showVerificationOverlay();
-		renderVerificationPanel(currentVerificationInfo || { verification_status: vs });
+	// ── Access Control: verification overlay (disabled until admin portal) ──
+	if (VERIFICATION_UI_ENABLED) {
+		await fetchVerificationStatus(true);
+		const vs = currentVerificationInfo ? currentVerificationInfo.verification_status : "NOT_SUBMITTED";
+		if (vs !== "VERIFIED") {
+			showVerificationOverlay();
+			renderVerificationPanel(currentVerificationInfo || { verification_status: vs });
+		} else {
+			hideVerificationOverlay();
+		}
 	} else {
 		hideVerificationOverlay();
 	}
@@ -724,6 +985,7 @@ async function initOrganizerDashboard() {
 			if (dashNotification) dashNotification.style.display = "none";
 		}, 4000);
 	}
+	window.showNotification = showNotification;
 
 	function setSectionVisible(section, visible) {
 		if (!section) return;
@@ -1557,6 +1819,70 @@ async function initOrganizerDashboard() {
 		});
 	}
 
+	function applySectionActionLabels() {
+		const published = isPublishedLifecycle() || currentLifecycle === "ended";
+		const btnManage = document.getElementById("btnManageNext");
+		const btnDesign = document.getElementById("btnSaveDesign");
+		const btnForm = document.getElementById("btnSaveDraftForm");
+		if (btnManage) {
+			btnManage.innerHTML = published
+				? "<span>Update Manage</span>"
+				: "<span>Save &amp; Next: Design</span> →";
+			delete btnManage.dataset.originalLabel;
+		}
+		if (btnDesign) {
+			btnDesign.innerHTML = published
+				? "<span>Update Design</span>"
+				: "<span>Save &amp; Next: Registration Form</span> →";
+			delete btnDesign.dataset.originalLabel;
+		}
+		if (btnForm) {
+			btnForm.textContent = published ? "Update Registration Form" : "Save & Next";
+		}
+		const btnPublish = document.getElementById("btnPublishForm");
+		if (btnPublish && published) {
+			btnPublish.innerHTML = "Update &amp; Republish";
+		}
+	}
+
+	function updateLifecycleBanners() {
+		const endedBanner = document.getElementById("endedEventBanner");
+		const blockBanner = document.getElementById("activeEventBlockBanner");
+		if (endedBanner) {
+			endedBanner.style.display = currentLifecycle === "ended" ? "block" : "none";
+		}
+		if (blockBanner) {
+			const showBlock = isPublishedLifecycle() && !canPublishNew;
+			blockBanner.style.display = showBlock ? "block" : "none";
+		}
+	}
+
+	function applyLifecycleStatusBadge() {
+		if (!dashEventStatus) return;
+		const map = {
+			draft: { text: "Draft", bg: "#f1f5f9", color: "#64748b", border: "#cbd5e1" },
+			ready_to_publish: { text: "Ready to publish", bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+			published: { text: "Published", bg: "#10b98122", color: "#10b981", border: "#10b98166" },
+			live: { text: "Live", bg: "#dcfce7", color: "#166534", border: "#86efac" },
+			ended: { text: "Ended", bg: "#fff7ed", color: "#c2410c", border: "#fdba74" },
+			cancelled: { text: "Cancelled", bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" }
+		};
+		const key = hasEvent ? (currentLifecycle || "published") : "draft";
+		const s = map[key] || map.draft;
+		if (!hasEvent) {
+			dashEventStatus.textContent = "No Event";
+			dashEventStatus.style.background = map.draft.bg;
+			dashEventStatus.style.color = map.draft.color;
+			dashEventStatus.style.borderColor = map.draft.border;
+			return;
+		}
+		dashEventStatus.textContent = s.text;
+		dashEventStatus.className = "status-badge-published";
+		dashEventStatus.style.background = s.bg;
+		dashEventStatus.style.color = s.color;
+		dashEventStatus.style.borderColor = s.border;
+	}
+
 	function renderOverviewState() {
 		if (window.__renderingOverview) return;
 		window.__renderingOverview = true;
@@ -1564,26 +1890,15 @@ async function initOrganizerDashboard() {
 			if (!hasEvent) {
 				if (emptyStateCard) emptyStateCard.style.display = "flex";
 				if (populatedOverviewGrid) populatedOverviewGrid.style.display = "none";
-				if (dashEventStatus) {
-					dashEventStatus.textContent = "No Event";
-					dashEventStatus.className = "status-badge-published";
-					dashEventStatus.style.background = "#f1f5f9";
-					dashEventStatus.style.color = "#64748b";
-					dashEventStatus.style.borderColor = "#cbd5e1";
-				}
 			} else {
 				if (emptyStateCard) emptyStateCard.style.display = "none";
 				if (populatedOverviewGrid) populatedOverviewGrid.style.display = "flex";
-				if (dashEventStatus) {
-					dashEventStatus.textContent = "Published";
-					dashEventStatus.className = "status-badge-published";
-					dashEventStatus.style.background = "#10b98122";
-					dashEventStatus.style.color = "#10b981";
-					dashEventStatus.style.borderColor = "#10b98166";
-				}
 				loadDashboardData();
 				setTimeout(drawTrendChart, 100);
 			}
+			applyLifecycleStatusBadge();
+			updateLifecycleBanners();
+			applySectionActionLabels();
 		} finally {
 			window.__renderingOverview = false;
 		}
@@ -1626,6 +1941,15 @@ async function initOrganizerDashboard() {
 			switchTab("manage");
 		});
 	}
+
+	["qaBtnUpdate", "qaBtnManage", "qaBtnDesign", "qaBtnRegForm"].forEach((id) => {
+		const btn = document.getElementById(id);
+		if (!btn) return;
+		btn.addEventListener("click", (e) => {
+			e.preventDefault();
+			switchTab(btn.getAttribute("data-tab"));
+		});
+	});
 
 	const btnOpenFormStudio = document.getElementById("btnOpenFormStudio");
 	if (btnOpenFormStudio) {
@@ -1784,16 +2108,57 @@ async function initOrganizerDashboard() {
 
 			if (hostData.has_event && hostData.event) {
 				activeEventId = hostData.event.event_id;
+				sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
+				currentLifecycle = hostData.lifecycle || hostData.event.lifecycle || hostData.event.event_status || "draft";
+				canPublishNew = hostData.can_publish_new !== false;
+				canCreateNew = hostData.can_create_new !== false;
+				pendingManageEvent = hostData.event;
 				if (hostData.event.event_title && eventTitleInput) {
 					eventTitleInput.value = hostData.event.event_title;
-					dashEventTitle.textContent = hostData.event.event_title;
+					if (dashEventTitle) dashEventTitle.textContent = hostData.event.event_title;
 				}
-				if (hostData.event.event_status === "published") {
+				if (hostData.event.event_category) {
+					const catSel = document.getElementById("eventCategorySelect");
+					if (catSel) catSel.value = hostData.event.event_category;
+				}
+				if (hostData.event.policies) {
+					populatePoliciesFromJson(hostData.event.policies);
+				}
+				if (hostData.event.event_status === "published" || currentLifecycle === "published" || currentLifecycle === "live" || currentLifecycle === "ended") {
 					hasEvent = true;
 					sessionStorage.setItem(`has_event_${email}`, "true");
 					renderOverviewState();
+				} else {
+					hasEvent = false;
+					sessionStorage.removeItem(`has_event_${email}`);
+					renderOverviewState();
+				}
+			} else {
+				hasEvent = false;
+				activeEventId = null;
+				currentLifecycle = "draft";
+				canPublishNew = true;
+				canCreateNew = true;
+				pendingManageEvent = null;
+				sessionStorage.removeItem(`has_event_${email}`);
+				sessionStorage.removeItem(`active_event_id_${email}`);
+				renderOverviewState();
+			}
+			if (hostData.design) {
+				pendingHostDesignData = hostData.design;
+				if (hostData.design.about_event) {
+					const descEl = document.getElementById("eventDescInput");
+					if (descEl) descEl.value = hostData.design.about_event;
 				}
 			}
+			if (hostData.registration_form) {
+				pendingRegistrationForm = hostData.registration_form;
+				if (window.JodFormBuilder && typeof window.JodFormBuilder.loadFromHost === "function") {
+					window.JodFormBuilder.loadFromHost(hostData.registration_form);
+				}
+			}
+			applySectionActionLabels();
+			updateLifecycleBanners();
 		}
 	} catch (err) {
 		console.warn("Could not fetch current host event:", err);
@@ -1802,17 +2167,30 @@ async function initOrganizerDashboard() {
 	// ── Live Auto-Save / UPSERT Synchronization ────────────────────────────────
 	let autoSaveTimer = null;
 
-	async function autoSaveManageEvent() {
-		if (!email) return;
+	async function autoSaveManageEvent(notifyError = false) {
+		if (!email) return false;
+		const descEl = document.getElementById("eventDescInput");
+		const dateInput = document.getElementById("eventDateInput");
+		const endDateInput = document.getElementById("eventEndDateInput");
+		const event_start_date = toIstIsoFromDatetimeLocal(dateInput && dateInput.value);
+		const event_end_date = toIstIsoFromDatetimeLocal(endDateInput && endDateInput.value);
+		const categoryEl = document.getElementById("eventCategorySelect");
 		const payload = {
 			event_id: activeEventId,
 			organizer_email: email,
-			event_title: eventTitleInput ? eventTitleInput.value.trim() : "My New Event 2026",
-			event_category: document.getElementById("eventCategorySelect") ? document.getElementById("eventCategorySelect").value : "Conferences",
+			event_title: eventTitleInput ? eventTitleInput.value.trim() : "",
+			event_category: categoryEl && categoryEl.value ? categoryEl.value : undefined,
 			event_mode: document.getElementById("eventFormatInput") ? document.getElementById("eventFormatInput").value : "Hybrid",
 			venue: document.getElementById("eventLocationInput") ? document.getElementById("eventLocationInput").value : "",
 			address: document.getElementById("eventLocationInput") ? document.getElementById("eventLocationInput").value : "",
-			event_status: hasEvent ? "published" : "draft"
+			event_start_date: event_start_date,
+			event_end_date: event_end_date,
+			event_start_time: timeFromDatetimeLocal(dateInput && dateInput.value),
+			event_end_time: timeFromDatetimeLocal(endDateInput && endDateInput.value),
+			tickets_json: collectTicketsJson(),
+			agenda_json: collectAgendaJson(),
+			policies_json: collectPoliciesJson(),
+			about_event: descEl ? descEl.value : undefined
 		};
 
 		try {
@@ -1821,9 +2199,15 @@ async function initOrganizerDashboard() {
 				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
 				body: JSON.stringify(payload)
 			});
+			const data = await res.json().catch(() => ({}));
 			if (res.ok) {
-				const data = await res.json();
-				if (data.event_id) activeEventId = data.event_id;
+				if (data.event_id) {
+					activeEventId = data.event_id;
+					sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
+				}
+				if (data.lifecycle) currentLifecycle = data.lifecycle;
+				if (typeof data.can_publish_new === "boolean") canPublishNew = data.can_publish_new;
+				if (typeof data.can_create_new === "boolean") canCreateNew = data.can_create_new;
 				if (data.customer_id) {
 					activeCustomerId = data.customer_id;
 					const el = document.getElementById("badgeCustomerId");
@@ -1834,19 +2218,32 @@ async function initOrganizerDashboard() {
 					const el = document.getElementById("badgeHostId");
 					if (el) el.textContent = `HOST: ${data.host_id}`;
 				}
+				return true;
 			}
+			if (notifyError) showNotification(apiErrorMessage(data, "Could not save Manage details."));
 		} catch (e) {
 			console.warn("Manage live auto-save warning:", e);
 		}
+		return false;
 	}
 
-	async function autoSaveEventDesign() {
-		if (!email) return;
+	async function autoSaveEventDesign(notifyError = false) {
+		if (!email) return false;
+		if (!activeEventId) {
+			const manageSaved = await autoSaveManageEvent(notifyError);
+			if (!manageSaved || !activeEventId) return false;
+		}
+		const descEl = document.getElementById("eventDescInput");
 		const payload = {
 			event_id: activeEventId,
 			organizer_email: email,
 			theme_color: "#2563eb",
-			font: "Inter"
+			font: "Inter",
+			banner_image: bannerImageUrl || undefined,
+			gallery_images: galleryImageUrls.length ? galleryImageUrls : undefined,
+			sponsor_details: collectSponsorDetails(),
+			speaker_details: collectSpeakerDetails(),
+			about_event: descEl ? descEl.value : undefined
 		};
 
 		try {
@@ -1855,28 +2252,177 @@ async function initOrganizerDashboard() {
 				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
 				body: JSON.stringify(payload)
 			});
+			const data = await res.json().catch(() => ({}));
 			if (res.ok) {
-				const data = await res.json();
 				if (data.event_id) activeEventId = data.event_id;
+				return true;
 			}
+			if (notifyError) showNotification(apiErrorMessage(data, "Could not save Design details."));
+			return false;
 		} catch (e) {
 			console.warn("Design live auto-save warning:", e);
+			return false;
 		}
 	}
 
-	function triggerLiveAutoSave() {
-		clearTimeout(autoSaveTimer);
-		autoSaveTimer = setTimeout(() => {
-			autoSaveManageEvent();
-			autoSaveEventDesign();
-		}, 800);
+	async function saveFullEventDesign(notifyError = false) {
+		return autoSaveEventDesign(notifyError);
 	}
 
-	// Attach input auto-save listener to manage & design form controls
-	if (createEventForm) {
-		createEventForm.addEventListener("input", triggerLiveAutoSave);
-		createEventForm.addEventListener("change", triggerLiveAutoSave);
+	function validateManageWizardStep() {
+		const title = eventTitleInput ? eventTitleInput.value.trim() : "";
+		if (!title) {
+			showNotification("Please enter an event title before continuing to Design.");
+			if (eventTitleInput) eventTitleInput.focus();
+			return false;
+		}
+		const categoryEl = document.getElementById("eventCategorySelect");
+		if (!categoryEl || !categoryEl.value) {
+			showNotification("Please select an event category before continuing to Design.");
+			if (categoryEl) categoryEl.focus();
+			return false;
+		}
+		const dateInput = document.getElementById("eventDateInput");
+		if (!dateInput || !dateInput.value) {
+			showNotification("Please select an event date and time before continuing to Design.");
+			if (dateInput) dateInput.focus();
+			return false;
+		}
+		const locationInput = document.getElementById("eventLocationInput");
+		if (!locationInput || !locationInput.value.trim()) {
+			showNotification("Please enter a venue / location before continuing to Design.");
+			if (locationInput) locationInput.focus();
+			return false;
+		}
+		const endDateInput = document.getElementById("eventEndDateInput");
+		if (!endDateInput || !endDateInput.value) {
+			showNotification("Please select an event end date and time before continuing.");
+			if (endDateInput) endDateInput.focus();
+			return false;
+		}
+		return true;
 	}
+
+	function syncManageWizardPreview() {
+		const title = eventTitleInput && eventTitleInput.value.trim()
+			? eventTitleInput.value.trim()
+			: "My New Event 2026";
+		const formatEl = document.getElementById("eventFormatInput");
+		const format = formatEl ? formatEl.value : "Hybrid";
+		const dateInput = document.getElementById("eventDateInput");
+		const locationInput = document.getElementById("eventLocationInput");
+		let metaText = format;
+		if (dateInput && dateInput.value) {
+			try {
+				const dt = new Date(dateInput.value);
+				metaText = `${dt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} • ${format}`;
+			} catch (_) {
+				metaText = format;
+			}
+		}
+		if (locationInput && locationInput.value.trim()) {
+			metaText += ` • ${locationInput.value.trim()}`;
+		}
+
+		if (dashEventTitle) dashEventTitle.textContent = title;
+		if (dashEventMeta) dashEventMeta.textContent = metaText;
+
+		const webTitleBadge = document.getElementById("webTitleBadge");
+		const webHeadline = document.getElementById("webHeadline");
+		if (webTitleBadge) webTitleBadge.textContent = title.split(" ")[0];
+		if (webHeadline) webHeadline.textContent = title;
+	}
+
+	function setWizardNavBusy(button, busy, busyLabel) {
+		if (!button) return;
+		if (busy) {
+			if (!button.dataset.originalLabel) {
+				button.dataset.originalLabel = button.innerHTML;
+			}
+			button.disabled = true;
+			button.style.opacity = "0.75";
+			button.style.pointerEvents = "none";
+			if (busyLabel) button.innerHTML = busyLabel;
+		} else {
+			button.disabled = false;
+			button.style.opacity = "";
+			button.style.pointerEvents = "";
+			if (button.dataset.originalLabel) {
+				button.innerHTML = button.dataset.originalLabel;
+			}
+		}
+	}
+
+	async function advanceManageToDesign() {
+		if (!validateManageWizardStep()) return;
+		const btn = document.getElementById("btnManageNext");
+		setWizardNavBusy(btn, true, "<span>Saving…</span>");
+		try {
+			const saved = await autoSaveManageEvent(true);
+			syncManageWizardPreview();
+			if (!saved) {
+				showNotification("Could not save event details. Check your connection and try again.");
+				return;
+			}
+			if (isPublishedLifecycle() || currentLifecycle === "ended") {
+				showNotification("✓ Manage section updated successfully");
+				return;
+			}
+			showNotification("Step 1 of 4 complete: Event details saved. Continuing to Design…");
+			switchTab("design");
+		} finally {
+			setWizardNavBusy(btn, false);
+		}
+	}
+
+	async function advanceDesignToRegistrations() {
+		const btn = document.getElementById("btnSaveDesign");
+		setWizardNavBusy(btn, true, "<span>Saving…</span>");
+		try {
+			const saved = await saveFullEventDesign(true);
+			if (!saved) {
+				showNotification("Could not save Design details. Stay on this section and try again.");
+				return;
+			}
+			if (isPublishedLifecycle() || currentLifecycle === "ended") {
+				showNotification("✓ Design section updated successfully");
+				return;
+			}
+			showNotification("Step 2 of 4 complete: Design assets saved. Continuing to Registration Form…");
+			switchTab("registrations");
+		} catch (err) {
+			showNotification(err.message || "Failed to save design assets.");
+		} finally {
+			setWizardNavBusy(btn, false);
+		}
+	}
+
+	let designSaveTimer = null;
+
+	function triggerManageAutoSave() {
+		clearTimeout(autoSaveTimer);
+		autoSaveTimer = setTimeout(() => { autoSaveManageEvent(); }, 800);
+	}
+
+	function triggerDesignAutoSave() {
+		clearTimeout(designSaveTimer);
+		designSaveTimer = setTimeout(() => { autoSaveEventDesign(); }, 800);
+	}
+
+	function triggerLiveAutoSave() {
+		triggerDesignAutoSave();
+	}
+
+	if (createEventForm) {
+		createEventForm.addEventListener("input", triggerManageAutoSave);
+		createEventForm.addEventListener("change", triggerManageAutoSave);
+	}
+	["policyEventInput", "policyCancellationInput", "policyRefundInput", "policyTermsInput", "policyPrivacyInput", "policyAgeInput"].forEach((id) => {
+		const el = document.getElementById(id);
+		if (el) {
+			el.addEventListener("input", triggerManageAutoSave);
+		}
+	});
 
 	// Interactive Format Pills
 	const formatPills = document.querySelectorAll(".format-pill");
@@ -2033,23 +2579,102 @@ async function initOrganizerDashboard() {
 		}
 	}
 
+	function populateManageForm(event) {
+		if (!event) return;
+		if (eventTitleInput && event.event_title) {
+			eventTitleInput.value = event.event_title;
+			if (dashEventTitle) dashEventTitle.textContent = event.event_title;
+		}
+		const catSel = document.getElementById("eventCategorySelect");
+		if (catSel && event.event_category) catSel.value = event.event_category;
+		const formatInput = document.getElementById("eventFormatInput");
+		const mode = event.event_mode || "Hybrid";
+		if (formatInput) formatInput.value = mode;
+		document.querySelectorAll(".format-pill").forEach((pill) => {
+			pill.classList.toggle("active", pill.getAttribute("data-value") === mode);
+		});
+		const dateInput = document.getElementById("eventDateInput");
+		if (dateInput && event.event_start_date) {
+			dateInput.value = String(event.event_start_date).slice(0, 16);
+		}
+		const endDateInput = document.getElementById("eventEndDateInput");
+		if (endDateInput && event.event_end_date) {
+			endDateInput.value = String(event.event_end_date).slice(0, 16);
+		}
+		const locationInput = document.getElementById("eventLocationInput");
+		if (locationInput) locationInput.value = event.venue || event.address || "";
+		if (event.policies) populatePoliciesFromJson(event.policies);
+		if (ticketTiersRows && Array.isArray(event.tickets) && event.tickets.length) {
+			ticketTiersRows.innerHTML = "";
+			event.tickets.forEach((t) => {
+				ticketTiersRows.appendChild(createTicketTierRowHtml(
+					t.name || t.ticket_name || t.type || "",
+					t.price != null ? t.price : "",
+					t.qty != null ? t.qty : (t.quantity != null ? t.quantity : "")
+				));
+			});
+		}
+		if (agendaRows && Array.isArray(event.agenda) && event.agenda.length) {
+			agendaRows.innerHTML = "";
+			event.agenda.forEach((a) => {
+				agendaRows.appendChild(createAgendaRowHtml(
+					a.time || a.time_slot || "",
+					a.title || a.session || "",
+					a.speaker || a.host || ""
+				));
+			});
+		}
+		syncManageWizardPreview();
+	}
+
+	if (pendingManageEvent) {
+		populateManageForm(pendingManageEvent);
+		pendingManageEvent = null;
+	}
+
+	const btnCreateNewEvent = document.getElementById("btnCreateNewEvent");
+	if (btnCreateNewEvent) {
+		btnCreateNewEvent.addEventListener("click", () => {
+			if (!canCreateNew && isPublishedLifecycle()) {
+				showNotification("You already have an active event. You can create and publish a new event only after your current event has ended.");
+				return;
+			}
+			activeEventId = null;
+			currentLifecycle = "draft";
+			hasEvent = false;
+			sessionStorage.removeItem(`active_event_id_${email}`);
+			sessionStorage.removeItem(`has_event_${email}`);
+			if (createEventForm) createEventForm.reset();
+			if (eventTitleInput) eventTitleInput.value = "";
+			const catSel = document.getElementById("eventCategorySelect");
+			if (catSel) catSel.value = "";
+			if (ticketTiersRows) {
+				ticketTiersRows.innerHTML = "";
+				ticketTiersRows.appendChild(createTicketTierRowHtml("", "", ""));
+			}
+			if (agendaRows) {
+				agendaRows.innerHTML = "";
+				agendaRows.appendChild(createAgendaRowHtml("", "", ""));
+			}
+			applySectionActionLabels();
+			renderOverviewState();
+			switchTab("manage");
+			showNotification("Start a new event. Save each section to create the new draft.");
+		});
+	}
+
 	// Step 1: Manage Form Handler -> Save and move to Design (Step 2)
+	const btnManageNext = document.getElementById("btnManageNext");
+	if (btnManageNext) {
+		btnManageNext.addEventListener("click", (e) => {
+			e.preventDefault();
+			advanceManageToDesign();
+		});
+	}
 	if (createEventForm) {
 		createEventForm.addEventListener("submit", (e) => {
 			e.preventDefault();
-			const title = eventTitleInput.value.trim() || "My New Event 2026";
-			const format = eventFormatInput ? eventFormatInput.value : "Hybrid";
-
-			dashEventTitle.textContent = title;
-			dashEventMeta.textContent = `Aug 19, 2026 - 09:00 AM • ${format}`;
-
-			const webTitleBadge = document.getElementById("webTitleBadge");
-			const webHeadline = document.getElementById("webHeadline");
-			if (webTitleBadge) webTitleBadge.textContent = title.split(' ')[0];
-			if (webHeadline) webHeadline.textContent = title;
-
-			showNotification(`Step 1 of 4 Complete: Event details saved! Continuing to Design studio...`);
-			switchTab("design");
+			advanceManageToDesign();
 		});
 	}
 
@@ -2066,9 +2691,9 @@ async function initOrganizerDashboard() {
 			rejection = currentVerificationInfo.rejection_reason;
 		}
 
-		// Inject status banner + CTA into settings tab
+		// Inject status banner + CTA into settings tab (hidden until Admin Portal KYC)
 		const sectionSettings = document.getElementById("sectionSettings");
-		if (sectionSettings) {
+		if (sectionSettings && VERIFICATION_UI_ENABLED) {
 			let existingBanner = document.getElementById("settingsVerificationBanner");
 			if (!existingBanner) {
 				existingBanner = document.createElement("div");
@@ -2112,6 +2737,9 @@ async function initOrganizerDashboard() {
 			`;
 			const ctaBtn = document.getElementById("settingsVerificationBannerCta");
 			if (ctaBtn && ctaAction) ctaBtn.addEventListener("click", ctaAction);
+		} else if (sectionSettings) {
+			const existingBanner = document.getElementById("settingsVerificationBanner");
+			if (existingBanner) existingBanner.remove();
 		}
 
 		try {
@@ -2233,15 +2861,24 @@ async function initOrganizerDashboard() {
 			if (e.target.id !== "btnClearBanner") bannerFileInput.click();
 		});
 
-		bannerFileInput.addEventListener("change", (e) => {
-			if (e.target.files[0]) {
-				const reader = new FileReader();
-				reader.onload = (evt) => {
-					bannerPreviewImg.src = evt.target.result;
-					bannerDropzoneContent.style.display = "none";
-					bannerPreviewBox.style.display = "block";
-				};
-				reader.readAsDataURL(e.target.files[0]);
+		bannerFileInput.addEventListener("change", async (e) => {
+			const file = e.target.files && e.target.files[0];
+			if (!file) return;
+			const host = document.getElementById("bannerUploadHost");
+			setInlineUploadError(host, "");
+			try {
+				bannerDropzoneContent.style.opacity = "0.6";
+				const url = await uploadDesignAsset(file, "banner");
+				bannerImageUrl = url;
+				bannerPreviewImg.src = resolveUploadUrl(url);
+				bannerDropzoneContent.style.display = "none";
+				bannerPreviewBox.style.display = "block";
+				triggerLiveAutoSave();
+			} catch (err) {
+				setInlineUploadError(host, formatDesignUploadError(err));
+			} finally {
+				bannerDropzoneContent.style.opacity = "1";
+				bannerFileInput.value = "";
 			}
 		});
 
@@ -2249,8 +2886,10 @@ async function initOrganizerDashboard() {
 			btnClearBanner.addEventListener("click", (e) => {
 				e.stopPropagation();
 				bannerFileInput.value = "";
+				bannerImageUrl = null;
 				bannerDropzoneContent.style.display = "flex";
 				bannerPreviewBox.style.display = "none";
+				triggerLiveAutoSave();
 			});
 		}
 	}
@@ -2259,22 +2898,21 @@ async function initOrganizerDashboard() {
 	const sponsorsRows = document.getElementById("sponsorsRows");
 	const btnAddSponsor = document.getElementById("btnAddSponsor");
 
-	function createSponsorRowHtml(name = "", tier = "Title Sponsor") {
+	function createSponsorRowHtml(name = "", tier = "Title Sponsor", logoUrl = "") {
 		const div = document.createElement("div");
 		div.className = "setup-grid-3 sponsor-row";
-		div.style.alignItems = "flex-end";
+		div.style.alignItems = "start";
 		div.style.marginBottom = "0.9rem";
 		div.style.background = "#f8fafc";
 		div.style.border = "1px solid #e2e8f0";
 		div.style.padding = "1rem";
 		div.style.borderRadius = "10px";
+		if (logoUrl) div.dataset.logoUrl = logoUrl;
+		const safeName = String(name).replace(/"/g, "&quot;");
 		div.innerHTML = `
 			<div class="setup-form-group">
 				<label>Sponsor Name</label>
-				<div class="input-icon-wrap">
-					<span class="input-icon">&#127970;</span>
-					<input type="text" class="setup-input sponsor-name-input" placeholder="e.g. Red Bull" value="${name}" />
-				</div>
+				<input type="text" class="setup-input sponsor-name-input" placeholder="e.g. Red Bull" value="${safeName}" />
 			</div>
 			<div class="setup-form-group">
 				<label>Sponsor Category / Tier</label>
@@ -2287,33 +2925,66 @@ async function initOrganizerDashboard() {
 			</div>
 			<div class="setup-form-group">
 				<label>Sponsor Logo</label>
-				<div style="display: flex; gap: 0.5rem;">
-					<input type="file" class="sponsor-file-input" accept="image/*" style="display: none;" />
-					<button type="button" class="btn-upload-sponsor-logo" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #2563eb; font-weight: 700; border-radius: 8px; padding: 0 0.8rem; flex: 1; height: 44px; font-size: 0.85rem; cursor: pointer;">&#128444; Upload Logo</button>
-					<button type="button" class="btn-remove-sponsor" title="Remove Sponsor" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+				<div class="sponsor-logo-wrap" style="display:flex; flex-direction:column; gap:0.45rem;">
+					<div style="display:flex; gap:0.5rem;">
+						<input type="file" class="sponsor-file-input" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" style="display:none;" />
+						<button type="button" class="btn-upload-sponsor-logo" style="background:#fff; border:1.5px solid #cbd5e1; color:#2563eb; font-weight:700; border-radius:8px; padding:0 0.8rem; flex:1; height:44px; font-size:0.85rem; cursor:pointer;">${logoUrl ? "Replace Logo" : "Upload Logo"}</button>
+						<button type="button" class="btn-remove-sponsor" title="Remove Sponsor" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:8px; padding:0 0.8rem; cursor:pointer; font-weight:700; height:44px;">&times;</button>
+					</div>
+					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP · Max 5MB</span>
+					${logoUrl ? `<img class="sponsor-preview-img" src="${resolveUploadUrl(logoUrl)}" alt="Sponsor logo" style="display:block; width:100%; max-width:180px; height:72px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; background:#fff; padding:6px;" />` : ""}
 				</div>
 			</div>
 		`;
 
 		const removeBtn = div.querySelector(".btn-remove-sponsor");
 		removeBtn.addEventListener("click", () => {
-			if (sponsorsRows.children.length > 1) {
-				div.remove();
-			} else {
+			if (sponsorsRows.children.length > 1) div.remove();
+			else {
 				div.querySelector(".sponsor-name-input").value = "";
+				delete div.dataset.logoUrl;
+				const prev = div.querySelector(".sponsor-preview-img");
+				if (prev) prev.remove();
+				div.querySelector(".btn-upload-sponsor-logo").textContent = "Upload Logo";
 			}
+			triggerLiveAutoSave();
 		});
 
 		const uploadBtn = div.querySelector(".btn-upload-sponsor-logo");
 		const fileInput = div.querySelector(".sponsor-file-input");
 		uploadBtn.addEventListener("click", () => fileInput.click());
-		fileInput.addEventListener("change", (e) => {
-			if (e.target.files[0]) {
-				uploadBtn.textContent = `✓ ${e.target.files[0].name.substring(0, 12)}...`;
-				uploadBtn.style.color = "#10b981";
+		fileInput.addEventListener("change", async (e) => {
+			const file = e.target.files && e.target.files[0];
+			if (!file) return;
+			const errorHost = div.querySelector(".sponsor-logo-wrap");
+			setInlineUploadError(errorHost, "");
+			try {
+				uploadBtn.textContent = "Uploading…";
+				uploadBtn.disabled = true;
+				const url = await uploadDesignAsset(file, "sponsor_logo");
+				div.dataset.logoUrl = url;
+				let prev = div.querySelector(".sponsor-preview-img");
+				if (!prev) {
+					prev = document.createElement("img");
+					prev.className = "sponsor-preview-img";
+					prev.alt = "Sponsor logo";
+					prev.style.cssText = "display:block; width:100%; max-width:180px; height:72px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; background:#fff; padding:6px;";
+					div.querySelector(".sponsor-logo-wrap").appendChild(prev);
+				}
+				prev.src = resolveUploadUrl(url);
+				uploadBtn.textContent = "Replace Logo";
+				triggerLiveAutoSave();
+			} catch (err) {
+				setInlineUploadError(errorHost, formatDesignUploadError(err));
+				uploadBtn.textContent = logoUrl ? "Replace Logo" : "Upload Logo";
+			} finally {
+				uploadBtn.disabled = false;
+				fileInput.value = "";
 			}
 		});
 
+		div.querySelector(".sponsor-name-input").addEventListener("input", triggerLiveAutoSave);
+		div.querySelector(".sponsor-tier-select").addEventListener("change", triggerLiveAutoSave);
 		return div;
 	}
 
@@ -2321,17 +2992,8 @@ async function initOrganizerDashboard() {
 		btnAddSponsor.addEventListener("click", () => {
 			sponsorsRows.appendChild(createSponsorRowHtml());
 		});
-
-		const initialRemoveBtn = sponsorsRows.querySelector(".btn-remove-sponsor");
-		if (initialRemoveBtn) {
-			initialRemoveBtn.addEventListener("click", (e) => {
-				const row = e.target.closest(".sponsor-row");
-				if (sponsorsRows.children.length > 1) {
-					row.remove();
-				} else {
-					row.querySelector(".sponsor-name-input").value = "";
-				}
-			});
+		if (!sponsorsRows.children.length) {
+			sponsorsRows.appendChild(createSponsorRowHtml());
 		}
 	}
 
@@ -2339,57 +3001,90 @@ async function initOrganizerDashboard() {
 	const artistsRows = document.getElementById("artistsRows");
 	const btnAddArtist = document.getElementById("btnAddArtist");
 
-	function createArtistRowHtml(name = "", role = "") {
+	function createArtistRowHtml(name = "", role = "", photoUrl = "") {
 		const div = document.createElement("div");
 		div.className = "setup-grid-3 artist-row";
-		div.style.alignItems = "flex-end";
+		div.style.alignItems = "start";
 		div.style.marginBottom = "0.9rem";
 		div.style.background = "#f8fafc";
 		div.style.border = "1px solid #e2e8f0";
 		div.style.padding = "1rem";
 		div.style.borderRadius = "10px";
+		if (photoUrl) div.dataset.photoUrl = photoUrl;
+		const safeName = String(name).replace(/"/g, "&quot;");
+		const safeRole = String(role).replace(/"/g, "&quot;");
 		div.innerHTML = `
 			<div class="setup-form-group">
 				<label>Artist / Speaker Name</label>
-				<div class="input-icon-wrap">
-					<span class="input-icon">&#128587;</span>
-					<input type="text" class="setup-input artist-name-input" placeholder="e.g. Artist / Speaker Name" value="${name}" />
-				</div>
+				<input type="text" class="setup-input artist-name-input" placeholder="e.g. Artist / Speaker Name" value="${safeName}" />
 			</div>
 			<div class="setup-form-group">
 				<label>Role / Category</label>
-				<input type="text" class="setup-input artist-role-input" placeholder="e.g. Headliner / Keynote Speaker" value="${role}" />
+				<input type="text" class="setup-input artist-role-input" placeholder="e.g. Headliner / Keynote Speaker" value="${safeRole}" />
 			</div>
 			<div class="setup-form-group">
 				<label>Photo / Headshot</label>
-				<div style="display: flex; gap: 0.5rem;">
-					<input type="file" class="artist-file-input" accept="image/*" style="display: none;" />
-					<button type="button" class="btn-upload-artist-photo" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #2563eb; font-weight: 700; border-radius: 8px; padding: 0 0.8rem; flex: 1; height: 44px; font-size: 0.85rem; cursor: pointer;">&#128247; Upload Photo</button>
-					<button type="button" class="btn-remove-artist" title="Remove Artist" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+				<div class="artist-photo-wrap" style="display:flex; flex-direction:column; gap:0.45rem;">
+					<div style="display:flex; gap:0.5rem;">
+						<input type="file" class="artist-file-input" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" style="display:none;" />
+						<button type="button" class="btn-upload-artist-photo" style="background:#fff; border:1.5px solid #cbd5e1; color:#2563eb; font-weight:700; border-radius:8px; padding:0 0.8rem; flex:1; height:44px; font-size:0.85rem; cursor:pointer;">${photoUrl ? "Replace Photo" : "Upload Photo"}</button>
+						<button type="button" class="btn-remove-artist" title="Remove Artist" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:8px; padding:0 0.8rem; cursor:pointer; font-weight:700; height:44px;">&times;</button>
+					</div>
+					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP · Max 5MB</span>
+					${photoUrl ? `<img class="artist-preview-img" src="${resolveUploadUrl(photoUrl)}" alt="Artist photo" style="display:block; width:72px; height:72px; object-fit:cover; border-radius:50%; border:1px solid #e2e8f0; background:#f8fafc;" />` : ""}
 				</div>
 			</div>
 		`;
 
 		const removeBtn = div.querySelector(".btn-remove-artist");
 		removeBtn.addEventListener("click", () => {
-			if (artistsRows.children.length > 1) {
-				div.remove();
-			} else {
+			if (artistsRows.children.length > 1) div.remove();
+			else {
 				div.querySelector(".artist-name-input").value = "";
 				div.querySelector(".artist-role-input").value = "";
+				delete div.dataset.photoUrl;
+				const prev = div.querySelector(".artist-preview-img");
+				if (prev) prev.remove();
+				div.querySelector(".btn-upload-artist-photo").textContent = "Upload Photo";
 			}
+			triggerLiveAutoSave();
 		});
 
 		const uploadBtn = div.querySelector(".btn-upload-artist-photo");
 		const fileInput = div.querySelector(".artist-file-input");
 		uploadBtn.addEventListener("click", () => fileInput.click());
-		fileInput.addEventListener("change", (e) => {
-			if (e.target.files[0]) {
-				uploadBtn.textContent = `✓ ${e.target.files[0].name.substring(0, 12)}...`;
-				uploadBtn.style.color = "#10b981";
+		fileInput.addEventListener("change", async (e) => {
+			const file = e.target.files && e.target.files[0];
+			if (!file) return;
+			const errorHost = div.querySelector(".artist-photo-wrap");
+			setInlineUploadError(errorHost, "");
+			try {
+				uploadBtn.textContent = "Uploading…";
+				uploadBtn.disabled = true;
+				const url = await uploadDesignAsset(file, "artist_photo");
+				div.dataset.photoUrl = url;
+				let prev = div.querySelector(".artist-preview-img");
+				if (!prev) {
+					prev = document.createElement("img");
+					prev.className = "artist-preview-img";
+					prev.alt = "Artist photo";
+					prev.style.cssText = "display:block; width:72px; height:72px; object-fit:cover; border-radius:50%; border:1px solid #e2e8f0; background:#f8fafc;";
+					div.querySelector(".artist-photo-wrap").appendChild(prev);
+				}
+				prev.src = resolveUploadUrl(url);
+				uploadBtn.textContent = "Replace Photo";
+				triggerLiveAutoSave();
+			} catch (err) {
+				setInlineUploadError(errorHost, formatDesignUploadError(err));
+				uploadBtn.textContent = photoUrl ? "Replace Photo" : "Upload Photo";
+			} finally {
+				uploadBtn.disabled = false;
+				fileInput.value = "";
 			}
 		});
 
+		div.querySelector(".artist-name-input").addEventListener("input", triggerLiveAutoSave);
+		div.querySelector(".artist-role-input").addEventListener("input", triggerLiveAutoSave);
 		return div;
 	}
 
@@ -2397,18 +3092,8 @@ async function initOrganizerDashboard() {
 		btnAddArtist.addEventListener("click", () => {
 			artistsRows.appendChild(createArtistRowHtml());
 		});
-
-		const initialRemoveBtn = artistsRows.querySelector(".btn-remove-artist");
-		if (initialRemoveBtn) {
-			initialRemoveBtn.addEventListener("click", (e) => {
-				const row = e.target.closest(".artist-row");
-				if (artistsRows.children.length > 1) {
-					row.remove();
-				} else {
-					row.querySelector(".artist-name-input").value = "";
-					row.querySelector(".artist-role-input").value = "";
-				}
-			});
+		if (!artistsRows.children.length) {
+			artistsRows.appendChild(createArtistRowHtml());
 		}
 	}
 
@@ -2437,37 +3122,57 @@ async function initOrganizerDashboard() {
 			clearGalleryHint();
 			const thumbDiv = document.createElement('div');
 			thumbDiv.className = 'gallery-thumb-item';
+			thumbDiv.dataset.originalUrl = src;
 			thumbDiv.style.position = 'relative';
 			thumbDiv.style.height = '110px';
 			thumbDiv.style.borderRadius = '8px';
 			thumbDiv.style.overflow = 'hidden';
 			thumbDiv.style.border = '1px solid #cbd5e1';
-			thumbDiv.innerHTML = `
-				<img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" />
-				<button type="button" class="btn-remove-thumb" style="position: absolute; top: 5px; right: 5px; background: rgba(220,38,38,0.85); color: #fff; border: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; font-size: 0.8rem; font-weight: 800;">&times;</button>
-			`;
-			thumbDiv.querySelector('.btn-remove-thumb').addEventListener('click', () => {
+			thumbDiv.style.background = '#f8fafc';
+			const img = document.createElement("img");
+			img.alt = "Gallery photo";
+			img.style.cssText = "width: 100%; height: 100%; object-fit: cover; display: block;";
+			img.src = resolveUploadUrl(src);
+			const removeBtn = document.createElement("button");
+			removeBtn.type = "button";
+			removeBtn.className = "btn-remove-thumb";
+			removeBtn.innerHTML = "&times;";
+			removeBtn.style.cssText = "position: absolute; top: 5px; right: 5px; background: rgba(220,38,38,0.85); color: #fff; border: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; font-size: 0.8rem; font-weight: 800;";
+			removeBtn.addEventListener('click', () => {
+				const original = thumbDiv.dataset.originalUrl;
+				if (original) {
+					galleryImageUrls = galleryImageUrls.filter(u => u !== original);
+				}
 				thumbDiv.remove();
 				if (!galleryThumbnailsGrid.querySelector('.gallery-thumb-item')) renderGalleryHint();
+				triggerLiveAutoSave();
 			});
+			thumbDiv.appendChild(img);
+			thumbDiv.appendChild(removeBtn);
 			galleryThumbnailsGrid.appendChild(thumbDiv);
 		};
 
-		const handleGalleryFiles = (files) => {
+		const handleGalleryFiles = async (files) => {
+			const galleryHost = document.getElementById("galleryUploadHost");
+			setInlineUploadError(galleryHost, "");
 			const existingCount = galleryThumbnailsGrid.querySelectorAll('.gallery-thumb-item').length;
 			const allowedCount = Math.max(0, maxGalleryPhotos - existingCount);
 			if (allowedCount === 0) {
-				alert(`You can upload up to ${maxGalleryPhotos} gallery photos.`);
+				setInlineUploadError(galleryHost, `You can upload up to ${maxGalleryPhotos} gallery photos.`);
 				return;
 			}
 
 			const selectedFiles = Array.from(files).slice(0, allowedCount);
-			selectedFiles.forEach((file) => {
-				if (!file.type.startsWith('image/')) return;
-				const reader = new FileReader();
-				reader.onload = (evt) => addThumbnail(evt.target.result);
-				reader.readAsDataURL(file);
-			});
+			for (const file of selectedFiles) {
+				try {
+					const url = await uploadDesignAsset(file, "gallery");
+					galleryImageUrls.push(url);
+					addThumbnail(url);
+				} catch (err) {
+					setInlineUploadError(galleryHost, formatDesignUploadError(err));
+				}
+			}
+			triggerLiveAutoSave();
 		};
 
 		galleryDropzone.addEventListener('click', () => galleryFileInput.click());
@@ -2491,6 +3196,35 @@ async function initOrganizerDashboard() {
 			galleryFileInput.value = '';
 		});
 		renderGalleryHint();
+
+		function applyPendingHostDesign() {
+			if (!pendingHostDesignData) return;
+			const d = pendingHostDesignData;
+			if (d.about_event) {
+				const desc = document.getElementById("eventDescInput");
+				if (desc && !desc.value) desc.value = d.about_event;
+			}
+			if (d.banner_image) {
+				bannerImageUrl = d.banner_image;
+				if (bannerPreviewImg) bannerPreviewImg.src = resolveUploadUrl(d.banner_image);
+				if (bannerDropzoneContent) bannerDropzoneContent.style.display = "none";
+				if (bannerPreviewBox) bannerPreviewBox.style.display = "block";
+			}
+			if (d.gallery_images && Array.isArray(d.gallery_images) && d.gallery_images.length) {
+				galleryImageUrls = d.gallery_images.slice();
+				galleryThumbnailsGrid.innerHTML = "";
+				d.gallery_images.forEach((url) => addThumbnail(url));
+			}
+			populateDesignRows(d.sponsor_details || [], d.speaker_details || []);
+			pendingHostDesignData = null;
+		}
+		applyPendingHostDesign();
+	} else if (pendingHostDesignData) {
+		populateDesignRows(
+			pendingHostDesignData.sponsor_details || [],
+			pendingHostDesignData.speaker_details || []
+		);
+		pendingHostDesignData = null;
 	}
 
 
@@ -2892,11 +3626,17 @@ async function initOrganizerDashboard() {
 
 	// Step 2: Design Form Submit -> Save and move to Registration (Step 3)
 	const designAssetsForm = document.getElementById("designAssetsForm");
+	const btnSaveDesign = document.getElementById("btnSaveDesign");
+	if (btnSaveDesign) {
+		btnSaveDesign.addEventListener("click", (e) => {
+			e.preventDefault();
+			advanceDesignToRegistrations();
+		});
+	}
 	if (designAssetsForm) {
 		designAssetsForm.addEventListener("submit", (e) => {
 			e.preventDefault();
-			showNotification("Step 2 of 4 Complete: Design assets saved! Continuing to Registration Form Builder...");
-			switchTab("registrations");
+			advanceDesignToRegistrations();
 		});
 	}
 
@@ -3040,7 +3780,188 @@ async function initOrganizerDashboard() {
 		}
 	}
 
+	function ensurePublishModal() {
+		let modal = document.getElementById("publishGateModal");
+		if (!modal) {
+			modal = document.createElement("div");
+			modal.id = "publishGateModal";
+			modal.style.cssText = "position:fixed; inset:0; z-index:10000; background:rgba(15,23,42,0.7); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:1.25rem;";
+			document.body.appendChild(modal);
+		}
+		modal.style.display = "flex";
+		return modal;
+	}
+
+	function storePublishAuthToken(token) {
+		if (!token) return;
+		try {
+			sessionStorage.setItem("jod_access_token", token);
+			localStorage.setItem("jod_access_token", token);
+		} catch (_) {}
+	}
+
+	function hasPublishAuthToken() {
+		const token = window.JodAuth && typeof window.JodAuth.getToken === "function"
+			? window.JodAuth.getToken()
+			: (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+		return !!(token && token !== "null" && token !== "undefined" && String(token).length > 10);
+	}
+
+	function isPublishAuthError(msg) {
+		return /authentication required|not authenticated|could not validate credentials|unauthorized/i.test(msg || "");
+	}
+
+	function showPublishAuthOtpModal() {
+		return new Promise(async (resolve) => {
+			const hostEmail = email || (window.JodAuth && window.JodAuth.getUser && window.JodAuth.getUser() && window.JodAuth.getUser().email) || "";
+			const modal = ensurePublishModal();
+			let settled = false;
+			let verifying = false;
+			const finish = (ok) => {
+				if (settled) return;
+				settled = true;
+				closePublishGateModal();
+				resolve(ok);
+			};
+			modal.innerHTML = `
+				<div style="background:#ffffff; border-radius:16px; max-width:480px; width:100%; box-shadow:0 25px 60px rgba(0,0,0,0.35); overflow:hidden;">
+					<div style="padding:1.5rem 1.75rem; background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color:#fff;">
+						<div style="font-size:0.72rem; font-weight:700; opacity:0.92; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:0.35rem;">Verify to Publish</div>
+						<h3 style="margin:0; font-size:1.25rem; font-weight:800;">Confirm your email</h3>
+					</div>
+					<div style="padding:1.5rem 1.75rem;">
+						<p style="margin:0 0 0.85rem; color:#334155; line-height:1.55; font-size:0.95rem;">
+							A 6-digit OTP has been sent to
+							<strong id="publishOtpEmail" style="color:#0f172a;"></strong>.
+							Enter the code below to authenticate and publish this event.
+						</p>
+						<div id="publishOtpDevBanner" style="display:none; margin-bottom:0.85rem; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:8px; padding:0.65rem 0.8rem; font-size:0.82rem; font-weight:600;">
+							Dev OTP: <span id="publishOtpDevValue"></span>
+						</div>
+						<div id="publishOtpInputs" style="display:flex; gap:0.45rem; justify-content:center; margin:1rem 0 0.5rem;">
+							<input class="publish-otp-field" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:42px; height:48px; text-align:center; font-size:1.25rem; font-weight:800; border:1.5px solid #cbd5e1; border-radius:8px;" />
+							<input class="publish-otp-field" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:42px; height:48px; text-align:center; font-size:1.25rem; font-weight:800; border:1.5px solid #cbd5e1; border-radius:8px;" />
+							<input class="publish-otp-field" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:42px; height:48px; text-align:center; font-size:1.25rem; font-weight:800; border:1.5px solid #cbd5e1; border-radius:8px;" />
+							<input class="publish-otp-field" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:42px; height:48px; text-align:center; font-size:1.25rem; font-weight:800; border:1.5px solid #cbd5e1; border-radius:8px;" />
+							<input class="publish-otp-field" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:42px; height:48px; text-align:center; font-size:1.25rem; font-weight:800; border:1.5px solid #cbd5e1; border-radius:8px;" />
+							<input class="publish-otp-field" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:42px; height:48px; text-align:center; font-size:1.25rem; font-weight:800; border:1.5px solid #cbd5e1; border-radius:8px;" />
+						</div>
+						<p id="publishOtpStatus" style="min-height:1.2rem; margin:0.4rem 0 0; font-size:0.82rem; font-weight:600; color:#64748b; text-align:center;"></p>
+					</div>
+					<div style="display:flex; justify-content:space-between; gap:0.65rem; padding:1rem 1.75rem 1.5rem; border-top:1px solid #e2e8f0; background:#f8fafc;">
+						<button id="publishOtpResend" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#2563eb; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Resend OTP</button>
+						<div style="display:flex; gap:0.65rem;">
+							<button id="publishOtpCancel" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#475569; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Cancel</button>
+							<button id="publishOtpVerify" type="button" style="background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color:#fff; padding:0.55rem 1.25rem; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Verify &amp; Publish</button>
+						</div>
+					</div>
+				</div>
+			`;
+			const emailEl = document.getElementById("publishOtpEmail");
+			if (emailEl) emailEl.textContent = hostEmail || "your registered email";
+
+			const statusEl = document.getElementById("publishOtpStatus");
+			const fields = Array.from(modal.querySelectorAll(".publish-otp-field"));
+			const setStatus = (msg, ok) => {
+				if (!statusEl) return;
+				statusEl.textContent = msg || "";
+				statusEl.style.color = ok ? "#166534" : "#dc2626";
+			};
+
+			const readOtp = () => fields.map((f) => f.value).join("");
+
+			async function sendPublishOtp() {
+				if (!hostEmail) {
+					setStatus("No organizer email found. Please log in again.");
+					return;
+				}
+				setStatus("Sending OTP…", true);
+				try {
+					const res = await fetch(`${API_BASE}/send-otp`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ email: hostEmail })
+					});
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) throw new Error(apiErrorMessage(data, "Failed to send OTP."));
+					const banner = document.getElementById("publishOtpDevBanner");
+					const devVal = document.getElementById("publishOtpDevValue");
+					if (data.dev_otp && banner && devVal) {
+						devVal.textContent = data.dev_otp;
+						banner.style.display = "block";
+					}
+					setStatus(`OTP sent to ${hostEmail}.`, true);
+					if (fields[0]) fields[0].focus();
+				} catch (err) {
+					setStatus(err.message || "Failed to send OTP.");
+				}
+			}
+
+			async function verifyPublishOtp() {
+				if (verifying || settled) return;
+				const code = readOtp();
+				if (code.length !== 6) {
+					setStatus("Enter the 6-digit OTP sent to your email.");
+					return;
+				}
+				verifying = true;
+				setStatus("Verifying…", true);
+				try {
+					const res = await fetch(`${API_BASE}/verify-otp`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ email: hostEmail, otp_code: code })
+					});
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) throw new Error(apiErrorMessage(data, "Invalid OTP."));
+					if (!data.access_token) {
+						throw new Error("No login account found for this email. Please log in, then publish.");
+					}
+					storePublishAuthToken(data.access_token);
+					finish(true);
+				} catch (err) {
+					verifying = false;
+					setStatus(err.message || "Could not verify OTP.");
+				}
+			}
+
+			fields.forEach((field, index) => {
+				field.addEventListener("input", (e) => {
+					e.target.value = e.target.value.replace(/\D/g, "").slice(0, 1);
+					if (e.target.value && index < fields.length - 1) fields[index + 1].focus();
+					if (readOtp().length === 6) verifyPublishOtp();
+				});
+				field.addEventListener("keydown", (e) => {
+					if (e.key === "Backspace" && !field.value && index > 0) fields[index - 1].focus();
+				});
+				field.addEventListener("paste", (e) => {
+					e.preventDefault();
+					const pasted = (e.clipboardData || window.clipboardData).getData("text").replace(/\D/g, "").slice(0, 6);
+					pasted.split("").forEach((ch, i) => { if (fields[i]) fields[i].value = ch; });
+					if (pasted.length === 6) verifyPublishOtp();
+				});
+			});
+
+			document.getElementById("publishOtpCancel").addEventListener("click", () => {
+				finish(false);
+			});
+			document.getElementById("publishOtpResend").addEventListener("click", sendPublishOtp);
+			document.getElementById("publishOtpVerify").addEventListener("click", verifyPublishOtp);
+
+			await sendPublishOtp();
+		});
+	}
+
 	function showPublishConfirm(manageData, onConfirm) {
+		const readyNote = VERIFICATION_UI_ENABLED
+			? `<div style="display:flex; gap:0.55rem; align-items:center; background:#f0fdf4; color:#166534; padding:0.75rem 1rem; border-radius:8px; border:1px solid #bbf7d0; font-size:0.85rem; font-weight:600;">
+						<span style="font-size:1rem;">✓</span>
+						<span>Organizer verification passed. Proceeding to publish.</span>
+					</div>`
+			: `<div style="display:flex; gap:0.55rem; align-items:center; background:#eff6ff; color:#1e40af; padding:0.75rem 1rem; border-radius:8px; border:1px solid #bfdbfe; font-size:0.85rem; font-weight:600;">
+						<span style="font-size:1rem;">ℹ</span>
+						<span>Your design, policies, and registration form will go live for attendees.</span>
+					</div>`;
 		let modal = document.getElementById("publishGateModal");
 		if (!modal) {
 			modal = document.createElement("div");
@@ -3060,10 +3981,7 @@ async function initOrganizerDashboard() {
 						You are about to publish <strong style="color:#0f172a;">${manageData.event_title || "your event"}</strong>.
 						Once published, attendees can discover and register for it.
 					</p>
-					<div style="display:flex; gap:0.55rem; align-items:center; background:#f0fdf4; color:#166534; padding:0.75rem 1rem; border-radius:8px; border:1px solid #bbf7d0; font-size:0.85rem; font-weight:600;">
-						<span style="font-size:1rem;">✓</span>
-						<span>Organizer verification passed. Proceeding to publish.</span>
-					</div>
+					${readyNote}
 				</div>
 				<div style="display:flex; justify-content:flex-end; gap:0.65rem; padding:1rem 1.75rem 1.5rem; border-top:1px solid #e2e8f0; background:#f8fafc;">
 					<button id="publishConfirmCancel" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#475569; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Cancel</button>
@@ -3076,80 +3994,163 @@ async function initOrganizerDashboard() {
 	}
 
 	async function handleFinalPublish() {
-		// Step 1: Refresh verification status (never trust stale cached status for publishing)
-		const info = await fetchVerificationStatus(true);
-		const statusKey = info ? info.verification_status : "NOT_SUBMITTED";
+		if (_publishInFlight) return;
+		if (VERIFICATION_UI_ENABLED) {
+			const info = await fetchVerificationStatus(true);
+			const statusKey = info ? info.verification_status : "NOT_SUBMITTED";
+			if (statusKey !== "VERIFIED") {
+				showPublishGateModal(statusKey, info ? info.rejection_reason : null);
+				return;
+			}
+		}
 
-		// Step 2: If not VERIFIED, show gate modal with appropriate CTA.
-		if (statusKey !== "VERIFIED") {
-			showPublishGateModal(statusKey, info ? info.rejection_reason : null);
+		if (!canPublishNew && !isPublishedLifecycle()) {
+			showNotification("You already have an active event. You can create and publish a new event only after your current event has ended.");
 			return;
 		}
 
-		// Step 3: VERIFIED. Prepare event data + validate required fields.
-		const manageData = collectManageEventPayload();
-		const missing = await verifyCurrentEventIsValid(manageData);
-		if (missing && missing.length > 0) {
-			alert("Please complete the following before publishing: " + missing.join(", "));
-			if (missing.indexOf("Event title") >= 0) {
-				switchTab("manage");
+		_publishInFlight = true;
+		const btnPublish = document.getElementById("btnPublishForm");
+		const btnTop = document.getElementById("btnTopPublish");
+		setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
+		setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
+
+		try {
+			const manageSaved = await autoSaveManageEvent();
+			if (!manageSaved) {
+				showNotification("Could not save Manage details. Publishing cancelled.");
+				return;
 			}
-			return;
+			await autoSaveEventDesign();
+			if (window.JodFormBuilder && typeof window.JodFormBuilder.saveDraft === "function") {
+				try {
+					await window.JodFormBuilder.saveDraft();
+				} catch (formErr) {
+					console.warn("Registration form save warning:", formErr);
+				}
+			}
+
+			const manageData = collectManageEventPayload();
+			const missing = await verifyCurrentEventIsValid(manageData);
+			if (missing && missing.length > 0) {
+				alert("Please complete the following before publishing: " + missing.join(", "));
+				if (missing.indexOf("Event title") >= 0) switchTab("manage");
+				return;
+			}
+
+			showPublishConfirm(manageData, async () => {
+				closePublishGateModal();
+				_publishInFlight = true;
+				setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
+				setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
+
+				async function postPublishEvent() {
+					const cur = await ensureCurrentEventExists();
+					const event_id = activeEventId || (cur && cur.event_id) || _publishEventId || null;
+					const dateInput = document.getElementById("eventDateInput");
+					const endDateInput = document.getElementById("eventEndDateInput");
+					const locationInput = document.getElementById("eventLocationInput");
+					const categorySelect = document.getElementById("eventCategorySelect");
+					const formatInput = document.getElementById("eventFormatInput");
+					const descEl = document.getElementById("eventDescInput");
+
+					const payload = {
+						organizer_email: email,
+						event_id: event_id || undefined,
+						event_title: manageData.event_title,
+						event_category: categorySelect ? categorySelect.value : undefined,
+						event_mode: formatInput ? formatInput.value : undefined,
+						venue: locationInput ? locationInput.value.trim() : undefined,
+						address: locationInput ? locationInput.value.trim() : undefined,
+						event_start_date: toIstIsoFromDatetimeLocal(dateInput && dateInput.value),
+						event_end_date: toIstIsoFromDatetimeLocal(endDateInput && endDateInput.value),
+						event_start_time: timeFromDatetimeLocal(dateInput && dateInput.value),
+						event_end_time: timeFromDatetimeLocal(endDateInput && endDateInput.value),
+						event_status: "published",
+						tickets_json: collectTicketsJson(),
+						agenda_json: collectAgendaJson(),
+						policies_json: collectPoliciesJson(),
+						about_event: descEl ? descEl.value : undefined
+					};
+
+					const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {
+						method: "POST",
+						headers: Object.assign({}, getAuthHeaders(), { "Content-Type": "application/json" }),
+						body: JSON.stringify(payload)
+					});
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) throw new Error(apiErrorMessage(data, "Publishing failed on the server."));
+
+					if (data.catalog_synced === false) {
+						throw new Error(
+							data.catalog_sync_error ||
+							"Event was saved but could not be published to the public catalog. Please try again."
+						);
+					}
+
+					if (data.event_id) {
+						activeEventId = data.event_id;
+						_publishEventId = data.event_id;
+						sessionStorage.setItem(`active_event_id_${email}`, String(data.event_id));
+					}
+					currentLifecycle = data.lifecycle || "published";
+					hasEvent = true;
+					sessionStorage.setItem(`has_event_${email}`, "true");
+					const title = manageData.event_title || "My Published Event";
+					if (dashEventTitle) dashEventTitle.textContent = title;
+					applySectionActionLabels();
+					renderOverviewState();
+					showNotification(`Event "${title}" is now live on Home, Category, and Event Details pages.`);
+					switchTab("overview");
+				}
+
+				async function authenticateThenPublish() {
+					setWizardNavBusy(btnPublish, false);
+					setWizardNavBusy(btnTop, false);
+					const verified = await showPublishAuthOtpModal();
+					if (!verified) return false;
+					setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
+					setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
+					await postPublishEvent();
+					return true;
+				}
+
+				try {
+					if (!hasPublishAuthToken()) {
+						await authenticateThenPublish();
+						return;
+					}
+					await postPublishEvent();
+				} catch (err) {
+					const msg = err && err.message ? err.message : String(err || "");
+					if (isPublishAuthError(msg)) {
+						try {
+							await authenticateThenPublish();
+						} catch (retryErr) {
+							showNotification((retryErr && retryErr.message) || "Failed to publish event. Please try again.");
+						}
+					} else if (/already have an active event/i.test(msg)) {
+						showNotification("You already have an active event. You can create and publish a new event only after your current event has ended.");
+					} else if (/verification|under review|rejected/i.test(msg)) {
+						const refreshed = await fetchVerificationStatus(true);
+						showPublishGateModal(
+							refreshed ? refreshed.verification_status : "NOT_SUBMITTED",
+							refreshed ? refreshed.rejection_reason : null
+						);
+					} else {
+						showNotification(msg || "Failed to publish event. Please try again.");
+					}
+				} finally {
+					_publishInFlight = false;
+					setWizardNavBusy(btnPublish, false);
+					setWizardNavBusy(btnTop, false);
+				}
+			});
+		} finally {
+			setWizardNavBusy(btnPublish, false);
+			setWizardNavBusy(btnTop, false);
+			_publishInFlight = false;
 		}
-
-		// Step 4: Show confirm dialog. If confirmed, call the publish endpoint.
-		showPublishConfirm(manageData, async () => {
-			closePublishGateModal();
-
-			try {
-				// Make sure we have an event first
-				const cur = await ensureCurrentEventExists();
-				const event_id = (cur && cur.event_id) || _publishEventId || null;
-
-				// Now call host-events manage with event_status=published. Backend gate re-validates organizer status.
-				const payload = {
-					organizer_email: email,
-					event_id: event_id || undefined,
-					event_title: manageData.event_title,
-					event_status: "published"
-				};
-
-				const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {
-					method: "POST",
-					headers: Object.assign({}, getAuthHeaders(), { "Content-Type": "application/json" }),
-					body: JSON.stringify(payload)
-				});
-				const data = await res.json();
-				if (!res.ok) throw new Error(data.detail || "Publishing failed on the server.");
-
-				if (data.event_id) {
-					_publishEventId = data.event_id;
-					sessionStorage.setItem(`active_event_id_${email}`, String(data.event_id));
-				}
-
-				// Update local event status state
-				hasEvent = true;
-				sessionStorage.setItem(`has_event_${email}`, "true");
-				const title = manageData.event_title || "My Published Event";
-				if (dashEventTitle) dashEventTitle.textContent = title;
-				showNotification(`🎉 Event "${title}" successfully created, designed & published live!`);
-
-				switchTab("overview");
-			} catch (err) {
-				// If the backend rejected the publish due to verification gate, show gate again
-				const msg = err && err.message ? err.message : String(err || "");
-				if (/verification|under review|rejected/i.test(msg)) {
-					// Re-fetch status in case backend state is newer
-					const refreshed = await fetchVerificationStatus(true);
-					showPublishGateModal(
-						refreshed ? refreshed.verification_status : "NOT_SUBMITTED",
-						refreshed ? refreshed.rejection_reason : null
-					);
-				} else {
-					alert(msg || "Failed to publish event. Please try again.");
-				}
-			}
-		});
 	}
 
 	if (btnPublishForm) {
@@ -3167,8 +4168,16 @@ async function initOrganizerDashboard() {
 		});
 	}
 
+	// Expose active event id for form-builder and other modules
+	window.JodOrganizer = {
+		getActiveEventId: () => activeEventId,
+		getOrganizerEmail: () => email,
+		getLifecycle: () => currentLifecycle
+	};
+
 	// Expose verification controls globally (so Settings tab or other parts can open the panel)
 	window.openOrganizerVerificationPanel = function () {
+		if (!VERIFICATION_UI_ENABLED) return;
 		showVerificationOverlay();
 		fetchVerificationStatus(true).then(() => {
 			renderVerificationPanel(currentVerificationInfo || { verification_status: "NOT_SUBMITTED" });

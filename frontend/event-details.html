@@ -21,18 +21,28 @@
 
 <body class="event-details-page category-theme-comedy" id="eventBody">
 
-    <!-- Header Navigation -->
     <div id="header"></div>
 
-    <main class="event-details-container" id="mainContent">
+    <div id="eventLoadingState" style="display:none; max-width:720px; margin:4rem auto; padding:2rem; text-align:center;">
+        <p style="font-size:1.1rem; color:#64748b; font-weight:600;">Loading event details…</p>
+    </div>
+
+    <div id="eventUnavailableState" style="display:none; max-width:720px; margin:4rem auto; padding:2rem; text-align:center;">
+        <div style="font-size:2.5rem; margin-bottom:1rem;">📭</div>
+        <h1 id="unavailableTitle" style="margin:0 0 0.75rem; font-size:1.5rem;">This event is currently unavailable.</h1>
+        <p id="unavailableMessage" style="color:#64748b; margin:0 0 1.5rem;">The event may be unpublished or no longer available.</p>
+        <a href="index.html" class="button button-primary">Browse Events</a>
+    </div>
+
+    <main class="event-details-container" id="mainContent" style="display:none;">
         <!-- ── Title & Header Bar ─────────────────────────────────────────── -->
         <div class="event-title-bar">
             <div>
-                <h1 class="event-main-title" id="eventTitle">VIR DAS - SOUNDS OF INDIA - CHENNAI</h1>
+                <h1 class="event-main-title" id="eventTitle">Loading…</h1>
                 <div class="event-meta-top">
-                    <span id="headerVenue">📍 Sir Mutha Venkatasubba Rao Concert Hall, Chennai</span>
+                    <span id="headerVenue">📍 Loading venue…</span>
                     <span>•</span>
-                    <span id="headerCategory">🎭 Standup Comedy</span>
+                    <span id="headerCategory">🎭 Event</span>
                 </div>
             </div>
             <button class="btn-share" id="btnShare" type="button" onclick="copyEventShareLink()">
@@ -48,9 +58,7 @@
 
                 <!-- Hero Banner Image & Overlay Badges -->
                 <div class="event-hero-banner">
-                    <img id="eventImage"
-                        src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80"
-                        alt="Event Banner" />
+                    <img id="eventImage" src="images/hero-event.jpg" alt="Event Banner" />
                     <div class="banner-gradient-shade"></div>
                     <div class="banner-overlay-tags">
                         <div class="category-badge-list">
@@ -60,7 +68,7 @@
                                 style="border-color: #34d399; color: #34d399;">In-person</span>
                         </div>
                         <div class="interested-counter">
-                            <span>🔥</span> <span id="interestedText">151 are interested</span>
+                            <span>🔥</span> <span id="interestedText">Published event</span>
                         </div>
                     </div>
                 </div>
@@ -68,85 +76,33 @@
                 <!-- Event Description Section -->
                 <div class="section-block">
                     <h2 class="section-block-title">About The Event</h2>
-                    <div class="event-description-text" id="eventDescription">
-                        Vir Das takes you across the nation in an immersive audio-visual stand-up comedy experience,
-                        where the vibrant sounds that we hear across India in our daily lives take us on a journey to
-                        celebrate the small nuances of our great nation. Through the symphony of sound International
-                        Emmy winning stand-up comedian Vir Das is back with his brand new global tour!
-                    </div>
+                    <div class="event-description-text" id="eventDescription">Loading event description…</div>
                 </div>
 
                 <!-- Artist / Performer / Speaker Section -->
                 <div class="section-block" id="performersSection">
                     <h2 class="section-block-title" id="performersTitle">Spotlight Artists & Performers</h2>
-                    <div class="performers-grid" id="performersGrid">
-                        <div class="performer-card">
-                            <img class="performer-avatar"
-                                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80"
-                                alt="Vir Das" />
-                            <h3 class="performer-name">Vir Das</h3>
-                            <p class="performer-role">Comedian / Performer</p>
-                        </div>
-                    </div>
+                    <div class="performers-grid" id="performersGrid"></div>
                 </div>
 
                 <!-- Highlights Section (Past Achievements Showcase) -->
                 <div class="section-block" id="highlightsSection">
                     <h2 class="section-block-title" id="highlightsTitle">Show Laughs & Tour Highlights</h2>
-                    <div class="highlights-grid" id="highlightsGrid">
-                        <div class="highlight-card">
-                            <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80"
-                                alt="Emmy Winner" />
-                            <div class="highlight-content">
-                                <h4 class="highlight-title">International Emmy Award Winner</h4>
-                                <p class="highlight-desc">Emmy-winning standup special performance</p>
-                            </div>
-                        </div>
-                        <div class="highlight-card">
-                            <img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=600&q=80"
-                                alt="Global Arena Tour" />
-                            <div class="highlight-content">
-                                <h4 class="highlight-title">Sold Out Global Arena Tour</h4>
-                                <p class="highlight-desc">Performed across 35 countries worldwide</p>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="highlights-grid" id="highlightsGrid"></div>
                 </div>
 
                 <!-- Terms & Conditions Section -->
                 <div class="section-block">
                     <h2 class="section-block-title">Terms & Conditions</h2>
                     <ul class="terms-list" id="termsList">
-                        <li>Tickets once booked cannot be exchanged, cancelled, or refunded.</li>
-                        <li>Age restriction: 10 years and above.</li>
-                        <li>Please carry a valid photo ID proof along with your e-ticket.</li>
-                        <li>Photography and video recording during show strictly prohibited.</li>
+                        <li>Event policies will appear here once loaded.</li>
                     </ul>
                 </div>
 
                 <!-- Recommended Events Section -->
                 <div class="section-block" id="recommendedBlock">
                     <h2 class="section-block-title">You May Also Like</h2>
-                    <div class="recommended-grid" id="recommendedGrid">
-                        <a href="event-details.html?id=22222222-2222-2222-2222-222222222222" class="rec-card">
-                            <img src="https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=400&q=80"
-                                alt="Chennai Business Leaders Summit 2026" />
-                            <div class="rec-card-body">
-                                <h3 class="rec-card-title">Chennai Business Leaders Summit 2026</h3>
-                                <p class="rec-card-meta">📍 ITC Grand Chola, Chennai</p>
-                                <div class="rec-card-price">₹4,999 onwards</div>
-                            </div>
-                        </a>
-                        <a href="event-details.html?id=33333333-3333-3333-3333-333333333333" class="rec-card">
-                            <img src="https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=400&q=80"
-                                alt="BrandLaunchpad" />
-                            <div class="rec-card-body">
-                                <h3 class="rec-card-title">BrandLaunchpad - Product Reveal Night</h3>
-                                <p class="rec-card-meta">📍 Phoenix MarketCity, Chennai</p>
-                                <div class="rec-card-price">₹1,299 onwards</div>
-                            </div>
-                        </a>
-                    </div>
+                    <div class="recommended-grid" id="recommendedGrid"></div>
                 </div>
 
             </div>
@@ -159,7 +115,21 @@
                         <div class="info-header">
                             <span class="event-format-badge" id="infoFormatBadge">In-person</span>
                             <div class="price-main-display">
-                                Ticket Starts at <span id="displayPrice">₹1,999</span>
+                                Ticket Starts at <span id="displayPrice">—</span>
+                            </div>
+                        </div>
+
+                        <!-- Countdown -->
+                        <div class="info-item" id="countdownBlock">
+                            <div class="info-icon">⏳</div>
+                            <div class="info-text-group">
+                                <h4>Event Countdown</h4>
+                                <div class="event-countdown hero-countdown" id="eventCountdown" data-countdown="" style="display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; margin-top:0.35rem;">
+                                    <div><strong data-days>--</strong><span style="display:block;font-size:0.7rem;">Days</span></div>
+                                    <div><strong data-hours>--</strong><span style="display:block;font-size:0.7rem;">Hours</span></div>
+                                    <div><strong data-minutes>--</strong><span style="display:block;font-size:0.7rem;">Mins</span></div>
+                                    <div><strong data-seconds>--</strong><span style="display:block;font-size:0.7rem;">Secs</span></div>
+                                </div>
                             </div>
                         </div>
 
@@ -168,7 +138,7 @@
                             <div class="info-icon">📅</div>
                             <div class="info-text-group">
                                 <h4>Date & Time</h4>
-                                <p id="infoSchedule">Sat, 31 Oct 2026 • 7:30 PM</p>
+                                <p id="infoSchedule">Loading schedule…</p>
                             </div>
                         </div>
 
@@ -205,27 +175,7 @@
                         <div class="tickets-section">
                             <div class="tickets-title">Select Ticket Type</div>
                             <div id="ticketsList">
-                                <div class="ticket-type-option selected" onclick="selectTicketOption(this, 1999)">
-                                    <div>
-                                        <div class="ticket-name">Silver Access</div>
-                                        <div class="ticket-status">Available</div>
-                                    </div>
-                                    <div class="ticket-price">₹1,999</div>
-                                </div>
-                                <div class="ticket-type-option" onclick="selectTicketOption(this, 3499)">
-                                    <div>
-                                        <div class="ticket-name">Gold VIP</div>
-                                        <div class="ticket-status">Filling Fast</div>
-                                    </div>
-                                    <div class="ticket-price">₹3,499</div>
-                                </div>
-                                <div class="ticket-type-option" onclick="selectTicketOption(this, 5999)">
-                                    <div>
-                                        <div class="ticket-name">Front Row Fan Zone</div>
-                                        <div class="ticket-status">Limited Seats</div>
-                                    </div>
-                                    <div class="ticket-price">₹5,999</div>
-                                </div>
+                                <p style="color:#64748b; font-size:0.9rem;">Loading tickets…</p>
                             </div>
                         </div>
 
@@ -245,7 +195,7 @@
         <div class="sticky-bottom-bar-content">
             <div class="bar-price-group">
                 <p>Starts from</p>
-                <h3 id="mobileStickyPrice">₹1,999</h3>
+                <h3 id="mobileStickyPrice">—</h3>
             </div>
             <button class="btn-book-now" type="button" style="width: auto; padding: 0.75rem 2rem;"
                 onclick="triggerBookingModal()">
@@ -265,7 +215,8 @@
     <script src="js/location.js?v=2"></script>
     <script src="js/search.js?v=1"></script>
     <script src="js/script.js?v=14"></script>
-    <script src="js/event-details.js?v=3"></script>
+    <script src="js/events-public.js?v=3"></script>
+    <script src="js/event-details.js?v=5"></script>
 </body>
 
 </html>

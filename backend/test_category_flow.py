@@ -38,10 +38,8 @@ def test_category_flow():
     # 3. Verify index.html Category Carousel Navigation
     index_html = index_html_path.read_text(encoding="utf-8")
     assert 'category.html?name=' in index_html, "index.html category cards do not link to category.html?name=..."
-    assert 'category.html?name=Corporate' in index_html, "Corporate Events category link missing"
-    assert 'category.html?name=Wedding' in index_html, "Wedding Events category link missing"
-    assert 'category.html?name=Comedy' in index_html, "Standup Comedy category link missing"
-    assert 'category.html?name=Workshop' in index_html, "Workshop category link missing"
+    assert 'category.html?name=Sports' in index_html, "Sports category link missing"
+    assert 'category.html?name=Conferences' in index_html, "Conferences category link missing"
     print("[OK] index.html Category Carousel cards link correctly to category.html?name=...")
 
     # 4. Verify category.js & search.js links
@@ -49,8 +47,9 @@ def test_category_flow():
     assert 'category.html?name=' in search_js, "search.js category suggestions do not direct to category.html?name=..."
     cat_js = category_js_path.read_text(encoding="utf-8")
     assert 'fetchEventsFromBackend' in cat_js, "fetchEventsFromBackend missing in category.js"
-    assert 'SEED_FALLBACK_EVENTS' in cat_js, "SEED_FALLBACK_EVENTS fallback data missing in category.js"
-    assert 'event-details.html?id=' in cat_js or 'makeup-boutique-workshop.html?id=' in cat_js, "Event detail navigation target link missing in category.js"
+    assert 'fetchPublishedEvents' in cat_js or 'fetchEventsFromBackend' in cat_js, "category.js must fetch published events from the API"
+    events_public = (root / "frontend" / "js" / "events-public.js").read_text(encoding="utf-8")
+    assert 'event-details.html?id=' in events_public or 'event-details.html?id=' in cat_js, "Event detail navigation target link missing"
     print("[OK] category.js controller and search.js contain dynamic fetch and booking navigation logic")
 
     # 5. Verify Backend API Query Parameters

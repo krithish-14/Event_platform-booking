@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta name="description" content="Manage your event tickets, registrations, speakers, exhibitors, and sales stats on the JOD Events Organizer Dashboard." />
 		<title>Organizer Event Dashboard - JOD Events</title>
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=4" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=5" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 	</head>
@@ -150,6 +150,17 @@
 							</div>
 						</section>
 
+						<div id="endedEventBanner" style="display: none; margin: 0 0 1.25rem; padding: 1rem 1.2rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; color: #92400e;">
+							<strong>This event has ended.</strong>
+							<span> You can create and publish a new event now.</span>
+							<button type="button" id="btnCreateNewEvent" style="margin-left: 0.8rem; background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 0.4rem 0.9rem; font-weight: 700; cursor: pointer;">Create new event</button>
+						</div>
+
+						<div id="activeEventBlockBanner" style="display: none; margin: 0 0 1.25rem; padding: 1rem 1.2rem; background: #fff7ed; border: 1px solid #fdba74; border-radius: 12px; color: #9a3412;">
+							<strong>You already have an active event.</strong>
+							<span> Your current event must end before you can publish another event.</span>
+						</div>
+
 						<!-- Row 2: Quick Actions, Trend Chart & Registrations -->
 						<section class="dash-grid-3">
 							<!-- Card 1: Quick Actions -->
@@ -161,7 +172,23 @@
 									<span class="banner-icon">&#9881;</span>
 									<span class="banner-text">Streamline your event experience with shortcuts to our features</span>
 								</div>
-								<div class="quick-actions-grid">
+								<div class="quick-actions-grid" id="publishedEventControls">
+									<button type="button" class="qa-btn" id="qaBtnUpdate" data-tab="manage">
+										<svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+										Update Manage
+									</button>
+									<button type="button" class="qa-btn" id="qaBtnManage" data-tab="manage">
+										<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+										Edit Manage
+									</button>
+									<button type="button" class="qa-btn" id="qaBtnDesign" data-tab="design">
+										<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+										Edit Design
+									</button>
+									<button type="button" class="qa-btn" id="qaBtnRegForm" data-tab="registrations">
+										<svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+										Edit Registration Form
+									</button>
 									<button type="button" class="qa-btn" id="qaBtnExhibitors" data-tab="exhibitors">
 										<svg viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
 										Exhibitors
@@ -303,7 +330,7 @@
 						<p class="rich-form-subtitle">Fill in the event details below to publish your event live on the JOD Events booking platform.</p>
 
 
-						<form id="createEventForm">
+						<form id="createEventForm" novalidate>
 
 							<!-- SECTION 1: BASIC DETAILS -->
 							<div class="form-section-divider">
@@ -319,12 +346,13 @@
 								<div class="setup-form-group">
 									<label for="eventCategorySelect">Event Category <span style="color: #ef4444;">*</span></label>
 									<select id="eventCategorySelect" class="setup-select" required style="padding-left: 0.9rem;">
-										<option value="Conferences" selected>Conferences &amp; Summits</option>
-										<option value="Performances">Live Gigs &amp; Concerts</option>
-										<option value="Experiences">Themed Pop-Ups &amp; Fairs</option>
-										<option value="Expositions">Expositions &amp; Expos</option>
-										<option value="Parties">Parties &amp; Nightlife</option>
-										<option value="Sports">Sports Tournaments</option>
+										<option value="" disabled selected>Select a category</option>
+										<option value="Sports">Sports</option>
+										<option value="Conferences">Conferences</option>
+										<option value="Performances">Performances</option>
+										<option value="Experiences">Experiences</option>
+										<option value="Expositions">Expositions</option>
+										<option value="Parties">Parties</option>
 									</select>
 								</div>
 							</div>
@@ -346,14 +374,19 @@
 
 							<div class="setup-grid-2">
 								<div class="setup-form-group">
-									<label for="eventDateInput">Event Date &amp; Time <span style="color: #ef4444;">*</span></label>
+									<label for="eventDateInput">Event Start Date &amp; Time <span style="color: #ef4444;">*</span></label>
 									<input type="datetime-local" id="eventDateInput" class="setup-input" required style="padding-left: 0.9rem;" />
 								</div>
 
 								<div class="setup-form-group">
-									<label for="eventLocationInput">Venue / Location Address <span style="color: #ef4444;">*</span></label>
-									<input type="text" id="eventLocationInput" class="setup-input" placeholder="e.g. Chennai Trade Centre, Nandambakkam" required style="padding-left: 0.9rem;" />
+									<label for="eventEndDateInput">Event End Date &amp; Time <span style="color: #ef4444;">*</span></label>
+									<input type="datetime-local" id="eventEndDateInput" class="setup-input" required style="padding-left: 0.9rem;" />
 								</div>
+							</div>
+
+							<div class="setup-form-group" style="margin-bottom: 1.25rem;">
+								<label for="eventLocationInput">Venue / Location Address <span style="color: #ef4444;">*</span></label>
+								<input type="text" id="eventLocationInput" class="setup-input" placeholder="e.g. Chennai Trade Centre, Nandambakkam" required style="padding-left: 0.9rem;" />
 							</div>
 
 							<!-- SECTION 3: TICKETS & PRICING -->
@@ -424,9 +457,41 @@
 								</button>
 							</div>
 
-							<!-- SECTION 5: DESCRIPTION -->
+							<!-- SECTION 5: EVENT POLICIES -->
 							<div class="form-section-divider">
-								5. Event Description
+								5. Event Policies
+							</div>
+
+							<div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem;">
+								<div class="setup-form-group">
+									<label for="policyEventInput">Event Policy</label>
+									<textarea id="policyEventInput" class="setup-textarea" rows="3" placeholder="General event rules, conduct, and entry guidelines…"></textarea>
+								</div>
+								<div class="setup-form-group">
+									<label for="policyCancellationInput">Cancellation Policy</label>
+									<textarea id="policyCancellationInput" class="setup-textarea" rows="3" placeholder="Cancellation terms and deadlines…"></textarea>
+								</div>
+								<div class="setup-form-group">
+									<label for="policyRefundInput">Refund Policy</label>
+									<textarea id="policyRefundInput" class="setup-textarea" rows="3" placeholder="Refund eligibility and processing timeline…"></textarea>
+								</div>
+								<div class="setup-form-group">
+									<label for="policyTermsInput">Terms &amp; Conditions</label>
+									<textarea id="policyTermsInput" class="setup-textarea" rows="3" placeholder="Legal terms attendees must accept…"></textarea>
+								</div>
+								<div class="setup-form-group">
+									<label for="policyPrivacyInput">Privacy Policy</label>
+									<textarea id="policyPrivacyInput" class="setup-textarea" rows="3" placeholder="How attendee data is collected and used…"></textarea>
+								</div>
+								<div class="setup-form-group">
+									<label for="policyAgeInput">Age / Entry Policy</label>
+									<textarea id="policyAgeInput" class="setup-textarea" rows="3" placeholder="Minimum age, ID requirements, restricted items…"></textarea>
+								</div>
+							</div>
+
+							<!-- SECTION 6: DESCRIPTION -->
+							<div class="form-section-divider">
+								6. Event Description
 							</div>
 
 							<div class="setup-form-group" style="margin-bottom: 1.5rem;">
@@ -434,9 +499,9 @@
 								<textarea id="eventDescInput" class="setup-textarea" placeholder="Provide an exciting overview of the event, key speakers, schedule, and guidelines..." required></textarea>
 							</div>
 
-							<!-- SECTION 6: REGISTRATION FORM QUESTIONS -->
+							<!-- SECTION 7: REGISTRATION FORM QUESTIONS -->
 							<div class="form-section-divider">
-								6. Attendee Registration Form Questions
+								7. Attendee Registration Form Questions
 							</div>
 
 							<div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
@@ -457,7 +522,7 @@
 							<!-- ACTION FOOTER -->
 							<div class="wizard-footer" style="display: flex; justify-content: flex-end; align-items: center; gap: 1rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; margin-top: 1rem;">
 								<span style="font-size:0.85rem;color:#94a3b8;">Step 1 of 4</span>
-								<button type="submit" id="btnManageNext" class="publish-gradient-btn" style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); box-shadow: 0 4px 14px rgba(99,102,241,0.35);">
+								<button type="button" id="btnManageNext" class="publish-gradient-btn" style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); box-shadow: 0 4px 14px rgba(99,102,241,0.35);">
 									<span>Save &amp; Next: Design</span> →
 								</button>
 							</div>
@@ -666,7 +731,7 @@
 								1. Hero Event Banner
 							</div>
 
-							<div class="setup-form-group" style="margin-bottom: 2rem;">
+							<div class="setup-form-group" id="bannerUploadHost" style="margin-bottom: 2rem;">
 								<label>Event Hero Banner (Recommended size: 1200 x 630 px)</label>
 								<div id="bannerDropzone" class="doc-dropzone" style="background: #ffffff; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s;">
 									<div id="bannerDropzoneContent" style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
@@ -674,13 +739,13 @@
 											<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
 										</div>
 										<p style="font-weight: 700; color: #0f172a; font-size: 0.95rem;">Drag &amp; drop your Event Banner or <span style="color: #2563eb; text-decoration: underline;">Browse File</span></p>
-										<span style="font-size: 0.78rem; color: #64748b;">Supports JPG, PNG, WEBP (Max size: 5MB)</span>
+										<span style="font-size: 0.78rem; color: #64748b;">Supports JPG, JPEG, PNG, WEBP (Max size: 5MB) · Recommended 1200 × 630 px</span>
 									</div>
 									<div id="bannerPreviewBox" style="display: none; position: relative;">
 										<img id="bannerPreviewImg" src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=1000" alt="Banner Preview" style="width: 100%; max-height: 220px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;" />
 										<button type="button" id="btnClearBanner" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: #fff; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; cursor: pointer;">Remove Banner</button>
 									</div>
-									<input type="file" id="bannerFileInput" accept="image/*" style="display: none;" />
+									<input type="file" id="bannerFileInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" style="display: none;" />
 								</div>
 							</div>
 
@@ -689,30 +754,10 @@
 							<div class="form-section-divider">
 								2. Event Sponsors
 							</div>
+							<p style="margin:-0.35rem 0 0.9rem; font-size:0.78rem; color:#64748b;">Sponsor logo: JPG, JPEG, PNG, or WEBP. Maximum size 5MB.</p>
 
 							<div id="sponsorsContainer" style="margin-bottom: 2rem;">
-								<div id="sponsorsRows">
-									<!-- Default Sponsor Row 1 -->
-									<div class="setup-grid-3 sponsor-row" style="align-items: flex-end; margin-bottom: 0.9rem; background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 10px;">
-										<div class="setup-form-group">
-											<label>Sponsor Name</label>
-											<input type="text" class="setup-input sponsor-name-input" placeholder="e.g. Google Cloud" value="Google Cloud" style="padding-left: 0.9rem;" />
-										</div>
-
-										<div class="setup-form-group">
-											<label>Sponsor Category / Tier</label>
-											<input type="text" class="setup-input sponsor-tier-input" placeholder="e.g. Title Sponsor, Gold Partner" value="Title Sponsor" style="padding-left: 0.9rem;" />
-										</div>
-
-										<div class="setup-form-group">
-											<label>Logo File</label>
-											<div style="display: flex; gap: 0.5rem;">
-												<input type="text" class="setup-input sponsor-logo-input" placeholder="Logo filename or URL" value="google-cloud-logo.png" style="flex: 1; padding-left: 0.9rem;" />
-												<button type="button" class="btn-remove-sponsor" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
-											</div>
-										</div>
-									</div>
-								</div>
+								<div id="sponsorsRows"></div>
 
 								<button type="button" id="btnAddSponsor" style="background: #eff6ff; border: 1.5px dashed #3b82f6; color: #2563eb; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; transition: all 0.2s;">
 									<span style="font-size: 1.1rem; font-weight: 800;">+</span> Add Sponsor
@@ -724,30 +769,10 @@
 							<div class="form-section-divider">
 								3. Headliner Artists &amp; Speakers
 							</div>
+							<p style="margin:-0.35rem 0 0.9rem; font-size:0.78rem; color:#64748b;">Photo / headshot: JPG, JPEG, PNG, or WEBP. Maximum size 5MB.</p>
 
 							<div id="artistsContainer" style="margin-bottom: 2rem;">
-								<div id="artistsRows">
-									<!-- Default Artist Row 1 -->
-									<div class="setup-grid-3 artist-row" style="align-items: flex-end; margin-bottom: 0.9rem; background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 10px;">
-										<div class="setup-form-group">
-											<label>Artist / Speaker Name</label>
-											<input type="text" class="setup-input artist-name-input" placeholder="e.g. AR Rahman" value="Dr. Sundar Pichai" style="padding-left: 0.9rem;" />
-										</div>
-
-										<div class="setup-form-group">
-											<label>Title / Role</label>
-											<input type="text" class="setup-input artist-role-input" placeholder="e.g. Lead Keynote Speaker" value="Keynote Speaker &amp; CEO" style="padding-left: 0.9rem;" />
-										</div>
-
-										<div class="setup-form-group">
-											<label>Photo File</label>
-											<div style="display: flex; gap: 0.5rem;">
-												<input type="text" class="setup-input artist-photo-input" placeholder="Photo filename or URL" value="sundar-pichai-portrait.jpg" style="flex: 1; padding-left: 0.9rem;" />
-												<button type="button" class="btn-remove-artist" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
-											</div>
-										</div>
-									</div>
-								</div>
+								<div id="artistsRows"></div>
 
 								<button type="button" id="btnAddArtist" style="background: #eff6ff; border: 1.5px dashed #3b82f6; color: #2563eb; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; transition: all 0.2s;">
 									<span style="font-size: 1.1rem; font-weight: 800;">+</span> Add Headliner / Speaker
@@ -760,7 +785,7 @@
 								4. Event Gallery Photos &amp; Highlights
 							</div>
 
-							<div class="setup-form-group" style="margin-bottom: 2rem;">
+							<div class="setup-form-group" id="galleryUploadHost" style="margin-bottom: 2rem;">
 								<label>Gallery Photos (Upload up to 6 past edition photos)</label>
 								<div id="galleryDropzone" class="doc-dropzone" style="background: #ffffff; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 1.8rem; text-align: center; cursor: pointer; transition: all 0.2s;">
 									<div style="display: flex; flex-direction: column; align-items: center; gap: 0.4rem;">
@@ -768,9 +793,9 @@
 											<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
 										</div>
 										<p style="font-weight: 700; color: #0f172a; font-size: 0.9rem;">Upload Gallery Photos</p>
-										<span style="font-size: 0.76rem; color: #64748b;">PNG, JPG, WEBP accepted</span>
+										<span style="font-size: 0.76rem; color: #64748b;">Supports JPG, JPEG, PNG, WEBP (Max size: 5MB)</span>
 									</div>
-									<input type="file" id="galleryFileInput" accept="image/*" multiple style="display: none;" />
+									<input type="file" id="galleryFileInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple style="display: none;" />
 								</div>
 								<!-- Gallery Grid Preview -->
 								<div id="galleryThumbnailsGrid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;"></div>
@@ -784,7 +809,7 @@
 								</button>
 								<div style="display: flex; align-items: center; gap: 1rem;">
 									<span style="font-size:0.85rem;color:#94a3b8;">Step 2 of 4</span>
-									<button type="submit" id="btnSaveDesign" class="publish-gradient-btn" style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); box-shadow: 0 4px 14px rgba(99,102,241,0.35);">
+									<button type="button" id="btnSaveDesign" class="publish-gradient-btn" style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); box-shadow: 0 4px 14px rgba(99,102,241,0.35);">
 										<span>Save &amp; Next: Registration Form</span> →
 									</button>
 								</div>
@@ -821,10 +846,11 @@
 						<div id="subViewBuilder" style="display: block;">
 							
 							<!-- Action Toolbar -->
-							<div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.8rem 1.2rem; border-radius: 10px; margin-bottom: 1.5rem;">
-								<div style="display: flex; align-items: center; gap: 0.8rem;">
+							<div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.8rem 1.2rem; border-radius: 10px; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap;">
+								<div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
 									<span id="formStatusBadge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; padding: 0.2rem 0.7rem; border-radius: 12px; font-size: 0.78rem; font-weight: 700;">Draft (Unpublished)</span>
 									<span id="formVersionBadge" style="font-size: 0.82rem; color: #64748b; font-weight: 600;">Version: 1</span>
+									<span style="font-size: 0.76rem; color: #64748b; font-weight: 600;">Images: JPG, JPEG, PNG, WEBP · Max 5MB</span>
 								</div>
 
 								<div style="display: flex; gap: 0.8rem; align-items: center;">
@@ -832,7 +858,7 @@
 										← Back to Design
 									</button>
 									<button type="button" id="btnSaveDraftForm" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #334155; padding: 0.45rem 1.1rem; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer;">
-										Save Draft
+										Save &amp; Next
 									</button>
 									<button type="button" id="btnViewFormHost" style="background: #eff6ff; border: 1.5px solid #bfdbfe; color: #2563eb; padding: 0.45rem 1.1rem; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
 										👁️ View Form Page (Host View)
@@ -910,30 +936,33 @@
 										</div>
 
 										<!-- Header Banner Image Input & File Upload -->
-										<div class="setup-form-group" style="margin-bottom: 1rem;">
+										<div class="setup-form-group" id="regBannerUploadHost" style="margin-bottom: 1rem;">
 											<label>Form Header Banner Image</label>
-											<div style="display: flex; gap: 0.5rem;">
-												<input type="file" id="fileBannerInput" accept="image/*" style="display: none;" />
-												<button type="button" id="btnUploadBannerFile" style="background: #ffffff; border: 1.5px solid #2563eb; color: #2563eb; font-weight: 700; border-radius: 8px; padding: 0 0.9rem; height: 42px; font-size: 0.85rem; cursor: pointer; white-space: nowrap;">
+											<div class="reg-image-upload-row">
+												<input type="file" id="fileBannerInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" style="display: none;" />
+												<button type="button" id="btnUploadBannerFile" class="reg-upload-btn">
 													Upload Banner
 												</button>
-												<input type="text" id="themeBannerUrl" class="setup-input" placeholder="or enter Image URL..." style="font-size: 0.85rem; flex: 1;" />
-												<button type="button" id="btnApplyPresetBanner" style="background: #eff6ff; border: 1.5px solid #bfdbfe; color: #2563eb; font-weight: 700; border-radius: 8px; padding: 0 0.8rem; font-size: 0.82rem; cursor: pointer; white-space: nowrap;">
+												<input type="text" id="themeBannerUrl" class="setup-input" placeholder="or enter Image URL..." style="font-size: 0.85rem; min-width: 0;" />
+												<button type="button" id="btnApplyPresetBanner" class="reg-preset-btn">
 													Preset
 												</button>
 											</div>
+											<span class="reg-upload-hint">JPG, JPEG, PNG, WEBP · Max 5MB</span>
 										</div>
 
 										<!-- Custom Page Background Image Input & File Upload -->
-										<div class="setup-form-group">
+										<div class="setup-form-group" id="regBgUploadHost">
 											<label>Page Outer Background Image</label>
-											<div style="display: flex; gap: 0.5rem;">
-												<input type="file" id="filePageBgInput" accept="image/*" style="display: none;" />
-												<button type="button" id="btnUploadPageBgFile" style="background: #ffffff; border: 1.5px solid #2563eb; color: #2563eb; font-weight: 700; border-radius: 8px; padding: 0 0.9rem; height: 42px; font-size: 0.85rem; cursor: pointer; white-space: nowrap;">
+											<div class="reg-image-upload-row">
+												<input type="file" id="filePageBgInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" style="display: none;" />
+												<button type="button" id="btnUploadPageBgFile" class="reg-upload-btn">
 													Upload Background
 												</button>
-												<input type="text" id="themePageBgUrl" class="setup-input" placeholder="or enter Image URL..." style="font-size: 0.85rem; flex: 1;" />
+												<input type="text" id="themePageBgUrl" class="setup-input" placeholder="or enter Image URL..." style="font-size: 0.85rem; min-width: 0;" />
+												<span class="reg-preset-spacer" aria-hidden="true"></span>
 											</div>
+											<span class="reg-upload-hint">JPG, JPEG, PNG, WEBP · Max 5MB</span>
 										</div>
 									</div>
 
@@ -1763,8 +1792,8 @@
 		<script src="js/auth.js?v=13"></script>
 		<script src="js/profile.js?v=1"></script>
 		<script src="js/script.js?v=13"></script>
-		<script src="js/form-builder.js?v=20260806_v5"></script>
-		<script src="js/organizer-dashboard.js?v=20260807_v2"></script>
+		<script src="js/form-builder.js?v=20260815_v5"></script>
+		<script src="js/organizer-dashboard.js?v=20260815_v7"></script>
 	</body>
 </html>
 

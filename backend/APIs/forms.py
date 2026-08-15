@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
-from Models import get_db, FormDefinition, FormSubmission
+from Models import get_db, FormDefinition, FormSubmission, EventRegistrationForm
 
 router = APIRouter(prefix="/api/forms", tags=["Dynamic Form Builder"])
 
@@ -56,6 +56,8 @@ def save_form_draft(payload: FormSaveRequest, db: Session = Depends(get_db)):
 		form.form_title = payload.form_title
 		form.form_description = payload.form_description
 		form.schema_json = payload.schema_json
+		if payload.event_id:
+			form.event_id = payload.event_id
 		if payload.theme_json:
 			form.theme_json = payload.theme_json
 		form.updated_at = datetime.utcnow()
@@ -183,6 +185,66 @@ def get_form_by_id(
 	}
 
 
+@router.get("/get-form-by-event")
+def get_form_by_event(
+	event_id: str = Query(..., description="Public event UUID"),
+	db: Session = Depends(get_db),
+):
+	"""Fetch the published registration form for a specific event."""
+	import uuid as _uuid
+
+	# Prefer FormDefinition linked to event_id
+	form = db.query(FormDefinition).filter(
+		FormDefinition.event_id == event_id,
+		FormDefinition.is_published == True,
+	).order_by(FormDefinition.version.desc()).first()
+
+	if not form:
+		form = db.query(FormDefinition).filter(
+			FormDefinition.event_id == event_id,
+		).order_by(FormDefinition.version.desc()).first()
+
+	if form:
+		return {
+			"exists": True,
+			"source": "form_definitions",
+			"form_id": form.id,
+			"event_id": form.event_id,
+			"organizer_email": form.organizer_email,
+			"form_title": form.form_title,
+			"form_description": form.form_description,
+			"version": form.version,
+			"is_published": form.is_published,
+			"schema_json": form.schema_json,
+			"theme_json": form.theme_json or {},
+		}
+
+	# Fallback: host-events registration form table
+	try:
+		eid = _uuid.UUID(event_id)
+		reg = db.query(EventRegistrationForm).filter(
+			EventRegistrationForm.event_id == eid,
+			EventRegistrationForm.published == True,
+		).first()
+		if reg and reg.questions_json:
+			return {
+				"exists": True,
+				"source": "event_registration_forms",
+				"form_id": str(reg.form_id),
+				"event_id": event_id,
+				"form_title": "Event Registration",
+				"form_description": "Please complete the registration form to confirm your booking.",
+				"version": 1,
+				"is_published": True,
+				"schema_json": reg.questions_json,
+				"theme_json": reg.settings_json or {},
+			}
+	except Exception:
+		pass
+
+	raise HTTPException(status_code=404, detail="No published registration form found for this event.")
+
+
 
 
 @router.post("/publish")
@@ -210,6 +272,8 @@ def publish_form(payload: FormSaveRequest, db: Session = Depends(get_db)):
 		form.form_title = payload.form_title
 		form.form_description = payload.form_description
 		form.schema_json = payload.schema_json
+		if payload.event_id:
+			form.event_id = payload.event_id
 		if payload.theme_json:
 			form.theme_json = payload.theme_json
 		form.version += 1

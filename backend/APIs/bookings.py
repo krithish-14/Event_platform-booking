@@ -183,9 +183,13 @@ def create_ticket_booking(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid event ID format.")
 
-    event = db.query(Event).filter(Event.id == ev_uuid).first()
+    event = db.query(Event).filter(
+        Event.id == ev_uuid,
+        Event.is_published == True,
+        Event.is_cancelled == False,
+    ).first()
     if not event:
-        raise HTTPException(status_code=404, detail="Event not found.")
+        raise HTTPException(status_code=404, detail="This event is currently unavailable.")
 
     qty = max(1, payload.quantity)
     calculated_price = payload.total_price if payload.total_price is not None else (event.price * qty)
