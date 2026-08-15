@@ -25,6 +25,7 @@ from Models.form_submissions import FormSubmission
 from Models.host_registration_logs import HostRegistrationLog
 from Models.user_signups import UserSignup
 from Models.user_logins import UserLogin
+from Models.wishlist import WishlistItem
 
 __all__ = [
     "Base",
@@ -54,4 +55,5 @@ __all__ = [
     "HostRegistrationLog",
     "UserSignup",
     "UserLogin",
+    "WishlistItem",
 ]

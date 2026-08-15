@@ -3,7 +3,7 @@ Event CRUD routes.
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 from uuid import UUID
 
@@ -106,6 +106,7 @@ class EventResponse(BaseModel):
     highlights: Optional[Any] = None
     ticket_types: Optional[Any] = None
     terms: Optional[str] = None
+    policies: Optional[Any] = None
     is_published: bool
     is_cancelled: bool
     customer_id: Optional[str] = None
@@ -128,8 +129,76 @@ def _parse_json_field(val: Any) -> Any:
     return []
 
 
+def _as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Public catalog datetimes are stored naive UTC; expose them as aware UTC for the API."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+POLICY_FIELD_LABELS = [
+    ("event_policy", "Event Policy"),
+    ("cancellation_policy", "Cancellation Policy"),
+    ("refund_policy", "Refund Policy"),
+    ("terms_and_conditions", "Terms & Conditions"),
+    ("privacy_policy", "Privacy Policy"),
+    ("age_policy", "Age / Entry Policy"),
+]
+
+
+def _normalize_policies(raw: Any) -> Optional[dict]:
+    if not raw:
+        return None
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return None
+    if not isinstance(raw, dict):
+        return None
+    cleaned = {}
+    for key, _label in POLICY_FIELD_LABELS:
+        val = raw.get(key)
+        if val and str(val).strip():
+            cleaned[key] = str(val).strip()
+    return cleaned or None
+
+
+def _format_policies_text(policies: Optional[dict]) -> Optional[str]:
+    if not policies:
+        return None
+    parts = []
+    for key, label in POLICY_FIELD_LABELS:
+        val = policies.get(key)
+        if val:
+            parts.append(f"{label}:\n{val}")
+    return "\n\n".join(parts) if parts else None
+
+
+def _host_policies_for_event(db: Session, event_id) -> Optional[dict]:
+    from Models.event_management import EventManagement
+    host = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
+    if not host:
+        try:
+            host = db.query(EventManagement).filter(EventManagement.event_id == str(event_id)).first()
+        except Exception:
+            host = None
+    if not host:
+        return None
+    return _normalize_policies(getattr(host, "policies_json", None))
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
-def _event_to_response(event: Event, distance_km: Optional[float] = None) -> EventResponse:
+def _event_to_response(
+    event: Event,
+    distance_km: Optional[float] = None,
+    policies: Optional[dict] = None,
+) -> EventResponse:
+    terms = event.terms
+    if not terms and policies:
+        terms = _format_policies_text(policies)
     return EventResponse(
         id=str(event.id),
         title=event.title,
@@ -141,8 +210,8 @@ def _event_to_response(event: Event, distance_km: Optional[float] = None) -> Eve
         distance_km=round(distance_km, 2) if distance_km is not None else None,
         category=event.category,
         image_url=event.image_url,
-        start_date=event.start_date,
-        end_date=event.end_date,
+        start_date=_as_utc(event.start_date),
+        end_date=_as_utc(event.end_date),
         price=event.price,
         capacity=event.capacity,
         event_format=event.event_format,
@@ -152,11 +221,12 @@ def _event_to_response(event: Event, distance_km: Optional[float] = None) -> Eve
         performers=_parse_json_field(event.performers),
         highlights=_parse_json_field(event.highlights),
         ticket_types=_parse_json_field(event.ticket_types),
-        terms=event.terms,
+        terms=terms,
+        policies=policies or None,
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
         customer_id=getattr(event, "customer_id", None) or "CUST-SYSTEM",
-        created_at=event.created_at or datetime.utcnow(),
+        created_at=_as_utc(event.created_at) or datetime.now(timezone.utc),
     )
 
 
@@ -225,7 +295,16 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
         print(f"[EVENT DETAILS] unavailable event_id={event_id}", flush=True)
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     print(f"[EVENT DETAILS] event_id={event_id} title={event.title!r} published={event.is_published}", flush=True)
-    return _event_to_response(event)
+    policies = _host_policies_for_event(db, event.id)
+    if policies:
+        formatted = _format_policies_text(policies)
+        if formatted and event.terms != formatted:
+            event.terms = formatted
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+    return _event_to_response(event, policies=policies)
 
 
 @router.get("/", response_model=List[EventResponse])
@@ -269,7 +348,8 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
     event = get_public_event_by_id(db, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
-    return _event_to_response(event)
+    policies = _host_policies_for_event(db, event.id)
+    return _event_to_response(event, policies=policies)
 
 
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)

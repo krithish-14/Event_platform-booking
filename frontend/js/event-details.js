@@ -98,9 +98,13 @@ async function loadRecommendedEvents(currentId) {
             const title = EP.escapeHtml(ev.title || 'Event');
             const venue = EP.escapeHtml(ev.venue || ev.location || '');
             const price = EP.formatPrice(ev.price);
+            const heart = EP.wishlistHeartButton ? EP.wishlistHeartButton(ev.id) : '';
             return `
                 <a href="${url}" class="rec-card">
-                    <img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${EP.PLACEHOLDER_IMAGE}'" />
+                    <div class="rec-card-media">
+                        <img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${EP.PLACEHOLDER_IMAGE}'" />
+                        ${heart}
+                    </div>
                     <div class="rec-card-body">
                         <h3 class="rec-card-title">${title}</h3>
                         <p class="rec-card-meta">📍 ${venue}</p>
@@ -109,6 +113,9 @@ async function loadRecommendedEvents(currentId) {
                 </a>
             `;
         }).join('');
+        if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === 'function') {
+            window.JodWishlist.refreshButtons(grid);
+        }
     } catch (_) {
         if (block) block.style.display = 'none';
     }
@@ -179,9 +186,6 @@ function renderEventDOM(event) {
 
     document.title = `${event.title || 'Event Details'} — JOD Events`;
 
-    const heroBadgeEl = document.getElementById('eventHeroBadge');
-    if (heroBadgeEl) heroBadgeEl.textContent = themeConfig.heroBadge;
-
     const perfTitleEl = document.getElementById('performersTitle');
     if (perfTitleEl) perfTitleEl.textContent = themeConfig.performersTitle;
 
@@ -194,29 +198,34 @@ function renderEventDOM(event) {
     const venueEl = document.getElementById('headerVenue');
     if (venueEl) venueEl.textContent = `📍 ${event.venue || event.location || 'Event Venue'}`;
 
-    const catEl = document.getElementById('headerCategory');
-    if (catEl) catEl.textContent = `${themeConfig.icon || '🎟️'} ${event.category || 'Event'}`;
-
     const imgEl = document.getElementById('eventImage');
     if (imgEl) {
         imgEl.src = EP ? EP.resolveImage(event.image_url) : (event.image_url || 'images/hero-event.jpg');
         imgEl.alt = event.title || 'Event Banner';
     }
 
-    const catTagEl = document.getElementById('eventCategoryTag');
-    if (catTagEl) catTagEl.textContent = event.category || 'Event';
+    const wishBtn = document.getElementById('btnWishlist');
+    if (wishBtn && event.id) {
+        wishBtn.setAttribute('data-wishlist-event', String(event.id));
+        if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === 'function') {
+            window.JodWishlist.refreshButtons();
+        }
+    }
 
     const formatTagEl = document.getElementById('eventFormatTag');
     if (formatTagEl) formatTagEl.textContent = event.event_format || 'In-person';
 
-    const infoFormatBadge = document.getElementById('infoFormatBadge');
-    if (infoFormatBadge) infoFormatBadge.textContent = event.event_format || 'In-person';
+    const catTagEl = document.getElementById('eventCategoryTag');
+    if (catTagEl) {
+        const cat = (event.category || '').trim();
+        catTagEl.textContent = cat || 'Sport';
+        catTagEl.style.display = cat ? '' : 'none';
+    }
 
     const descEl = document.getElementById('eventDescription');
     if (descEl) descEl.textContent = event.description || 'Event details will be shared by the host.';
 
-    const interestedEl = document.getElementById('interestedText');
-    if (interestedEl) interestedEl.textContent = event.category ? `${event.category} event` : 'Published event';
+    renderEventPolicies(event, EP);
 
     const scheduleEl = document.getElementById('infoSchedule');
     if (scheduleEl && EP) {
@@ -243,9 +252,9 @@ function renderEventDOM(event) {
         EP.updateCountdownElement(countdownEl, event.start_date, event.end_date);
     }
 
-    const startingPrice = event.price || 0;
+    const startingPrice = lowestTicketPrice(event);
     currentSelectedPrice = startingPrice;
-    updatePriceDisplays(startingPrice);
+    setStartingPriceDisplay(startingPrice);
 
     const perfSection = document.getElementById('performersSection');
     if (event.performers && Array.isArray(event.performers) && event.performers.length > 0) {
@@ -296,9 +305,9 @@ function renderEventDOM(event) {
             const first = event.ticket_types[0];
             if (first) {
                 currentSelectedTicketType = first.name || currentSelectedTicketType;
-                currentSelectedPrice = first.price || currentSelectedPrice;
-                updatePriceDisplays(currentSelectedPrice);
+                currentSelectedPrice = Number(first.price);
             }
+            setStartingPriceDisplay(lowestTicketPrice(event));
         }
     } else {
         const tList = document.getElementById('ticketsList');
@@ -314,16 +323,65 @@ function renderEventDOM(event) {
             `;
         }
     }
+}
 
-    const termsList = document.getElementById('termsList');
-    if (event.terms && termsList) {
-        const lines = event.terms.split('\n').filter(l => l.trim().length > 0);
-        termsList.innerHTML = lines.length
-            ? lines.map(l => `<li>${l}</li>`).join('')
-            : '<li>Standard event terms apply. Contact the organizer for details.</li>';
-    } else if (termsList) {
-        termsList.innerHTML = '<li>Standard event terms apply. Contact the organizer for details.</li>';
+function renderEventPolicies(event, EP) {
+    const section = document.getElementById('policiesSection');
+    const container = document.getElementById('eventPolicies');
+    if (!section || !container) return;
+
+    const labels = [
+        ['event_policy', 'Event Policy'],
+        ['cancellation_policy', 'Cancellation Policy'],
+        ['refund_policy', 'Refund Policy'],
+        ['terms_and_conditions', 'Terms & Conditions'],
+        ['privacy_policy', 'Privacy Policy'],
+        ['age_policy', 'Age / Entry Policy']
+    ];
+    const escape = (EP && typeof EP.escapeHtml === 'function')
+        ? EP.escapeHtml
+        : (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const blocks = [];
+    const policies = event && event.policies && typeof event.policies === 'object' && !Array.isArray(event.policies)
+        ? event.policies
+        : null;
+
+    if (policies) {
+        labels.forEach(([key, label]) => {
+            const val = String(policies[key] || '').trim();
+            if (val) blocks.push({ label, val });
+        });
     }
+
+    if (!blocks.length && event && event.terms) {
+        const chunks = String(event.terms).split(/\n\s*\n/).map((c) => c.trim()).filter(Boolean);
+        chunks.forEach((chunk) => {
+            const nl = chunk.indexOf('\n');
+            if (nl > 0 && chunk.slice(0, nl).trim().endsWith(':')) {
+                blocks.push({
+                    label: chunk.slice(0, nl).trim().replace(/:$/, ''),
+                    val: chunk.slice(nl + 1).trim()
+                });
+            } else {
+                blocks.push({ label: 'Event Policy', val: chunk });
+            }
+        });
+    }
+
+    if (!blocks.length) {
+        section.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+
+    section.style.display = '';
+    container.innerHTML = blocks.map((b) => `
+        <div class="policy-block">
+            <h3 class="policy-block-title">${escape(b.label)}</h3>
+            <p class="policy-block-body">${escape(b.val)}</p>
+        </div>
+    `).join('');
 }
 
 function selectTicketOption(element, price, ticketName) {
@@ -340,19 +398,27 @@ function selectTicketOption(element, price, ticketName) {
             currentSelectedTicketType = nameEl.textContent.trim();
         }
     }
-    updatePriceDisplays(price);
 }
 
-function updatePriceDisplays(price) {
-    const displayPrice = document.getElementById('displayPrice');
-    if (displayPrice) {
-        displayPrice.textContent = Number(price) <= 0 ? 'Free' : `₹${Number(price).toLocaleString('en-IN')}`;
-    }
+function lowestTicketPrice(event) {
+    const types = event && Array.isArray(event.ticket_types) ? event.ticket_types : [];
+    const prices = types
+        .map((t) => Number(t && t.price))
+        .filter((n) => Number.isFinite(n));
+    if (prices.length) return Math.min(...prices);
+    const fallback = Number(event && event.price);
+    return Number.isFinite(fallback) ? fallback : 0;
+}
 
+function formatTicketPrice(price) {
+    return Number(price) <= 0 ? 'Free' : `₹${Number(price).toLocaleString('en-IN')}`;
+}
+
+function setStartingPriceDisplay(price) {
+    const displayPrice = document.getElementById('displayPrice');
+    if (displayPrice) displayPrice.textContent = formatTicketPrice(price);
     const mobilePrice = document.getElementById('mobileStickyPrice');
-    if (mobilePrice) {
-        mobilePrice.textContent = Number(price) <= 0 ? 'Free' : `₹${Number(price).toLocaleString('en-IN')}`;
-    }
+    if (mobilePrice) mobilePrice.textContent = formatTicketPrice(price);
 }
 
 function copyEventShareLink() {

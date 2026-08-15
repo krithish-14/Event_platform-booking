@@ -169,6 +169,9 @@
 		if (emptyState) emptyState.hidden = true;
 
 		grid.innerHTML = events.map((item) => EP ? EP.buildCategoryCard(item) : "").join("");
+		if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === "function") {
+			window.JodWishlist.refreshButtons(grid);
+		}
 	}
 
 	async function updateAndRender() {

@@ -79,7 +79,12 @@
 
 	function parseEventMs(iso) {
 		if (!iso) return null;
-		const ms = new Date(iso).getTime();
+		let s = String(iso).trim();
+		if (!s) return null;
+		if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s) && !/[zZ]|[+-]\d{2}:\d{2}$/.test(s)) {
+			s = s.length === 16 ? s + ":00+05:30" : s + "+05:30";
+		}
+		const ms = new Date(s).getTime();
 		return Number.isFinite(ms) ? ms : null;
 	}
 
@@ -151,6 +156,13 @@
 		return res.json();
 	}
 
+	function wishlistHeartButton(eventId) {
+		const id = escapeHtml(String(eventId || ""));
+		return `<button type="button" class="wishlist-heart-btn" data-wishlist-event="${id}" aria-label="Add to wishlist" title="Add to wishlist" aria-pressed="false">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+		</button>`;
+	}
+
 	function buildCarouselCard(event, delayClass) {
 		const id = event.id;
 		const detailsUrl = eventDetailsUrl(event);
@@ -171,6 +183,7 @@
 				<div class="event-card-image">
 					<img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
 					<span class="card-category">${category}</span>
+					${wishlistHeartButton(id)}
 					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}">&#10024; --d : --h : --m</span>` : ""}
 				</div>
 				<div class="event-card-body">
@@ -201,10 +214,11 @@
 
 		return `
 			<article class="cat-event-card" data-event-id="${event.id}" data-target-url="${targetUrl}"
-				onclick="if(window.JodAuth && !window.JodAuth.isLoggedIn()){event.preventDefault();event.stopPropagation();window.JodAuth.openGuestAuthModal('${targetUrl}');}else{window.location.href='${targetUrl}';}">
+				onclick="window.location.href='${targetUrl}';">
 				<div class="cat-card-image">
 					<img src="${imgUrl}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
 					<span class="cat-card-badge">${category}</span>
+					${wishlistHeartButton(event.id)}
 				</div>
 				<div class="cat-card-body">
 					<h3 class="cat-card-title">${title}</h3>
@@ -241,7 +255,7 @@
 		const title = escapeHtml(event.title || "Featured Event");
 		const category = escapeHtml(event.category || "Event");
 		const img = resolveImage(event.image_url);
-		const dateStr = formatDateIST(event.start_date);
+		const dateStr = formatDateTimeIST(event.start_date);
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
 
 		if (heroImg) heroImg.src = img;
@@ -256,17 +270,25 @@
 		if (heroCountdown && event.start_date) {
 			heroCountdown.style.display = "";
 			heroCountdown.dataset.countdown = event.start_date;
+			if (event.end_date) heroCountdown.dataset.countdownEnd = event.end_date;
+			else delete heroCountdown.dataset.countdownEnd;
+			ensureCountdownGrid(heroCountdown);
 			updateCountdownElement(heroCountdown, event.start_date, event.end_date);
+		}
+		const featuredLabel = document.querySelector(".inline-featured-label");
+		if (featuredLabel) {
+			const phase = getEventPhase(event);
+			if (phase === "live") {
+				featuredLabel.innerHTML = '<span class="pulse-dot"></span> Featured - Live Now';
+			} else if (phase === "ended") {
+				featuredLabel.innerHTML = '<span class="pulse-dot"></span> Featured - Ended';
+			} else {
+				featuredLabel.innerHTML = '<span class="pulse-dot"></span> Featured - Upcoming';
+			}
 		}
 		if (heroCta) {
 			heroCta.href = url;
-			heroCta.onclick = function (e) {
-				if (global.JodAuth && !global.JodAuth.isLoggedIn()) {
-					e.preventDefault();
-					e.stopPropagation();
-					global.JodAuth.openGuestAuthModal(url);
-				}
-			};
+			heroCta.onclick = null;
 		}
 		if (featuredImg) {
 			featuredImg.src = img;
@@ -274,12 +296,26 @@
 		}
 		if (featuredLink) {
 			featuredLink.href = url;
-			featuredLink.onclick = heroCta ? heroCta.onclick : null;
+			featuredLink.onclick = null;
 		}
+	}
+
+	function ensureCountdownGrid(el) {
+		if (!el || el.querySelector("[data-days]")) return;
+		el.innerHTML = `
+			<div><strong data-days>--</strong><span>Days</span></div>
+			<div><strong data-hours>--</strong><span>Hours</span></div>
+			<div><strong data-minutes>--</strong><span>Mins</span></div>
+			<div><strong data-seconds>--</strong><span>Secs</span></div>
+		`;
 	}
 
 	function updateCountdownElement(el, startIso, endIso) {
 		if (!el || !startIso) return;
+		if (el.hasAttribute("data-summary-countdown")) {
+			updateSummaryCountdown(el, startIso, endIso);
+			return;
+		}
 		const phase = getEventPhase({ start_date: startIso, end_date: endIso });
 		const startMs = parseEventMs(startIso);
 
@@ -292,6 +328,7 @@
 			return;
 		}
 
+		ensureCountdownGrid(el);
 		const parts = getCountdownParts(startMs);
 		const dayEl = el.querySelector("[data-days]");
 		const hourEl = el.querySelector("[data-hours]");
@@ -301,6 +338,26 @@
 		if (hourEl) hourEl.textContent = pad(parts.hours);
 		if (minEl) minEl.textContent = pad(parts.minutes);
 		if (secEl) secEl.textContent = pad(parts.seconds);
+	}
+
+	function updateSummaryCountdown(el, startIso, endIso) {
+		if (!el) return;
+		const phase = getEventPhase({ start_date: startIso, end_date: endIso });
+		if (phase === "ended") {
+			el.textContent = "Ended";
+			return;
+		}
+		if (phase === "live") {
+			el.textContent = "Live Now";
+			return;
+		}
+		const startMs = parseEventMs(startIso);
+		if (!startMs) {
+			el.textContent = "--d --h --m";
+			return;
+		}
+		const parts = getCountdownParts(startMs);
+		el.textContent = `${parts.days}d ${pad(parts.hours)}h ${pad(parts.minutes)}m ${pad(parts.seconds)}s`;
 	}
 
 	function updateCardCountdownElement(el, startIso) {
@@ -317,10 +374,16 @@
 	function startCountdownTicker() {
 		function tick() {
 			document.querySelectorAll("[data-countdown]").forEach((el) => {
+				if (el.hasAttribute("data-summary-countdown")) return;
 				updateCountdownElement(el, el.dataset.countdown, el.dataset.countdownEnd);
 			});
 			document.querySelectorAll("[data-card-countdown]").forEach((el) => {
 				updateCardCountdownElement(el, el.dataset.cardCountdown);
+			});
+			document.querySelectorAll("[data-summary-countdown]").forEach((el) => {
+				const iso = el.getAttribute("data-summary-countdown") || "";
+				if (!iso || iso.indexOf("-") < 0) return;
+				updateSummaryCountdown(el, iso, el.dataset.countdownEnd || "");
 			});
 		}
 		tick();
@@ -375,7 +438,18 @@
 		const titleEl = bar.querySelector(".announcement-title");
 		if (titleEl) titleEl.textContent = event.title || "";
 		const summary = bar.querySelector("[data-summary-countdown]");
-		if (summary) summary.dataset.countdown = event.start_date || "";
+		if (summary) {
+			if (event.start_date) {
+				summary.setAttribute("data-summary-countdown", event.start_date);
+				if (event.end_date) summary.dataset.countdownEnd = event.end_date;
+				else delete summary.dataset.countdownEnd;
+				delete summary.dataset.countdown;
+				updateSummaryCountdown(summary, event.start_date, event.end_date);
+			} else {
+				summary.removeAttribute("data-summary-countdown");
+				summary.textContent = "--d --h --m";
+			}
+		}
 		const link = bar.querySelector(".gold-link");
 		if (link) link.href = eventDetailsUrl(event);
 		bar.classList.add("has-published-event");
@@ -414,7 +488,7 @@
 			const desc = (event.description || "").trim();
 			descEl.textContent = desc ? desc.slice(0, 140) : (event.category ? `${event.category} event` : "");
 		}
-		if (dateEl) dateEl.textContent = "📅 " + formatDateIST(event.start_date);
+		if (dateEl) dateEl.textContent = "📅 " + formatDateTimeIST(event.start_date);
 		if (venueEl) venueEl.textContent = "📍 " + (event.venue || event.location || "Venue TBA");
 		if (badgeEl) badgeEl.textContent = event.category ? `✨ ${event.category}` : "✨ Upcoming Event";
 		if (countdownEl) {
@@ -429,12 +503,8 @@
 		}
 		if (ctaEl) {
 			ctaEl.href = url;
-			ctaEl.onclick = function (e) {
+			ctaEl.onclick = function () {
 				if (typeof global.JodCloseFeaturedModal === "function") global.JodCloseFeaturedModal();
-				if (global.JodAuth && !global.JodAuth.isLoggedIn()) {
-					e.preventDefault();
-					global.JodAuth.openGuestAuthModal(url);
-				}
 			};
 		}
 
@@ -481,6 +551,7 @@
 		startCountdownTicker,
 		showLoadingState,
 		showEmptyState,
-		showErrorState
+		showErrorState,
+		wishlistHeartButton
 	};
 })(window);

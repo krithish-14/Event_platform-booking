@@ -463,6 +463,7 @@
 	}
 
 	function updateTimers() {
+		if (window.JodEventsPublic) return;
 		document.querySelectorAll("[data-countdown]").forEach(updateCountdown);
 		document.querySelectorAll("[data-card-countdown]").forEach(updateCardCountdown);
 		const summary = document.querySelector("[data-summary-countdown]");
@@ -597,35 +598,6 @@
 				closeGuestAuthModal();
 			}
 		});
-	}
-
-	const upcomingSection = document.getElementById("upcoming");
-	if (upcomingSection) {
-		upcomingSection.addEventListener("click", (e) => {
-			const card = e.target.closest(".event-card");
-			if (!card) return;
-
-			const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")
-				? window.JodAuth.isLoggedIn()
-				: (typeof DefaultAuth !== "undefined" && DefaultAuth.isLoggedIn ? DefaultAuth.isLoggedIn() : false);
-
-			if (!isAuth) {
-				e.preventDefault();
-				e.stopPropagation();
-				e.stopImmediatePropagation();
-
-				const linkEl = card.querySelector("a.card-link");
-				let targetUrl = linkEl ? linkEl.getAttribute("href") : null;
-				if (!targetUrl) {
-					const onclickAttr = card.getAttribute("onclick") || "";
-					const match = onclickAttr.match(/href=['"]([^'"]+)['"]/);
-					if (match) targetUrl = match[1];
-				}
-				if (!targetUrl) targetUrl = "event-details.html";
-
-				openGuestAuthModal(targetUrl);
-			}
-		}, true);
 	}
 
 	const year = document.querySelector("[data-year]");

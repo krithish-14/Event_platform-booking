@@ -16,6 +16,7 @@ from APIs.tickets import router as tickets_router
 from APIs.organizers import router as organizers_router
 from APIs.forms import router as forms_router
 from APIs.host_events_api import router as host_events_router
+from APIs.wishlist import router as wishlist_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
@@ -95,6 +96,7 @@ app.include_router(bookings_router,    prefix="/api/bookings",    tags=["Booking
 app.include_router(tickets_router,     prefix="/api/tickets",     tags=["Tickets"])
 app.include_router(organizers_router,  prefix="/api/organizers",  tags=["Organizers"])
 app.include_router(host_events_router, prefix="/api/host-events", tags=["Host Events"])
+app.include_router(wishlist_router,    prefix="/api/wishlist",    tags=["Wishlist"])
 app.include_router(forms_router)
 
 

@@ -5,7 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Your saved events and wishlist on JOD Events." />
 	<title>Your Wishlist | JOD Events</title>
-	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/style.css?v=17" />
 	<link rel="stylesheet" href="css/responsive.css?v=13" />
 	<style>
 		.page-hero {
@@ -149,42 +149,8 @@
 			<section class="wishlist-section">
 				<div class="container">
 					<div class="wishlist-grid" id="wishlistGrid">
-						<!-- Wishlist Item 1 -->
-						<div class="wishlist-card">
-							<div class="card-media">
-								<img src="images/JOD Events Logo.png" alt="Summit" />
-								<button class="card-remove-btn" title="Remove from wishlist" onclick="removeWishlistItem(this)">&times;</button>
-							</div>
-							<div class="card-body">
-								<h3>Chennai Business Leaders Summit 2026</h3>
-								<div class="card-meta">
-									<span>📅 Aug 15, 2026</span>
-									<span>📍 ITC Grand Chola, Chennai</span>
-								</div>
-								<div class="card-footer">
-									<div class="card-price">From ₹2,499</div>
-									<a href="index.html#upcoming" class="button button-sm button-primary">Book Now &rarr;</a>
-								</div>
-							</div>
-						</div>
-
-						<!-- Wishlist Item 2 -->
-						<div class="wishlist-card">
-							<div class="card-media">
-								<img src="images/JOD Events Logo.png" alt="Music Fest" />
-								<button class="card-remove-btn" title="Remove from wishlist" onclick="removeWishlistItem(this)">&times;</button>
-							</div>
-							<div class="card-body">
-								<h3>South India Music & Cultural Festival</h3>
-								<div class="card-meta">
-									<span>📅 Sep 28, 2026</span>
-									<span>📍 YMCA Grounds, Chennai</span>
-								</div>
-								<div class="card-footer">
-									<div class="card-price">From ₹999</div>
-									<a href="index.html#upcoming" class="button button-sm button-primary">Book Now &rarr;</a>
-								</div>
-							</div>
+						<div class="empty-wishlist" id="wishlistLoading">
+							<h3>Loading your wishlist…</h3>
 						</div>
 					</div>
 				</div>
@@ -196,31 +162,84 @@
 
 	<script src="js/include.js?v=10"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=10"></script>
+	<script src="js/auth.js?v=16"></script>
 	<script src="js/profile.js?v=1"></script>
 	<script src="js/location.js?v=2"></script>
-	<script src="js/script.js?v=13"></script>
+	<script src="js/script.js?v=19"></script>
+	<script src="js/events-public.js?v=7"></script>
+	<script src="js/wishlist.js?v=1"></script>
 	<script>
-		// Auth check
-		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
-			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
-			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
-		}
-		function removeWishlistItem(btn) {
-			const card = btn.closest(".wishlist-card");
-			card.remove();
+		(async function loadWishlistPage() {
 			const grid = document.getElementById("wishlistGrid");
-			if (grid.children.length === 0) {
-				grid.innerHTML = `
+			const EP = window.JodEventsPublic;
+			const WL = window.JodWishlist;
+
+			function emptyHtml() {
+				return `
 					<div class="empty-wishlist">
 						<div class="empty-wishlist-icon">💖</div>
 						<h3>Your wishlist is empty</h3>
-						<p style="color:var(--muted);margin-bottom:1.5rem;">Explore upcoming events and save your favorites!</p>
+						<p style="color:var(--muted);margin-bottom:1.5rem;">Explore upcoming events and tap the heart to save your favorites.</p>
 						<a href="index.html#upcoming" class="button button-primary">Explore Events &rarr;</a>
 					</div>`;
 			}
-		}
+
+			if (!window.JodAuth || !window.JodAuth.isLoggedIn()) {
+				const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+				try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+				window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
+				return;
+			}
+
+			const items = WL ? await WL.listItems() : [];
+			if (!items.length) {
+				grid.innerHTML = emptyHtml();
+				return;
+			}
+
+			grid.innerHTML = items.map((item) => {
+				const ev = item.event || { id: item.event_id };
+				const id = ev.id || item.event_id;
+				const url = EP ? EP.eventDetailsUrl(ev) : `event-details.html?id=${encodeURIComponent(id)}`;
+				const img = EP ? EP.resolveImage(ev.image_url) : "images/hero-event.jpg";
+				const title = EP ? EP.escapeHtml(ev.title || "Saved event") : (ev.title || "Saved event");
+				const dateStr = EP ? EP.formatDateIST(ev.start_date) : "";
+				const venue = EP ? EP.escapeHtml(ev.venue || ev.location || "Venue TBA") : (ev.venue || "Venue TBA");
+				const price = EP ? EP.formatPrice(ev.price) : "";
+				return `
+					<div class="wishlist-card" data-event-id="${id}">
+						<div class="card-media">
+							<img src="${img}" alt="${title}" />
+							<button type="button" class="card-remove-btn wishlist-heart-btn is-saved" data-wishlist-event="${id}" title="Remove from wishlist" aria-label="Remove from wishlist">
+								<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+							</button>
+						</div>
+						<div class="card-body">
+							<h3>${title}</h3>
+							<div class="card-meta">
+								<span>📅 ${dateStr}</span>
+								<span>📍 ${venue}</span>
+							</div>
+							<div class="card-footer">
+								<div class="card-price">${price}</div>
+								<a href="${url}" class="button button-sm button-primary">View Details &rarr;</a>
+							</div>
+						</div>
+					</div>`;
+			}).join("");
+
+			grid.addEventListener("click", (e) => {
+				const btn = e.target.closest("[data-wishlist-event]");
+				if (!btn) return;
+				setTimeout(() => {
+					if (WL && !WL.isSaved(btn.getAttribute("data-wishlist-event"))) {
+						const card = btn.closest(".wishlist-card");
+						if (card) card.remove();
+						if (!grid.querySelector(".wishlist-card")) grid.innerHTML = emptyHtml();
+					}
+				}, 400);
+			});
+		})();
 	</script>
 </body>
 </html>

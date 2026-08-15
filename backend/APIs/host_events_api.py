@@ -169,12 +169,15 @@ def _parse_incoming_datetime(value):
     if dt.tzinfo is None:
         return dt.replace(microsecond=0)
     return dt.astimezone(IST).replace(tzinfo=None, microsecond=0)
-    """Parse HH:MM or h:mm AM/PM into (hour, minute)."""
+
+
+def _parse_time_components(time_str):
+    """Parse HH:MM, HH:MM:SS, or h:mm AM/PM into (hour, minute)."""
     import re
     if not time_str:
         return None
     t = str(time_str).strip().upper()
-    m = re.match(r"^(\d{1,2}):(\d{2})\s*(AM|PM)?$", t)
+    m = re.match(r"^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$", t)
     if not m:
         return None
     hour, minute = int(m.group(1)), int(m.group(2))
@@ -186,12 +189,20 @@ def _parse_incoming_datetime(value):
     return hour, minute
 
 
-def _resolve_event_start_datetime(event_mgt: EventManagement):
-    """Combine host date/time as Asia/Kolkata and return naive UTC."""
-    fallback = event_mgt.created_at or datetime.utcnow()
+def _aware_ist(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=IST)
+    return dt.astimezone(IST)
 
+
+def _to_naive_utc(dt: datetime) -> datetime:
+    return _aware_ist(dt).astimezone(UTC).replace(tzinfo=None, microsecond=0)
+
+
+def _resolve_event_start_datetime(event_mgt: EventManagement):
+    """Combine host date/time as Asia/Kolkata and return naive UTC. Never uses wall-clock now."""
     if not event_mgt.event_start_date:
-        return fallback
+        return None
 
     try:
         raw = event_mgt.event_start_date
@@ -206,17 +217,16 @@ def _resolve_event_start_datetime(event_mgt: EventManagement):
                     s = s + "+05:30"
             dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
 
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST)
-
+        dt = _aware_ist(dt)
         tc = _parse_time_components(getattr(event_mgt, "event_start_time", None))
         if tc:
-            hour, minute = tc
-            dt = dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
-
-        return dt.astimezone(UTC).replace(tzinfo=None)
+            dt = dt.replace(hour=tc[0], minute=tc[1], second=0, microsecond=0)
+        return _to_naive_utc(dt)
     except Exception:
-        return fallback
+        raw = event_mgt.event_start_date
+        if isinstance(raw, datetime):
+            return _to_naive_utc(raw)
+        return None
 
 
 def _resolve_event_end_datetime(event_mgt: EventManagement):
@@ -250,6 +260,36 @@ def _effective_end_datetime(event: EventManagement):
     if start:
         return start + timedelta(hours=4)
     return None
+
+
+def apply_host_schedule_to_public_events(db: Session, events) -> None:
+    """Overwrite public catalog start/end with the host's saved datetime (source of truth)."""
+    if not events:
+        return
+    event_list = events if isinstance(events, list) else [events]
+    ids = [e.id for e in event_list if e is not None]
+    if not ids:
+        return
+    rows = db.query(EventManagement).filter(EventManagement.event_id.in_(ids)).all()
+    by_id = {str(r.event_id): r for r in rows}
+    changed = False
+    for public_event in event_list:
+        host = by_id.get(str(public_event.id))
+        if not host or not host.event_start_date:
+            continue
+        start = _resolve_event_start_datetime(host)
+        end = _effective_end_datetime(host)
+        if start and public_event.start_date != start:
+            public_event.start_date = start
+            changed = True
+        if end is not None and public_event.end_date != end:
+            public_event.end_date = end
+            changed = True
+    if changed:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
 
 def _to_datetime_local_ist(stored: Optional[datetime]) -> Optional[str]:
@@ -395,17 +435,80 @@ def _extract_min_ticket_price(event_mgt: EventManagement) -> float:
     return min(prices) if prices else 0.0
 
 
-def sync_unpublished_event_from_catalog(db: Session, event_mgt: EventManagement):
-    """Hide or cancel a public catalog row when host unpublishes."""
+def _public_event_id_matches(db, Event, event_id):
+    """Find public catalog rows by UUID or string id."""
+    found = {}
+    candidates = [event_id]
+    try:
+        candidates.append(uuid.UUID(str(event_id)))
+    except (ValueError, TypeError, AttributeError):
+        pass
+    candidates.append(str(event_id))
+    for candidate in candidates:
+        try:
+            row = db.query(Event).filter(Event.id == candidate).first()
+        except Exception:
+            row = None
+        if row:
+            found[str(row.id)] = row
+    return list(found.values())
+
+
+def hide_public_catalog_events(
+    db: Session,
+    event_ids=None,
+    customer_id: Optional[str] = None,
+    host_id: Optional[str] = None,
+    cancel: bool = True,
+) -> int:
+    """Unpublish (and optionally cancel) matching public `events` rows."""
     from Models.event import Event
 
-    public_event = db.query(Event).filter(Event.id == event_mgt.event_id).first()
-    if not public_event:
-        return
+    clauses = []
+    for eid in event_ids or []:
+        clauses.append(Event.id == eid)
+        try:
+            clauses.append(Event.id == uuid.UUID(str(eid)))
+        except (ValueError, TypeError, AttributeError):
+            pass
+        clauses.append(Event.id == str(eid))
+    if customer_id:
+        clauses.append(Event.customer_id == customer_id)
+    if host_id:
+        clauses.append(Event.host_id == host_id)
+    if not clauses:
+        return 0
+
+    rows = db.query(Event).filter(or_(*clauses)).all()
+    for public_event in rows:
+        public_event.is_published = False
+        if cancel:
+            public_event.is_cancelled = True
+        public_event.updated_at = datetime.utcnow()
+    return len(rows)
+
+
+def sync_unpublished_event_from_catalog(db: Session, event_mgt: EventManagement, cancel: bool = False):
+    """Hide or cancel a public catalog row when host unpublishes or cancels."""
+    from Models.event import Event
+
     status = (event_mgt.event_status or "draft").lower()
-    public_event.is_published = False
-    if status == "cancelled":
-        public_event.is_cancelled = True
+    should_cancel = cancel or status in ("cancelled",)
+    rows = _public_event_id_matches(db, Event, event_mgt.event_id)
+    if not rows:
+        hide_public_catalog_events(
+            db,
+            event_ids=[event_mgt.event_id],
+            customer_id=event_mgt.customer_id,
+            host_id=event_mgt.host_id,
+            cancel=should_cancel,
+        )
+    else:
+        for public_event in rows:
+            public_event.is_published = False
+            if should_cancel:
+                public_event.is_cancelled = True
+            public_event.updated_at = datetime.utcnow()
     db.commit()
 
 
@@ -432,6 +535,8 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
 
     start_dt = _resolve_event_start_datetime(event_mgt)
     end_dt = _effective_end_datetime(event_mgt)
+    if not start_dt:
+        raise ValueError("Event start date from the host is required to publish.")
     min_price = _extract_min_ticket_price(event_mgt)
 
     # Map design speakers/sponsors to public Event.performers/highlights JSON
@@ -543,8 +648,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             public_event.highlights = json.dumps(highlights)
         if ticket_types:
             public_event.ticket_types = ticket_types
-        if terms_text:
-            public_event.terms = terms_text
+        public_event.terms = terms_text
 
     public_event.updated_at = datetime.utcnow()
     db.commit()
@@ -1934,15 +2038,78 @@ def delete_exhibitor(
 @router.delete("/clear")
 def clear_host_events(
     email: str = Query(..., description="Organizer email address"),
-    db: Session = Depends(get_db)
+    event_id: Optional[str] = Query(None, description="Optional event id to cancel"),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Resets and clears all host events, designs, registration forms, and exhibitors for an organizer."""
+    """Cancel the host event, hide it from public pages, then clear host dashboard data."""
     email_clean = email.lower().strip()
-    events = db.query(EventManagement).filter(EventManagement.organizer_email == email_clean).all()
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to cancel an event.",
+        )
+    if (current_user.email or "").lower().strip() != email_clean:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only cancel events for your own organizer account.",
+        )
+
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
+    query = _host_events_query(db, email_clean, customer_id, host_id)
+    if event_id:
+        try:
+            event_uuid = uuid.UUID(str(event_id))
+            query = query.filter(EventManagement.event_id == event_uuid)
+        except (ValueError, TypeError):
+            pass
+    events = query.all()
+    if event_id and not events:
+        events = _host_events_query(db, email_clean, customer_id, host_id).all()
+    cancelled_ids = [ev.event_id for ev in events]
+
     for ev in events:
-        db.delete(ev)
+        ev.event_status = "cancelled"
+        ev.updated_at = datetime.utcnow()
+
+    hidden = hide_public_catalog_events(
+        db,
+        event_ids=cancelled_ids,
+        customer_id=customer_id,
+        host_id=host_id,
+        cancel=True,
+    )
+
+    try:
+        from Models.form_definitions import FormDefinition
+        for eid in cancelled_ids:
+            db.query(FormDefinition).filter(
+                or_(FormDefinition.event_id == str(eid), FormDefinition.event_id == eid)
+            ).update({"is_published": False}, synchronize_session=False)
+    except Exception:
+        pass
+
     db.commit()
-    return {"status": "success", "message": "Event cleared successfully"}
+
+    try:
+        for ev in events:
+            db.delete(ev)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        print(f"[EVENT CANCEL] host row delete skipped: {exc}", flush=True)
+
+    print(
+        f"[EVENT CANCEL] email={email_clean} cancelled={len(cancelled_ids)} "
+        f"public_hidden={hidden} ids={[str(i) for i in cancelled_ids]}",
+        flush=True,
+    )
+    return {
+        "status": "success",
+        "message": "Event cancelled and removed from Home, Category, and Event Details.",
+        "cancelled_event_ids": [str(i) for i in cancelled_ids],
+        "public_hidden": hidden,
+    }
 
 
 # ── Gates Endpoints ───────────────────────────────────────────────────────────

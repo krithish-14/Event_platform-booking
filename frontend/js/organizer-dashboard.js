@@ -2831,17 +2831,52 @@ async function initOrganizerDashboard() {
 	const btnClearEventData = document.getElementById("btnClearEventData");
 	if (btnClearEventData) {
 		btnClearEventData.addEventListener("click", async () => {
-			if (confirm("Are you sure you want to permanently clear/reset all event data for this account? This action cannot be undone.")) {
-				try {
-					await fetch(`${HOST_EVENTS_API_BASE}/clear?email=${encodeURIComponent(email)}`, { method: "DELETE" });
-					sessionStorage.removeItem(`has_event_${email}`);
-					hasEvent = false;
-					activeEventId = null;
-					showNotification("✓ Event data cleared successfully!");
-					switchTab("overview");
-				} catch (err) {
-					console.warn("Could not clear event data:", err);
+			const cancelOtpOpts = {
+				badge: "Verify to Cancel",
+				title: "Confirm event cancellation",
+				purpose: "cancel this event and remove it from Home, Category, and Event Details",
+				verifyLabel: "Verify & Cancel Event",
+				headerBg: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+				verifyBg: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)"
+			};
+			const confirmed = await showPublishAuthOtpModal(cancelOtpOpts);
+			if (!confirmed) return;
+			try {
+				const qs = new URLSearchParams({ email });
+				if (activeEventId) qs.set("event_id", String(activeEventId));
+				const res = await fetch(`${HOST_EVENTS_API_BASE}/clear?${qs.toString()}`, {
+					method: "DELETE",
+					headers: getAuthHeaders()
+				});
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok) {
+					if (isPublishAuthError(apiErrorMessage(data, ""))) {
+						const authed = await showPublishAuthOtpModal(cancelOtpOpts);
+						if (!authed) return;
+						const retry = await fetch(`${HOST_EVENTS_API_BASE}/clear?${qs.toString()}`, {
+							method: "DELETE",
+							headers: getAuthHeaders()
+						});
+						const retryData = await retry.json().catch(() => ({}));
+						if (!retry.ok) throw new Error(apiErrorMessage(retryData, "Could not cancel event."));
+					} else {
+						throw new Error(apiErrorMessage(data, "Could not cancel event."));
+					}
 				}
+				sessionStorage.removeItem(`has_event_${email}`);
+				sessionStorage.removeItem(`active_event_id_${email}`);
+				hasEvent = false;
+				activeEventId = null;
+				currentLifecycle = "draft";
+				canPublishNew = true;
+				canCreateNew = true;
+				if (dashEventTitle) dashEventTitle.textContent = "My Events Dashboard";
+				if (typeof renderOverviewState === "function") renderOverviewState();
+				showNotification("Event cancelled. It is no longer listed on Home, Category, or Event Details.");
+				switchTab("overview");
+			} catch (err) {
+				console.warn("Could not cancel event:", err);
+				showNotification((err && err.message) || "Could not cancel event. Please try again.");
 			}
 		});
 	}
@@ -3811,7 +3846,15 @@ async function initOrganizerDashboard() {
 		return /authentication required|not authenticated|could not validate credentials|unauthorized/i.test(msg || "");
 	}
 
-	function showPublishAuthOtpModal() {
+	function showPublishAuthOtpModal(options) {
+		const opts = Object.assign({
+			badge: "Verify to Publish",
+			title: "Confirm your email",
+			purpose: "authenticate and publish this event",
+			verifyLabel: "Verify & Publish",
+			headerBg: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+			verifyBg: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)"
+		}, options || {});
 		return new Promise(async (resolve) => {
 			const hostEmail = email || (window.JodAuth && window.JodAuth.getUser && window.JodAuth.getUser() && window.JodAuth.getUser().email) || "";
 			const modal = ensurePublishModal();
@@ -3825,15 +3868,15 @@ async function initOrganizerDashboard() {
 			};
 			modal.innerHTML = `
 				<div style="background:#ffffff; border-radius:16px; max-width:480px; width:100%; box-shadow:0 25px 60px rgba(0,0,0,0.35); overflow:hidden;">
-					<div style="padding:1.5rem 1.75rem; background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color:#fff;">
-						<div style="font-size:0.72rem; font-weight:700; opacity:0.92; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:0.35rem;">Verify to Publish</div>
-						<h3 style="margin:0; font-size:1.25rem; font-weight:800;">Confirm your email</h3>
+					<div style="padding:1.5rem 1.75rem; background:${opts.headerBg}; color:#fff;">
+						<div style="font-size:0.72rem; font-weight:700; opacity:0.92; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:0.35rem;"></div>
+						<h3 style="margin:0; font-size:1.25rem; font-weight:800;"></h3>
 					</div>
 					<div style="padding:1.5rem 1.75rem;">
 						<p style="margin:0 0 0.85rem; color:#334155; line-height:1.55; font-size:0.95rem;">
 							A 6-digit OTP has been sent to
 							<strong id="publishOtpEmail" style="color:#0f172a;"></strong>.
-							Enter the code below to authenticate and publish this event.
+							Enter the code below to <span id="publishOtpPurpose"></span>.
 						</p>
 						<div id="publishOtpDevBanner" style="display:none; margin-bottom:0.85rem; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:8px; padding:0.65rem 0.8rem; font-size:0.82rem; font-weight:600;">
 							Dev OTP: <span id="publishOtpDevValue"></span>
@@ -3851,14 +3894,22 @@ async function initOrganizerDashboard() {
 					<div style="display:flex; justify-content:space-between; gap:0.65rem; padding:1rem 1.75rem 1.5rem; border-top:1px solid #e2e8f0; background:#f8fafc;">
 						<button id="publishOtpResend" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#2563eb; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Resend OTP</button>
 						<div style="display:flex; gap:0.65rem;">
-							<button id="publishOtpCancel" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#475569; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Cancel</button>
-							<button id="publishOtpVerify" type="button" style="background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color:#fff; padding:0.55rem 1.25rem; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Verify &amp; Publish</button>
+							<button id="publishOtpCancel" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#475569; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Close</button>
+							<button id="publishOtpVerify" type="button" style="background:${opts.verifyBg}; color:#fff; padding:0.55rem 1.25rem; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;"></button>
 						</div>
 					</div>
 				</div>
 			`;
+			const badgeEl = modal.querySelector("div[style*='letter-spacing']");
+			if (badgeEl) badgeEl.textContent = opts.badge;
+			const titleEl = modal.querySelector("h3");
+			if (titleEl) titleEl.textContent = opts.title;
 			const emailEl = document.getElementById("publishOtpEmail");
 			if (emailEl) emailEl.textContent = hostEmail || "your registered email";
+			const purposeEl = document.getElementById("publishOtpPurpose");
+			if (purposeEl) purposeEl.textContent = opts.purpose;
+			const verifyBtn = document.getElementById("publishOtpVerify");
+			if (verifyBtn) verifyBtn.textContent = opts.verifyLabel;
 
 			const statusEl = document.getElementById("publishOtpStatus");
 			const fields = Array.from(modal.querySelectorAll(".publish-otp-field"));

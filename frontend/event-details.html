@@ -15,8 +15,8 @@
         rel="stylesheet">
 
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="css/style.css?v=15" />
-    <link rel="stylesheet" href="css/event-details.css?v=3" />
+    <link rel="stylesheet" href="css/style.css?v=17" />
+    <link rel="stylesheet" href="css/event-details.css?v=10" />
 </head>
 
 <body class="event-details-page category-theme-comedy" id="eventBody">
@@ -41,13 +41,8 @@
                 <h1 class="event-main-title" id="eventTitle">Loading…</h1>
                 <div class="event-meta-top">
                     <span id="headerVenue">📍 Loading venue…</span>
-                    <span>•</span>
-                    <span id="headerCategory">🎭 Event</span>
                 </div>
             </div>
-            <button class="btn-share" id="btnShare" type="button" onclick="copyEventShareLink()">
-                <span>🔗</span> Share Event
-            </button>
         </div>
 
         <!-- ── Main Grid Layout ───────────────────────────────────────────── -->
@@ -62,21 +57,25 @@
                     <div class="banner-gradient-shade"></div>
                     <div class="banner-overlay-tags">
                         <div class="category-badge-list">
-                            <span class="category-tag" id="eventHeroBadge">🎙️ Live Comedy Special</span>
-                            <span class="category-tag" id="eventCategoryTag">Standup Comedy</span>
-                            <span class="category-tag" id="eventFormatTag"
-                                style="border-color: #34d399; color: #34d399;">In-person</span>
-                        </div>
-                        <div class="interested-counter">
-                            <span>🔥</span> <span id="interestedText">Published event</span>
+                            <span class="category-tag format-tag" id="eventFormatTag">In-person</span>
+                            <span class="category-tag format-tag" id="eventCategoryTag">Sport</span>
                         </div>
                     </div>
+                    <button type="button" class="wishlist-heart-btn" id="btnWishlist" data-wishlist-event="" aria-label="Add to wishlist" title="Add to wishlist" aria-pressed="false">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    </button>
                 </div>
 
                 <!-- Event Description Section -->
                 <div class="section-block">
                     <h2 class="section-block-title">About The Event</h2>
                     <div class="event-description-text" id="eventDescription">Loading event description…</div>
+                </div>
+
+                <!-- Event Policies (host-entered) -->
+                <div class="section-block" id="policiesSection" style="display:none;">
+                    <h2 class="section-block-title">Event Policies</h2>
+                    <div id="eventPolicies"></div>
                 </div>
 
                 <!-- Artist / Performer / Speaker Section -->
@@ -89,14 +88,6 @@
                 <div class="section-block" id="highlightsSection">
                     <h2 class="section-block-title" id="highlightsTitle">Show Laughs & Tour Highlights</h2>
                     <div class="highlights-grid" id="highlightsGrid"></div>
-                </div>
-
-                <!-- Terms & Conditions Section -->
-                <div class="section-block">
-                    <h2 class="section-block-title">Terms & Conditions</h2>
-                    <ul class="terms-list" id="termsList">
-                        <li>Event policies will appear here once loaded.</li>
-                    </ul>
                 </div>
 
                 <!-- Recommended Events Section -->
@@ -113,7 +104,7 @@
                     <div class="info-box-card">
 
                         <div class="info-header">
-                            <span class="event-format-badge" id="infoFormatBadge">In-person</span>
+                            <button class="btn-share-icon" id="btnShare" type="button" onclick="copyEventShareLink()" aria-label="Share event">🔗</button>
                             <div class="price-main-display">
                                 Ticket Starts at <span id="displayPrice">—</span>
                             </div>
@@ -210,13 +201,14 @@
     <!-- Scripts -->
     <script src="js/include.js?v=10"></script>
     <script src="js/health.js?v=1"></script>
-    <script src="js/auth.js?v=10"></script>
+    <script src="js/auth.js?v=16"></script>
     <script src="js/profile.js?v=1"></script>
     <script src="js/location.js?v=2"></script>
     <script src="js/search.js?v=1"></script>
-    <script src="js/script.js?v=14"></script>
-    <script src="js/events-public.js?v=3"></script>
-    <script src="js/event-details.js?v=5"></script>
+    <script src="js/script.js?v=19"></script>
+    <script src="js/events-public.js?v=7"></script>
+    <script src="js/wishlist.js?v=1"></script>
+    <script src="js/event-details.js?v=11"></script>
 </body>
 
 </html>

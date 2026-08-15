@@ -29,18 +29,33 @@ from Models import UserSignup as UserSignupLog, UserLogin as UserLoginLog
 router = APIRouter()
 
 
+def _email_taken(db: Session, email_clean: str) -> bool:
+    if not email_clean:
+        return False
+    return db.query(User).filter(func.lower(func.trim(User.email)) == email_clean).first() is not None
+
+
+def _username_taken(db: Session, username_clean: str) -> bool:
+    if not username_clean:
+        return False
+    return (
+        db.query(User).filter(func.lower(func.trim(User.username)) == username_clean.lower()).first()
+        is not None
+    )
+
+
 # ── Availability Check (live validation) ─────────────────────────────────────
 @router.get("/check")
 def check_availability(email: str = None, username: str = None, db: Session = Depends(get_db)):
     """Check if an email or username is already taken. Used for real-time form validation."""
     result = {}
     if email:
-        exists = db.query(User).filter(User.email == email.strip().lower()).first()
-        result["email_available"] = exists is None
+        exists = _email_taken(db, email.strip().lower())
+        result["email_available"] = not exists
         result["email_message"] = "Email already registered." if exists else "Email is available."
     if username:
-        exists = db.query(User).filter(User.username == username.strip()).first()
-        result["username_available"] = exists is None
+        exists = _username_taken(db, username.strip())
+        result["username_available"] = not exists
         result["username_message"] = "Username already taken." if exists else "Username is available."
     return result
 
@@ -157,28 +172,10 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     email_clean = payload.email.strip().lower()
     username_clean = payload.username.strip()
 
-    if db.query(User).filter(func.lower(func.trim(User.email)) == email_clean).first():
-        raise HTTPException(status_code=400, detail="User already exists")
-    if db.query(User).filter(func.lower(func.trim(User.username)) == username_clean.lower()).first():
+    if _email_taken(db, email_clean):
+        raise HTTPException(status_code=400, detail="Email already registered. Please login instead.")
+    if _username_taken(db, username_clean):
         raise HTTPException(status_code=400, detail="Username already taken.")
-
-    # Check secondary SQLite database if exists
-    try:
-        import sqlite3
-        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        sqlite_path = os.path.join(project_backend, "jod_events.db")
-        if os.path.exists(sqlite_path):
-            s_conn = sqlite3.connect(sqlite_path)
-            s_cur = s_conn.cursor()
-            s_cur.execute("SELECT id FROM users WHERE lower(trim(email)) = ?", (email_clean,))
-            row = s_cur.fetchone()
-            s_conn.close()
-            if row:
-                raise HTTPException(status_code=400, detail="User already exists")
-    except HTTPException:
-        raise
-    except Exception:
-        pass
 
     user = User(
         email=email_clean,
@@ -194,9 +191,12 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         db.add(user)
         db.commit()
         db.refresh(user)
-    except IntegrityError:
+    except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail="User already exists")
+        orig = str(getattr(exc, "orig", exc) or exc).lower()
+        if "username" in orig:
+            raise HTTPException(status_code=400, detail="Username already taken.")
+        raise HTTPException(status_code=400, detail="Email already registered. Please login instead.")
 
     # Sync to backup SQLite database if present so user accounts remain available in all environments
     try:

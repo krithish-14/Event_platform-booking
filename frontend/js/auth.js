@@ -143,8 +143,13 @@ window.JodAuth = (() => {
 
 	/* ── Helpers ───────────────────────────────────────────── */
 	function setError(input, msg) {
+		if (!input) return;
 		const wrap = input.closest(".form-group") || input.closest(".input-wrap")?.parentElement;
 		if (!wrap) return;
+		if (msg) {
+			const live = wrap.querySelector(".live-status");
+			if (live) live.remove();
+		}
 		const err = wrap.querySelector(".field-error");
 		if (err) { err.textContent = msg; err.classList.toggle("is-visible", Boolean(msg)); }
 		input.classList.toggle("has-error", Boolean(msg));
@@ -175,6 +180,11 @@ window.JodAuth = (() => {
 			return JSON.stringify(detail);
 		}
 		return String(detail);
+	}
+
+	function isTakenAccountMessage(msg) {
+		const s = String(msg || "").toLowerCase();
+		return /already (exists|registered|taken)/.test(s) || s.includes("user already exists");
 	}
 
 	function showAlert(alertEl, type, msg) {
@@ -340,12 +350,18 @@ window.JodAuth = (() => {
 					}, 900);
 				}
 			} catch (err) {
-				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
+				const online = window.JodHealth
+					? await window.JodHealth.checkBackendHealth(2500)
+					: false;
+				if (online) {
+					showAlert(alertEl, "error", "Could not complete login. Please try again.");
+				} else if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
 					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
 					window.JodHealth.retryConnection({
 						onSuccess: () => {
-							showAlert(alertEl, "success", "Backend server is online! Retrying login…");
-							setTimeout(doLogin, 600);
+							hideAlert(alertEl);
+							setLoading(submitBtn, false);
+							doLogin();
 						},
 						onError: () => {
 							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
@@ -415,9 +431,17 @@ window.JodAuth = (() => {
 			}
 			if (available === null) {
 				statusEl.textContent = "";
+				statusEl.style.display = "none";
 				inputEl.style.borderColor = "";
 				return;
 			}
+			statusEl.style.display = "flex";
+			const errEl = wrap.querySelector(".field-error");
+			if (errEl) {
+				errEl.textContent = "";
+				errEl.classList.remove("is-visible");
+			}
+			inputEl.classList.remove("has-error");
 			statusEl.innerHTML = available
 				? `<span style="color:#16a34a;">✓</span> <span style="color:#16a34a;">${message}</span>`
 				: `<span style="color:#dc2626;">✕</span> <span style="color:#dc2626;">${message}</span>`;
@@ -440,13 +464,25 @@ window.JodAuth = (() => {
 
 		let emailAvailable = null;
 		let usernameAvailable = null;
+		let emailCheckSeq = 0;
+		let usernameCheckSeq = 0;
+		let signupBusy = false;
+		let signupAutoRetryUsed = false;
 
 		const emailInput = signupForm.querySelector("#signupEmail");
 		const usernameInput = signupForm.querySelector("#signupUsername");
 		const passwordInput = signupForm.querySelector("#signupPassword");
 		const confirmInput = signupForm.querySelector("#signupConfirmPassword");
 
+		async function fetchAvailability(params) {
+			const qs = new URLSearchParams(params).toString();
+			const res = await fetch(`${API_BASE}/api/auth/check?${qs}`, { cache: "no-store" });
+			if (!res.ok) throw new Error("check failed");
+			return res.json();
+		}
+
 		const checkEmail = debounce(async (email) => {
+			const seq = ++emailCheckSeq;
 			if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
 				clearLiveStatus(emailInput);
 				emailAvailable = null;
@@ -455,15 +491,23 @@ window.JodAuth = (() => {
 			setLiveStatus(emailInput, null, "Checking…");
 			if (emailInput) emailInput.style.borderColor = "#94a3b8";
 			try {
-				const res = await fetch(`${API_BASE}/api/auth/check?email=${encodeURIComponent(email)}`);
-				if (!res.ok) { clearLiveStatus(emailInput); return; }
-				const data = await res.json();
-				emailAvailable = data.email_available;
-				setLiveStatus(emailInput, data.email_available, data.email_message);
-			} catch (_) { clearLiveStatus(emailInput); }
+				const data = await fetchAvailability({ email });
+				if (seq !== emailCheckSeq) return;
+				emailAvailable = data.email_available !== false;
+				setLiveStatus(
+					emailInput,
+					emailAvailable,
+					data.email_message || (emailAvailable ? "Email is available." : "Email already registered.")
+				);
+			} catch (_) {
+				if (seq !== emailCheckSeq) return;
+				clearLiveStatus(emailInput);
+				emailAvailable = null;
+			}
 		}, 450);
 
 		const checkUsername = debounce(async (username) => {
+			const seq = ++usernameCheckSeq;
 			if (!username || username.length < 3) {
 				clearLiveStatus(usernameInput);
 				usernameAvailable = null;
@@ -472,12 +516,19 @@ window.JodAuth = (() => {
 			setLiveStatus(usernameInput, null, "Checking…");
 			if (usernameInput) usernameInput.style.borderColor = "#94a3b8";
 			try {
-				const res = await fetch(`${API_BASE}/api/auth/check?username=${encodeURIComponent(username)}`);
-				if (!res.ok) { clearLiveStatus(usernameInput); return; }
-				const data = await res.json();
-				usernameAvailable = data.username_available;
-				setLiveStatus(usernameInput, data.username_available, data.username_message);
-			} catch (_) { clearLiveStatus(usernameInput); }
+				const data = await fetchAvailability({ username });
+				if (seq !== usernameCheckSeq) return;
+				usernameAvailable = data.username_available !== false;
+				setLiveStatus(
+					usernameInput,
+					usernameAvailable,
+					data.username_message || (usernameAvailable ? "Username is available." : "Username already taken.")
+				);
+			} catch (_) {
+				if (seq !== usernameCheckSeq) return;
+				clearLiveStatus(usernameInput);
+				usernameAvailable = null;
+			}
 		}, 450);
 
 		if (emailInput) {
@@ -499,8 +550,32 @@ window.JodAuth = (() => {
 			});
 		}
 
+		function finishSignupSuccess(data) {
+			try {
+				if (data && data.access_token) {
+					localStorage.setItem("jod_access_token", data.access_token);
+					sessionStorage.setItem("jod_access_token", data.access_token);
+				}
+				if (data && data.user) {
+					localStorage.setItem("jod_user", JSON.stringify(data.user));
+					sessionStorage.setItem("jod_user", JSON.stringify(data.user));
+				}
+			} catch (_) { }
+
+			showAlert(alertEl, "success", "Account created! Redirecting…");
+			try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
+			const targetUrl = getRedirectTarget();
+			setTimeout(() => { window.location.href = targetUrl; }, 900);
+		}
+
 		async function doSignup(e) {
 			if (e && e.preventDefault) e.preventDefault();
+			if (signupBusy) return;
+			if (getToken()) {
+				finishSignupSuccess({ access_token: getToken(), user: getUser() });
+				return;
+			}
+
 			clearErrors(signupForm);
 			hideAlert(alertEl);
 
@@ -513,11 +588,9 @@ window.JodAuth = (() => {
 
 			if (!username) { setError(signupForm.querySelector("#signupUsername"), "Username is required."); valid = false; }
 			else if (username.length < 3) { setError(signupForm.querySelector("#signupUsername"), "Username must be at least 3 characters."); valid = false; }
-			else if (usernameAvailable === false) { setError(signupForm.querySelector("#signupUsername"), "Username already taken. Please choose another."); valid = false; }
 
 			if (!email) { setError(signupForm.querySelector("#signupEmail"), "Email is required."); valid = false; }
 			else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError(signupForm.querySelector("#signupEmail"), "Enter a valid email address."); valid = false; }
-			else if (emailAvailable === false) { setError(signupForm.querySelector("#signupEmail"), "Email already registered. Please login instead."); valid = false; }
 
 			if (!password) { setError(signupForm.querySelector("#signupPassword"), "Password is required."); valid = false; }
 			else if (password.length < 8) { setError(signupForm.querySelector("#signupPassword"), "Password must be at least 8 characters."); valid = false; }
@@ -527,45 +600,37 @@ window.JodAuth = (() => {
 
 			if (!valid) return;
 
-			/* Final live check if not yet done */
-			if (emailAvailable === null && email) {
-				try {
-					const res = await fetch(`${API_BASE}/api/auth/check?email=${encodeURIComponent(email)}`);
-					if (res.ok) {
-						const data = await res.json();
-						emailAvailable = data.email_available;
-						if (!emailAvailable) {
-							setError(signupForm.querySelector("#signupEmail"), "Email already registered. Please login instead.");
-							setLiveStatus(emailInput, false, data.email_message);
-							return;
-						}
-					}
-				} catch (_) {}
-			}
-			if (usernameAvailable === null && username) {
-				try {
-					const res = await fetch(`${API_BASE}/api/auth/check?username=${encodeURIComponent(username)}`);
-					if (res.ok) {
-						const data = await res.json();
-						usernameAvailable = data.username_available;
-						if (!usernameAvailable) {
-							setError(signupForm.querySelector("#signupUsername"), "Username already taken. Please choose another.");
-							setLiveStatus(usernameInput, false, data.username_message);
-							return;
-						}
-					}
-				} catch (_) {}
-			}
-
+			signupBusy = true;
 			setLoading(submitBtn, true);
 
 			try {
+				try {
+					const data = await fetchAvailability({ email, username });
+					emailAvailable = data.email_available !== false;
+					usernameAvailable = data.username_available !== false;
+					if (data.email_available === false) {
+						setError(signupForm.querySelector("#signupEmail"), "Email already registered. Please login instead.");
+						setLiveStatus(emailInput, false, data.email_message || "Email already registered.");
+						return;
+					}
+					if (data.username_available === false) {
+						setError(signupForm.querySelector("#signupUsername"), "Username already taken. Please choose another.");
+						setLiveStatus(usernameInput, false, data.username_message || "Username already taken.");
+						return;
+					}
+					setLiveStatus(emailInput, true, data.email_message || "Email is available.");
+					setLiveStatus(usernameInput, true, data.username_message || "Username is available.");
+				} catch (_) {
+					emailAvailable = null;
+					usernameAvailable = null;
+				}
+
 				const payload = { username, email, password };
 				if (fullName) payload.full_name = fullName;
 
 				const res = await fetch(`${API_BASE}/api/auth/register`, {
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
+					headers: { "Content-Type": "application/json", "Accept": "application/json" },
 					body: JSON.stringify(payload),
 				});
 
@@ -573,37 +638,49 @@ window.JodAuth = (() => {
 				try { data = await res.json(); } catch (_) { }
 
 				if (!res.ok) {
-					const detail = data.detail || `Registration failed (${res.status}). Please try again.`;
-					if (detail.toLowerCase().includes("email")) {
-						setError(signupForm.querySelector("#signupEmail"), detail);
-						setLiveStatus(emailInput, false, detail);
-						emailAvailable = false;
-					} else if (detail.toLowerCase().includes("username")) {
+					const detail = parseApiErrorMessage(data.detail, `Registration failed (${res.status}). Please try again.`);
+					const lower = detail.toLowerCase();
+					if (isTakenAccountMessage(detail) && lower.includes("username")) {
 						setError(signupForm.querySelector("#signupUsername"), detail);
 						setLiveStatus(usernameInput, false, detail);
 						usernameAvailable = false;
+					} else if (isTakenAccountMessage(detail)) {
+						setError(signupForm.querySelector("#signupEmail"), detail);
+						setLiveStatus(emailInput, false, detail);
+						emailAvailable = false;
+					} else if (lower.includes("username")) {
+						setError(signupForm.querySelector("#signupUsername"), detail);
+					} else if (lower.includes("password")) {
+						setError(signupForm.querySelector("#signupPassword"), detail);
+					} else if (lower.includes("email") && /valid|invalid/.test(lower)) {
+						setError(signupForm.querySelector("#signupEmail"), detail);
 					}
 					showAlert(alertEl, "error", detail);
-				} else {
-					try {
-						localStorage.setItem("jod_access_token", data.access_token);
-						sessionStorage.setItem("jod_access_token", data.access_token);
-						localStorage.setItem("jod_user", JSON.stringify(data.user));
-						sessionStorage.setItem("jod_user", JSON.stringify(data.user));
-					} catch (_) { }
-
-					showAlert(alertEl, "success", "Account created! Redirecting…");
-					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
-					const targetUrl = getRedirectTarget();
-					setTimeout(() => { window.location.href = targetUrl; }, 900);
+					return;
 				}
+
+				finishSignupSuccess(data);
 			} catch (err) {
-				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
+				if (getToken()) {
+					finishSignupSuccess({ access_token: getToken(), user: getUser() });
+					return;
+				}
+				const online = window.JodHealth
+					? await window.JodHealth.checkBackendHealth(2500)
+					: false;
+				if (online) {
+					showAlert(alertEl, "error", "Could not complete signup. Please try again.");
+					return;
+				}
+				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function" && !signupAutoRetryUsed) {
+					signupAutoRetryUsed = true;
 					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
 					window.JodHealth.retryConnection({
 						onSuccess: () => {
-							showAlert(alertEl, "success", "Backend server is online! Retrying signup…");
-							setTimeout(doSignup, 600);
+							hideAlert(alertEl);
+							signupBusy = false;
+							setLoading(submitBtn, false);
+							doSignup();
 						},
 						onError: () => {
 							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
@@ -613,6 +690,7 @@ window.JodAuth = (() => {
 					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
 				}
 			} finally {
+				signupBusy = false;
 				setLoading(submitBtn, false);
 			}
 		}
@@ -914,7 +992,7 @@ window.JodAuth = (() => {
 					</div>
 					<div class="guest-auth-modal-body">
 						<h3 id="guestAuthModalTitle">Sign Up to Book Tickets</h3>
-						<p id="guestAuthModalDesc">You need to sign up or log in to view event details and reserve tickets for Live Trending Events.</p>
+						<p id="guestAuthModalDesc">You need to sign up or log in to reserve tickets for this event.</p>
 					</div>
 					<div class="guest-auth-modal-actions">
 						<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html">
@@ -977,7 +1055,7 @@ window.JodAuth = (() => {
 				badge = "HOST YOUR EVENT";
 			} else if (targetUrl.includes("makeup-boutique") || targetUrl.includes("event-details")) {
 				title = "Sign Up to Book Tickets";
-				desc = "You need to sign up or log in to view event details and reserve tickets for Live Trending Events.";
+				desc = "You need to sign up or log in to reserve tickets for this event.";
 				badge = "ACCOUNT REQUIRED";
 			} else {
 				title = "Sign Up to Continue";
@@ -1055,38 +1133,18 @@ window.JodAuth = (() => {
 				return;
 			}
 
-			// 2. Event Cards, Carousel Slides, Event Details / Booking Buttons
-			const eventTarget = e.target.closest(".event-card, .cat-event-card, [data-event-id], .featured-event, .hero-featured-image, a.card-link, a[href*='event-details.html'], a[href*='makeup-boutique-workshop.html'], .btn-book-now, .hero-copy .button-gold");
-			if (eventTarget) {
-				// Don't intercept if clicking the modal itself or carousel navigation arrows
-				if (e.target.closest("#guestAuthModal, .carousel-arrow, .modal-close, [data-modal-close], #navAuth")) return;
-
+			// 2. Booking only — event details are public for attendees, guests, and other hosts
+			const bookTarget = e.target.closest(".btn-book-now");
+			if (bookTarget) {
+				if (e.target.closest("#guestAuthModal, .modal-close, [data-modal-close], #navAuth")) return;
 				e.preventDefault();
 				e.stopPropagation();
 				e.stopImmediatePropagation();
-
-				let targetUrl = "event-details.html";
-				if (eventTarget.tagName === "A" && eventTarget.getAttribute("href")) {
-					targetUrl = eventTarget.getAttribute("href");
-				} else {
-					const innerLink = eventTarget.querySelector("a[href*='event-details'], a[href*='makeup-boutique'], a.card-link");
-					if (innerLink && innerLink.getAttribute("href")) {
-						targetUrl = innerLink.getAttribute("href");
-					} else {
-						const onclickAttr = eventTarget.getAttribute("onclick") || "";
-						const match = onclickAttr.match(/href=['"]([^'"]+)['"]/);
-						if (match) {
-							targetUrl = match[1];
-						} else if (eventTarget.dataset && eventTarget.dataset.eventId) {
-							targetUrl = `event-details.html?id=${eventTarget.dataset.eventId}`;
-						}
-					}
-				}
-
+				const currentTarget = window.location.pathname + window.location.search + window.location.hash;
 				openGuestAuthModal({
 					title: "Sign Up to Book Tickets",
-					message: "You need to sign up or log in to view event details and reserve tickets for Live Trending Events.",
-					targetUrl: targetUrl,
+					message: "You need to sign up or log in to reserve tickets for this event.",
+					targetUrl: currentTarget,
 					badge: "🎟️ Account Required"
 				});
 			}
@@ -1147,12 +1205,7 @@ window.JodAuth = (() => {
 				badge: "HOST YOUR EVENT"
 			});
 		} else {
-			openGuestAuthModal({
-				title: "Sign Up to Book Tickets",
-				message: "Please sign up or log in to access this feature.",
-				targetUrl: targetUrl || "event-details.html",
-				badge: "ACCOUNT REQUIRED"
-			});
+			window.location.href = targetUrl || "event-details.html";
 		}
 		return false;
 	}

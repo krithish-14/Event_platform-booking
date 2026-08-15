@@ -17,6 +17,15 @@ from datetime import datetime, timedelta
 from Utils.categories import normalize_category
 
 
+def _heal_host_schedule(db: Session, events):
+    """Prefer the host-entered start/end over a previously synced clock-now fallback."""
+    try:
+        from APIs.host_events_api import apply_host_schedule_to_public_events
+        apply_host_schedule_to_public_events(db, events)
+    except Exception:
+        pass
+
+
 def _apply_category_filter(query, category: Optional[str]):
     """Filter published events by the exact stored category. No title/alias inference."""
     if not category or str(category).lower().strip() == "all":
@@ -75,12 +84,14 @@ def list_events(
             mon_start = sat_start + timedelta(days=2)
             query = query.filter(Event.start_date >= sat_start, Event.start_date < mon_start)
     # Newest published/updated events first so freshly published items appear on Home immediately.
-    return (
+    rows = (
         query.order_by(desc(Event.updated_at), Event.start_date.asc())
         .offset(skip)
         .limit(limit)
         .all()
     )
+    _heal_host_schedule(db, rows)
+    return rows
 
 
 
@@ -91,7 +102,7 @@ def get_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
 
 def get_public_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
     """Return a published, non-cancelled event for public pages."""
-    return (
+    event = (
         db.query(Event)
         .filter(
             or_(Event.id == event_id, Event.id == str(event_id)),
@@ -100,6 +111,9 @@ def get_public_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
         )
         .first()
     )
+    if event:
+        _heal_host_schedule(db, [event])
+    return event
 
 
 def create_event(db: Session, payload, customer_id: str, organizer_id=None) -> Event:
