@@ -7,6 +7,7 @@
 	<title>Settings | JOD Events</title>
 	<link rel="stylesheet" href="css/style.css?v=13" />
 	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<style>
 		.page-hero {
 			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
@@ -110,24 +111,26 @@
 		.settings-avatar-flex {
 			display: flex;
 			align-items: center;
-			gap: 1.5rem;
+			gap: 1.75rem;
 			margin-bottom: 1.75rem;
 		}
+		#settingsAvatar.settings-avatar,
 		.settings-avatar {
-			width: 5rem;
-			height: 5rem;
+			width: 10rem !important;
+			height: 10rem !important;
 			border-radius: 50%;
 			background: var(--brand-gradient);
 			color: #fff;
-			font-size: 1.75rem;
+			font-size: 2.75rem !important;
 			font-weight: 700;
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			border: 3px solid rgba(255,117,8,.3);
+			border: 4px solid #fff;
 			overflow: hidden;
-			box-shadow: 0 0 0 4px rgba(255,117,8,.12);
+			box-shadow: 0 0 0 3px rgba(255,117,8,.45), 0 12px 28px rgba(255,117,8,.22);
 			flex-shrink: 0;
+			position: relative;
 		}
 		.settings-avatar img {
 			width: 100%; height: 100%; object-fit: cover;
@@ -299,41 +302,21 @@
 		}
 		.pw-toggle-btn:hover { opacity: 1; }
 
-		/* ── Notification Section Styles ───────────────────────── */
-		.notif-header-flex {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			flex-wrap: wrap;
-			gap: .75rem;
-			padding-bottom: .75rem;
-			border-bottom: 1px solid var(--border);
-			margin-bottom: 1.25rem;
-		}
-		.notif-header-flex h2 {
-			margin: 0;
-			border: none;
-			padding: 0;
-		}
-		.notif-actions {
-			display: flex;
-			gap: .5rem;
-		}
-
 		.pref-group {
 			display: flex;
 			flex-direction: column;
 			gap: 1rem;
-			margin-bottom: 1.75rem;
-			padding-bottom: 1.5rem;
-			border-bottom: 1px dashed var(--border);
 		}
 		.pref-item {
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
 			gap: 1rem;
+			padding: .85rem 0;
+			border-bottom: 1px solid var(--border);
 		}
+		.pref-item:last-child { border-bottom: none; padding-bottom: 0; }
+		.pref-item:first-child { padding-top: 0; }
 		.pref-info h4 {
 			margin: 0 0 .2rem;
 			font-size: .925rem;
@@ -343,9 +326,8 @@
 			margin: 0;
 			font-size: .8rem;
 			color: var(--muted);
+			line-height: 1.45;
 		}
-
-		/* Toggle Switch */
 		.switch {
 			position: relative;
 			display: inline-block;
@@ -353,11 +335,7 @@
 			height: 24px;
 			flex-shrink: 0;
 		}
-		.switch input {
-			opacity: 0;
-			width: 0;
-			height: 0;
-		}
+		.switch input { opacity: 0; width: 0; height: 0; }
 		.slider {
 			position: absolute;
 			cursor: pointer;
@@ -378,99 +356,94 @@
 			border-radius: 50%;
 			box-shadow: 0 1px 3px rgba(0,0,0,.2);
 		}
-		input:checked + .slider {
-			background-color: var(--primary);
-		}
-		input:checked + .slider:before {
-			transform: translateX(20px);
-		}
+		input:checked + .slider { background-color: var(--primary); }
+		input:checked + .slider:before { transform: translateX(20px); }
 
-		/* Notifications List Feed */
-		.notif-feed {
-			display: flex;
-			flex-direction: column;
-			gap: .875rem;
-		}
-		.notif-card {
-			display: flex;
-			align-items: flex-start;
-			gap: 1rem;
-			padding: 1rem;
-			background: #fafaf9;
-			border-radius: 12px;
-			border: 1px solid var(--border);
-			transition: background .2s, border-color .2s;
-			position: relative;
-		}
-		.notif-card.unread {
-			background: #fffdfa;
-			border-color: rgba(255,117,8,.3);
-		}
-		.notif-card.unread::before {
-			content: '';
-			position: absolute;
-			left: 6px; top: 50%;
-			transform: translateY(-50%);
-			width: 6px; height: 6px;
-			background: var(--primary);
-			border-radius: 50%;
-		}
-		.notif-icon {
-			width: 2.25rem;
-			height: 2.25rem;
-			border-radius: 10px;
-			background: rgba(255,117,8,.1);
-			color: var(--primary);
-			display: flex; align-items: center; justify-content: center;
-			font-size: 1.1rem;
-			flex-shrink: 0;
-		}
-		.notif-body { flex: 1; min-width: 0; }
-		.notif-title {
-			font-size: .875rem;
-			font-weight: 700;
-			color: var(--foreground);
-			margin: 0 0 .25rem;
-			display: flex;
+		.settings-hero-kicker {
+			display: inline-flex;
 			align-items: center;
-			justify-content: space-between;
-		}
-		.notif-desc {
-			font-size: .825rem;
-			color: var(--muted);
-			margin: 0;
-			line-height: 1.4;
-		}
-		.notif-time {
-			font-size: .75rem;
-			color: #a8a29e;
-			white-space: nowrap;
-		}
-
-		.notif-empty-state {
-			text-align: center;
-			padding: 3rem 1rem;
-			background: #fafaf9;
-			border-radius: 16px;
-			border: 1px dashed var(--border);
-			display: none;
-		}
-		.notif-empty-icon {
-			font-size: 3rem;
-			margin-bottom: .75rem;
-		}
-		.notif-empty-title {
-			font-size: 1.1rem;
+			gap: .4rem;
+			font-size: .72rem;
 			font-weight: 700;
-			color: var(--foreground);
-			margin: 0 0 .35rem;
+			letter-spacing: .12em;
+			text-transform: uppercase;
+			color: var(--primary);
+			background: rgba(255,117,8,.14);
+			border: 1px solid rgba(255,117,8,.28);
+			border-radius: 999px;
+			padding: .28rem .7rem;
+			margin-bottom: .85rem;
 		}
-		.notif-empty-desc {
-			font-size: .85rem;
+		.settings-card-head {
+			margin-bottom: 1.35rem;
+			padding-bottom: .85rem;
+			border-bottom: 1px solid var(--border);
+		}
+		.settings-card-head h2 {
+			margin: 0 0 .3rem;
+			padding: 0;
+			border: none;
+		}
+		.settings-card-sub {
+			margin: 0;
 			color: var(--muted);
-			max-width: 400px;
-			margin: 0 auto;
+			font-size: .9rem;
 			line-height: 1.5;
+		}
+		.avatar-hint {
+			margin: .65rem 0 0;
+			font-size: .78rem;
+			color: var(--muted);
+		}
+		.venue-map-panel {
+			margin-top: .7rem;
+			border: 1.5px solid #cbd5e1;
+			border-radius: 12px;
+			overflow: hidden;
+			background: #f8fafc;
+		}
+		.venue-map {
+			width: 100%;
+			height: 16.5rem;
+			background: #e2e8f0;
+		}
+		.venue-map-hint {
+			margin: 0;
+			padding: .55rem .85rem;
+			font-size: .78rem;
+			line-height: 1.4;
+			color: #64748b;
+			background: #fff;
+			border-top: 1px solid #e2e8f0;
+		}
+		.venue-map-hint.is-address {
+			color: #0f172a;
+			font-weight: 600;
+		}
+		.venue-pin-wrap {
+			background: none !important;
+			border: none !important;
+			cursor: grab;
+		}
+		.leaflet-dragging .venue-pin-wrap {
+			cursor: grabbing;
+		}
+		.venue-pin {
+			width: 22px;
+			height: 22px;
+			background: #2563eb;
+			border: 3px solid #fff;
+			border-radius: 50% 50% 50% 0;
+			transform: rotate(-45deg);
+			box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+		}
+		@media (max-width: 700px) {
+			#settingsAvatar.settings-avatar,
+			.settings-avatar {
+				width: 8.5rem !important;
+				height: 8.5rem !important;
+				font-size: 2.2rem !important;
+			}
 		}
 	</style>
 </head>
@@ -487,8 +460,9 @@
 			<section class="page-hero">
 				<div class="container">
 					<div class="hero-content">
+						<div class="settings-hero-kicker">Your account</div>
 						<h1>Account Settings</h1>
-						<p>Manage your profile details, picture, security, and notification preferences.</p>
+						<p>Update your photo, personal details, location, password, and notification alerts.</p>
 					</div>
 				</div>
 			</section>
@@ -500,34 +474,36 @@
 						<div class="settings-nav">
 							<button class="snav-item is-active" type="button" onclick="scrollToSection('profileSection')">👤 Profile & Photo</button>
 							<button class="snav-item" type="button" onclick="scrollToSection('securitySection')">🔒 Security & Password</button>
-							<button class="snav-item" type="button" onclick="scrollToSection('notificationsSection')">🔔 Notifications</button>
+							<button class="snav-item" type="button" onclick="scrollToSection('notificationSettingsSection')">🔔 Notification Settings</button>
 						</div>
 
 						<!-- Content Area -->
 						<div>
 							<!-- Profile Settings -->
 							<div class="settings-card" id="profileSection">
-								<h2>Profile & Avatar</h2>
+								<div class="settings-card-head">
+									<h2>Profile & Photo</h2>
+									<p class="settings-card-sub">This is how you appear on tickets, bookings, and the host dashboard.</p>
+								</div>
 
 								<div class="settings-avatar-flex">
-									<div class="settings-avatar profile-avatar" id="settingsAvatar">
-										<!-- Filled by JS -->
-									</div>
-									<div class="avatar-btns">
-										<label class="button button-sm button-primary" for="settingsPhotoInput" style="cursor:pointer;">
-											Upload Picture
-										</label>
-										<input type="file" id="settingsPhotoInput" accept="image/*" style="display:none;" />
-										<button class="button button-sm button-ghost" type="button" id="settingsRemovePhotoBtn">Remove</button>
+									<div class="settings-avatar" id="settingsAvatar"></div>
+									<div>
+										<div class="avatar-btns">
+											<label class="button button-sm button-primary" for="settingsPhotoInput" style="cursor:pointer;">Upload Picture</label>
+											<input type="file" id="settingsPhotoInput" accept="image/*" style="display:none;" />
+											<button class="button button-sm button-ghost" type="button" id="settingsRemovePhotoBtn">Remove</button>
+										</div>
+										<p class="avatar-hint">Use a square JPG, PNG, or WEBP. A clear face photo works best.</p>
 									</div>
 								</div>
 
 								<form id="profileForm">
+									<div class="form-grid">
 										<div class="form-group">
 											<label for="setFullName">Full Name</label>
 											<input type="text" id="setFullName" class="form-input" placeholder="Your Full Name" />
 										</div>
-
 										<div class="form-group">
 											<label for="setUsername">Username</label>
 											<input type="text" id="setUsername" class="form-input" placeholder="Username" readonly style="background:#f9fafb;" />
@@ -536,9 +512,15 @@
 											<label for="setEmail">Email Address</label>
 											<input type="email" id="setEmail" class="form-input" placeholder="your.email@example.com" />
 										</div>
-										<div class="form-group">
-											<label for="setLocationCity">Your Location (City)</label>
-											<input type="text" id="setLocationCity" class="form-input" placeholder="e.g. Chennai" />
+									</div>
+									<div class="form-group" style="margin-top:1.25rem;">
+										<label for="setLocationCity">Venue / Location Address</label>
+										<input type="text" id="setLocationCity" class="form-input" placeholder="Street, area, pincode — or drag the pin on the map" />
+										<input type="hidden" id="settingsVenueLat" />
+										<input type="hidden" id="settingsVenueLon" />
+										<div class="venue-map-panel" id="settingsVenueMapPanel">
+											<div id="settingsVenueMap" class="venue-map" role="img" aria-label="Your location map"></div>
+											<p class="venue-map-hint" id="settingsVenueMapHint">Search a place, then drag the pin. Street, area, and pincode fill in automatically.</p>
 										</div>
 									</div>
 
@@ -609,92 +591,44 @@
 								</form>
 							</div>
 
-							<!-- Notifications Section -->
-							<div class="settings-card" id="notificationsSection">
-								<div class="notif-header-flex">
-									<h2>🔔 Notifications & Activity</h2>
-									<div class="notif-actions">
-										<button type="button" class="button button-sm button-ghost" id="markReadBtn" style="font-size:.78rem;">Mark All as Read</button>
-										<button type="button" class="button button-sm button-ghost" id="clearNotifsBtn" style="font-size:.78rem;color:#dc2626;">Clear All</button>
-									</div>
+							<div class="settings-card" id="notificationSettingsSection">
+								<div class="settings-card-head">
+									<h2>Notification Settings</h2>
+									<p class="settings-card-sub">Choose which alerts you want. Your inbox lives on the <a href="notifications.html" style="color:var(--primary);font-weight:600;">Notifications</a> page.</p>
 								</div>
-
-								<!-- Notification Preferences Toggles -->
 								<div class="pref-group">
 									<div class="pref-item">
 										<div class="pref-info">
-											<h4>Booking & Ticket Emails</h4>
-											<p>Receive immediate email receipts and digital E-Tickets for your event bookings.</p>
+											<h4>Booking &amp; Ticket Emails</h4>
+											<p>Receive receipts and digital e-tickets when a booking is confirmed.</p>
 										</div>
 										<label class="switch">
-											<input type="checkbox" checked />
+											<input type="checkbox" id="prefBookingEmails" checked />
 											<span class="slider"></span>
 										</label>
 									</div>
 									<div class="pref-item">
 										<div class="pref-info">
 											<h4>Upcoming Event Reminders</h4>
-											<p>Get notified 24 hours prior to scheduled events you are registered for.</p>
+											<p>Get notified 24 hours before events you are registered for.</p>
 										</div>
 										<label class="switch">
-											<input type="checkbox" checked />
+											<input type="checkbox" id="prefEventReminders" checked />
 											<span class="slider"></span>
 										</label>
 									</div>
 									<div class="pref-item">
 										<div class="pref-info">
-											<h4>Special Offers & Recommendations</h4>
-											<p>Receive curated event invites and early-bird discount offers.</p>
+											<h4>Special Offers &amp; Recommendations</h4>
+											<p>Receive curated invites and early-bird discount offers.</p>
 										</div>
 										<label class="switch">
-											<input type="checkbox" />
+											<input type="checkbox" id="prefOffers" />
 											<span class="slider"></span>
 										</label>
 									</div>
 								</div>
-
-								<!-- Active Notifications Feed -->
-								<div class="notif-feed" id="notifFeed">
-									<div class="notif-card unread">
-										<div class="notif-icon">🎟️</div>
-										<div class="notif-body">
-											<div class="notif-title">
-												<span>Booking Confirmed</span>
-												<span class="notif-time">2 hours ago</span>
-											</div>
-											<p class="notif-desc">Your 2 VIP Passes for <strong>Chennai Business Leaders Summit 2026</strong> are confirmed. E-Tickets are ready in Your Orders.</p>
-										</div>
-									</div>
-
-									<div class="notif-card unread">
-										<div class="notif-icon">✨</div>
-										<div class="notif-body">
-											<div class="notif-title">
-												<span>Upcoming Event Reminder</span>
-												<span class="notif-time">1 day ago</span>
-											</div>
-											<p class="notif-desc"><strong>Tech Founders & Innovation Meet 2025</strong> starts in 3 days at Le Royal Méridien, Chennai.</p>
-										</div>
-									</div>
-
-									<div class="notif-card">
-										<div class="notif-icon">🎁</div>
-										<div class="notif-body">
-											<div class="notif-title">
-												<span>Special Early-Bird Offer</span>
-												<span class="notif-time">3 days ago</span>
-											</div>
-											<p class="notif-desc">Enjoy 15% off VIP Passes for <strong>South India Music & Cultural Festival</strong> using promo code <code>JODFEST15</code>.</p>
-										</div>
-									</div>
-								</div>
-
-								<!-- Empty State -->
-								<div class="notif-empty-state" id="notifEmptyState">
-									<div class="notif-empty-icon">🔔</div>
-									<div class="notif-empty-title">You're all caught up!</div>
-									<div class="notif-empty-desc">No new notifications right now. We'll notify you whenever there are updates on your bookings, saved events, or special announcements.</div>
-								</div>
+								<div class="toast-msg toast-success" id="notifPrefToast">✓ Notification preferences saved.</div>
 							</div>
 						</div>
 					</div>
@@ -705,11 +639,12 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=10"></script>
+	<script src="js/include.js?v=14"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=10"></script>
-	<script src="js/profile.js?v=1"></script>
-	<script src="js/location.js?v=2"></script>
+	<script src="js/auth.js?v=17"></script>
+	<script src="js/profile.js?v=3"></script>
+	<script src="js/location.js?v=10"></script>
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 	<script src="js/script.js?v=13"></script>
 	<script>
 		// Auth check
@@ -724,6 +659,469 @@
 				const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
 				return raw ? JSON.parse(raw) : null;
 			} catch (_) { return null; }
+		}
+
+		function apiBase() {
+			if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
+			return "http://127.0.0.1:8001";
+		}
+
+		function cleanCityName(name) {
+			return String(name || "")
+				.replace(/^(greater|brihan)\s+/i, "")
+				.replace(/\s+(municipal\s+)?corporation$/i, "")
+				.trim();
+		}
+
+		function readStoredLocation() {
+			const user = getUser() || {};
+			let city = "";
+			let pin = "";
+			let address = "";
+			let lat = null;
+			let lon = null;
+			try {
+				if (window.JodLocation && typeof window.JodLocation.getCachedLocation === "function") {
+					const cached = window.JodLocation.getCachedLocation() || {};
+					city = cached.city || "";
+					address = cached.address || "";
+					pin = cached.pincode || "";
+					lat = cached.lat;
+					lon = cached.lon;
+				}
+				address = address
+					|| user.location_address
+					|| sessionStorage.getItem("jod_user_address")
+					|| localStorage.getItem("jod_user_address")
+					|| "";
+				city = city
+					|| user.city
+					|| sessionStorage.getItem("jod_user_city")
+					|| localStorage.getItem("jod_user_city")
+					|| "";
+				pin = pin
+					|| user.location_pincode
+					|| user.location_pin
+					|| sessionStorage.getItem("jod_user_pincode")
+					|| localStorage.getItem("jod_user_pincode")
+					|| "";
+				if (lat == null) {
+					const rawLat = sessionStorage.getItem("jod_user_lat") || localStorage.getItem("jod_user_lat");
+					const rawLon = sessionStorage.getItem("jod_user_lon") || localStorage.getItem("jod_user_lon");
+					if (rawLat) lat = parseFloat(rawLat);
+					if (rawLon) lon = parseFloat(rawLon);
+				}
+			} catch (_) {}
+			return {
+				city: cleanCityName(city),
+				pin: String(pin || "").replace(/\D/g, "").slice(0, 6),
+				address: String(address || "").trim(),
+				lat: Number.isFinite(lat) ? lat : null,
+				lon: Number.isFinite(lon) ? lon : null,
+			};
+		}
+
+		function isAdminAddress(text) {
+			return /cmwssb|ward\s+\d+|zone\s+\d+|division\s+\d+|circle\s+\d+/i.test(String(text || ""));
+		}
+
+		function pinFromAddress(text) {
+			const m = String(text || "").match(/\b(\d{6})\b/);
+			return m ? m[1] : "";
+		}
+
+		function extractCityFromSavedAddress(address) {
+			const parts = String(address || "").split(",").map((s) => s.trim()).filter(Boolean);
+			const useful = parts.filter((p) => {
+				const digits = p.replace(/\D/g, "");
+				if (digits.length === 6 && digits === p.replace(/\s/g, "")) return false;
+				if (isAdminAddress(p)) return false;
+				return !/^(india|tamil nadu|karnataka|maharashtra|delhi|nct of delhi|west bengal|telangana|kerala|andhra pradesh)$/i.test(p);
+			});
+			return useful[useful.length - 1] || "";
+		}
+
+		function writeVenueCoords(lat, lon) {
+			const latEl = document.getElementById("settingsVenueLat");
+			const lonEl = document.getElementById("settingsVenueLon");
+			if (latEl && Number.isFinite(lat)) latEl.value = String(lat);
+			if (lonEl && Number.isFinite(lon)) lonEl.value = String(lon);
+		}
+
+		function readVenueCoord(id) {
+			const raw = document.getElementById(id) && document.getElementById(id).value;
+			const n = parseFloat(raw);
+			return Number.isFinite(n) ? n : null;
+		}
+
+		function setVenueHint(text, isAddress) {
+			const hint = document.getElementById("settingsVenueMapHint");
+			if (!hint) return;
+			hint.textContent = text || "";
+			hint.classList.toggle("is-address", !!isAddress);
+		}
+
+		function formatStreetAreaPin(address, displayName) {
+			const addr = address || {};
+			const indic = /[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/;
+			const skipState = /^(india|tamil nadu|karnataka|maharashtra|delhi|nct of delhi|west bengal|telangana|kerala|andhra pradesh|gujarat|rajasthan|uttar pradesh|madhya pradesh|bihar|odisha|punjab|haryana|assam)$/i;
+			const adminOnly = /^(cmwssb(\s+division)?(\s+\d+)?|ward\s+\d+|zone\s+\d+|division\s+\d+|circle\s+\d+)$/i;
+			const adminPrefix = /^(cmwssb\b|ward\s+\d+|division\s+\d+|circle\s+\d+)/i;
+			const zonePrefix = /^zone\s+\d+\s+(.+)$/i;
+
+			function cleanAdmin(text) {
+				let s = String(text || "").trim();
+				if (!s) return "";
+				if (adminOnly.test(s) || adminPrefix.test(s)) return "";
+				const zone = s.match(zonePrefix);
+				if (zone) s = String(zone[1] || "").trim();
+				if (skipState.test(s)) return "";
+				return s;
+			}
+
+			function isEnglishPart(text) {
+				const s = String(text || "").trim();
+				if (!s) return false;
+				if (indic.test(s)) return false;
+				if (skipState.test(s)) return false;
+				return true;
+			}
+
+			function pickEnglish() {
+				for (let i = 0; i < arguments.length; i++) {
+					const val = cleanAdmin(arguments[i]);
+					if (isEnglishPart(val)) return val;
+				}
+				return "";
+			}
+
+			function addPart(parts, value) {
+				let val = cleanAdmin(value);
+				const raw = String(value || "").trim();
+				const pin = raw.replace(/\D/g, "");
+				if (!val && pin.length === 6 && pin === raw.replace(/\s/g, "")) val = pin;
+				if (!val) return;
+				if (!(val.length === 6 && /^\d{6}$/.test(val)) && !isEnglishPart(val)) return;
+				const low = val.toLowerCase();
+				for (let i = 0; i < parts.length; i++) {
+					const ex = parts[i].toLowerCase();
+					if (ex === low) return;
+					if (low.length < ex.length && ex.includes(low)) return;
+					if (ex.length < low.length && low.includes(ex)) {
+						parts[i] = val;
+						return;
+					}
+				}
+				parts.push(val);
+			}
+
+			const house = pickEnglish(addr.house_number);
+			const road = pickEnglish(addr.road, addr.pedestrian, addr.residential, addr.street);
+			const poi = pickEnglish(addr.building, addr.amenity, addr.shop, addr.tourism, addr.railway, addr.public_building);
+			const neighbourhood = pickEnglish(addr.neighbourhood, addr.quarter, addr.hamlet, addr.allotments);
+			const suburb = pickEnglish(addr.suburb, addr.village, addr.city_district);
+			const city = pickEnglish(addr.city, addr.town, addr.municipality, addr.county);
+			const pin = String(addr.postcode || "").replace(/\s/g, "");
+			const street = [house, road].filter(Boolean).join(" ");
+
+			const parts = [];
+			addPart(parts, poi);
+			addPart(parts, street);
+			addPart(parts, neighbourhood);
+			addPart(parts, suburb);
+			addPart(parts, city);
+			if (/^\d{6}$/.test(pin)) addPart(parts, pin);
+
+			if (parts.length < 2) {
+				String(displayName || "").split(",").forEach((chunk) => addPart(parts, chunk.trim()));
+			}
+
+			return parts.join(", ") || "";
+		}
+
+		let venueMap = null;
+		let venueMarker = null;
+		let venueMapClickBound = false;
+		let venueFillingFromMap = false;
+		let venueGeocodeTimer = null;
+
+		function invalidateVenueMap() {
+			if (venueMap && typeof venueMap.invalidateSize === "function") {
+				venueMap.invalidateSize();
+			}
+		}
+
+		function fillVenueAddress(text) {
+			const input = document.getElementById("setLocationCity");
+			if (!input || !text) return;
+			venueFillingFromMap = true;
+			input.value = text;
+			delete input.dataset.dirty;
+			venueFillingFromMap = false;
+			setVenueHint("📍 " + text + " — drag the pin to adjust", true);
+			try {
+				localStorage.setItem("jod_user_address", text);
+				sessionStorage.setItem("jod_user_address", text);
+				const pin = pinFromAddress(text);
+				if (pin) {
+					localStorage.setItem("jod_user_pincode", pin);
+					sessionStorage.setItem("jod_user_pincode", pin);
+				}
+			} catch (_) {}
+		}
+
+		function venuePinIcon() {
+			return window.L.divIcon({
+				className: "venue-pin-wrap",
+				html: '<div class="venue-pin"></div>',
+				iconSize: [30, 42],
+				iconAnchor: [15, 40],
+				popupAnchor: [0, -36],
+			});
+		}
+
+		function ensureVenueMap() {
+			if (!window.L) return null;
+			const el = document.getElementById("settingsVenueMap");
+			if (!el) return null;
+			if (!venueMap) {
+				venueMap = window.L.map(el, {
+					zoomControl: true,
+					scrollWheelZoom: true,
+				}).setView([20.5937, 78.9629], 5);
+				window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+					maxZoom: 19,
+					attribution: "&copy; OpenStreetMap",
+				}).addTo(venueMap);
+				if (!venueMapClickBound) {
+					venueMapClickBound = true;
+					venueMap.on("click", (e) => {
+						if (!e || !e.latlng) return;
+						plotVenuePin(e.latlng.lat, e.latlng.lng, { fly: !venueMarker, reverse: true });
+					});
+				}
+			}
+			setTimeout(() => invalidateVenueMap(), 60);
+			return venueMap;
+		}
+
+		function plotVenuePin(lat, lon, opts) {
+			opts = opts || {};
+			if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+			if (!ensureVenueMap()) return;
+			writeVenueCoords(lat, lon);
+			try {
+				localStorage.setItem("jod_user_lat", String(lat));
+				localStorage.setItem("jod_user_lon", String(lon));
+				sessionStorage.setItem("jod_user_lat", String(lat));
+				sessionStorage.setItem("jod_user_lon", String(lon));
+			} catch (_) {}
+			if (venueMarker) {
+				venueMarker.setLatLng([lat, lon]);
+			} else {
+				venueMarker = window.L.marker([lat, lon], {
+					icon: venuePinIcon(),
+					draggable: true,
+					autoPan: true,
+					autoPanPadding: [48, 48],
+					riseOnDrag: true,
+					title: "Drag to set your exact location",
+				}).addTo(venueMap);
+				venueMarker.on("dragstart", () => {
+					if (venueMarker.closePopup) venueMarker.closePopup();
+					setVenueHint("Drop the pin on your exact location.");
+				});
+				venueMarker.on("dragend", (e) => {
+					const p = e.target.getLatLng();
+					writeVenueCoords(p.lat, p.lng);
+					reverseGeocodeVenue(p.lat, p.lng);
+				});
+			}
+			if (opts.fly !== false) {
+				const zoom = venueMap.getZoom() < 14 ? 16 : Math.max(venueMap.getZoom(), 16);
+				if (typeof venueMap.flyTo === "function") venueMap.flyTo([lat, lon], zoom, { duration: 0.7 });
+				else venueMap.setView([lat, lon], zoom);
+			}
+			if (opts.reverse) reverseGeocodeVenue(lat, lon);
+			else setTimeout(() => invalidateVenueMap(), 80);
+		}
+
+		async function reverseGeocodeVenue(lat, lon) {
+			setVenueHint("Looking up street, area, and pincode…");
+			try {
+				let formatted = "";
+				try {
+					const res = await fetch(`${apiBase()}/api/location/venue-reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+					if (res.ok) {
+						const data = await res.json();
+						formatted = String(data.formatted || "").trim();
+					}
+				} catch (_) {}
+
+				if (!formatted) {
+					const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&namedetails=1&zoom=18&accept-language=en&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+					const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
+					if (!res.ok) throw new Error("reverse failed");
+					const hit = await res.json();
+					formatted = formatStreetAreaPin(hit.address || {}, hit.display_name || hit.name);
+				}
+
+				if (formatted) {
+					fillVenueAddress(formatted);
+					if (venueMarker) {
+						venueMarker.bindPopup(formatted.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))).openPopup();
+					}
+				} else {
+					setVenueHint("Pin dropped. Drag again if this is not the right spot.");
+				}
+			} catch (_) {
+				setVenueHint("Pin dropped. Street lookup failed — you can still type the address.");
+			}
+		}
+
+		async function geocodeVenueQuery(query) {
+			const q = String(query || "").trim();
+			if (q.length < 3) return;
+			setVenueHint("Finding this place on the map…");
+			try {
+				let hitLat = NaN;
+				let hitLon = NaN;
+				let formatted = "";
+
+				try {
+					const res = await fetch(`${apiBase()}/api/location/venue-search?q=${encodeURIComponent(q)}`);
+					if (res.ok) {
+						const data = await res.json();
+						hitLat = parseFloat(data.location_lat);
+						hitLon = parseFloat(data.location_lon);
+						formatted = String(data.formatted || "").trim();
+					}
+				} catch (_) {}
+
+				if (!Number.isFinite(hitLat) || !Number.isFinite(hitLon)) {
+					const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&namedetails=1&countrycodes=in&limit=1&accept-language=en&q=${encodeURIComponent(q)}`;
+					const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
+					if (!res.ok) return;
+					const results = await res.json();
+					if (!Array.isArray(results) || !results.length) {
+						setVenueHint("Place not found. Click the map or drag a pin to set the location.");
+						return;
+					}
+					const hit = results[0];
+					hitLat = parseFloat(hit.lat);
+					hitLon = parseFloat(hit.lon);
+					formatted = formatStreetAreaPin(hit.address || {}, hit.display_name || hit.name);
+				}
+
+				if (!Number.isFinite(hitLat) || !Number.isFinite(hitLon)) {
+					setVenueHint("Place not found. Click the map or drag a pin to set the location.");
+					return;
+				}
+
+				plotVenuePin(hitLat, hitLon, { fly: true, reverse: false });
+				if (formatted) {
+					const typed = q;
+					const merged = (!formatted.toLowerCase().includes(typed.toLowerCase()) && typed.length <= 48 && !/,/.test(typed) && !/\d{6}/.test(typed))
+						? `${typed}, ${formatted}`
+						: formatted;
+					fillVenueAddress(merged);
+					if (venueMarker) venueMarker.bindPopup(merged.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))).openPopup();
+				}
+			} catch (_) {
+				setVenueHint("Could not search that place. Click the map to drop a pin.");
+			}
+		}
+
+		function fillLocationFields(detail) {
+			const fromEvent = detail && typeof detail === "object" ? detail : null;
+			const stored = readStoredLocation();
+			const pin = String((fromEvent && (fromEvent.pincode || fromEvent.location_pincode)) || stored.pin || "").replace(/\D/g, "").slice(0, 6);
+			let address = String((fromEvent && (fromEvent.address || fromEvent.formatted)) || stored.address || "").trim();
+			if (isAdminAddress(address)) address = "";
+			const city = cleanCityName((fromEvent && fromEvent.city) || stored.city);
+			const areaLine = address || "";
+			const cityInp = document.getElementById("setLocationCity");
+			if (cityInp && areaLine && !cityInp.dataset.dirty) cityInp.value = areaLine;
+			const lat = fromEvent && Number.isFinite(Number(fromEvent.lat || fromEvent.location_lat))
+				? Number(fromEvent.lat || fromEvent.location_lat)
+				: stored.lat;
+			const lon = fromEvent && Number.isFinite(Number(fromEvent.lon || fromEvent.location_lon))
+				? Number(fromEvent.lon || fromEvent.location_lon)
+				: stored.lon;
+			if (Number.isFinite(lat) && Number.isFinite(lon)) writeVenueCoords(lat, lon);
+			return { city, pin, address: areaLine, lat, lon };
+		}
+
+		function initSettingsVenueMap() {
+			ensureVenueMap();
+			const input = document.getElementById("setLocationCity");
+			if (input) {
+				input.addEventListener("input", () => {
+					if (venueFillingFromMap) return;
+					input.dataset.dirty = "1";
+					clearTimeout(venueGeocodeTimer);
+					venueGeocodeTimer = setTimeout(() => geocodeVenueQuery(input.value), 650);
+				});
+				input.addEventListener("keydown", (e) => {
+					if (e.key === "Enter") {
+						e.preventDefault();
+						clearTimeout(venueGeocodeTimer);
+						geocodeVenueQuery(input.value);
+					}
+				});
+			}
+			const stored = readStoredLocation();
+			const lat = stored.lat != null ? stored.lat : readVenueCoord("settingsVenueLat");
+			const lon = stored.lon != null ? stored.lon : readVenueCoord("settingsVenueLon");
+			if (lat != null && lon != null) {
+				plotVenuePin(lat, lon, { fly: true, reverse: true });
+			} else if (input && input.value.trim().length >= 3 && !isAdminAddress(input.value)) {
+				geocodeVenueQuery(input.value.trim());
+			}
+			setTimeout(() => invalidateVenueMap(), 250);
+			setTimeout(() => invalidateVenueMap(), 800);
+		}
+
+		function renderSettingsHeader() {
+			fillLocationFields();
+		}
+
+		async function refreshLocationFromServer() {
+			try {
+				const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+					? window.JodAuth.fetchAuth
+					: fetch;
+				let data = null;
+				const locRes = await fetchFn(`${apiBase()}/api/location/me`);
+				if (locRes && locRes.ok) data = await locRes.json();
+				if (!data || !(data.city || data.location_pincode)) {
+					const meRes = await fetchFn(`${apiBase()}/api/auth/me`);
+					if (meRes && meRes.ok) data = await meRes.json();
+				}
+				if (!data) return;
+				const city = cleanCityName(data.city);
+				const pin = String(data.location_pincode || data.location_pin || "").replace(/\D/g, "").slice(0, 6);
+				if (city) {
+					try {
+						localStorage.setItem("jod_user_city", city);
+						sessionStorage.setItem("jod_user_city", city);
+					} catch (_) {}
+				}
+				if (pin) {
+					try {
+						localStorage.setItem("jod_user_pincode", pin);
+						sessionStorage.setItem("jod_user_pincode", pin);
+					} catch (_) {}
+				}
+				const u = getUser() || {};
+				if (city) u.city = city;
+				if (pin) u.location_pincode = pin;
+				try {
+					if (localStorage.getItem("jod_user")) localStorage.setItem("jod_user", JSON.stringify(u));
+					if (sessionStorage.getItem("jod_user")) sessionStorage.setItem("jod_user", JSON.stringify(u));
+				} catch (_) {}
+				fillLocationFields({ city, pincode: pin });
+			} catch (_) {}
 		}
 
 		function renderSettingsAvatar() {
@@ -745,10 +1143,21 @@
 
 				document.getElementById("setUsername").value = user.username || "";
 				document.getElementById("setEmail").value = user.email || "";
-				const city = user.city || localStorage.getItem("jod_user_city") || "";
-				const cityInp = document.getElementById("setLocationCity");
-				if (cityInp) cityInp.value = city;
 			}
+			renderSettingsHeader();
+			fillLocationFields();
+			refreshLocationFromServer();
+			initSettingsVenueMap();
+			window.addEventListener("jod-location-updated", (e) => {
+				const d = e.detail || {};
+				fillLocationFields(d);
+				const lat = Number(d.lat || d.location_lat);
+				const lon = Number(d.lon || d.location_lon);
+				const addr = String(d.address || d.formatted || "").trim();
+				if (Number.isFinite(lat) && Number.isFinite(lon)) {
+					plotVenuePin(lat, lon, { fly: true, reverse: !addr || isAdminAddress(addr) });
+				}
+			});
 
 			renderSettingsAvatar();
 
@@ -779,29 +1188,51 @@
 				});
 			}
 
-			// Notifications actions
-			const markReadBtn = document.getElementById("markReadBtn");
-			if (markReadBtn) {
-				markReadBtn.addEventListener("click", () => {
-					document.querySelectorAll(".notif-card").forEach(card => card.classList.remove("unread"));
+			function loadNotifPrefs() {
+				const defaults = { bookingEmails: true, eventReminders: true, offers: false };
+				try {
+					const raw = localStorage.getItem("jod_notif_prefs");
+					return raw ? Object.assign(defaults, JSON.parse(raw)) : defaults;
+				} catch (_) {
+					return defaults;
+				}
+			}
+
+			function saveNotifPrefs(prefs) {
+				try { localStorage.setItem("jod_notif_prefs", JSON.stringify(prefs)); } catch (_) {}
+				const toast = document.getElementById("notifPrefToast");
+				if (toast) {
+					toast.style.display = "block";
+					setTimeout(() => { toast.style.display = "none"; }, 2200);
+				}
+			}
+
+			function bindNotifPrefs() {
+				const prefs = loadNotifPrefs();
+				const booking = document.getElementById("prefBookingEmails");
+				const reminders = document.getElementById("prefEventReminders");
+				const offers = document.getElementById("prefOffers");
+				if (booking) booking.checked = !!prefs.bookingEmails;
+				if (reminders) reminders.checked = !!prefs.eventReminders;
+				if (offers) offers.checked = !!prefs.offers;
+				[booking, reminders, offers].forEach((el) => {
+					if (!el) return;
+					el.addEventListener("change", () => {
+						saveNotifPrefs({
+							bookingEmails: !!(booking && booking.checked),
+							eventReminders: !!(reminders && reminders.checked),
+							offers: !!(offers && offers.checked),
+						});
+					});
 				});
 			}
 
-			const clearNotifsBtn = document.getElementById("clearNotifsBtn");
-			if (clearNotifsBtn) {
-				clearNotifsBtn.addEventListener("click", () => {
-					const feed = document.getElementById("notifFeed");
-					const empty = document.getElementById("notifEmptyState");
-					if (feed) feed.style.display = "none";
-					if (empty) empty.style.display = "block";
-				});
-			}
+			bindNotifPrefs();
 
-			// Hash navigation check
 			function checkHashScroll() {
 				const hash = window.location.hash.replace("#", "");
-				if (hash === "notificationsSection" || hash === "notifications") {
-					scrollToSection("notificationsSection");
+				if (hash === "notificationSettingsSection" || hash === "notificationsSection" || hash === "notifications") {
+					scrollToSection("notificationSettingsSection");
 				} else if (hash === "securitySection" || hash === "security") {
 					scrollToSection("securitySection");
 				} else if (hash === "profileSection" || hash === "profile") {
@@ -825,24 +1256,63 @@
 			}
 
 			// Profile form submit
-			document.getElementById("profileForm").addEventListener("submit", (e) => {
+			document.getElementById("profileForm").addEventListener("submit", async (e) => {
 				e.preventDefault();
 				const fullName = document.getElementById("setFullName").value.trim();
 				const email = document.getElementById("setEmail").value.trim();
-				const city = document.getElementById("setLocationCity") ? document.getElementById("setLocationCity").value.trim() : "";
+				const addressInp = document.getElementById("setLocationCity");
+				const address = addressInp ? addressInp.value.trim() : "";
+				const pin = pinFromAddress(address);
+				const city = extractCityFromSavedAddress(address);
+				const lat = readVenueCoord("settingsVenueLat");
+				const lon = readVenueCoord("settingsVenueLon");
 				let u = getUser() || {};
 				u.full_name = fullName;
 				u.email = email;
+				if (address) u.location_address = address;
 				if (city) u.city = city;
+				if (pin) u.location_pincode = pin;
 				try {
 					if (localStorage.getItem("jod_user")) localStorage.setItem("jod_user", JSON.stringify(u));
 					if (sessionStorage.getItem("jod_user")) sessionStorage.setItem("jod_user", JSON.stringify(u));
+					if (address) {
+						localStorage.setItem("jod_user_address", address);
+						sessionStorage.setItem("jod_user_address", address);
+					}
+					if (city) {
+						localStorage.setItem("jod_user_city", city);
+						sessionStorage.setItem("jod_user_city", city);
+					}
+					if (pin) {
+						localStorage.setItem("jod_user_pincode", pin);
+						sessionStorage.setItem("jod_user_pincode", pin);
+					}
+					if (lat != null) {
+						localStorage.setItem("jod_user_lat", String(lat));
+						sessionStorage.setItem("jod_user_lat", String(lat));
+					}
+					if (lon != null) {
+						localStorage.setItem("jod_user_lon", String(lon));
+						sessionStorage.setItem("jod_user_lon", String(lon));
+					}
 				} catch (_) {}
-				if (city && window.fallbackManualEntry) {
-					window.fallbackManualEntry(city).catch(() => {});
-				} else if (city && window.updateProfileLocation) {
-					window.updateProfileLocation(city);
+				if (address && typeof window.fallbackManualEntry === "function") {
+					try { await window.fallbackManualEntry(address, pin || undefined); } catch (_) {}
+				} else if (address && window.updateProfileLocation) {
+					window.updateProfileLocation({ city: city || address, location_pincode: pin });
 				}
+				if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+					try {
+						await window.JodAuth.fetchAuth(`${apiBase()}/api/users/me`, {
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ full_name: fullName, city: city || address || null })
+						});
+					} catch (_) {}
+				}
+				if (addressInp) delete addressInp.dataset.dirty;
+				renderSettingsHeader();
+				if (typeof window.updateNavAuth === "function") window.updateNavAuth();
 				const toast = document.getElementById("profileToast");
 				toast.style.display = "block";
 				setTimeout(() => toast.style.display = "none", 3000);

@@ -30,6 +30,12 @@ async function initEventDetailsPage() {
     }
 
     await loadEventFromBackend(eventId);
+    await applyBookingCtaState(eventId);
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            applyBookingCtaState(eventId);
+        }
+    });
 }
 
 function showLoadingState() {
@@ -179,6 +185,45 @@ function getCategoryThemeConfig(category) {
     };
 }
 
+function googleMapsVenueUrl(event) {
+    if (!event) return '';
+    const lat = Number(event.latitude);
+    const lon = Number(event.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
+        return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lon}`)}`;
+    }
+    const query = [event.venue, event.location, event.address]
+        .map((part) => String(part || '').trim())
+        .filter((part, index, list) => part && list.findIndex((item) => item.toLowerCase() === part.toLowerCase()) === index)
+        .join(', ');
+    if (!query) return '';
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+function bindVenueMapsLink(event) {
+    const venueLink = document.getElementById('infoVenueLink');
+    if (!venueLink) return;
+    const mapsUrl = googleMapsVenueUrl(event);
+    const format = String(event && event.event_format || '').toLowerCase();
+    const isOnline = format === 'online' || format === 'virtual';
+    if (mapsUrl && !isOnline) {
+        venueLink.href = mapsUrl;
+        venueLink.target = '_blank';
+        venueLink.rel = 'noopener noreferrer';
+        venueLink.classList.remove('is-disabled');
+        venueLink.setAttribute('title', 'Open venue in Google Maps');
+        venueLink.setAttribute('aria-disabled', 'false');
+        venueLink.onclick = null;
+    } else {
+        venueLink.href = '#';
+        venueLink.removeAttribute('target');
+        venueLink.classList.add('is-disabled');
+        venueLink.removeAttribute('title');
+        venueLink.setAttribute('aria-disabled', 'true');
+        venueLink.onclick = (evt) => evt.preventDefault();
+    }
+}
+
 function renderEventDOM(event) {
     if (!event) return;
     const EP = window.JodEventsPublic;
@@ -239,10 +284,37 @@ function renderEventDOM(event) {
     if (ageLangEl) ageLangEl.textContent = `${event.age_limit || 'All ages'} | ${event.language || 'English'}`;
 
     const infoVenueEl = document.getElementById('infoVenue');
-    if (infoVenueEl) infoVenueEl.textContent = event.venue || event.location || '';
+    const venueLabel = String(event.venue || event.location || '').trim();
+    if (infoVenueEl) infoVenueEl.textContent = venueLabel;
 
     const infoLocEl = document.getElementById('infoLocation');
-    if (infoLocEl) infoLocEl.textContent = event.location || '';
+    const locationLabel = String(event.location || '').trim();
+    if (infoLocEl) {
+        const showSecondary = locationLabel && locationLabel.toLowerCase() !== venueLabel.toLowerCase();
+        infoLocEl.textContent = showSecondary ? locationLabel : '';
+        infoLocEl.style.display = showSecondary ? '' : 'none';
+    }
+
+    const venueLink = document.getElementById('infoVenueLink');
+    bindVenueMapsLink(event);
+    if (venueLink && !venueLink.dataset.mapsBound) {
+        venueLink.dataset.mapsBound = '1';
+        venueLink.addEventListener('click', (evt) => {
+            if (venueLink.classList.contains('is-disabled')) {
+                evt.preventDefault();
+                return;
+            }
+            const mapsUrl = googleMapsVenueUrl(currentEventData || event);
+            if (!mapsUrl) {
+                evt.preventDefault();
+                return;
+            }
+            if (!venueLink.getAttribute('href') || venueLink.getAttribute('href') === '#') {
+                evt.preventDefault();
+                window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+            }
+        });
+    }
 
     const countdownEl = document.getElementById('eventCountdown');
     if (countdownEl && event.start_date && EP) {
@@ -573,6 +645,110 @@ function showToast(message) {
     }, 3000);
 }
 
+function getAccessToken() {
+    try {
+        if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
+            const token = window.JodAuth.getToken();
+            if (token) return token;
+        }
+        return localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token") || "";
+    } catch (_) {
+        return "";
+    }
+}
+
+function getApiRoot() {
+    if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE.replace(/\/$/, "");
+    if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+        return window.JodHealth.getApiBaseUrl().replace(/\/$/, "");
+    }
+    return "http://127.0.0.1:8001";
+}
+
+function sameEventId(a, b) {
+    const x = String(a || "").trim().toLowerCase().replace(/-/g, "");
+    const y = String(b || "").trim().toLowerCase().replace(/-/g, "");
+    return Boolean(x && y && x === y);
+}
+
+function isActiveBookingRow(row) {
+    return !["CANCELLED", "CANCELED", "REFUNDED"].includes(String((row && row.status) || "").toUpperCase());
+}
+
+function ticketStateFromBooking(row) {
+    return {
+        state: "ticket",
+        booking_id: row.booking_id,
+        ticket_type: row.ticket_type,
+        price: row.total_price != null ? row.total_price : row.price,
+        event_title: row.event_title,
+        venue: row.event_venue || row.venue
+    };
+}
+
+function findCachedBookingForEvent(eventId) {
+    try {
+        const cache = JSON.parse(localStorage.getItem("jod_user_bookings") || "[]");
+        if (!Array.isArray(cache)) return null;
+        return cache.find((row) => row && row.booking_id && sameEventId(row.event_id, eventId) && isActiveBookingRow(row)) || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+async function fetchMyBookingForEvent(eventId) {
+    const token = getAccessToken();
+    if (!token || !eventId) return null;
+    try {
+        const res = await fetch(`${getApiRoot()}/api/bookings/my-bookings`, {
+            cache: "no-store",
+            headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) return null;
+        const rows = await res.json();
+        if (!Array.isArray(rows)) return null;
+        return rows.find((row) => row && row.booking_id && sameEventId(row.event_id, eventId) && isActiveBookingRow(row)) || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+async function fetchRegistrationStatus(eventId) {
+    const token = getAccessToken();
+    if (!token || !eventId) return { state: "new" };
+    let status = { state: "new" };
+    try {
+        const res = await fetch(`${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`, {
+            cache: "no-store",
+            headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.state) status = data;
+        }
+    } catch (_) {}
+    if (status.state === "ticket" && status.booking_id) return status;
+    const mine = await fetchMyBookingForEvent(eventId);
+    if (mine) return ticketStateFromBooking(mine);
+    const cached = findCachedBookingForEvent(eventId);
+    if (cached) return ticketStateFromBooking(cached);
+    return status;
+}
+
+function setBookNowLabels(label) {
+    document.querySelectorAll(".btn-book-now").forEach((btn) => {
+        btn.textContent = label;
+    });
+}
+
+async function applyBookingCtaState(eventId) {
+    const status = await fetchRegistrationStatus(eventId);
+    if (status.state === "ticket") setBookNowLabels("View Ticket 🎟️");
+    else if (status.state === "payment_pending") setBookNowLabels("Complete Payment");
+    else setBookNowLabels("Book Now 🎟️");
+    return status;
+}
+
 async function triggerBookingModal() {
     const urlParams = new URLSearchParams(window.location.search);
     const eventId = currentEventData ? currentEventData.id : urlParams.get("id");
@@ -610,21 +786,36 @@ async function triggerBookingModal() {
     }
     const price = typeof currentSelectedPrice !== "undefined" ? currentSelectedPrice : 0;
 
+    const status = await fetchRegistrationStatus(eventId);
+    if (status.state === "ticket") {
+        if (status.booking_id) {
+            window.location.href = `ticket-details.html?id=${encodeURIComponent(status.booking_id)}`;
+            return;
+        }
+        window.location.href = "orders.html";
+        return;
+    }
+
+    const pendingTicket = status.ticket_type || ticketType;
+    const pendingPrice = (status.price != null && status.price !== "") ? status.price : price;
     try {
         sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify({
             eventId: eventId,
-            eventTitle: currentEventData.title || "",
-            venue: currentEventData.venue || currentEventData.location || "",
-            ticket: ticketType,
-            price: String(price),
+            eventTitle: status.event_title || (currentEventData && currentEventData.title) || "",
+            venue: status.venue || (currentEventData && (currentEventData.venue || currentEventData.location)) || "",
+            ticket: pendingTicket,
+            price: String(pendingPrice),
             quantity: 1
         }));
     } catch (_) {}
 
     const regUrl = new URL("published-form.html", window.location.href);
     regUrl.searchParams.set("eventId", eventId);
-    regUrl.searchParams.set("ticket", ticketType);
-    regUrl.searchParams.set("price", String(price));
-    regUrl.searchParams.set("v", "16");
+    regUrl.searchParams.set("ticket", pendingTicket);
+    regUrl.searchParams.set("price", String(pendingPrice));
+    regUrl.searchParams.set("v", "19");
+    if (status.state === "payment_pending") {
+        regUrl.searchParams.set("resume", "payment");
+    }
     window.location.href = regUrl.toString();
 }

@@ -47,6 +47,7 @@ class Event(Base):
     organizer     = relationship("User", foreign_keys=[organizer_id], back_populates="events")
     customer_user = relationship("User", foreign_keys=[customer_id], back_populates="customer_events")
     bookings      = relationship("Booking", back_populates="event", cascade="all, delete-orphan")
+    tickets       = relationship("Ticket", back_populates="event")
 
     def __repr__(self):
         return f"<Event(id={self.id}, title={self.title}, customer_id={self.customer_id})>"

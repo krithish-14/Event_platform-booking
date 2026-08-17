@@ -134,7 +134,7 @@
 			const ticket = prettyTicket(params.get("ticket") || saved.ticket || "General Admission");
 			const price = Number(params.get("price") || saved.price || 0);
 			const qty = Number(saved.quantity || 1) || 1;
-			const apiBase = (window.JodAuth && window.JodAuth.API_BASE) || "http://127.0.0.1:8001";
+			const apiBase = ((window.JodAuth && window.JodAuth.API_BASE) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || "http://127.0.0.1:8001").replace(/\/$/, "");
 
 			const eventEl = document.getElementById("payEvent");
 			const venueRow = document.getElementById("venueRow");
@@ -155,6 +155,71 @@
 				venueRow.hidden = false;
 			}
 			if (eventId && backEl) backEl.href = "event-details.html?id=" + encodeURIComponent(eventId);
+
+			function getToken() {
+				let token = "";
+				if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
+					token = window.JodAuth.getToken() || "";
+				}
+				if (!token) {
+					token = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token") || "";
+				}
+				token = String(token || "").replace(/^Bearer\s+/i, "").replace(/^["']|["']$/g, "").trim();
+				if (token === "null" || token === "undefined") return "";
+				return token;
+			}
+
+			function currentReturnUrl() {
+				const file = (window.location.pathname.split("/").pop() || "payment.html");
+				return file + window.location.search + window.location.hash;
+			}
+
+			function redirectToLogin(message) {
+				const returnUrl = currentReturnUrl();
+				try { sessionStorage.setItem("jod_redirect_after_login", returnUrl); } catch (_) {}
+				if (errEl) errEl.textContent = message || "Please log in to complete payment.";
+				window.location.href = "login.html?redirect=" + encodeURIComponent(returnUrl);
+			}
+
+			function apiErrorMessage(data, fallback) {
+				const detail = data && data.detail;
+				let text = fallback || "Payment could not be completed.";
+				if (typeof detail === "string") text = detail;
+				else if (Array.isArray(detail) && detail.length) {
+					text = detail.map((item) => (item && (item.msg || item.message)) || String(item)).join(" ");
+				}
+				if (/could not validate credentials|not authenticated|invalid token|expired/i.test(text)) {
+					return "SESSION_EXPIRED";
+				}
+				return text;
+			}
+
+			async function authFetch(url, options) {
+				const token = getToken();
+				const headers = Object.assign({}, (options && options.headers) || {});
+				if (token) headers.Authorization = "Bearer " + token;
+				if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+					return window.JodAuth.fetchAuth(url, Object.assign({}, options || {}, { headers: headers }));
+				}
+				return fetch(url, Object.assign({}, options || {}, { headers: headers, redirect: "follow" }));
+			}
+
+			async function fetchRegistrationStatus() {
+				const token = getToken();
+				if (!token || !eventId) return { state: "new" };
+				try {
+					const res = await authFetch(apiBase + "/api/bookings/registration-status?event_id=" + encodeURIComponent(eventId), {
+						cache: "no-store",
+						headers: { Accept: "application/json" }
+					});
+					if (res.status === 401 || res.status === 403) return { state: "auth_required" };
+					if (!res.ok) return { state: "new" };
+					const data = await res.json();
+					return data && data.state ? data : { state: "new" };
+				} catch (_) {
+					return { state: "new" };
+				}
+			}
 
 			async function loadEvent() {
 				if (!eventId) {
@@ -182,20 +247,30 @@
 					errEl.textContent = "Missing event. Go back and book again.";
 					return;
 				}
-				const token = window.JodAuth && window.JodAuth.getToken ? window.JodAuth.getToken() : null;
+				const token = getToken();
 				if (!token) {
-					errEl.textContent = "Please log in to complete payment.";
+					redirectToLogin("Please log in to complete payment.");
 					return;
 				}
 				btn.disabled = true;
 				btn.textContent = "Processing…";
 				try {
-					const user = window.JodAuth.getUser ? window.JodAuth.getUser() : {};
-					const res = await fetch(apiBase + "/api/bookings", {
+					const existing = await fetchRegistrationStatus();
+					if (existing.state === "auth_required") {
+						redirectToLogin("Your session expired. Please log in again to complete payment.");
+						return;
+					}
+					if (existing.state === "ticket" && existing.booking_id) {
+						try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
+						window.location.replace("ticket-details.html?id=" + encodeURIComponent(existing.booking_id));
+						return;
+					}
+					const user = window.JodAuth && window.JodAuth.getUser ? (window.JodAuth.getUser() || {}) : {};
+					const res = await authFetch(apiBase + "/api/bookings/", {
 						method: "POST",
 						headers: {
 							"Content-Type": "application/json",
-							"Authorization": "Bearer " + token
+							"Accept": "application/json"
 						},
 						body: JSON.stringify({
 							event_id: eventId,
@@ -208,8 +283,27 @@
 						})
 					});
 					const data = await res.json().catch(() => ({}));
-					if (!res.ok) throw new Error(data.detail || "Payment could not be completed.");
+					if (res.status === 401 || res.status === 403) {
+						redirectToLogin("Your session expired. Please log in again to complete payment.");
+						return;
+					}
+					if (!res.ok) {
+						const msg = apiErrorMessage(data, "Payment could not be completed.");
+						if (msg === "SESSION_EXPIRED") {
+							redirectToLogin("Your session expired. Please log in again to complete payment.");
+							return;
+						}
+						throw new Error(msg);
+					}
 					try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
+					try {
+						const cache = JSON.parse(localStorage.getItem("jod_user_bookings") || "[]");
+						const next = Array.isArray(cache) ? cache : [];
+						const idx = next.findIndex((row) => row && row.booking_id === data.booking_id);
+						if (idx >= 0) next[idx] = Object.assign({}, next[idx], data);
+						else next.unshift(data);
+						localStorage.setItem("jod_user_bookings", JSON.stringify(next));
+					} catch (_) {}
 					const bookingId = data.booking_id;
 					window.location.href = bookingId
 						? ("ticket-details.html?id=" + encodeURIComponent(bookingId))
@@ -222,7 +316,22 @@
 			}
 
 			if (btn) btn.addEventListener("click", completePayment);
-			loadEvent();
+			(async function bootPaymentPage() {
+				if (!getToken()) {
+					redirectToLogin("Please log in to complete payment.");
+					return;
+				}
+				const status = await fetchRegistrationStatus();
+				if (status.state === "auth_required") {
+					redirectToLogin("Your session expired. Please log in again to complete payment.");
+					return;
+				}
+				if (status.state === "ticket" && status.booking_id) {
+					window.location.replace("ticket-details.html?id=" + encodeURIComponent(status.booking_id));
+					return;
+				}
+				await loadEvent();
+			})();
 		})();
 	</script>
 </body>

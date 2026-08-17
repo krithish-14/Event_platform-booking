@@ -183,10 +183,10 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=10"></script>
+	<script src="js/include.js?v=14"></script>
 	<script src="js/health.js?v=1"></script>
 	<script src="js/auth.js?v=10"></script>
-	<script src="js/profile.js?v=1"></script>
+	<script src="js/profile.js?v=3"></script>
 	<script src="js/location.js?v=2"></script>
 	<script src="js/script.js?v=13"></script>
 	<script>
@@ -250,6 +250,8 @@
 				let statusBadge = `<span class="badge badge-upcoming">Upcoming</span>`;
 				if (isCancelled) {
 					statusBadge = `<span class="badge" style="background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid #e74c3c;">Cancelled</span>`;
+				} else if (String(b.ticket_status || "").toUpperCase() === "USED") {
+					statusBadge = `<span class="badge" style="background:rgba(16,185,129,.15);color:#059669;border:1px solid #10b981;">Checked in</span>`;
 				} else if (!isUpcoming) {
 					statusBadge = `<span class="badge badge-completed">Completed</span>`;
 				}

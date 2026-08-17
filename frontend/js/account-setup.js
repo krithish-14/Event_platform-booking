@@ -18,6 +18,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 	const currentUser = window.JodAuth ? window.JodAuth.getUser() : null;
 	const urlParams = new URLSearchParams(window.location.search);
 
+	if (!(window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn())) {
+		window.location.href = "login.html?redirect=" + encodeURIComponent("account-setup.html");
+		return;
+	}
+
 	// Primary email is the logged-in user's email
 	let email = (currentUser && currentUser.email)
 		? currentUser.email
@@ -140,6 +145,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 		}
 	}
 
+	const contactNameInput = document.getElementById("contactFullName");
+	const orgNameInput = document.getElementById("orgName");
+	if (currentUser) {
+		if (contactNameInput && !contactNameInput.value && currentUser.full_name) {
+			contactNameInput.value = currentUser.full_name;
+		}
+		if (orgNameInput && !orgNameInput.value && currentUser.full_name) {
+			orgNameInput.value = currentUser.full_name;
+		}
+	}
+
 	// ── Wizard Step Navigation ────────────────────────────────────────────────
 	function goToStep(step) {
 		currentStep = step;
@@ -157,7 +173,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			step1Section.style.display = "block";
 			tabStep1.classList.add("active");
 			btnBack.style.display = "none";
-			btnProceed.textContent = "Proceed";
+			btnProceed.textContent = "Continue to Host Dashboard";
 		} else if (step === 2) {
 			step2Section.style.display = "block";
 			tabStep1.classList.add("active");
@@ -397,8 +413,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (!acc) return;
 
                 if (acc.org_name) document.getElementById("orgName").value = acc.org_name;
-                if (acc.pan_number) document.getElementById("panNumber").value = acc.pan_number;
-                if (acc.org_address) document.getElementById("orgAddress").value = acc.org_address;
+                if (acc.pan_number && document.getElementById("panNumber")) document.getElementById("panNumber").value = acc.pan_number;
+                if (acc.org_address && document.getElementById("orgAddress")) document.getElementById("orgAddress").value = acc.org_address;
 
                 const hasGstinRadioValue = acc.has_gstin ? "yes" : "no";
                 const gstinRadio = document.querySelector(`input[name="has_gstin"][value="${hasGstinRadioValue}"]`);
@@ -461,11 +477,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 			if (data.account) {
                                 serverDraftLoaded = true;
 				const acc = data.account;
-				if (acc.status === "submitted" || acc.status === "verified") {
-					showAlert("Account setup already completed! Redirecting to your Dashboard...", "success");
-					setTimeout(() => {
-						window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(email)}`;
-					}, 1200);
+				const hasBank = window.JodAuth && typeof window.JodAuth.hasHostPayoutBank === "function"
+					? window.JodAuth.hasHostPayoutBank(acc)
+					: Boolean(acc.beneficiary_name && acc.bank_name && acc.account_number && acc.bank_ifsc);
+				if (hasBank) {
+					window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(email)}`;
 					return;
 				}
                                 applyDraftData(acc);
@@ -489,25 +505,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
 	function validateStep1() {
-		const orgName = document.getElementById("orgName").value.trim();
-		const panNumber = document.getElementById("panNumber").value.trim();
-		const contactFullName = document.getElementById("contactFullName").value.trim();
-		const contactMobile = document.getElementById("contactMobile").value.trim();
 		const beneficiaryName = document.getElementById("beneficiaryName").value.trim();
 		const accountType = document.getElementById("accountType").value;
 		const bankName = document.getElementById("bankName").value;
 		const accountNumber = document.getElementById("accountNumber").value.trim();
 		const bankIfsc = document.getElementById("bankIfsc").value.trim();
 
-		if (!orgName) { showAlert("Please enter Organisation/Individual Name."); return false; }
-		if (!panNumber) { showAlert("Please enter PAN card number."); return false; }
-		if (!contactFullName) { showAlert("Please enter Contact Person Full Name."); return false; }
-		if (!contactMobile) { showAlert("Please enter Contact Mobile Number."); return false; }
 		if (!beneficiaryName) { showAlert("Please enter Beneficiary Name."); return false; }
 		if (!accountType) { showAlert("Please select Account Type."); return false; }
 		if (!bankName) { showAlert("Please select Bank Name."); return false; }
 		if (!accountNumber) { showAlert("Please enter Account Number."); return false; }
 		if (!bankIfsc) { showAlert("Please enter Bank IFSC."); return false; }
+		if (bankIfsc.length < 4) { showAlert("Please enter a valid Bank IFSC."); return false; }
 		return true;
 	}
 
@@ -526,22 +535,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 	function getFormData(isFinal = false) {
 		const hasGstinVal = document.querySelector('input[name="has_gstin"]:checked')?.value === "yes";
 		const itrFiledVal = document.querySelector('input[name="itr_filed"]:checked')?.value === "yes";
-		const undertakingChecked = document.getElementById("acceptUndertaking").checked;
+		const undertakingChecked = Boolean(document.getElementById("acceptUndertaking")?.checked);
 		const targetEmail = (email || contactEmailInput?.value || "").trim();
 
 		return {
 			email: targetEmail,
-			org_name: document.getElementById("orgName").value.trim(),
-			pan_number: document.getElementById("panNumber").value.trim().toUpperCase(),
-			org_address: document.getElementById("orgAddress").value.trim(),
+			org_name: (document.getElementById("orgName")?.value || "").trim() || (currentUser && currentUser.full_name) || "",
+			pan_number: (document.getElementById("panNumber")?.value || "").trim().toUpperCase(),
+			org_address: (document.getElementById("orgAddress")?.value || "").trim(),
 			has_gstin: hasGstinVal,
 			gstin_number: getGstinDataString(),
 			accepted_undertaking: undertakingChecked,
 			itr_filed: itrFiledVal,
-			state: document.getElementById("stateSelect").value,
-			contact_full_name: document.getElementById("contactFullName").value.trim(),
+			state: document.getElementById("stateSelect") ? document.getElementById("stateSelect").value : "",
+			contact_full_name: document.getElementById("contactFullName")?.value.trim() || (currentUser && currentUser.full_name) || "",
                         contact_email: targetEmail,
-			contact_mobile: document.getElementById("contactMobile").value.trim(),
+			contact_mobile: document.getElementById("contactMobile")?.value.trim() || "",
 			beneficiary_name: document.getElementById("beneficiaryName").value.trim(),
 			account_type: document.getElementById("accountType").value,
 			bank_name: document.getElementById("bankName").value,
@@ -574,12 +583,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 			if (isFinal) {
                                 clearDraftFromLocal(payload.email);
-				showAlert("Account setup complete! Redirecting to your Event Organizer Dashboard...", "success");
+				showAlert("Bank details saved. Redirecting to your Event Organizer Dashboard...", "success");
 				setTimeout(() => {
 					window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(email)}`;
-				}, 1500);
+				}, 900);
 			} else {
-				showAlert("Details and uploaded documents saved as draft successfully!", "success");
+				showAlert("Bank details saved. You can continue to the host dashboard when you are ready.", "success");
 			}
 		} catch (err) {
                         const fallbackMessage = isFinal
@@ -592,26 +601,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 		}
 	}
 
-	btnSaveDetails.addEventListener("click", () => submitAccountSetup(false));
+	btnSaveDetails.addEventListener("click", () => {
+		if (!validateStep1()) return;
+		submitAccountSetup(false);
+	});
 
 	btnProceed.addEventListener("click", () => {
-		if (currentStep === 1) {
-			if (validateStep1()) {
-				submitAccountSetup(false);
-				goToStep(2);
-			}
-		} else if (currentStep === 2) {
-			if (validateStep2()) {
-				submitAccountSetup(false);
-				goToStep(3);
-			}
-		} else if (currentStep === 3) {
-			const acceptFinal = document.getElementById("acceptFinalAgreement")?.checked;
-			if (!acceptFinal) {
-				showAlert("Please agree to the terms and digital signature policies.");
-				return;
-			}
-			submitAccountSetup(true);
-		}
+		if (!validateStep1()) return;
+		submitAccountSetup(true);
 	});
 });

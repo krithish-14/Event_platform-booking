@@ -99,6 +99,50 @@ window.JodAuth = (() => {
 		return "index.html";
 	}
 
+	function hasHostPayoutBank(acc) {
+		if (!acc) return false;
+		return Boolean(
+			String(acc.beneficiary_name || "").trim() &&
+			String(acc.bank_name || "").trim() &&
+			String(acc.account_number || "").trim() &&
+			String(acc.bank_ifsc || "").trim()
+		);
+	}
+
+	function isHostFlowUrl(url) {
+		const u = String(url || "").toLowerCase();
+		return u.includes("account-setup") || u.includes("host-your-event") || u.includes("organizer-dashboard");
+	}
+
+	async function fetchOrganizerAccount() {
+		const token = getToken();
+		const user = getUser();
+		const email = user && user.email;
+		try {
+			const qs = email ? `?email=${encodeURIComponent(email)}` : "";
+			const res = await fetch(`${API_BASE}/api/organizers/account-setup${qs}`, {
+				headers: token ? { "Authorization": `Bearer ${token}` } : {}
+			});
+			if (!res.ok) return null;
+			const data = await res.json();
+			return data.account || null;
+		} catch (_) {
+			return null;
+		}
+	}
+
+	async function resolvePostAuthDestination(preferredUrl) {
+		const preferred = preferredUrl || "index.html";
+		if (!isHostFlowUrl(preferred)) {
+			return preferred;
+		}
+		const acc = await fetchOrganizerAccount();
+		if (hasHostPayoutBank(acc)) {
+			return "organizer-dashboard.html";
+		}
+		return "account-setup.html";
+	}
+
 	async function validateSession() {
 		const token = getToken();
 		if (!token) return null;
@@ -325,28 +369,13 @@ window.JodAuth = (() => {
 					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
 
 					setTimeout(async () => {
-						try {
-							const userEmail = data.user && data.user.email;
-							const token = data.access_token;
-							if (userEmail) {
-								const orgRes = await fetch(`${API_BASE}/api/organizers/account-setup?email=${encodeURIComponent(userEmail)}`, {
-									headers: token ? { "Authorization": `Bearer ${token}` } : {}
-								});
-								if (orgRes.ok) {
-									const orgData = await orgRes.json();
-									const acc = orgData.account;
-									if (acc && (acc.status === "submitted" || acc.status === "verified")) {
-										console.log("[Auth Debug] Organizer account found. Redirecting to organizer-dashboard.html");
-										window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(userEmail)}`;
-										return;
-									}
-								}
-							}
-						} catch (e) {
-							console.warn("[Auth Debug] Organizer check exception:", e);
-						}
 						const targetUrl = getRedirectTarget();
-						window.location.href = targetUrl;
+						try {
+							window.location.href = await resolvePostAuthDestination(targetUrl);
+						} catch (e) {
+							console.warn("[Auth Debug] Host destination check failed:", e);
+							window.location.href = targetUrl || "index.html";
+						}
 					}, 900);
 				}
 			} catch (err) {
@@ -565,7 +594,13 @@ window.JodAuth = (() => {
 			showAlert(alertEl, "success", "Account created! Redirecting…");
 			try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
 			const targetUrl = getRedirectTarget();
-			setTimeout(() => { window.location.href = targetUrl; }, 900);
+			setTimeout(async () => {
+				try {
+					window.location.href = await resolvePostAuthDestination(targetUrl);
+				} catch (_) {
+					window.location.href = targetUrl || "index.html";
+				}
+			}, 900);
 		}
 
 		async function doSignup(e) {
@@ -769,7 +804,13 @@ window.JodAuth = (() => {
 				}
 
 				const targetUrl = getRedirectTarget();
-				setTimeout(() => { window.location.href = targetUrl; }, 900);
+				setTimeout(async () => {
+					try {
+						window.location.href = await resolvePostAuthDestination(targetUrl);
+					} catch (_) {
+						window.location.href = targetUrl || "index.html";
+					}
+				}, 900);
 			}
 		} catch (err) {
 			if (alertEl) showAlert(alertEl, "error", "Unable to complete Google sign-in. Network error.");
@@ -960,10 +1001,19 @@ window.JodAuth = (() => {
 	// Auto-redirect if already logged in on login or signup page
 	const pageFile = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 	if ((pageFile === "login.html" || pageFile === "signup.html") && isLoggedIn()) {
-		const targetUrl = getRedirectTarget();
-		if (targetUrl && targetUrl !== pageFile) {
-			window.location.href = targetUrl;
-		}
+		(async () => {
+			const targetUrl = getRedirectTarget();
+			try {
+				const dest = await resolvePostAuthDestination(targetUrl);
+				if (dest && dest !== pageFile) {
+					window.location.href = dest;
+				}
+			} catch (_) {
+				if (targetUrl && targetUrl !== pageFile) {
+					window.location.href = targetUrl;
+				}
+			}
+		})();
 	}
 
 	/* ── Guest Auth Modal (Universal) ────────────────────────── */
@@ -1164,22 +1214,11 @@ window.JodAuth = (() => {
 			return;
 		}
 
-		const token = getToken();
 		try {
-			const res = await fetch(`${API_BASE}/api/organizers/account-setup`, {
-				headers: token ? { "Authorization": `Bearer ${token}` } : {}
-			});
-			if (res.ok) {
-				const data = await res.json();
-				const acc = data.account;
-				if (acc && (acc.status === "submitted" || acc.status === "verified")) {
-					window.location.href = "organizer-dashboard.html";
-					return;
-				}
-			}
-		} catch (_) {}
-
-		window.location.href = "account-setup.html";
+			window.location.href = await resolvePostAuthDestination("organizer-dashboard.html");
+		} catch (_) {
+			window.location.href = "account-setup.html";
+		}
 	}
 
 	function handleGuestOrNavigate(e, targetUrl, type) {
@@ -1224,6 +1263,8 @@ window.JodAuth = (() => {
 		clearAuth,
 		fetchAuth,
 		navigateToHostFlow,
+		hasHostPayoutBank,
+		resolvePostAuthDestination,
 		getRedirectTarget,
 		validateSession,
 		initGoogleAuth,

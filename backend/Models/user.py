@@ -50,6 +50,8 @@ class User(Base):
     events                  = relationship("Event", foreign_keys="[Event.organizer_id]", back_populates="organizer", cascade="all, delete-orphan")
     customer_events         = relationship("Event", foreign_keys="[Event.customer_id]", back_populates="customer_user")
     bookings                = relationship("Booking", back_populates="customer", cascade="all, delete-orphan")
+    tickets                 = relationship("Ticket", back_populates="customer")
+    form_submissions        = relationship("FormSubmission", back_populates="customer")
     organizer_accounts      = relationship("OrganizerAccount", back_populates="user", cascade="all, delete-orphan")
     event_managements       = relationship("EventManagement", back_populates="user", cascade="all, delete-orphan")
     host_registration_logs  = relationship("HostRegistrationLog", back_populates="user", cascade="all, delete-orphan")

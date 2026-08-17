@@ -648,6 +648,45 @@ body.category-theme-workshop .performer-avatar {
     color: #0f172a;
 }
 
+.venue-maps-link {
+    display: inline-block;
+    max-width: 100%;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.venue-maps-link #infoVenue,
+.venue-maps-link span#infoVenue {
+    display: block;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.4;
+}
+
+.venue-maps-link #infoLocation {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.85rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.venue-maps-link:hover #infoVenue,
+.venue-maps-link:hover #infoLocation,
+.venue-maps-link:focus-visible #infoVenue,
+.venue-maps-link:focus-visible #infoLocation {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+.venue-maps-link.is-disabled {
+    cursor: default;
+    pointer-events: none;
+}
+
 /* ── Tickets & Pricing Breakdown ──────────────────────────────────────────────── */
 .tickets-section {
     background: #ffffff;

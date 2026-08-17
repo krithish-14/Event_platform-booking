@@ -35,8 +35,8 @@ class Ticket(Base):
 
     # Relationships
     booking  = relationship("Booking", back_populates="tickets")
-    event    = relationship("Event")
-    customer = relationship("User")
+    event    = relationship("Event", back_populates="tickets")
+    customer = relationship("User", back_populates="tickets")
 
     def __repr__(self):
         return f"<Ticket(ticket_id={self.ticket_id}, qr_token={self.qr_token}, status={self.ticket_status})>"

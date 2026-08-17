@@ -18,6 +18,7 @@ from APIs.forms import router as forms_router
 from APIs.host_events_api import router as host_events_router
 from APIs.wishlist import router as wishlist_router
 from APIs.media import router as media_router
+from APIs.support import router as support_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
@@ -102,6 +103,7 @@ app.include_router(host_events_router, prefix="/api/host-events", tags=["Host Ev
 app.include_router(wishlist_router,    prefix="/api/wishlist",    tags=["Wishlist"])
 app.include_router(forms_router)
 app.include_router(media_router)
+app.include_router(support_router, prefix="/api/support", tags=["Support"])
 
 
 
