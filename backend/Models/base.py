@@ -233,6 +233,7 @@ def _migrate_tables(engine=None):
                 ("location_lon", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("bio", "TEXT"),
                 ("avatar_url", "VARCHAR(500)"),
+                ("phone", "VARCHAR(50)"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in user_migrations:

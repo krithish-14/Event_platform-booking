@@ -995,13 +995,13 @@ window.JodAuth = (() => {
 						<p id="guestAuthModalDesc">You need to sign up or log in to reserve tickets for this event.</p>
 					</div>
 					<div class="guest-auth-modal-actions">
-						<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html">
+						<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html" data-guest-auth-nav="signup">
 							Sign Up <span aria-hidden="true">&rarr;</span>
 						</a>
 						<button class="button button-ghost-light" type="button" id="guestAuthCancelBtn">Maybe Later</button>
 					</div>
 					<div class="guest-auth-modal-switch">
-						Already have an account? <a href="login.html" id="guestAuthLoginLink">Log In</a>
+						Already have an account? <a href="login.html" id="guestAuthLoginLink" data-guest-auth-nav="login">Log In</a>
 					</div>
 				</div>
 			`;
@@ -1027,7 +1027,34 @@ window.JodAuth = (() => {
 			cancelBtn._hasCloseHandler = true;
 		}
 
+		bindGuestAuthNavLinks(modal);
 		return modal;
+	}
+
+	function navigateGuestAuthLink(el, fallbackPage) {
+		const href = String((el && el.getAttribute("href")) || fallbackPage || "").trim();
+		if (!href || href === "#") return;
+		window.location.assign(href);
+	}
+
+	function bindGuestAuthNavLinks(modal) {
+		if (!modal) return;
+		const signupBtn = modal.querySelector("#guestAuthSignupBtn");
+		const loginLink = modal.querySelector("#guestAuthLoginLink");
+
+		function bind(el, fallbackPage) {
+			if (!el || el._hasAuthNavHandler) return;
+			el.addEventListener("click", (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+				navigateGuestAuthLink(el, fallbackPage);
+			});
+			el._hasAuthNavHandler = true;
+		}
+
+		bind(signupBtn, "signup.html");
+		bind(loginLink, "login.html");
 	}
 
 	function closeGuestAuthModal() {
@@ -1088,9 +1115,14 @@ window.JodAuth = (() => {
 		const redirectParam = targetUrl ? `?redirect=${encodeURIComponent(targetUrl)}` : "";
 		if (signupBtn) {
 			signupBtn.href = `signup.html${redirectParam}`;
+			signupBtn.setAttribute("data-guest-auth-nav", "signup");
 			signupBtn.innerHTML = `Sign Up <span aria-hidden="true">&rarr;</span>`;
 		}
-		if (loginLink) loginLink.href = `login.html${redirectParam}`;
+		if (loginLink) {
+			loginLink.href = `login.html${redirectParam}`;
+			loginLink.setAttribute("data-guest-auth-nav", "login");
+		}
+		bindGuestAuthNavLinks(modal);
 
 		modal.hidden = false;
 		if (document.body) {
@@ -1118,9 +1150,25 @@ window.JodAuth = (() => {
 			// If user is already logged in, let normal interactions proceed
 			if (isLoggedIn()) return;
 
+			const guestAuthNav = e.target.closest("#guestAuthSignupBtn, #guestAuthLoginLink, [data-guest-auth-nav]");
+			if (guestAuthNav) {
+				e.preventDefault();
+				e.stopPropagation();
+				if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+				navigateGuestAuthLink(
+					guestAuthNav,
+					guestAuthNav.getAttribute("data-guest-auth-nav") === "login" ? "login.html" : "signup.html"
+				);
+				return;
+			}
+
+			if (e.target.closest("#guestAuthModal")) return;
+
 			// 1. "Host Your Event" links & buttons
 			const hostLink = e.target.closest("a[href*='host-your-event'], a[href*='account-setup'], [data-host-flow]");
 			if (hostLink) {
+				const href = String(hostLink.getAttribute("href") || "").toLowerCase();
+				if (href.includes("signup.html") || href.includes("login.html")) return;
 				e.preventDefault();
 				e.stopPropagation();
 				e.stopImmediatePropagation();

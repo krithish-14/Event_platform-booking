@@ -7,6 +7,7 @@ from Models.user import User
 from Models.event import Event
 from Models.booking import Booking
 from Models.ticket import Ticket
+from Models.payment import Payment
 from Models.email_otp import EmailOTP
 from Models.organizer_accounts import OrganizerAccount
 from Models.event_management import EventManagement
@@ -38,6 +39,7 @@ __all__ = [
     "Event",
     "Booking",
     "Ticket",
+    "Payment",
     "EmailOTP",
     "OrganizerAccount",
     "EventManagement",

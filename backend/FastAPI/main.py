@@ -18,11 +18,13 @@ from APIs.forms import router as forms_router
 from APIs.host_events_api import router as host_events_router
 from APIs.wishlist import router as wishlist_router
 from APIs.media import router as media_router
+from APIs.payments import router as payments_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
 from Models.booking import Booking
 from Models.ticket import Ticket
+from Models.payment import Payment
 
 
 def safe_print(msg: str) -> None:
@@ -102,6 +104,7 @@ app.include_router(host_events_router, prefix="/api/host-events", tags=["Host Ev
 app.include_router(wishlist_router,    prefix="/api/wishlist",    tags=["Wishlist"])
 app.include_router(forms_router)
 app.include_router(media_router)
+app.include_router(payments_router)
 
 
 
@@ -128,7 +131,6 @@ async def render_events_template(request: Request, city: str = "Chennai", radius
             "app_title": "JOD Events — Recommended Near You",
         },
     )
-
 
 @app.get("/event/{event_id}", response_class=HTMLResponse, tags=["Jinja2 Templates"])
 async def render_event_details_page(request: Request, event_id: str):
@@ -273,13 +275,20 @@ async def render_event_details_static_fallback(request: Request, id: str = "1111
     return await render_event_details_page(request, event_id=id)
 
 
-@app.get("/makeup-boutique-workshop.html", response_class=HTMLResponse, tags=["Jinja2 Templates"])
-async def render_makeup_boutique_workshop_page(request: Request):
-    """Render dedicated template page for Makeup & Boutique Workshop."""
+@app.get("/payment", response_class=HTMLResponse, tags=["Payments"])
+async def render_razorpay_payment_page(request: Request):
+    """Jinja2 checkout page. Only KEY_ID is injected — KEY_SECRET stays on the server."""
+    key_id = (os.getenv("RAZORPAY_KEY_ID") or os.getenv("KEY_ID") or "").strip()
     return templates.TemplateResponse(
         request=request,
-        name="makeup_boutique_workshop.html",
-        context={"request": request},
+        name="payment_checkout.html",
+        context={
+            "request": request,
+            "razorpay_key_id": key_id,
+            "theme_color": "#f59e0b",
+            "api_base": str(request.base_url).rstrip("/"),
+        },
     )
+
 
 
