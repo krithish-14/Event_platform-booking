@@ -111,7 +111,6 @@
 		const statusBadge = document.getElementById("ticketStatusBadge");
 		const orderIdCode = document.getElementById("ticketOrderIdCode");
 		const statusVal = document.getElementById("ticketStatusVal");
-		const btnCancel = document.getElementById("btnCancelTicket");
 
 		const shortId = (data.booking_id || "00000000").substring(0, 8).toUpperCase();
 		if (orderIdCode) orderIdCode.textContent = `#JOD-${shortId}`;
@@ -133,16 +132,6 @@
 			} else {
 				statusVal.textContent = "Active / Valid for Entry";
 				statusVal.className = "info-val status-text-confirmed";
-			}
-		}
-
-		if (btnCancel) {
-			if (isCancelled) {
-				btnCancel.disabled = true;
-				btnCancel.textContent = "Ticket Cancelled ❌";
-			} else {
-				btnCancel.disabled = false;
-				btnCancel.textContent = "Cancel Ticket ❌";
 			}
 		}
 
@@ -235,36 +224,107 @@
 
 	function max(a, b) { return a > b ? a : b; }
 
-	async function handleCancelTicket(currentBooking) {
-		if (!currentBooking || !currentBooking.booking_id) return;
+	function printTicketCardOnly(bookingData) {
+		const source = document.getElementById("printableTicketArea");
+		if (!source) {
+			window.print();
+			return;
+		}
 
-		const confirmCancel = confirm(`Are you sure you want to cancel booking #${currentBooking.booking_id.substring(0, 8).toUpperCase()} for ${currentBooking.event_title || "this event"}?\n\nCancellation will initiate an automatic refund to your original payment mode.`);
-		if (!confirmCancel) return;
+		const collapsibleContent = document.getElementById("collapsibleTicketDetails");
+		if (collapsibleContent) collapsibleContent.classList.remove("collapsed");
 
-		const apiBase = getApiBase();
-		const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+		const shortId = ((bookingData && bookingData.booking_id) || "ticket").substring(0, 8).toUpperCase();
+		const eventTitle = (bookingData && bookingData.event_title) || "JOD Ticket";
+		const printTitle = `JOD-Ticket-${shortId}`;
 
-		try {
-			if (token) {
-				await fetch(`${apiBase}/api/bookings/${currentBooking.booking_id}/cancel`, {
-					method: "POST",
-					headers: { "Authorization": `Bearer ${token}` }
-				});
-			}
-		} catch (_) {}
+		const iframe = document.createElement("iframe");
+		iframe.setAttribute("aria-hidden", "true");
+		iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;";
+		document.body.appendChild(iframe);
 
-		// Update local state and cache
-		currentBooking.status = "CANCELLED";
-		saveLocalBookingCache(currentBooking);
+		const doc = iframe.contentDocument || iframe.contentWindow.document;
+		const clone = source.cloneNode(true);
+		clone.querySelectorAll(".mticket-toggle-btn, .mticket-support-row, .mticket-notch").forEach((n) => n.remove());
+		const collapsed = clone.querySelector(".mticket-collapsible-content");
+		if (collapsed) collapsed.classList.remove("collapsed");
 
-		renderTicketDOM(currentBooking);
-		alert(`Ticket Booking #JOD-${currentBooking.booking_id.substring(0, 8).toUpperCase()} has been cancelled. Refund initialized!`);
+		doc.open();
+		doc.write(`<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8" />
+	<title>${printTitle}</title>
+	<link rel="stylesheet" href="css/ticket-details.css?v=3" />
+	<style>
+		@page { size: A4 portrait; margin: 12mm; }
+		html, body {
+			margin: 0;
+			padding: 0;
+			background: #ffffff;
+			font-family: Outfit, Inter, system-ui, sans-serif;
+		}
+		body {
+			display: flex;
+			justify-content: center;
+			padding: 8px;
+		}
+		#printableTicketArea, .mticket-card {
+			width: 100%;
+			max-width: 480px;
+			margin: 0 auto;
+			box-shadow: none !important;
+			background: #ffffff;
+			color: #0f172a;
+			border: 1px solid #d1d5db;
+			border-radius: 16px;
+			overflow: hidden;
+		}
+		.mticket-header-section, .mticket-seating-block, .mticket-qr-block,
+		.mticket-policy-bar, .mticket-price-summary { padding: 1rem 1.1rem; }
+		.mticket-poster img, #ticketEventImg { width: 88px; height: 110px; object-fit: cover; border-radius: 8px; }
+		.mticket-header-section { display: flex; gap: 0.85rem; align-items: flex-start; }
+		.mticket-event-details h1, #ticketEventTitle { font-size: 1.15rem; margin: 0 0 0.35rem; }
+		.mticket-qr-frame img, #ticketQrCodeImg { width: 180px; height: 180px; }
+		.mticket-qr-block { text-align: center; }
+		.mticket-stub-divider { border-top: 1px dashed #cbd5e1; margin: 0.25rem 0; }
+		.mticket-item-row, .mticket-total-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; }
+		.mticket-watermark { display: none; }
+	</style>
+</head>
+<body></body>
+</html>`);
+		doc.close();
+
+		doc.body.appendChild(clone);
+		const prevTitle = document.title;
+		document.title = `${eventTitle} — ${printTitle}`;
+
+		const images = Array.from(doc.images || []);
+		const waitForImages = Promise.all(images.map((img) => {
+			if (img.complete) return Promise.resolve();
+			return new Promise((resolve) => {
+				img.onload = resolve;
+				img.onerror = resolve;
+				setTimeout(resolve, 1200);
+			});
+		}));
+
+		waitForImages.then(() => {
+			setTimeout(() => {
+				iframe.contentWindow.focus();
+				iframe.contentWindow.print();
+				document.title = prevTitle;
+				setTimeout(() => {
+					if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+				}, 800);
+			}, 150);
+		});
 	}
 
 	function bindActions(bookingData) {
 		const btnDownloadTicket = document.getElementById("btnDownloadTicket");
 		const btnDownloadInvoice = document.getElementById("btnDownloadInvoice");
-		const btnCancelTicket = document.getElementById("btnCancelTicket");
 		const btnToggleDetails = document.getElementById("btnToggleDetails");
 		const btnContactSupport = document.getElementById("btnContactSupport");
 		const collapsibleContent = document.getElementById("collapsibleTicketDetails");
@@ -290,18 +350,11 @@
 		});
 
 		btnDownloadTicket?.addEventListener("click", () => {
-			// Ensure details are expanded before printing
-			if (collapsibleContent) collapsibleContent.classList.remove("collapsed");
-			window.print();
+			printTicketCardOnly(bookingData);
 		});
 
 		btnDownloadInvoice?.addEventListener("click", () => {
-			if (collapsibleContent) collapsibleContent.classList.remove("collapsed");
-			window.print();
-		});
-
-		btnCancelTicket?.addEventListener("click", () => {
-			handleCancelTicket(bookingData);
+			printTicketCardOnly(bookingData);
 		});
 	}
 

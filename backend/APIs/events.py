@@ -104,6 +104,8 @@ class EventResponse(BaseModel):
     language: Optional[str] = None
     performers: Optional[Any] = None
     highlights: Optional[Any] = None
+    gallery_images: Optional[Any] = None
+    sponsors: Optional[Any] = None
     ticket_types: Optional[Any] = None
     terms: Optional[str] = None
     policies: Optional[Any] = None
@@ -177,6 +179,107 @@ def _format_policies_text(policies: Optional[dict]) -> Optional[str]:
     return "\n\n".join(parts) if parts else None
 
 
+def _parse_list_field(val: Any) -> list:
+    if val is None:
+        return []
+    if isinstance(val, str):
+        try:
+            val = json.loads(val)
+        except Exception:
+            return []
+    return val if isinstance(val, list) else []
+
+
+def _normalize_gallery_images(raw: Any) -> list:
+    if raw is None or raw == "":
+        return []
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if stripped.startswith("[") or stripped.startswith("{"):
+            raw = _parse_list_field(stripped)
+        elif stripped.startswith("http") or stripped.startswith("/") or stripped.startswith("images/"):
+            return [stripped]
+        else:
+            raw = _parse_list_field(stripped)
+    urls = []
+    items = raw if isinstance(raw, list) else _parse_list_field(raw)
+    for item in items:
+        if isinstance(item, str) and item.strip():
+            urls.append(item.strip())
+        elif isinstance(item, dict):
+            url = item.get("url") or item.get("image_url") or item.get("src") or ""
+            if url:
+                urls.append(str(url).strip())
+    return urls
+
+
+def _normalize_sponsors(raw: Any) -> list:
+    items = []
+    for sp in _parse_list_field(raw):
+        if not isinstance(sp, dict):
+            continue
+        name = str(sp.get("name") or sp.get("title") or "").strip()
+        logo = str(sp.get("logo_url") or sp.get("image_url") or "").strip()
+        if not name and not logo:
+            continue
+        items.append({
+            "name": name,
+            "tier": str(sp.get("tier") or sp.get("subtitle") or sp.get("category") or "").strip(),
+            "logo_url": logo,
+        })
+    return items
+
+
+def _design_lookup_candidates(event_id) -> list:
+    candidates = [event_id]
+    text_id = str(event_id) if event_id is not None else ""
+    if text_id and text_id not in candidates:
+        candidates.append(text_id)
+    try:
+        parsed = UUID(text_id)
+        if parsed not in candidates:
+            candidates.append(parsed)
+    except Exception:
+        pass
+    return candidates
+
+
+def _host_design_for_event(db: Session, event_id) -> tuple:
+    from Models.event_design import EventDesign
+    from Models.event_management import EventManagement
+
+    design = None
+    for cand in _design_lookup_candidates(event_id):
+        try:
+            design = db.query(EventDesign).filter(EventDesign.event_id == cand).first()
+        except Exception:
+            design = None
+        if design:
+            break
+
+    if not design:
+        host = None
+        for cand in _design_lookup_candidates(event_id):
+            try:
+                host = db.query(EventManagement).filter(EventManagement.event_id == cand).first()
+            except Exception:
+                host = None
+            if host:
+                break
+        if host:
+            try:
+                design = db.query(EventDesign).filter(EventDesign.event_id == host.event_id).first()
+            except Exception:
+                design = None
+
+    if not design:
+        return [], []
+    return (
+        _normalize_gallery_images(design.gallery_images),
+        _normalize_sponsors(design.sponsor_details),
+    )
+
+
 def _host_policies_for_event(db: Session, event_id) -> Optional[dict]:
     from Models.event_management import EventManagement
     host = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
@@ -195,10 +298,19 @@ def _event_to_response(
     event: Event,
     distance_km: Optional[float] = None,
     policies: Optional[dict] = None,
+    gallery_images: Optional[Any] = None,
+    sponsors: Optional[Any] = None,
 ) -> EventResponse:
     terms = event.terms
     if not terms and policies:
         terms = _format_policies_text(policies)
+    if gallery_images is None:
+        gallery_images = []
+    stored_gallery = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
+    if not gallery_images and stored_gallery:
+        gallery_images = stored_gallery
+    if sponsors is None:
+        sponsors = _normalize_sponsors(_parse_json_field(event.highlights))
     return EventResponse(
         id=str(event.id),
         title=event.title,
@@ -220,6 +332,8 @@ def _event_to_response(
         language=event.language,
         performers=_parse_json_field(event.performers),
         highlights=_parse_json_field(event.highlights),
+        gallery_images=gallery_images or [],
+        sponsors=sponsors or [],
         ticket_types=_parse_json_field(event.ticket_types),
         terms=terms,
         policies=policies or None,
@@ -296,6 +410,12 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     print(f"[EVENT DETAILS] event_id={event_id} title={event.title!r} published={event.is_published}", flush=True)
     policies = _host_policies_for_event(db, event.id)
+    gallery_images, sponsors = _host_design_for_event(db, event.id)
+    if not gallery_images:
+        gallery_images = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
+    if not sponsors:
+        sponsors = _normalize_sponsors(_parse_json_field(event.highlights))
+    print(f"[EVENT DETAILS] gallery={len(gallery_images or [])} sponsors={len(sponsors or [])}", flush=True)
     if policies:
         formatted = _format_policies_text(policies)
         if formatted and event.terms != formatted:
@@ -304,7 +424,12 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
                 db.commit()
             except Exception:
                 db.rollback()
-    return _event_to_response(event, policies=policies)
+    return _event_to_response(
+        event,
+        policies=policies,
+        gallery_images=gallery_images,
+        sponsors=sponsors,
+    )
 
 
 @router.get("/", response_model=List[EventResponse])
@@ -349,7 +474,17 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
     if not event:
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     policies = _host_policies_for_event(db, event.id)
-    return _event_to_response(event, policies=policies)
+    gallery_images, sponsors = _host_design_for_event(db, event.id)
+    if not gallery_images:
+        gallery_images = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
+    if not sponsors:
+        sponsors = _normalize_sponsors(_parse_json_field(event.highlights))
+    return _event_to_response(
+        event,
+        policies=policies,
+        gallery_images=gallery_images,
+        sponsors=sponsors,
+    )
 
 
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)

@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
 let currentSelectedPrice = 0;
 let currentSelectedTicketType = "General Admission";
 let currentEventData = null;
+let galleryImages = [];
+let galleryIndex = 0;
+let galleryLightboxBound = false;
 
 async function initEventDetailsPage() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -83,21 +86,22 @@ async function loadRecommendedEvents(currentId) {
     const EP = window.JodEventsPublic;
     const grid = document.getElementById('recommendedGrid');
     const block = document.getElementById('recommendedBlock');
-    if (!grid || !EP) return;
+    if (block) block.style.display = '';
+    if (!grid) return;
+    grid.innerHTML = '';
+    if (!EP) return;
 
     try {
-        const events = await EP.fetchPublishedEvents({ limit: 6 });
-        const others = events.filter(e => e.id !== currentId).slice(0, 2);
-        if (!others.length) {
-            if (block) block.style.display = 'none';
-            return;
-        }
+        const events = await EP.fetchPublishedEvents({ limit: 8 });
+        const others = events.filter(e => String(e.id) !== String(currentId)).slice(0, 4);
+        if (!others.length) return;
         grid.innerHTML = others.map(ev => {
             const url = EP.eventDetailsUrl(ev);
             const img = EP.resolveImage(ev.image_url);
             const title = EP.escapeHtml(ev.title || 'Event');
             const venue = EP.escapeHtml(ev.venue || ev.location || '');
-            const price = EP.formatPrice(ev.price);
+            const dateStr = EP.formatDateIST ? EP.escapeHtml(EP.formatDateIST(ev.start_date) || '') : '';
+            const meta = [dateStr, venue].filter(Boolean).join(' · ');
             const heart = EP.wishlistHeartButton ? EP.wishlistHeartButton(ev.id) : '';
             return `
                 <a href="${url}" class="rec-card">
@@ -107,8 +111,7 @@ async function loadRecommendedEvents(currentId) {
                     </div>
                     <div class="rec-card-body">
                         <h3 class="rec-card-title">${title}</h3>
-                        <p class="rec-card-meta">📍 ${venue}</p>
-                        <div class="rec-card-price">${price}${Number(ev.price) > 0 ? ' onwards' : ''}</div>
+                        <p class="rec-card-meta">${meta}</p>
                     </div>
                 </a>
             `;
@@ -117,7 +120,7 @@ async function loadRecommendedEvents(currentId) {
             window.JodWishlist.refreshButtons(grid);
         }
     } catch (_) {
-        if (block) block.style.display = 'none';
+        grid.innerHTML = '';
     }
 }
 
@@ -189,9 +192,6 @@ function renderEventDOM(event) {
     const perfTitleEl = document.getElementById('performersTitle');
     if (perfTitleEl) perfTitleEl.textContent = themeConfig.performersTitle;
 
-    const hlTitleEl = document.getElementById('highlightsTitle');
-    if (hlTitleEl) hlTitleEl.textContent = themeConfig.highlightsTitle;
-
     const titleEl = document.getElementById('eventTitle');
     if (titleEl) titleEl.textContent = event.title || 'Event';
 
@@ -256,39 +256,33 @@ function renderEventDOM(event) {
     currentSelectedPrice = startingPrice;
     setStartingPriceDisplay(startingPrice);
 
+    const escape = (EP && typeof EP.escapeHtml === 'function')
+        ? EP.escapeHtml
+        : (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
     const perfSection = document.getElementById('performersSection');
     if (event.performers && Array.isArray(event.performers) && event.performers.length > 0) {
         const pGrid = document.getElementById('performersGrid');
         if (pGrid) {
-            pGrid.innerHTML = event.performers.map(p => `
+            pGrid.innerHTML = event.performers.map(p => {
+                const name = escape(p.name || 'Speaker');
+                const role = escape(p.role || '');
+                const photo = EP ? EP.resolveImage(p.image_url || p.photo_url) : (p.image_url || p.photo_url || 'images/hero-event.jpg');
+                return `
                 <div class="performer-card">
-                    <img class="performer-avatar" src="${EP ? EP.resolveImage(p.image_url || p.photo_url) : (p.image_url || p.photo_url || 'images/hero-event.jpg')}" alt="${p.name || 'Performer'}" onerror="this.src='images/hero-event.jpg'" />
-                    <h3 class="performer-name">${p.name || 'Artist'}</h3>
-                    <p class="performer-role">${p.role || 'Performer'}</p>
-                </div>
-            `).join('');
+                    <img class="performer-avatar" src="${photo}" alt="${name}" onerror="this.src='images/hero-event.jpg'" />
+                    <h3 class="performer-name">${name}</h3>
+                    ${role ? `<p class="performer-role">${role}</p>` : ''}
+                </div>`;
+            }).join('');
         }
+        if (perfSection) perfSection.style.display = '';
     } else if (perfSection) {
         perfSection.style.display = 'none';
     }
 
-    if (event.highlights && Array.isArray(event.highlights) && event.highlights.length > 0) {
-        const hGrid = document.getElementById('highlightsGrid');
-        if (hGrid) {
-            hGrid.innerHTML = event.highlights.map(h => `
-                <div class="highlight-card">
-                    <img src="${EP ? EP.resolveImage(h.image_url || h.logo_url) : (h.image_url || h.logo_url || 'images/hero-event.jpg')}" alt="${h.title || 'Highlight'}" onerror="this.src='images/hero-event.jpg'" />
-                    <div class="highlight-content">
-                        <h4 class="highlight-title">${h.title || ''}</h4>
-                        <p class="highlight-desc">${h.description || h.subtitle || ''}</p>
-                    </div>
-                </div>
-            `).join('');
-        }
-    } else {
-        const hlSection = document.getElementById('highlightsSection');
-        if (hlSection) hlSection.style.display = 'none';
-    }
+    renderEventGallery(event, EP);
+    renderEventSponsors(event, EP, escape);
 
     if (event.ticket_types && Array.isArray(event.ticket_types) && event.ticket_types.length > 0) {
         const tList = document.getElementById('ticketsList');
@@ -323,6 +317,145 @@ function renderEventDOM(event) {
             `;
         }
     }
+}
+
+function collectGalleryUrls(event, EP) {
+    let raw = event ? event.gallery_images : null;
+    if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+            try { raw = JSON.parse(trimmed); } catch (_) { raw = trimmed ? [trimmed] : []; }
+        } else {
+            raw = trimmed ? [trimmed] : [];
+        }
+    }
+    if (!Array.isArray(raw)) raw = [];
+    return raw.map((item) => {
+        if (typeof item === 'string') return EP ? EP.resolveImage(item) : item;
+        if (item && typeof item === 'object') {
+            const url = item.url || item.image_url || item.src || '';
+            return url ? (EP ? EP.resolveImage(url) : url) : '';
+        }
+        return '';
+    }).filter(Boolean);
+}
+
+function renderEventGallery(event, EP) {
+    const section = document.getElementById('gallerySection');
+    const grid = document.getElementById('galleryGrid');
+    const urls = collectGalleryUrls(event, EP);
+    galleryImages = urls;
+    if (!section || !grid) return;
+    section.style.display = '';
+    if (!urls.length) {
+        grid.innerHTML = '';
+        return;
+    }
+
+    const previewCount = 5;
+    const hasMore = urls.length > previewCount;
+    const visible = hasMore ? urls.slice(0, previewCount) : urls;
+    grid.innerHTML = visible.map((url, i) => {
+        const isOverlay = hasMore && i === visible.length - 1;
+        const openIndex = isOverlay ? 0 : i;
+        return `
+            <button type="button" class="gallery-thumb${isOverlay ? ' gallery-thumb--more' : ''}" data-gallery-index="${openIndex}">
+                <img src="${url}" alt="Gallery photo ${i + 1}" loading="lazy" />
+                ${isOverlay ? '<span class="gallery-thumb-overlay">See the Entire Gallery</span>' : ''}
+            </button>
+        `;
+    }).join('');
+    section.style.display = '';
+    grid.querySelectorAll('[data-gallery-index]').forEach((btn) => {
+        btn.addEventListener('click', () => openGalleryLightbox(Number(btn.dataset.galleryIndex)));
+    });
+    bindGalleryLightbox();
+}
+
+function renderEventSponsors(event, EP, escape) {
+    const section = document.getElementById('sponsorsSection');
+    const grid = document.getElementById('sponsorsGrid');
+    if (!section || !grid) return;
+
+    let sponsors = Array.isArray(event.sponsors) ? event.sponsors : [];
+    if (!sponsors.length && Array.isArray(event.highlights)) {
+        sponsors = event.highlights;
+    }
+    sponsors = (sponsors || []).filter((s) => s && (s.logo_url || s.image_url || s.name || s.title));
+    if (!sponsors.length) {
+        section.style.display = 'none';
+        grid.innerHTML = '';
+        return;
+    }
+
+    const esc = escape || ((s) => String(s || ''));
+    grid.innerHTML = sponsors.map((s) => {
+        const name = esc(s.name || s.title || '');
+        const logo = EP ? EP.resolveImage(s.logo_url || s.image_url) : (s.logo_url || s.image_url || '');
+        return `
+            <div class="sponsor-logo-card">
+                ${logo ? `<img src="${logo}" alt="${name || 'Sponsor'}" onerror="this.style.display='none'" />` : ''}
+                ${name ? `<p class="sponsor-name">${name}</p>` : ''}
+            </div>
+        `;
+    }).join('');
+    section.style.display = '';
+}
+
+function bindGalleryLightbox() {
+    if (galleryLightboxBound) return;
+    const lightbox = document.getElementById('galleryLightbox');
+    if (!lightbox) return;
+    galleryLightboxBound = true;
+
+    const closeBtn = document.getElementById('galleryLightboxClose');
+    const prevBtn = document.getElementById('galleryLightboxPrev');
+    const nextBtn = document.getElementById('galleryLightboxNext');
+    if (closeBtn) closeBtn.addEventListener('click', closeGalleryLightbox);
+    if (prevBtn) prevBtn.addEventListener('click', () => stepGalleryLightbox(-1));
+    if (nextBtn) nextBtn.addEventListener('click', () => stepGalleryLightbox(1));
+    lightbox.addEventListener('click', (e) => {
+        if (e.target === lightbox) closeGalleryLightbox();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (lightbox.hidden) return;
+        if (e.key === 'Escape') closeGalleryLightbox();
+        if (e.key === 'ArrowLeft') stepGalleryLightbox(-1);
+        if (e.key === 'ArrowRight') stepGalleryLightbox(1);
+    });
+}
+
+function openGalleryLightbox(index) {
+    if (!galleryImages.length) return;
+    galleryIndex = Number.isFinite(index) ? index : 0;
+    if (galleryIndex < 0) galleryIndex = 0;
+    if (galleryIndex >= galleryImages.length) galleryIndex = 0;
+    const lightbox = document.getElementById('galleryLightbox');
+    const img = document.getElementById('galleryLightboxImg');
+    const count = document.getElementById('galleryLightboxCount');
+    if (!lightbox || !img) return;
+    img.src = galleryImages[galleryIndex];
+    img.alt = `Gallery photo ${galleryIndex + 1}`;
+    if (count) count.textContent = `${galleryIndex + 1} / ${galleryImages.length}`;
+    const prevBtn = document.getElementById('galleryLightboxPrev');
+    const nextBtn = document.getElementById('galleryLightboxNext');
+    const showNav = galleryImages.length > 1;
+    if (prevBtn) prevBtn.style.display = showNav ? '' : 'none';
+    if (nextBtn) nextBtn.style.display = showNav ? '' : 'none';
+    lightbox.hidden = false;
+    document.body.style.overflow = 'hidden';
+}
+
+function stepGalleryLightbox(delta) {
+    if (!galleryImages.length) return;
+    galleryIndex = (galleryIndex + delta + galleryImages.length) % galleryImages.length;
+    openGalleryLightbox(galleryIndex);
+}
+
+function closeGalleryLightbox() {
+    const lightbox = document.getElementById('galleryLightbox');
+    if (lightbox) lightbox.hidden = true;
+    document.body.style.overflow = '';
 }
 
 function renderEventPolicies(event, EP) {
@@ -477,9 +610,21 @@ async function triggerBookingModal() {
     }
     const price = typeof currentSelectedPrice !== "undefined" ? currentSelectedPrice : 0;
 
+    try {
+        sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify({
+            eventId: eventId,
+            eventTitle: currentEventData.title || "",
+            venue: currentEventData.venue || currentEventData.location || "",
+            ticket: ticketType,
+            price: String(price),
+            quantity: 1
+        }));
+    } catch (_) {}
+
     const regUrl = new URL("published-form.html", window.location.href);
     regUrl.searchParams.set("eventId", eventId);
     regUrl.searchParams.set("ticket", ticketType);
     regUrl.searchParams.set("price", String(price));
+    regUrl.searchParams.set("v", "16");
     window.location.href = regUrl.toString();
 }

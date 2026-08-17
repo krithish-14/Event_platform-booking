@@ -32,6 +32,7 @@ class Event(Base):
     language     = Column(String(100), nullable=True)
     performers   = Column(Text, nullable=True)
     highlights   = Column(Text, nullable=True)
+    gallery_images = Column(Text, nullable=True)
     ticket_types = Column(Text, nullable=True)
     terms        = Column(Text, nullable=True)
     is_published = Column(Boolean, default=False, nullable=True)

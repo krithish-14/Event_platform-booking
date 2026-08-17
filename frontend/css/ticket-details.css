@@ -410,36 +410,71 @@
 	color: #fff;
 }
 
-/* ── Print & PDF Formatting ──────────────────────────────── */
+/* ── Print & PDF Formatting — ticket card only ────────────────────────────── */
 @media print {
-	#header, #footer, .ticket-top-nav, .ticket-actions-bar, .mticket-toggle-btn {
-		display: none !important;
+	@page {
+		size: A4 portrait;
+		margin: 12mm;
 	}
 
-	body, .ticket-page {
+	html, body {
 		background: #ffffff !important;
 		color: #000000 !important;
+		height: auto !important;
+		overflow: visible !important;
 	}
 
-	.ticket-main-section {
-		padding: 0 !important;
+	body * {
+		visibility: hidden !important;
 	}
 
-	.ticket-mticket-wrapper {
-		max-width: 100% !important;
-		margin: 0 !important;
+	#printableTicketArea,
+	#printableTicketArea * {
+		visibility: visible !important;
 	}
 
-	.mticket-card {
-		border: 1px solid #000000 !important;
+	#printableTicketArea {
+		position: absolute !important;
+		left: 0 !important;
+		top: 0 !important;
+		right: 0 !important;
+		width: 100% !important;
+		max-width: 480px !important;
+		margin: 0 auto !important;
 		box-shadow: none !important;
-		padding: 1.5rem !important;
+		border: 1px solid #d1d5db !important;
+		background: #ffffff !important;
 		page-break-inside: avoid;
+	}
+
+	#header,
+	#footer,
+	.site-header,
+	.site-footer,
+	.ticket-top-nav,
+	.ticket-actions-bar,
+	.mticket-toggle-btn,
+	.mticket-support-row,
+	#jodLocationToast,
+	#jodLocationModal,
+	.sticky-bottom-bar {
+		display: none !important;
+		visibility: hidden !important;
+	}
+
+	.ticket-main-section,
+	.container,
+	.ticket-mticket-wrapper {
+		padding: 0 !important;
+		margin: 0 auto !important;
+		max-width: 480px !important;
+		background: transparent !important;
 	}
 
 	.mticket-collapsible-content.collapsed {
 		max-height: none !important;
 		opacity: 1 !important;
+		overflow: visible !important;
 	}
 
 	.mticket-notch {

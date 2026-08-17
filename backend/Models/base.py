@@ -339,6 +339,7 @@ def _migrate_tables(engine=None):
                 ("language", "VARCHAR(100)"),
                 ("performers", "TEXT"),
                 ("highlights", "TEXT"),
+                ("gallery_images", "TEXT"),
                 ("ticket_types", "TEXT"),
                 ("terms", "TEXT"),
                 ("host_id", "VARCHAR(50)"),

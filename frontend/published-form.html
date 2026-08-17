@@ -3,6 +3,7 @@
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta http-equiv="Cache-Control" content="no-store" />
 	<title>Event Registration Form | JOD Events</title>
 	<!-- Google Fonts -->
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -223,22 +224,37 @@
 			transform: none;
 		}
 
-		/* Success Screen */
+		/* Success popup */
 		#successState {
 			display: none;
+			position: fixed;
+			inset: 0;
+			z-index: 90;
+			background: rgba(15, 23, 42, 0.55);
+			align-items: center;
+			justify-content: center;
+			padding: 1.25rem;
+		}
+
+		#successState.is-open {
+			display: flex;
+		}
+
+		.success-modal-card {
+			width: 100%;
+			max-width: 440px;
 			background: #ffffff;
 			border-radius: 16px;
-			padding: 3.5rem 2rem;
+			padding: 1.75rem 1.4rem 1.4rem;
 			text-align: center;
-			box-shadow: 0 12px 32px rgba(0,0,0,0.08);
-			border: 1px solid #bbf7d0;
-			margin-top: 2rem;
-			animation: fadeIn 0.4s ease-out forwards;
+			box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+			border: 1px solid #e2e8f0;
+			animation: fadeIn 0.3s ease-out forwards;
 		}
 
 		.success-icon {
-			width: 64px;
-			height: 64px;
+			width: 56px;
+			height: 56px;
 			background: #f0fdf4;
 			color: #166534;
 			border: 2px solid #bbf7d0;
@@ -246,8 +262,45 @@
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			font-size: 2rem;
-			margin: 0 auto 1.5rem;
+			font-size: 1.7rem;
+			margin: 0 auto 0.9rem;
+		}
+
+		.success-modal-card h2 {
+			font-weight: 800;
+			color: #0f172a;
+			margin: 0 0 0.4rem;
+			font-size: 1.28rem;
+			line-height: 1.3;
+		}
+
+		.success-lead {
+			color: #64748b;
+			font-size: 0.95rem;
+			line-height: 1.6;
+			margin: 0 auto 1.35rem;
+			max-width: 340px;
+		}
+
+		.success-actions {
+			display: flex;
+			justify-content: center;
+		}
+
+		.success-btn {
+			min-width: 160px;
+			padding: 0.8rem 1.6rem;
+			border-radius: 10px;
+			font-weight: 800;
+			font-size: 0.98rem;
+			font-family: inherit;
+			cursor: pointer;
+		}
+
+		.success-btn-next {
+			background: #2563eb;
+			border: 1.5px solid #2563eb;
+			color: #ffffff;
 		}
 
 		.powered-by {
@@ -268,9 +321,159 @@
 			.form-card-body { padding: 1.5rem 1.25rem; }
 			.form-title { font-size: 1.4rem; }
 		}
+
+		.policy-modal {
+			position: fixed;
+			inset: 0;
+			z-index: 80;
+			background: rgba(15, 23, 42, 0.55);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 1.25rem;
+		}
+
+		.policy-modal[hidden] {
+			display: none !important;
+		}
+
+		.policy-modal-card {
+			width: 100%;
+			max-width: 560px;
+			max-height: min(88vh, 720px);
+			background: #ffffff;
+			border-radius: 16px;
+			border: 1px solid #e2e8f0;
+			box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+			animation: fadeIn 0.25s ease-out;
+		}
+
+		.policy-modal-header {
+			padding: 1.35rem 1.5rem 0.85rem;
+			border-bottom: 1px solid #e2e8f0;
+		}
+
+		.policy-modal-header h2 {
+			font-size: 1.35rem;
+			font-weight: 800;
+			margin: 0 0 0.35rem;
+			color: #0f172a;
+		}
+
+		.policy-modal-header p {
+			margin: 0;
+			font-size: 0.88rem;
+			color: #64748b;
+			line-height: 1.5;
+		}
+
+		.policy-modal-body {
+			padding: 1rem 1.5rem;
+			overflow-y: auto;
+			flex: 1;
+		}
+
+		.policy-block {
+			background: #f8fafc;
+			border: 1px solid #e2e8f0;
+			border-radius: 12px;
+			padding: 0.9rem 1rem;
+			margin-bottom: 0.75rem;
+		}
+
+		.policy-block h3 {
+			margin: 0 0 0.4rem;
+			font-size: 0.92rem;
+			font-weight: 800;
+			color: #0f172a;
+		}
+
+		.policy-block p {
+			margin: 0;
+			font-size: 0.86rem;
+			color: #475569;
+			line-height: 1.55;
+			white-space: pre-line;
+		}
+
+		.policy-modal-footer {
+			padding: 1rem 1.5rem 1.35rem;
+			border-top: 1px solid #e2e8f0;
+			background: #ffffff;
+		}
+
+		.policy-agree {
+			display: flex;
+			align-items: flex-start;
+			gap: 0.65rem;
+			font-size: 0.95rem;
+			font-weight: 700;
+			color: #0f172a;
+			cursor: pointer;
+			margin-bottom: 0.95rem;
+		}
+
+		.policy-agree input {
+			width: 18px;
+			height: 18px;
+			margin-top: 0.15rem;
+			accent-color: #2563eb;
+			cursor: pointer;
+			flex-shrink: 0;
+		}
+
+		.policy-next-btn {
+			width: 100%;
+			padding: 0.85rem;
+			font-size: 1rem;
+			font-weight: 800;
+			font-family: inherit;
+			color: #ffffff;
+			background: #2563eb;
+			border: none;
+			border-radius: 10px;
+			cursor: pointer;
+		}
+
+		.policy-next-btn:disabled {
+			opacity: 0.45;
+			cursor: not-allowed;
+		}
+
+		.policy-back-link {
+			display: inline-block;
+			margin-top: 0.75rem;
+			width: 100%;
+			text-align: center;
+			font-size: 0.85rem;
+			font-weight: 600;
+			color: #64748b;
+			text-decoration: none;
+		}
 	</style>
 </head>
 <body>
+
+	<div id="policyModal" class="policy-modal" hidden>
+		<div class="policy-modal-card" role="dialog" aria-modal="true" aria-labelledby="policyModalTitle">
+			<div class="policy-modal-header">
+				<h2 id="policyModalTitle">Host Policies</h2>
+				<p>Please review the host policy details before continuing to the registration form.</p>
+			</div>
+			<div class="policy-modal-body" id="policyModalBody"></div>
+			<div class="policy-modal-footer">
+				<label class="policy-agree" for="policyAgreeCheck">
+					<input type="checkbox" id="policyAgreeCheck" />
+					<span>I agree</span>
+				</label>
+				<button type="button" class="policy-next-btn" id="policyNextBtn" disabled>Next</button>
+				<a class="policy-back-link" id="policyBackLink" href="index.html">Back to event</a>
+			</div>
+		</div>
+	</div>
 
 	<div id="pageContainer">
 		
@@ -323,16 +526,16 @@
 			</div>
 		</div>
 
-		<!-- ── SUCCESS STATE ─────────────────────────────────────────────────── -->
-		<div id="successState">
-			<div class="success-icon">✓</div>
-			<h2 style="font-weight: 800; color: #0f172a; margin-bottom: 0.6rem; font-size: 1.6rem;">Registration Confirmed!</h2>
-			<p style="color: #475569; font-size: 0.95rem; line-height: 1.6; max-width: 480px; margin: 0 auto 1.8rem;">
-				Thank you for registering. Your details have been submitted successfully to the event host.
-			</p>
-			<button type="button" onclick="location.reload()" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155; padding: 0.65rem 1.4rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer;">
-				Submit Another Response
-			</button>
+		<!-- ── SUCCESS POPUP ──────────────────────────────────────────────────── -->
+		<div id="successState" aria-hidden="true">
+			<div class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="successTitle">
+				<div class="success-icon">✓</div>
+				<h2 id="successTitle">Registration form complete</h2>
+				<p class="success-lead">Still pending complete payment for full registration process to complete.</p>
+				<div class="success-actions">
+					<button type="button" class="success-btn success-btn-next" id="successNextBtn">Next</button>
+				</div>
+			</div>
 		</div>
 
 		<!-- Powered By Footer -->
@@ -344,9 +547,10 @@
 
 	<script>
 		(function () {
-			const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-				? "http://127.0.0.1:8001/api/forms"
-				: "/api/forms";
+			const localDev = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1") || window.location.hostname === "localhost";
+			const API_ROOT = localDev ? "http://127.0.0.1:8001/api" : "/api";
+			const API_BASE = `${API_ROOT}/forms`;
+			const EVENTS_API = `${API_ROOT}/events`;
 
 			const urlParams = new URLSearchParams(window.location.search);
 			const eventId = urlParams.get("eventId") || urlParams.get("event_id");
@@ -373,15 +577,191 @@
 			const attendeeEmailGroup = document.getElementById("attendeeEmailGroup");
 			const attendeeEmailInput = document.getElementById("attendeeEmailInput");
 
+			const policyModal = document.getElementById("policyModal");
+			const policyModalBody = document.getElementById("policyModalBody");
+			const policyAgreeCheck = document.getElementById("policyAgreeCheck");
+			const policyNextBtn = document.getElementById("policyNextBtn");
+			const policyBackLink = document.getElementById("policyBackLink");
+
+			const POLICY_LABELS = [
+				["event_policy", "Event Policy"],
+				["cancellation_policy", "Cancellation Policy"],
+				["refund_policy", "Refund Policy"],
+				["terms_and_conditions", "Terms & Conditions"],
+				["privacy_policy", "Privacy Policy"],
+				["age_policy", "Age / Entry Policy"]
+			];
+
 			let formData = null;
 			let hasEmailQuestionInSchema = false;
+			let policyAccepted = isHostReadOnly;
+			let eventMeta = { title: "", venue: "" };
+			let resolvedTicketName = ticketType;
+			let resolvedTicketPrice = ticketPrice;
+
+			if (eventId && policyBackLink) {
+				policyBackLink.href = `event-details.html?id=${encodeURIComponent(eventId)}`;
+			}
 
 			if (!formId && !eventId) {
 				showError("Missing Event or Form ID", "No event ID or form ID was specified in the URL. Please use the Book Now link from the event page.");
 				return;
 			}
 
-			// Load Published Form Data from Backend API
+			function shouldGatePolicies() {
+				return !isHostReadOnly && Boolean(eventId || (formData && formData.event_id));
+			}
+
+			async function loadEventMeta(id) {
+				if (!id) return;
+				try {
+					const res = await fetch(`${EVENTS_API}/public/${encodeURIComponent(id)}`, {
+						cache: "no-store",
+						headers: { Accept: "application/json" }
+					});
+					if (!res.ok) return;
+					const data = await res.json();
+					eventMeta.title = data.title || "";
+					eventMeta.venue = data.venue || data.location || "";
+					if ((resolvedTicketPrice === "" || resolvedTicketPrice == null) && data.price != null) {
+						resolvedTicketPrice = String(data.price);
+					}
+				} catch (_) {}
+			}
+
+			function prettyTicketName(raw) {
+				const value = String(raw || "").replace(/\+/g, " ").trim();
+				if (!value) return "General Admission";
+				try { return decodeURIComponent(value); } catch (_) { return value; }
+			}
+
+			function resolveTicketFromAnswers(answers) {
+				if (ticketType) return prettyTicketName(ticketType);
+				if (!answers || typeof answers !== "object") return "General Admission";
+				const entries = Object.entries(answers);
+				for (const [key, val] of entries) {
+					if (/ticket/i.test(key) && val) {
+						return prettyTicketName(Array.isArray(val) ? val[0] : val);
+					}
+				}
+				return "General Admission";
+			}
+
+			function savePendingTicketBill() {
+				const bill = {
+					eventId: (formData && formData.event_id) || eventId || "",
+					eventTitle: eventMeta.title || (formData && formData.form_title) || "",
+					venue: eventMeta.venue || "",
+					ticket: prettyTicketName(resolvedTicketName || ticketType),
+					price: String(resolvedTicketPrice || ticketPrice || "0"),
+					quantity: 1
+				};
+				try { sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify(bill)); } catch (_) {}
+				return bill;
+			}
+
+			function openSuccessPopup(answers) {
+				resolvedTicketName = resolveTicketFromAnswers(answers);
+				savePendingTicketBill();
+				if (!successState) return;
+				successState.classList.add("is-open");
+				successState.setAttribute("aria-hidden", "false");
+				successState.style.display = "flex";
+				document.body.style.overflow = "hidden";
+				window.scrollTo({ top: 0, behavior: "smooth" });
+			}
+
+			async function fetchEventPolicies(id) {
+				if (!id) return { policies: null, terms: "", title: "" };
+				try {
+					const res = await fetch(`${EVENTS_API}/public/${encodeURIComponent(id)}`, {
+						cache: "no-store",
+						headers: { Accept: "application/json" }
+					});
+					if (!res.ok) return { policies: null, terms: "", title: "" };
+					const data = await res.json();
+					return {
+						policies: data.policies && typeof data.policies === "object" ? data.policies : null,
+						terms: data.terms || "",
+						title: data.title || ""
+					};
+				} catch (_) {
+					return { policies: null, terms: "", title: "" };
+				}
+			}
+
+			function buildPolicyBlocks(info) {
+				const blocks = [];
+				const policies = info && info.policies;
+				if (policies) {
+					POLICY_LABELS.forEach(([key, label]) => {
+						const val = String(policies[key] || "").trim();
+						if (val) blocks.push({ label, val });
+					});
+				}
+				if (!blocks.length && info && info.terms) {
+					const chunks = String(info.terms).split(/\n\s*\n/).map((c) => c.trim()).filter(Boolean);
+					chunks.forEach((chunk) => {
+						const nl = chunk.indexOf("\n");
+						if (nl > 0 && chunk.slice(0, nl).trim().endsWith(":")) {
+							blocks.push({
+								label: chunk.slice(0, nl).trim().replace(/:$/, ""),
+								val: chunk.slice(nl + 1).trim()
+							});
+						} else {
+							blocks.push({ label: "Event Policy", val: chunk });
+						}
+					});
+				}
+				if (!blocks.length) {
+					blocks.push({
+						label: "Event Policy",
+						val: "By continuing, you agree to the host’s event policies and the JOD Events platform terms."
+					});
+				}
+				return blocks;
+			}
+
+			function showPolicyGate(info) {
+				if (!policyModal || !policyModalBody) {
+					policyAccepted = true;
+					if (formCard) formCard.style.display = "block";
+					return;
+				}
+				const intro = policyModal.querySelector(".policy-modal-header p");
+				if (intro) {
+					intro.textContent = info && info.title
+						? `Please review the host policy details for ${info.title} before filling the registration form.`
+						: "Please review the host policy details before filling the registration form.";
+				}
+				policyModalBody.innerHTML = buildPolicyBlocks(info).map((b) => `
+					<div class="policy-block">
+						<h3>${escapeHtml(b.label)}</h3>
+						<p>${escapeHtml(b.val)}</p>
+					</div>
+				`).join("");
+				if (policyAgreeCheck) policyAgreeCheck.checked = false;
+				if (policyNextBtn) policyNextBtn.disabled = true;
+				policyModal.hidden = false;
+				document.body.style.overflow = "hidden";
+			}
+
+			function acceptPoliciesAndContinue() {
+				if (!policyAgreeCheck || !policyAgreeCheck.checked) return;
+				policyAccepted = true;
+				if (policyModal) policyModal.hidden = true;
+				document.body.style.overflow = "";
+				if (formCard) formCard.style.display = "block";
+				window.scrollTo({ top: 0, behavior: "smooth" });
+			}
+
+			if (policyAgreeCheck && policyNextBtn) {
+				policyAgreeCheck.addEventListener("change", () => {
+					policyNextBtn.disabled = !policyAgreeCheck.checked;
+				});
+				policyNextBtn.addEventListener("click", acceptPoliciesAndContinue);
+			}
+
 			async function fetchPublishedForm() {
 				try {
 					let res;
@@ -400,7 +780,18 @@
 					if (eventId && !formData.event_id) formData.event_id = eventId;
 					if (ticketType) formData._ticket_type = ticketType;
 					if (ticketPrice) formData._ticket_price = ticketPrice;
-					renderForm(formData);
+					const policyEventId = eventId || formData.event_id;
+					if (shouldGatePolicies()) {
+						const [policyInfo] = await Promise.all([
+							fetchEventPolicies(policyEventId),
+							loadEventMeta(policyEventId)
+						]);
+						renderForm(formData);
+						if (!policyAccepted) showPolicyGate(policyInfo);
+					} else {
+						await loadEventMeta(policyEventId);
+						renderForm(formData);
+					}
 				} catch (err) {
 					showError("Form Unavailable", err.message || "Failed to load published form.");
 				}
@@ -416,7 +807,7 @@
 
 			function renderForm(data) {
 				loadingState.style.display = "none";
-				formCard.style.display = "block";
+				formCard.style.display = policyAccepted ? "block" : "none";
 
 				// Title & Description
 				pubFormTitle.textContent = data.form_title || "Event Registration Form";
@@ -626,6 +1017,11 @@
 					return;
 				}
 
+				if (!policyAccepted) {
+					showPolicyGate({ policies: null, terms: "", title: "" });
+					return;
+				}
+
 				const answers = {};
 				let userEmail = "";
 
@@ -684,9 +1080,8 @@
 					const data = await res.json();
 					if (!res.ok) throw new Error(data.detail || "Submission failed.");
 
-					formCard.style.display = "none";
-					successState.style.display = "block";
-					window.scrollTo({ top: 0, behavior: 'smooth' });
+					formCard.style.display = "block";
+					openSuccessPopup(answers);
 
 				} catch (err) {
 					alert(err.message || "Failed to submit registration. Please try again.");
@@ -694,6 +1089,18 @@
 					submitBtn.textContent = "Submit Registration";
 				}
 			});
+
+			function goToPaymentStep() {
+				const bill = savePendingTicketBill();
+				const payUrl = new URL("payment.html", window.location.href);
+				if (bill.eventId) payUrl.searchParams.set("eventId", bill.eventId);
+				payUrl.searchParams.set("ticket", bill.ticket);
+				payUrl.searchParams.set("price", bill.price);
+				window.location.href = payUrl.toString();
+			}
+
+			const successNextBtn = document.getElementById("successNextBtn");
+			if (successNextBtn) successNextBtn.addEventListener("click", goToPaymentStep);
 
 			fetchPublishedForm();
 		})();

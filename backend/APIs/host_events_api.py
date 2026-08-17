@@ -567,6 +567,23 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
         except Exception:
             pass
 
+    gallery_images = []
+    if design and design.gallery_images:
+        raw_gallery = design.gallery_images
+        if isinstance(raw_gallery, str):
+            try:
+                raw_gallery = json.loads(raw_gallery)
+            except Exception:
+                raw_gallery = [raw_gallery] if raw_gallery.strip() else []
+        if isinstance(raw_gallery, list):
+            for item in raw_gallery:
+                if isinstance(item, str) and item.strip():
+                    gallery_images.append(item.strip())
+                elif isinstance(item, dict):
+                    url = item.get("url") or item.get("image_url") or item.get("src") or ""
+                    if url:
+                        gallery_images.append(str(url).strip())
+
     # Build terms text from policies_json
     terms_text = None
     policies = getattr(event_mgt, "policies_json", None) or {}
@@ -619,6 +636,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             organizer_id=organizer_id,
             performers=json.dumps(performers) if performers else None,
             highlights=json.dumps(highlights) if highlights else None,
+            gallery_images=json.dumps(gallery_images) if gallery_images else None,
             ticket_types=ticket_types,
             terms=terms_text,
         )
@@ -646,6 +664,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             public_event.performers = json.dumps(performers)
         if highlights:
             public_event.highlights = json.dumps(highlights)
+        public_event.gallery_images = json.dumps(gallery_images) if gallery_images else None
         if ticket_types:
             public_event.ticket_types = ticket_types
         public_event.terms = terms_text
@@ -684,7 +703,7 @@ class SaveEventDesignRequest(BaseModel):
     logo: Optional[str] = None
     theme_color: Optional[str] = "#2563eb"
     font: Optional[str] = "Inter"
-    gallery_images: Optional[List[str]] = None
+    gallery_images: Optional[List[Any]] = None
     about_event: Optional[str] = None
     highlights: Optional[str] = None
     speaker_details: Optional[List[Dict[str, Any]]] = None

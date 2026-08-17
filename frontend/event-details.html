@@ -16,7 +16,7 @@
 
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/style.css?v=17" />
-    <link rel="stylesheet" href="css/event-details.css?v=10" />
+    <link rel="stylesheet" href="css/event-details.css?v=12" />
 </head>
 
 <body class="event-details-page category-theme-comedy" id="eventBody">
@@ -78,22 +78,22 @@
                     <div id="eventPolicies"></div>
                 </div>
 
-                <!-- Artist / Performer / Speaker Section -->
-                <div class="section-block" id="performersSection">
-                    <h2 class="section-block-title" id="performersTitle">Spotlight Artists & Performers</h2>
+                <!-- Speakers / Artists / Hosts -->
+                <div class="section-block showcase-section" id="performersSection" style="display:none;">
+                    <h2 class="section-block-title" id="performersTitle">Speakers</h2>
                     <div class="performers-grid" id="performersGrid"></div>
                 </div>
 
-                <!-- Highlights Section (Past Achievements Showcase) -->
-                <div class="section-block" id="highlightsSection">
-                    <h2 class="section-block-title" id="highlightsTitle">Show Laughs & Tour Highlights</h2>
-                    <div class="highlights-grid" id="highlightsGrid"></div>
+                <!-- Gallery — always between speakers and sponsors -->
+                <div class="section-block showcase-section" id="gallerySection">
+                    <h2 class="section-block-title">Gallery</h2>
+                    <div class="event-gallery-row" id="galleryGrid"></div>
                 </div>
 
-                <!-- Recommended Events Section -->
-                <div class="section-block" id="recommendedBlock">
-                    <h2 class="section-block-title">You May Also Like</h2>
-                    <div class="recommended-grid" id="recommendedGrid"></div>
+                <!-- Sponsors -->
+                <div class="section-block showcase-section" id="sponsorsSection" style="display:none;">
+                    <h2 class="section-block-title">Sponsors</h2>
+                    <div class="sponsors-row" id="sponsorsGrid"></div>
                 </div>
 
             </div>
@@ -179,6 +179,12 @@
             </div>
 
         </div>
+
+        <!-- More Events — always visible; cards appear when other events exist -->
+        <div class="section-block showcase-section more-events-block" id="recommendedBlock">
+            <h2 class="section-block-title">More Events</h2>
+            <div class="recommended-grid" id="recommendedGrid"></div>
+        </div>
     </main>
 
     <!-- Mobile Secondary Floating Sticky Bottom Action Bar -->
@@ -195,6 +201,15 @@
         </div>
     </div>
 
+    <!-- Gallery lightbox -->
+    <div class="gallery-lightbox" id="galleryLightbox" hidden>
+        <button type="button" class="gallery-lightbox-close" id="galleryLightboxClose" aria-label="Close gallery">&times;</button>
+        <button type="button" class="gallery-lightbox-nav gallery-lightbox-prev" id="galleryLightboxPrev" aria-label="Previous photo">‹</button>
+        <img id="galleryLightboxImg" alt="Gallery photo" />
+        <button type="button" class="gallery-lightbox-nav gallery-lightbox-next" id="galleryLightboxNext" aria-label="Next photo">›</button>
+        <p class="gallery-lightbox-count" id="galleryLightboxCount"></p>
+    </div>
+
     <!-- Toast Copy Notification -->
     <div class="toast-msg" id="toastMsg">Link copied to clipboard!</div>
 
@@ -208,7 +223,7 @@
     <script src="js/script.js?v=19"></script>
     <script src="js/events-public.js?v=7"></script>
     <script src="js/wishlist.js?v=1"></script>
-    <script src="js/event-details.js?v=11"></script>
+    <script src="js/event-details.js?v=15"></script>
 </body>
 
 </html>
