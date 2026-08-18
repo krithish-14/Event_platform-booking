@@ -22,6 +22,7 @@ class Event(Base):
     longitude    = Column(Float, nullable=True)
     category     = Column(String(100), nullable=True)
     image_url    = Column(String(500), nullable=True)
+    card_image   = Column(String(500), nullable=True)
     start_date   = Column(DateTime, nullable=False)
     end_date     = Column(DateTime, nullable=True)
     price        = Column(Float, default=0.0, nullable=True)

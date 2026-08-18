@@ -44,7 +44,14 @@
 	function initCategoryHeader() {
 		const initialCategory = getQueryParam("name") || getQueryParam("category") || "Events";
 		const userCity = (() => {
-			try { return sessionStorage.getItem("jod_user_city") || "Chennai"; } catch (_) { return "Chennai"; }
+			try {
+				if (window.JodLocation && typeof window.JodLocation.getCachedCity === "function") {
+					return window.JodLocation.getCachedCity() || "Chennai";
+				}
+				return sessionStorage.getItem("jod_user_city") || localStorage.getItem("jod_user_city") || "Chennai";
+			} catch (_) {
+				return "Chennai";
+			}
 		})();
 
 		const titleEl = document.getElementById("categoryTitle");
@@ -171,6 +178,9 @@
 		grid.innerHTML = events.map((item) => EP ? EP.buildCategoryCard(item) : "").join("");
 		if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === "function") {
 			window.JodWishlist.refreshButtons(grid);
+		}
+		if (EP && typeof EP.startCountdownTicker === "function") {
+			EP.startCountdownTicker();
 		}
 	}
 

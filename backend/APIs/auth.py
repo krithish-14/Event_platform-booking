@@ -127,6 +127,8 @@ class UserResponse(BaseModel):
     avatar_url: str | None = None
     city: str | None = None
     location_pincode: str | None = None
+    location_lat: float | None = None
+    location_lon: float | None = None
     is_active: bool
     is_admin: bool
     role: str = "attendee"
@@ -159,6 +161,8 @@ def _serialize_user(user) -> dict:
         "avatar_url": getattr(user, "avatar_url", None),
         "city": getattr(user, "city", None),
         "location_pincode": getattr(user, "location_pincode", None),
+        "location_lat": getattr(user, "location_lat", None) or getattr(user, "latitude", None),
+        "location_lon": getattr(user, "location_lon", None) or getattr(user, "longitude", None),
         "is_active": bool(getattr(user, "is_active", True)),
         "is_admin": bool(getattr(user, "is_admin", False)),
         "role": role,

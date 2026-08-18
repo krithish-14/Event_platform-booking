@@ -254,11 +254,62 @@
 	cursor: pointer;
 }
 
-/* ── Category Events Grid ────────────────────────────────── */
+/* ── Category Events Grid (compact home-style cards) ─────── */
 .category-events-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-	gap: 1.5rem;
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	gap: 1.1rem;
+}
+
+.category-events-grid .event-card.cat-home-card {
+	min-width: 0;
+}
+
+.category-events-grid .event-card-image {
+	aspect-ratio: 16 / 10;
+}
+
+.category-events-grid .event-card-body {
+	gap: .5rem;
+	padding: .85rem .9rem 1rem;
+}
+
+.category-events-grid .event-card h3 {
+	font-size: .95rem;
+	line-height: 1.3;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.category-events-grid .event-card-body > p {
+	font-size: .78rem;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.category-events-grid .event-meta {
+	gap: .2rem;
+	padding-top: .65rem;
+	font-size: .65rem;
+}
+
+.category-events-grid .event-meta .cat-card-price {
+	margin-top: .15rem;
+	padding-top: 0;
+	border-top: 0;
+	font-size: .8rem;
+	font-weight: 800;
+	color: var(--ink);
+}
+
+.category-events-grid .card-link {
+	margin-top: .35rem;
+	padding: .55rem .8rem;
+	font-size: .78rem;
 }
 
 .cat-event-card {
@@ -444,16 +495,16 @@
 
 @media (max-width: 580px) {
 	.category-events-grid {
-		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-		gap: 1rem;
+		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		gap: .85rem;
 	}
 
-	.cat-card-body {
-		padding: .75rem;
+	.category-events-grid .event-card-body {
+		padding: .7rem .75rem .85rem;
 	}
 
-	.cat-card-body h3 {
-		font-size: .925rem;
+	.category-events-grid .event-card h3 {
+		font-size: .85rem;
 	}
 
 	.date-overlay-badge {

@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta name="description" content="Manage your event tickets, registrations, speakers, exhibitors, and sales stats on the JOD Events Organizer Dashboard." />
 		<title>Organizer Event Dashboard - JOD Events</title>
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=6" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=13" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 	</head>
@@ -133,7 +133,17 @@
 									<span class="kpi-value" id="kpiRegs">0</span>
 								</div>
 							</div>
-							<!-- KPI 3: Attendees -->
+							<!-- KPI 3: Pending -->
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-pending">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Pending</span>
+									<span class="kpi-value" id="kpiPending">0</span>
+								</div>
+							</div>
+							<!-- KPI 4: Attendees -->
 							<div class="kpi-card">
 								<div class="kpi-icon-circle icon-attendees">
 									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M15 6a3 3 0 0 1 6 0c0 1.65-1.35 3-3 3"></path></svg>
@@ -143,7 +153,7 @@
 									<span class="kpi-value" id="kpiAttendees">0</span>
 								</div>
 							</div>
-							<!-- KPI 4: Days to Event -->
+							<!-- KPI 5: Days to Event -->
 							<div class="kpi-card">
 								<div class="kpi-icon-circle icon-days">
 									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -223,7 +233,8 @@
 									<h3 class="dash-card-title">Registration Trend</h3>
 								</div>
 								<div class="chart-container">
-									<canvas id="trendChartCanvas" height="160"></canvas>
+									<canvas id="trendChartCanvas" height="240"></canvas>
+									<div id="trendChartTooltip" class="trend-chart-tooltip" aria-hidden="true"></div>
 								</div>
 								<button type="button" class="btn-card-action">View more</button>
 							</div>
@@ -235,17 +246,27 @@
 								</div>
 								<div class="donut-wrap">
 									<svg width="150" height="150" viewBox="0 0 36 36" class="circular-chart">
-										<path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" stroke-width="4.5" />
+										<path class="circle-bg" id="donutAvailPath" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" stroke-width="4.5" />
+										<path id="donutPendingPath" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f59e0b" stroke-width="4.5" />
 										<path class="circle" id="donutSoldPath" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#6366f1" stroke-width="4.5" />
 									</svg>
+									<div class="donut-center">
+										<strong id="donutCenterValue">0</strong>
+										<span id="donutCenterLabel">of 0 tickets</span>
+									</div>
 								</div>
+								<p class="donut-caption" id="donutCaption">Available = remaining tickets after sold and pending.</p>
 								<div class="donut-legend">
 									<div class="legend-item">
-										<div class="legend-label"><span class="legend-dot" style="background-color: #6366f1;"></span> Sold</div>
+										<div class="legend-label"><span class="legend-dot" style="background-color: #6366f1;"></span> Sold (paid)</div>
 										<div class="legend-val" id="valSold">0 (0%)</div>
 									</div>
 									<div class="legend-item">
-										<div class="legend-label"><span class="legend-dot" style="background-color: #10b981;"></span> Available</div>
+										<div class="legend-label"><span class="legend-dot" style="background-color: #f59e0b;"></span> Pending (unpaid)</div>
+										<div class="legend-val" id="valPending">0 (0%)</div>
+									</div>
+									<div class="legend-item">
+										<div class="legend-label"><span class="legend-dot" style="background-color: #10b981;"></span> Available (open)</div>
 										<div class="legend-val" id="valAvail">0 (100%)</div>
 									</div>
 								</div>
@@ -278,19 +299,22 @@
 								</div>
 							</div>
 
-							<!-- Card 2: Event Website Preview -->
-							<div class="dash-card">
+							<!-- Card 2: Event Page Preview -->
+							<div class="dash-card dash-card-event-page">
 								<div class="dash-card-header">
-									<h3 class="dash-card-title">Event website</h3>
+									<h3 class="dash-card-title">Event page</h3>
 								</div>
-								<div class="website-preview-box">
-									<div>
-										<span style="background: #2563eb; color: #fff; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700;" id="webTitleBadge">Draft</span>
-										<h4 style="margin-top: 0.5rem;" id="webHeadline">My New Event</h4>
-										<p id="webDate">Venue TBD</p>
+								<a href="event-details.html" id="eventPagePreviewLink" class="event-page-preview" aria-label="View event page">
+									<div class="event-page-banner-wrap">
+										<img id="webBannerImg" src="images/hero-event.jpg" alt="Event banner preview" class="event-page-banner" />
+										<span class="event-page-badge" id="webTitleBadge">Draft</span>
 									</div>
-									<a href="index.html" class="topbar-link" style="color: #60a5fa; font-size: 0.8rem;">Back to Home &rarr;</a>
-								</div>
+									<div class="event-page-body">
+										<h4 id="webHeadline">My New Event</h4>
+										<p id="webDate">Venue TBD</p>
+										<span class="event-page-cta">View page &rarr;</span>
+									</div>
+								</a>
 							</div>
 
 							<!-- Card 3: Event Numbers Grid -->
@@ -751,6 +775,29 @@
 										<button type="button" id="btnClearBanner" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: #fff; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; cursor: pointer;">Remove Banner</button>
 									</div>
 									<input type="file" id="bannerFileInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" style="display: none;" />
+								</div>
+							</div>
+
+							<!-- CARD IMAGE (Home / Category / Ticket) -->
+							<div class="form-section-divider" style="margin-top: 0.5rem;">
+								Card Image — Home, Category &amp; Ticket
+							</div>
+
+							<div class="setup-form-group" id="cardImageUploadHost" style="margin-bottom: 2rem;">
+								<label>Event Card Image (Recommended: 400 × 200 px · Minimum: 300 × 150 px)</label>
+								<div id="cardImageDropzone" class="doc-dropzone card-image-dropzone" style="background: #ffffff; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s;">
+									<div id="cardImageDropzoneContent" style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+										<div style="width: 48px; height: 48px; background: #f0fdf4; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #059669;">
+											<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="8.5" cy="11" r="1.5"></circle><polyline points="21 15 16 10 5 19"></polyline></svg>
+										</div>
+										<p style="font-weight: 700; color: #0f172a; font-size: 0.95rem;">Drag &amp; drop your Card Image or <span style="color: #059669; text-decoration: underline;">Browse File</span></p>
+										<span style="font-size: 0.78rem; color: #64748b;">Landscape card thumbnail · JPG, PNG, WEBP (Max 5MB) · 400 × 200 px ideal · 300 × 150 px minimum</span>
+									</div>
+									<div id="cardImagePreviewBox" style="display: none; position: relative;">
+										<img id="cardImagePreviewImg" src="" alt="Card image preview" style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0; aspect-ratio: 2 / 1;" />
+										<button type="button" id="btnClearCardImage" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: #fff; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; cursor: pointer;">Remove</button>
+									</div>
+									<input type="file" id="cardImageFileInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" style="display: none;" />
 								</div>
 							</div>
 
@@ -1252,10 +1299,7 @@
 								<div class="setup-form-group">
 									<label>Select Target Audience</label>
 									<select id="commAudienceSelect" class="setup-select">
-										<option value="all_attendees">All Registered Attendees (0)</option>
-										<option value="vip_ticket_holders">VIP Pass Holders Only (0)</option>
-										<option value="exhibitors">Exhibitors &amp; Sponsors (0)</option>
-										<option value="speakers">Keynote Speakers &amp; Panelists (0)</option>
+										<option value="all_tickets">All Ticket Holders (0)</option>
 									</select>
 								</div>
 
@@ -1425,38 +1469,44 @@
 									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
 								</div>
 								<div class="kpi-details">
-									<span class="kpi-label">Live Attendees Inside</span>
-									<span class="kpi-value" id="evLiveInside">0</span>
+									<span class="kpi-label">Total Tickets</span>
+									<span class="kpi-value" id="evTotalTickets">0</span>
 								</div>
 							</div>
-
 							<div class="kpi-card">
 								<div class="kpi-icon-circle icon-regs">
 									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
 								</div>
 								<div class="kpi-details">
-									<span class="kpi-label">Check-ins Processed</span>
-									<span class="kpi-value" id="evCheckinsProcessed">0 / 0</span>
+									<span class="kpi-label">Checked In</span>
+									<span class="kpi-value" id="evCheckedIn">0</span>
 								</div>
 							</div>
-
 							<div class="kpi-card">
 								<div class="kpi-icon-circle icon-days">
-									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M7 7h10v10H7z"></path></svg>
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
 								</div>
 								<div class="kpi-details">
-									<span class="kpi-label">Hall Occupancy</span>
-									<span class="kpi-value" id="evHallOccupancy">0%</span>
+									<span class="kpi-label">Not Checked In</span>
+									<span class="kpi-value" id="evNotCheckedIn">0</span>
 								</div>
 							</div>
-
 							<div class="kpi-card">
-								<div class="kpi-icon-circle icon-sales">
-									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+								<div class="kpi-icon-circle icon-attendees">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
 								</div>
 								<div class="kpi-details">
-									<span class="kpi-label">Active Sessions</span>
-									<span class="kpi-value" id="evActiveSessions">0 Ongoing</span>
+									<span class="kpi-label">Check-in Rate</span>
+									<span class="kpi-value" id="evCheckinRate">0%</span>
+								</div>
+							</div>
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-pending">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Active Volunteers</span>
+									<span class="kpi-value" id="evActiveVolunteers">0</span>
 								</div>
 							</div>
 						</div>
@@ -1555,61 +1605,70 @@
 							</div>
 						</div>
 
-						<!-- Volunteer & Staff Scanner Access Management Card -->
+						<!-- Volunteer Management -->
 						<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.6rem; margin-bottom: 1.8rem; box-shadow: 0 4px 16px rgba(15,23,42,0.03);">
 							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.8rem;">
 								<div>
-									<h4 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 0.2rem;">Connect &amp; Invite Volunteers for QR Verification</h4>
-									<p style="font-size: 0.83rem; color: #64748b; margin: 0;">Generate restricted scanner access links for event staff and volunteers. They will only have permissions to scan and verify tickets on Event Day.</p>
+									<h4 style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 0.2rem;">Volunteer Management</h4>
+									<p style="font-size: 0.83rem; color: #64748b; margin: 0;">Invite volunteers by email and assign them to a saved entry gate. They sign in with a JOD account and get scanner access only for this event.</p>
 								</div>
-								<span style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.78rem; font-weight: 700;">Restricted Scanner Scope</span>
+								<span style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.78rem; font-weight: 700;">Event-specific access</span>
 							</div>
 
-							<!-- Add Volunteer Scanner Form -->
 							<div class="setup-grid-3" style="align-items: flex-end; margin-bottom: 1.2rem;">
 								<div class="setup-form-group">
-									<label>Volunteer Name / Contact Email</label>
-									<input type="text" id="volunteerNameInput" class="setup-input" placeholder="e.g. Volunteer Staff Name" style="padding-left: 0.9rem;" />
+									<label>Volunteer Name</label>
+									<input type="text" id="volunteerNameInput" class="setup-input" placeholder="e.g. Arun Kumar" style="padding-left: 0.9rem;" />
 								</div>
 								<div class="setup-form-group">
-									<label>Assigned Entry Gate</label>
-									<select id="volunteerGateSelect" class="setup-select" style="padding-left: 0.9rem;">
-										<option value="" disabled selected>No gates configured yet</option>
+									<label>Email Address</label>
+									<input type="email" id="volunteerEmailInput" class="setup-input" placeholder="volunteer@email.com" style="padding-left: 0.9rem;" />
+								</div>
+								<div class="setup-form-group">
+									<label>Role</label>
+									<select id="volunteerRoleSelect" class="setup-select" style="padding-left: 0.9rem;">
+										<option value="SCANNER" selected>Scanner Volunteer</option>
 									</select>
 								</div>
-								<button type="button" id="btnCreateVolunteerLink" class="publish-gradient-btn" style="height: 44px; padding: 0 1.2rem; font-size: 0.88rem; border-radius: 8px;">
-									Generate Scanner Link &amp; Passcode
-								</button>
+							</div>
+							<div id="volunteerGateField" style="display: none; margin-bottom: 1.2rem;">
+								<div class="setup-form-group" style="max-width: 420px;">
+									<label>Assign Gate</label>
+									<select id="volunteerGateSelect" class="setup-select" style="padding-left: 0.9rem;">
+										<option value="" disabled selected>Select a saved gate</option>
+									</select>
+								</div>
+							</div>
+							<p id="volunteerGateHint" style="font-size: 0.85rem; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 0.75rem 0.9rem; margin: 0 0 1.2rem;">Save a gate above first. The Assign Gate list appears after at least one active gate is saved.</p>
+							<div style="display: flex; justify-content: flex-end; margin-bottom: 1.2rem;">
+								<button type="button" id="btnInviteVolunteer" class="publish-gradient-btn" style="height: 44px; padding: 0 1.4rem; font-size: 0.88rem; border-radius: 8px;" disabled>+ Add Volunteer</button>
 							</div>
 
-							<!-- Generated Scanner Link Box -->
 							<div id="generatedLinkContainer" style="display: none; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 1rem; margin-bottom: 1.2rem;">
 								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
-									<span style="font-size: 0.82rem; font-weight: 700; color: #334155;">Unique Volunteer Scanner Portal URL:</span>
-									<span id="passcodeBadge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; padding: 0.15rem 0.6rem; border-radius: 6px; font-weight: 800; font-size: 0.8rem;">Passcode: VOL-2026-9874</span>
+									<span id="volunteerLinkLabel" style="font-size: 0.82rem; font-weight: 700; color: #334155;">Invitation link (also emailed):</span>
 								</div>
 								<div style="display: flex; gap: 0.5rem;">
-									<input type="text" id="volunteerPortalUrl" class="setup-input" readonly value="http://127.0.0.1:5000/volunteer-scanner.html?code=VOL-2026-9874" style="background: #ffffff; font-weight: 600; color: #2563eb; padding-left: 0.9rem;" />
+									<input type="text" id="volunteerPortalUrl" class="setup-input" readonly style="background: #ffffff; font-weight: 600; color: #2563eb; padding-left: 0.9rem;" />
 									<button type="button" id="btnCopyVolunteerUrl" style="background: #2563eb; color: #ffffff; border: none; padding: 0 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; white-space: nowrap;">Copy Link</button>
-									<a id="btnOpenVolunteerPortal" href="volunteer-scanner.html?code=VOL-2026-9874" target="_blank" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #334155; padding: 0 1rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; text-decoration: none; display: flex; align-items: center; justify-content: center; white-space: nowrap;">Open Scanner ↗</a>
 								</div>
 							</div>
 
-							<!-- Active Volunteers List Table -->
-							<h5 style="font-size: 0.9rem; font-weight: 800; color: #0f172a; margin-bottom: 0.8rem;">Active Connected Volunteer Scanners</h5>
+							<h5 style="font-size: 0.9rem; font-weight: 800; color: #0f172a; margin-bottom: 0.8rem;">Volunteers</h5>
 							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
 								<table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
 									<thead>
 										<tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #475569; font-weight: 700;">
-											<th style="padding: 0.75rem 1rem;">Volunteer Name</th>
-											<th style="padding: 0.75rem 1rem;">Assigned Gate</th>
-											<th style="padding: 0.75rem 1rem;">Scans Processed Today</th>
-											<th style="padding: 0.75rem 1rem;">Scanner Status</th>
+											<th style="padding: 0.75rem 1rem;">Volunteer</th>
+											<th style="padding: 0.75rem 1rem;">Email</th>
+											<th style="padding: 0.75rem 1rem;">Gate</th>
+											<th style="padding: 0.75rem 1rem;">Role</th>
+											<th style="padding: 0.75rem 1rem;">Status</th>
 											<th style="padding: 0.75rem 1rem; text-align: right;">Action</th>
 										</tr>
 									</thead>
 									<tbody id="volunteerTableBody">
-										<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">No volunteer scanners connected yet. Generate a scanner link above to assign staff.</td></tr>
+										<tr><td colspan="6" style="text-align: center; padding: 1.5rem; color: #94a3b8;">No volunteers invited yet. Save a gate, then add a volunteer email above.</td></tr>
 									</tbody>
 								</table>
 							</div>
@@ -1672,10 +1731,11 @@
 											<th style="padding: 0.75rem 1.2rem;">Ticket</th>
 											<th style="padding: 0.75rem 1.2rem;">Status</th>
 											<th style="padding: 0.75rem 1.2rem;">Checked in</th>
+											<th style="padding: 0.75rem 1.2rem;">By Volunteer</th>
 										</tr>
 									</thead>
 									<tbody id="attendanceTableBody">
-										<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #94a3b8;">No ticket check-ins yet.</td></tr>
+										<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">No ticket check-ins yet.</td></tr>
 									</tbody>
 								</table>
 							</div>
@@ -1844,11 +1904,11 @@
 		</div>
 
 		<script src="js/include.js?v=14"></script>
-		<script src="js/auth.js?v=13"></script>
-		<script src="js/profile.js?v=1"></script>
-		<script src="js/script.js?v=13"></script>
+		<script src="js/auth.js?v=22"></script>
+		<script src="js/profile.js?v=5"></script>
+		<script src="js/script.js?v=22"></script>
 		<script src="js/form-builder.js?v=20260816_v6"></script>
-		<script src="js/organizer-dashboard.js?v=20260817_v12"></script>
+		<script src="js/organizer-dashboard.js?v=20260818_v23"></script>
 	</body>
 </html>
 

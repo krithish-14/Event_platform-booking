@@ -6,10 +6,44 @@
 (() => {
 	"use strict";
 
-	/* ── Storage key for profile picture ─────────────────────── */
-	const AVATAR_KEY = "jod_profile_avatar";
+	function avatarKey() {
+		if (window.JodAuth && typeof window.JodAuth.avatarCacheKey === "function") {
+			return window.JodAuth.avatarCacheKey();
+		}
+		const user = getUser();
+		const id = user && (user.customer_id || user.id || user.email);
+		return id ? `jod_profile_avatar_${String(id).toLowerCase()}` : null;
+	}
 
-	/* ── Helpers ──────────────────────────────────────────────── */
+	function getSavedAvatar() {
+		try {
+			if (window.JodAuth && typeof window.JodAuth.readScopedCache === "function") {
+				const cached = window.JodAuth.readScopedCache("jod_profile_avatar");
+				if (cached) return cached;
+			}
+			const key = avatarKey();
+			if (key) {
+				const local = localStorage.getItem(key);
+				if (local) return local;
+			}
+			const user = getUser();
+			const remote = user && user.avatar_url;
+			if (remote) return remote;
+			return null;
+		} catch (_) { return null; }
+	}
+
+	function saveAvatar(dataUrl) {
+		try {
+			if (window.JodAuth && typeof window.JodAuth.writeScopedCache === "function") {
+				window.JodAuth.writeScopedCache("jod_profile_avatar", dataUrl);
+				return;
+			}
+			const key = avatarKey();
+			if (key) localStorage.setItem(key, dataUrl);
+		} catch (_) {}
+	}
+
 	function getUser() {
 		try {
 			if (window.JodAuth && typeof window.JodAuth.getUser === "function") {
@@ -36,14 +70,6 @@
 		if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 		if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
 		return "?";
-	}
-
-	function getSavedAvatar() {
-		try { return localStorage.getItem(AVATAR_KEY) || null; } catch (_) { return null; }
-	}
-
-	function saveAvatar(dataUrl) {
-		try { localStorage.setItem(AVATAR_KEY, dataUrl); } catch (_) {}
 	}
 
 	/* ── Inject CSS ───────────────────────────────────────────── */
@@ -607,6 +633,12 @@
 		return avatar;
 	}
 
+	function syncProfileBadge() {
+		if (window.JodInbox && typeof window.JodInbox.refresh === "function") {
+			window.JodInbox.refresh();
+		}
+	}
+
 	/* ── Render Profile Widget ────────────────────────────────── */
 	function renderProfileWidget(navAuth) {
 		const user = getUser();
@@ -688,6 +720,8 @@
 				btn.focus();
 			}
 		});
+
+		syncProfileBadge();
 	}
 
 	/* ── Render Mobile Auth Group ────────────────────────────── */
@@ -741,6 +775,8 @@
 				window.location.href = "index.html";
 			});
 		}
+
+		syncProfileBadge();
 	}
 
 	/* ── Build Dropdown HTML ──────────────────────────────────── */
@@ -756,7 +792,7 @@
 		header.appendChild(headerAvatar);
 		const info = document.createElement("div");
 		info.className = "pd-user-info";
-		const initialCity = (user && user.city) || (typeof localStorage !== "undefined" ? localStorage.getItem("jod_user_city") : null);
+		const initialCity = (user && user.city) || (window.JodLocation && typeof window.JodLocation.getCachedCity === "function" ? window.JodLocation.getCachedCity() : null);
 		const locText = initialCity ? (initialCity.toLowerCase().includes("india") ? initialCity : `${initialCity}, India`) : null;
 		const locHtml = locText ? `<div class="pd-location" style="font-size:.725rem;color:var(--primary);font-weight:600;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 ${escHtml(locText)}</div>` : `<div class="pd-location" style="font-size:.725rem;color:var(--muted);margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 Detecting location…</div>`;
 
@@ -903,7 +939,14 @@
 		},
 		/** Remove profile picture, revert to initials */
 		removeProfilePicture() {
-			try { localStorage.removeItem(AVATAR_KEY); } catch (_) {}
+			try {
+				if (window.JodAuth && typeof window.JodAuth.writeScopedCache === "function") {
+					window.JodAuth.writeScopedCache("jod_profile_avatar", null);
+				} else {
+					const key = avatarKey();
+					if (key) localStorage.removeItem(key);
+				}
+			} catch (_) {}
 			const user = getUser();
 			document.querySelectorAll(".profile-avatar").forEach(el => {
 				el.innerHTML = "";
@@ -944,7 +987,7 @@
 			return;
 		}
 		const script = document.createElement("script");
-		script.src = "js/notifications-inbox.js?v=1";
+		script.src = "js/notifications-inbox.js?v=5";
 		script.dataset.jodInbox = "1";
 		script.onload = run;
 		document.head.appendChild(script);

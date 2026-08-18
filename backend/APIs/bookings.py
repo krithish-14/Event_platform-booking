@@ -170,6 +170,7 @@ class BookingResponse(BaseModel):
     ticket_id: Optional[str] = None
     qr_token: Optional[str] = None
     ticket_status: Optional[str] = "VALID"
+    used_at: Optional[datetime] = None
     customer_id: str
     user_name: Optional[str] = None
     user_email: Optional[str] = None
@@ -190,9 +191,30 @@ class BookingResponse(BaseModel):
     receiver_email: Optional[str] = None
     receiver_phone: Optional[str] = None
     booked_at: datetime
+    card_image: Optional[str] = None
+    image_url: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+def _booking_event_images(b: Booking, db: Session = None):
+    """Resolve card + hero images for tickets; prefer card_image from catalog or design."""
+    card_image = None
+    hero_image = None
+    if b.event:
+        card_image = getattr(b.event, "card_image", None) or None
+        hero_image = getattr(b.event, "image_url", None) or None
+    if not card_image and db is not None and b.event_id:
+        try:
+            from Models.event_design import EventDesign
+            design = db.query(EventDesign).filter(EventDesign.event_id == b.event_id).first()
+            if design and design.card_image:
+                card_image = design.card_image
+        except Exception:
+            pass
+    ticket_image = card_image or hero_image
+    return ticket_image, card_image, hero_image
 
 
 def _ensure_tickets_exist(b: Booking, db: Session = None) -> List[Ticket]:
@@ -264,12 +286,15 @@ def _serialize_booking(b: Booking, db: Session = None) -> dict:
     ticket_id = str(primary_ticket.ticket_id) if primary_ticket else f"TKT-JOD-{str(b.booking_id)[:8].upper()}"
     qr_token = primary_ticket.qr_token if primary_ticket else None
     ticket_status = primary_ticket.ticket_status if primary_ticket else (b.status or "VALID")
+    used_at = primary_ticket.used_at if primary_ticket else None
+    ticket_image, card_image, hero_image = _booking_event_images(b, db=db)
 
     return {
         "booking_id": str(b.booking_id),
         "ticket_id": ticket_id,
         "qr_token": qr_token,
         "ticket_status": ticket_status,
+        "used_at": used_at,
         "customer_id": str(b.customer_id),
         "user_name": user_name,
         "user_email": user_email,
@@ -290,6 +315,8 @@ def _serialize_booking(b: Booking, db: Session = None) -> dict:
         "receiver_email": user_email,
         "receiver_phone": user_phone,
         "booked_at": b.booked_at,
+        "card_image": card_image or ticket_image,
+        "image_url": ticket_image or hero_image,
     }
 
 
@@ -576,15 +603,31 @@ def get_registration_status(
 @router.get("/host/tracking", response_model=List[BookingResponse])
 def get_host_tracking_analytics(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Event Host & Admin verification endpoint."""
+    """Bookings for events owned by the authenticated host — never the global booking list."""
+    owned_event_ids = db.query(Event.id).filter(
+        or_(
+            Event.customer_id == current_user.customer_id,
+            Event.organizer_id == current_user.id,
+        )
+    )
     bookings = (
         db.query(Booking)
         .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
+        .filter(Booking.event_id.in_(owned_event_ids))
         .order_by(Booking.booked_at.desc())
         .all()
     )
     return [_serialize_booking(b, db=db) for b in bookings]
+
+
+def _assert_booking_owner(booking: Booking, current_user: User) -> None:
+    if str(booking.customer_id) != str(current_user.customer_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access your own bookings.",
+        )
 
 
 @router.get("/{booking_id}", response_model=BookingResponse)
@@ -593,7 +636,7 @@ def get_single_booking(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get details for an individual booking by ID."""
+    """Get details for an individual booking owned by the authenticated user."""
     try:
         b_uuid = UUID(booking_id)
         b = (
@@ -612,6 +655,7 @@ def get_single_booking(
 
     if not b:
         raise HTTPException(status_code=404, detail="Booking not found.")
+    _assert_booking_owner(b, current_user)
     return _serialize_booking(b, db=db)
 
 

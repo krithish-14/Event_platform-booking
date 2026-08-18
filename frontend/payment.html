@@ -119,7 +119,7 @@
 
 	<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=17"></script>
+	<script src="js/auth.js?v=22"></script>
 	<script src="js/razorpay-checkout.js?v=1"></script>
 	<script>
 		(function () {
@@ -326,6 +326,19 @@
 						statusEl.textContent = "Payment Verified";
 						statusEl.classList.add("is-ok");
 					}
+					try {
+						const key = window.JodAuth && typeof window.JodAuth.bookingsCacheKey === "function"
+							? window.JodAuth.bookingsCacheKey()
+							: null;
+						if (key && verified) {
+							const cache = JSON.parse(localStorage.getItem(key) || "[]");
+							const next = Array.isArray(cache) ? cache : [];
+							const idx = next.findIndex((row) => row && row.booking_id === verified.booking_id);
+							if (idx >= 0) next[idx] = Object.assign({}, next[idx], verified);
+							else next.unshift(verified);
+							localStorage.setItem(key, JSON.stringify(next));
+						}
+					} catch (_) {}
 					goToTicket(verified.booking_id);
 				} catch (err) {
 					const message = (err && err.message) || "Payment failed. Try again.";

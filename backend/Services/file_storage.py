@@ -227,9 +227,13 @@ def migrate_disk_uploads() -> int:
             for event in db.query(Event).all():
                 if event.image_url in mapping:
                     event.image_url = mapping[event.image_url]
+                if getattr(event, "card_image", None) in mapping:
+                    event.card_image = mapping[event.card_image]
             for design in db.query(EventDesign).all():
                 if design.banner_image in mapping:
                     design.banner_image = mapping[design.banner_image]
+                if getattr(design, "card_image", None) in mapping:
+                    design.card_image = mapping[design.card_image]
                 if design.logo in mapping:
                     design.logo = mapping[design.logo]
                 if design.gallery_images is not None:

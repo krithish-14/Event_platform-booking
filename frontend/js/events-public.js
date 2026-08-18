@@ -158,15 +158,19 @@
 
 	function wishlistHeartButton(eventId) {
 		const id = escapeHtml(String(eventId || ""));
-		return `<button type="button" class="wishlist-heart-btn" data-wishlist-event="${id}" aria-label="Add to wishlist" title="Add to wishlist" aria-pressed="false">
+		return `<button type="button" class="wishlist-heart-btn" data-wishlist-event="${id}" aria-label="Add to wishlist" title="Add to wishlist" aria-pressed="false" onclick="event.stopPropagation();">
 			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
 		</button>`;
+	}
+
+	function eventCardImage(event) {
+		return resolveImage((event && (event.card_image || event.image_url)) || "");
 	}
 
 	function buildCarouselCard(event, delayClass) {
 		const id = event.id;
 		const detailsUrl = eventDetailsUrl(event);
-		const img = resolveImage(event.image_url);
+		const img = eventCardImage(event);
 		const title = escapeHtml(event.title || "Untitled Event");
 		const desc = escapeHtml((event.description || "").slice(0, 120));
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
@@ -203,31 +207,40 @@
 	}
 
 	function buildCategoryCard(event) {
-		const targetUrl = eventDetailsUrl(event);
+		const id = event.id;
+		const detailsUrl = eventDetailsUrl(event);
+		const img = eventCardImage(event);
 		const title = escapeHtml(event.title || "Untitled Event");
+		const desc = escapeHtml((event.description || "").slice(0, 90));
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
 		const category = escapeHtml(event.category || "Event");
-		const dateShort = formatDateIST(event.start_date);
+		const dateStr = formatDateIST(event.start_date);
+		const countdownIso = event.start_date || "";
 		const priceDisplay = formatPrice(event.price) + (Number(event.price) > 0 ? " onwards" : "");
-		const imgUrl = resolveImage(event.image_url);
-		const formatLabel = escapeHtml(event.event_format || "In-person");
 
 		return `
-			<article class="cat-event-card" data-event-id="${event.id}" data-target-url="${targetUrl}"
-				onclick="window.location.href='${targetUrl}';">
-				<div class="cat-card-image">
-					<img src="${imgUrl}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
-					<span class="cat-card-badge">${category}</span>
-					${wishlistHeartButton(event.id)}
+			<article class="event-card cat-home-card" data-event-id="${id}"
+				data-lat="${event.latitude || ""}" data-lon="${event.longitude || ""}"
+				style="cursor:pointer;"
+				onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : (window.location.href='${detailsUrl}', false));">
+				<div class="event-card-image">
+					<img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
+					<span class="card-category">${category}</span>
+					${wishlistHeartButton(id)}
+					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}">&#10024; --d : --h : --m</span>` : ""}
 				</div>
-				<div class="cat-card-body">
-					<h3 class="cat-card-title">${title}</h3>
-					<p class="cat-card-meta">&#128197; ${dateShort} &bull; ${formatLabel}</p>
-					<p class="cat-card-meta">&#128205; ${venue}</p>
-					<div class="cat-card-footer">
+				<div class="event-card-body">
+					<h3>${title}</h3>
+					${desc ? `<p>${desc}</p>` : ""}
+					<div class="event-meta">
+						<span>&#128197; ${dateStr}</span>
+						<span>&#128205; ${venue}</span>
 						<span class="cat-card-price">${priceDisplay}</span>
-						<span class="cat-card-cta">View Details &#8594;</span>
 					</div>
+					<a class="card-link" href="${detailsUrl}"
+						onclick="event.stopPropagation(); return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : true);">
+						View Details <span>&#8594;</span>
+					</a>
 				</div>
 			</article>
 		`;

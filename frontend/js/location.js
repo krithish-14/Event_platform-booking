@@ -84,6 +84,7 @@ window.JodLocation = (() => {
   let previewSeq = 0;
   let mapPickBound = false;
   let fillingFromMap = false;
+  let locationFlowStarted = false;
 
   /* ── Haversine (client-side, mirrors backend) ─────────── */
   function haversineKm(lat1, lon1, lat2, lon2) {
@@ -155,6 +156,9 @@ window.JodLocation = (() => {
               const u = JSON.parse(raw);
               u.city = shortCity;
               if (fullAddress) u.location_address = fullAddress;
+              if (pincode) u.location_pincode = pincode;
+              if (lat != null && !Number.isNaN(lat)) u.location_lat = lat;
+              if (lon != null && !Number.isNaN(lon)) u.location_lon = lon;
               if (localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(u));
               if (sessionStorage.getItem(key)) sessionStorage.setItem(key, JSON.stringify(u));
             } catch (_) {}
@@ -195,14 +199,14 @@ window.JodLocation = (() => {
 
   function getCachedCity() {
     try {
-      const direct = sessionStorage.getItem(LS_CITY_KEY) || localStorage.getItem(LS_CITY_KEY);
-      if (direct) return direct;
       const rawUser = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
       if (rawUser) {
         const u = JSON.parse(rawUser);
-        if (u && u.city) return u.city;
+        if (u && (u.email || u.customer_id || u.id)) {
+          return u.city || sessionStorage.getItem(LS_CITY_KEY) || localStorage.getItem(LS_CITY_KEY) || null;
+        }
       }
-      return null;
+      return sessionStorage.getItem(LS_CITY_KEY) || localStorage.getItem(LS_CITY_KEY) || null;
     } catch (_) {
       return null;
     }
@@ -211,20 +215,34 @@ window.JodLocation = (() => {
   function getCachedLocation() {
     let lat = null;
     let lon = null;
+    let city = getCachedCity();
+    let pincode = "";
+    let address = "";
     try {
-      const rawLat = sessionStorage.getItem(LS_LAT_KEY) || localStorage.getItem(LS_LAT_KEY);
-      const rawLon = sessionStorage.getItem(LS_LON_KEY) || localStorage.getItem(LS_LON_KEY);
-      if (rawLat) lat = parseFloat(rawLat);
-      if (rawLon) lon = parseFloat(rawLon);
+      const rawUser = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+      const user = rawUser ? JSON.parse(rawUser) : null;
+      const signedIn = Boolean(user && (user.email || user.customer_id || user.id));
+      if (signedIn) {
+        city = user.city || sessionStorage.getItem(LS_CITY_KEY) || city || "";
+        pincode = user.location_pincode || user.location_pin || sessionStorage.getItem(LS_PINCODE_KEY) || "";
+        address = user.location_address || sessionStorage.getItem(LS_ADDRESS_KEY) || "";
+        const rawLat = user.location_lat || user.latitude || sessionStorage.getItem(LS_LAT_KEY);
+        const rawLon = user.location_lon || user.longitude || sessionStorage.getItem(LS_LON_KEY);
+        if (rawLat) lat = parseFloat(rawLat);
+        if (rawLon) lon = parseFloat(rawLon);
+      } else {
+        pincode = sessionStorage.getItem(LS_PINCODE_KEY) || localStorage.getItem(LS_PINCODE_KEY) || "";
+        address = sessionStorage.getItem(LS_ADDRESS_KEY) || localStorage.getItem(LS_ADDRESS_KEY) || "";
+        const rawLat = sessionStorage.getItem(LS_LAT_KEY) || localStorage.getItem(LS_LAT_KEY);
+        const rawLon = sessionStorage.getItem(LS_LON_KEY) || localStorage.getItem(LS_LON_KEY);
+        if (rawLat) lat = parseFloat(rawLat);
+        if (rawLon) lon = parseFloat(rawLon);
+      }
     } catch (_) {}
     return {
-      city: getCachedCity(),
-      pincode: (function () {
-        try { return sessionStorage.getItem(LS_PINCODE_KEY) || localStorage.getItem(LS_PINCODE_KEY) || ""; } catch (_) { return ""; }
-      })(),
-      address: (function () {
-        try { return sessionStorage.getItem(LS_ADDRESS_KEY) || localStorage.getItem(LS_ADDRESS_KEY) || ""; } catch (_) { return ""; }
-      })(),
+      city: city || null,
+      pincode,
+      address,
       lat: Number.isFinite(lat) ? lat : null,
       lon: Number.isFinite(lon) ? lon : null,
     };
@@ -237,22 +255,36 @@ window.JodLocation = (() => {
 
   function clearLocationSession() {
     try {
-      sessionStorage.removeItem(LS_ASKED_KEY);
-      sessionStorage.removeItem("jod_location_acquired");
-      sessionStorage.removeItem(LS_CITY_KEY);
-      sessionStorage.removeItem(LS_PINCODE_KEY);
-      sessionStorage.removeItem(LS_ADDRESS_KEY);
-      sessionStorage.removeItem(LS_LAT_KEY);
-      sessionStorage.removeItem(LS_LON_KEY);
+      [sessionStorage, localStorage].forEach((store) => {
+        store.removeItem(LS_ASKED_KEY);
+        store.removeItem("jod_location_acquired");
+        store.removeItem("jod_location_pending");
+        store.removeItem(LS_CITY_KEY);
+        store.removeItem(LS_PINCODE_KEY);
+        store.removeItem(LS_ADDRESS_KEY);
+        store.removeItem(LS_LAT_KEY);
+        store.removeItem(LS_LON_KEY);
+      });
     } catch (_) {}
   }
 
   function markAsked() {
-    try { sessionStorage.setItem(LS_ASKED_KEY, "1"); } catch (_) {}
+    try {
+      sessionStorage.setItem(LS_ASKED_KEY, "1");
+      localStorage.setItem(LS_ASKED_KEY, "1");
+    } catch (_) {}
   }
 
   function wasAskedThisSession() {
-    try { return sessionStorage.getItem(LS_ASKED_KEY) === "1" || sessionStorage.getItem("jod_location_acquired") === "true"; } catch (_) { return false; }
+    try {
+      return (
+        sessionStorage.getItem(LS_ASKED_KEY) === "1" ||
+        sessionStorage.getItem("jod_location_acquired") === "true" ||
+        localStorage.getItem(LS_ASKED_KEY) === "1"
+      );
+    } catch (_) {
+      return false;
+    }
   }
 
   function consumePendingFlag() {
@@ -1261,15 +1293,24 @@ window.JodLocation = (() => {
   async function initLocationFlow(options = {}) {
     ensureLocationUI();
 
-    const force = options.force || consumePendingFlag();
+    const pending = consumePendingFlag();
+    const force = Boolean(options.force || pending);
 
-    // If location is already acquired or asked this session, and force is false:
-    // DO NOT show toast confirmation, DO NOT open modal, DO NOT prompt for GPS!
-    if (!force && (hasAcquiredLocation() || wasAskedThisSession())) {
+    if (hasAcquiredLocation()) {
       applyCachedRecommendations();
       return;
     }
 
+    if (locationFlowStarted && !force) {
+      return;
+    }
+
+    if (!force && wasAskedThisSession()) {
+      applyCachedRecommendations();
+      return;
+    }
+
+    locationFlowStarted = true;
     markAsked();
 
     const cached = getCachedLocation();
@@ -1287,7 +1328,6 @@ window.JodLocation = (() => {
         updateRecommendations(loc);
       }
     } catch (_geoErr) {
-      // GPS failed or denied, open manual entry modal ONCE for this session
       openModal();
     }
   }
@@ -1347,13 +1387,12 @@ window.initLocationFlow = window.JodLocation.initLocationFlow;
 // Automatically sync location on DOM content loaded silently
 if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded", () => {
-    if (window.JodLocation) {
-      if (window.JodLocation.hasAcquiredLocation()) {
-        window.JodLocation.applyCachedRecommendations();
-      } else {
-        window.JodLocation.initLocationFlow().catch(() => {});
-      }
+    if (!window.JodLocation) return;
+    if (window.JodLocation.hasAcquiredLocation()) {
+      window.JodLocation.applyCachedRecommendations();
+      return;
     }
+    window.JodLocation.initLocationFlow().catch(() => {});
   });
 }
 

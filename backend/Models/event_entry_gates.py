@@ -29,6 +29,7 @@ class EventEntryGate(Base):
     # Relationships
     event_management = relationship("EventManagement", back_populates="entry_gates")
     staff_scanners   = relationship("EventStaffScanner", back_populates="entry_gate", cascade="all, delete-orphan")
+    volunteers       = relationship("EventVolunteer", back_populates="entry_gate")
 
     def __repr__(self):
         return f"<EventEntryGate(gate_id={self.gate_id}, gate_name={self.gate_name})>"

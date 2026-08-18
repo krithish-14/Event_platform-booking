@@ -281,7 +281,7 @@
 					if (parsed && typeof parsed === "object") return parsed;
 				}
 				const email = sessionStorage.getItem("verified_organizer_email");
-				if (email) return { email, username: email.split("@")[0], full_name: email.split("@")[0] };
+				if (email && DefaultAuth.getToken()) return { email, username: email.split("@")[0], full_name: email.split("@")[0] };
 				return null;
 			} catch (_) { return null; }
 		},
@@ -290,9 +290,9 @@
 				return window.JodAuth.isLoggedIn();
 			}
 			try {
-				const user = DefaultAuth.getUser();
 				const token = DefaultAuth.getToken();
-				return Boolean(user || token || sessionStorage.getItem("verified_organizer_email"));
+				const user = DefaultAuth.getUser();
+				return Boolean(token && user && (user.id || user.customer_id || user.email));
 			} catch (_) { return false; }
 		},
 		logout: async () => {
@@ -300,8 +300,10 @@
 				return window.JodAuth.logout();
 			}
 			try {
-				localStorage.clear();
-				sessionStorage.clear();
+				["jod_access_token", "jod_user", "user_email"].forEach((key) => {
+					localStorage.removeItem(key);
+					sessionStorage.removeItem(key);
+				});
 			} catch (_) {}
 		}
 	};
@@ -359,6 +361,9 @@
 			if (window.JodProfile) {
 				if (desktopGroup) window.JodProfile.renderProfileWidget(desktopGroup);
 				if (mobileGroup) window.JodProfile.renderMobileAuthGroup(mobileGroup);
+				if (window.JodInbox && typeof window.JodInbox.refresh === "function") {
+					window.JodInbox.refresh({ toastNew: true });
+				}
 			} else {
 				const user = auth.getUser() || {};
 				const displayName = user.full_name || user.username || (user.email ? user.email.split("@")[0] : "Account");
@@ -416,13 +421,10 @@
 
 	/* ── Location flow (homepage) ─────────────── */
 	if (window.JodLocation) {
-		const pending = (() => {
-			try { return sessionStorage.getItem("jod_location_pending") === "1"; } catch (_) { return false; }
-		})();
-		if (pending) {
-			window.JodLocation.initLocationFlow({ force: true }).catch(() => {});
-		} else {
+		if (window.JodLocation.hasAcquiredLocation()) {
 			window.JodLocation.applyCachedRecommendations();
+		} else {
+			window.JodLocation.initLocationFlow().catch(() => {});
 		}
 	}
 
