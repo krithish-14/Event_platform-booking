@@ -62,6 +62,13 @@
 	box-shadow: 0 0 12px rgba(231, 76, 60, .2);
 }
 
+.badge-checkedin {
+	border: 1px solid #10b981;
+	background: rgba(16, 185, 129, .18);
+	color: #34d399;
+	box-shadow: 0 0 12px rgba(16, 185, 129, .2);
+}
+
 .order-id-label {
 	color: rgba(255, 255, 255, .6);
 	font-size: .875rem;
@@ -225,13 +232,7 @@
 	font-size: 1.4rem;
 	font-weight: 800;
 	color: #111827;
-	margin-bottom: 0.25rem;
-}
-
-.mticket-seats {
-	font-size: 0.85rem;
-	color: #4b5563;
-	font-weight: 600;
+	margin-bottom: 0;
 }
 
 /* Section 3: Center QR Code Block */
@@ -260,34 +261,49 @@
 	object-fit: contain;
 }
 
+.mticket-cancelled-label {
+	display: none;
+	margin: 0 0 .7rem;
+	padding: .38rem 1.15rem;
+	border-radius: 999px;
+	background: #dc2626;
+	color: #fff;
+	font-size: .95rem;
+	font-weight: 800;
+	letter-spacing: .12em;
+	text-transform: uppercase;
+	box-shadow: 0 8px 18px rgba(220,38,38,.28);
+}
+
+.mticket-card.is-cancelled .mticket-cancelled-label {
+	display: inline-flex;
+}
+
+.mticket-card.is-cancelled .mticket-header-section,
+.mticket-card.is-cancelled .mticket-seating-block,
+.mticket-card.is-cancelled .mticket-qr-frame,
+.mticket-card.is-cancelled .mticket-booking-id-text,
+.mticket-card.is-cancelled .mticket-token-text,
+.mticket-card.is-cancelled .mticket-price-summary {
+	filter: blur(4px);
+	pointer-events: none;
+	user-select: none;
+}
+
+.mticket-card.is-cancelled .mticket-qr-frame {
+	opacity: .7;
+}
+
 .mticket-booking-id-text {
 	font-size: 0.95rem;
 	font-weight: 800;
 	color: #111827;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
+	margin-top: 0.15rem;
 }
 
-.mticket-token-text {
-	font-size: 0.75rem;
-	color: #ff7508;
-	font-family: monospace;
-	font-weight: 700;
-	margin-top: 0.25rem;
-}
-
-/* Section 4: Policy Banner & Support */
-.mticket-policy-bar {
-	background: #f8fafc;
-	border-radius: 8px;
-	padding: 0.6rem 0.85rem;
-	text-align: center;
-	font-size: 0.8rem;
-	color: #64748b;
-	margin-bottom: 1rem;
-}
-
-.mticket-support-row {
+/* Support */
 	display: flex;
 	justify-content: center;
 	margin-bottom: 1.25rem;

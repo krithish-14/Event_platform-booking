@@ -6,10 +6,13 @@ import csv
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
 from Models import get_db, FormDefinition, FormSubmission, EventRegistrationForm
+from Authentication.dependencies import get_current_user_optional
+from Models.user import User
 
 router = APIRouter(prefix="/api/forms", tags=["Dynamic Form Builder"])
 
@@ -29,6 +32,8 @@ class SubmissionRequest(BaseModel):
 	event_id: Optional[str] = None
 	user_email: EmailStr
 	answers_json: Dict[str, Any]
+	ticket_type: Optional[str] = None
+	ticket_price: Optional[float] = None
 
 
 @router.post("/save-draft")
@@ -292,18 +297,80 @@ def publish_form(payload: FormSaveRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/submissions")
-def submit_attendee_response(payload: SubmissionRequest, db: Session = Depends(get_db)):
-	"""Submit an attendee registration response."""
-	user_email = payload.user_email.lower().strip()
+def submit_attendee_response(
+	payload: SubmissionRequest,
+	db: Session = Depends(get_db),
+	current_user: Optional[User] = Depends(get_current_user_optional),
+):
+	"""Submit an attendee registration response. Marks payment as pending until booking is paid."""
+	user_email = (current_user.email if current_user else payload.user_email).lower().strip()
+	customer_id = getattr(current_user, "customer_id", None) if current_user else None
 	form_id = payload.form_id or 1
+	answers = dict(payload.answers_json or {})
+	ticket_type = payload.ticket_type
+	ticket_price = payload.ticket_price
+	if ticket_type:
+		answers["_ticket_type"] = ticket_type
+	if ticket_price is not None:
+		answers["_ticket_price"] = ticket_price
+
+	existing = None
+	if payload.event_id:
+		event_id_val = str(payload.event_id).strip()
+		event_keys = {event_id_val.lower(), event_id_val.lower().replace("-", "")}
+		owner_filters = [func.lower(FormSubmission.user_email) == user_email]
+		if customer_id:
+			owner_filters.append(FormSubmission.customer_id == customer_id)
+		candidates = (
+			db.query(FormSubmission)
+			.filter(or_(*owner_filters))
+			.order_by(FormSubmission.submission_time.desc())
+			.all()
+		)
+		for row in candidates:
+			stored = str(row.event_id or "").strip().lower()
+			if stored in event_keys or stored.replace("-", "") in event_keys:
+				existing = row
+				break
+
+	if existing:
+		status_val = (existing.status or "").lower()
+		if status_val == "paid":
+			return {
+				"message": "Registration already completed.",
+				"submission_id": existing.id,
+				"status": "paid",
+				"submitted_at": existing.submission_time.isoformat() if existing.submission_time else None,
+			}
+		existing.answers_json = answers
+		existing.status = "payment_pending"
+		if payload.event_id:
+			existing.event_id = str(payload.event_id)
+		if customer_id:
+			existing.customer_id = customer_id
+		if ticket_type:
+			existing.ticket_type = ticket_type
+		if ticket_price is not None:
+			existing.ticket_price = ticket_price
+		db.commit()
+		db.refresh(existing)
+		return {
+			"message": "Registration submitted successfully!",
+			"submission_id": existing.id,
+			"status": "payment_pending",
+			"submitted_at": existing.submission_time.isoformat() if existing.submission_time else None,
+		}
 
 	sub = FormSubmission(
 		form_id=form_id,
-		event_id=payload.event_id,
+		event_id=str(payload.event_id) if payload.event_id else None,
+		customer_id=customer_id,
 		user_email=user_email,
+		ticket_type=ticket_type,
+		ticket_price=ticket_price,
 		form_version=1,
-		answers_json=payload.answers_json,
-		status="completed"
+		answers_json=answers,
+		status="payment_pending",
 	)
 	db.add(sub)
 	db.commit()
@@ -312,12 +379,10 @@ def submit_attendee_response(payload: SubmissionRequest, db: Session = Depends(g
 	return {
 		"message": "Registration submitted successfully!",
 		"submission_id": sub.id,
-		"submitted_at": sub.submission_time.isoformat()
+		"status": "payment_pending",
+		"submitted_at": sub.submission_time.isoformat() if sub.submission_time else None,
 	}
 
-
-from Authentication.dependencies import get_current_user_optional
-from Models.user import User
 
 @router.get("/submissions")
 def get_form_submissions(
@@ -355,37 +420,12 @@ def get_form_submissions(
 
 	return {
 		"analytics": {
-			"total_registrations": total_count if total_count > 0 else 128,
-			"completion_rate": "94.2%",
-			"abandonment_rate": "5.8%",
-			"avg_completion_time": "1m 42s"
+			"total_registrations": total_count,
+			"completion_rate": "100%" if total_count else "0%",
+			"abandonment_rate": "0%",
+			"avg_completion_time": "—"
 		},
-		"submissions": items if total_count > 0 else [
-			{
-				"id": 101,
-				"user_email": "john.doe@example.com",
-				"submitted_at": "Aug 03, 2026 02:15 PM",
-				"status": "completed",
-				"answers": {
-					"Full Name": "John Doe",
-					"Email Address": "john.doe@example.com",
-					"Mobile Phone Number": "9876543210",
-					"Dietary Preference": "Vegetarian"
-				}
-			},
-			{
-				"id": 102,
-				"user_email": "sarah.smith@techcorp.com",
-				"submitted_at": "Aug 03, 2026 03:40 PM",
-				"status": "completed",
-				"answers": {
-					"Full Name": "Sarah Smith",
-					"Email Address": "sarah.smith@techcorp.com",
-					"Mobile Phone Number": "9812345678",
-					"Dietary Preference": "Vegan"
-				}
-			}
-		]
+		"submissions": items
 	}
 
 

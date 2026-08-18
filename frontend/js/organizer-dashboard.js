@@ -162,6 +162,12 @@ function queueSwitchTab(tabName) {
 window.switchTab = window.dashSwitchTab = queueSwitchTab;
 
 async function initOrganizerDashboard() {
+	let venueMap = null;
+	let venueMarker = null;
+	let venueGeocodeTimer = null;
+	let venueFillingFromMap = false;
+	let venueMapClickBound = false;
+
 	const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
 		? "http://127.0.0.1:8001/api/organizers"
 		: "/api/organizers";
@@ -169,6 +175,10 @@ async function initOrganizerDashboard() {
 	const HOST_EVENTS_API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
 		? "http://127.0.0.1:8001/api/host-events"
 		: "/api/host-events";
+
+	const LOCATION_API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
+		? "http://127.0.0.1:8001/api/location"
+		: "/api/location";
 
 	function getUploadOrigin() {
 		if (HOST_EVENTS_API_BASE.startsWith("http")) {
@@ -495,6 +505,27 @@ async function initOrganizerDashboard() {
 
 	try {
 		sessionStorage.setItem("verified_organizer_email", email);
+	} catch (_) {}
+
+	try {
+		const bankRes = await fetch(`${API_BASE}/account-setup?email=${encodeURIComponent(email)}`, {
+			headers: getAuthHeaders()
+		});
+		if (bankRes.status === 404) {
+			window.location.href = "account-setup.html";
+			return;
+		}
+		if (bankRes.ok) {
+			const bankData = await bankRes.json();
+			const acc = bankData.account;
+			const hasBank = window.JodAuth && typeof window.JodAuth.hasHostPayoutBank === "function"
+				? window.JodAuth.hasHostPayoutBank(acc)
+				: Boolean(acc && acc.beneficiary_name && acc.bank_name && acc.account_number && acc.bank_ifsc);
+			if (!hasBank) {
+				window.location.href = "account-setup.html";
+				return;
+			}
+		}
 	} catch (_) {}
 
 	// ── Organizer Verification State Management ──────────────────────────────
@@ -967,6 +998,7 @@ async function initOrganizerDashboard() {
 	const sectionCommunicate = document.getElementById("sectionCommunicate");
 	const sectionReports = document.getElementById("sectionReports");
 	const sectionEventday = document.getElementById("sectionEventday");
+	const sectionAttendance = document.getElementById("sectionAttendance");
 	const sidebarRoot = document.querySelector(".dash-sidebar");
 
 	const createEventForm = document.getElementById("createEventForm");
@@ -981,7 +1013,8 @@ async function initOrganizerDashboard() {
 		sectionExhibitors,
 		sectionCommunicate,
 		sectionReports,
-		sectionEventday
+		sectionEventday,
+		sectionAttendance
 	].filter(Boolean);
 
 	// Track whether event has been created for this organizer
@@ -1026,6 +1059,7 @@ async function initOrganizerDashboard() {
 	function loadTabModuleData(tabName) {
 		if (tabName === 'overview') {
 			renderOverviewState();
+			loadDashboardData();
 		} else if (tabName === 'settings') {
 			loadProfileAndBankDetails();
 		} else if (tabName === 'registrations') {
@@ -1045,6 +1079,9 @@ async function initOrganizerDashboard() {
 		} else if (tabName === 'eventday') {
 			loadGates();
 			loadScanners();
+			loadDashboardData();
+		} else if (tabName === 'attendance') {
+			loadAttendanceData();
 		}
 	}
 
@@ -1078,7 +1115,8 @@ async function initOrganizerDashboard() {
 			exhibitors: sectionExhibitors,
 			communicate: sectionCommunicate,
 			reports: sectionReports,
-			eventday: sectionEventday
+			eventday: sectionEventday,
+			attendance: sectionAttendance
 		};
 
 		const targetSection = targetSections[tabName] || sectionOverview;
@@ -1088,11 +1126,14 @@ async function initOrganizerDashboard() {
 		});
 
 		loadTabModuleData(tabName);
+		if (tabName === "manage") {
+			setTimeout(() => invalidateVenueMap(), 220);
+		}
 
 		window.scrollTo({ top: 0, behavior: "smooth" });
 
 		try {
-			const sectionIds = ['sectionOverview','sectionManage','sectionSettings','sectionDesign','sectionRegistrations','sectionExhibitors','sectionCommunicate','sectionReports','sectionEventday'];
+			const sectionIds = ['sectionOverview','sectionManage','sectionSettings','sectionDesign','sectionRegistrations','sectionExhibitors','sectionCommunicate','sectionReports','sectionEventday','sectionAttendance'];
 			const visible = sectionIds.filter(id => {
 				const el = document.getElementById(id);
 				return el && (el.classList.contains('active-tab') || el.style.display === 'block');
@@ -1124,31 +1165,11 @@ async function initOrganizerDashboard() {
 					// Top 3 KPI Cards
 					if (kpiSales) kpiSales.textContent = `₹${(d.total_sales || 0).toLocaleString("en-IN", {minimumFractionDigits: 2})}`;
 					if (kpiRegs) kpiRegs.textContent = (d.total_registrations || 0).toLocaleString("en-IN");
+					if (kpiAttendees) kpiAttendees.textContent = (d.attendees_count || d.tickets_sold || 0).toLocaleString("en-IN");
 					if (kpiDays) kpiDays.textContent = d.days_to_event !== undefined ? d.days_to_event : 0;
 
-					// Registrations Donut Legend
-					const valSold = document.getElementById("valSold");
-					const valAvail = document.getElementById("valAvail");
-					const sold = d.tickets_sold || 0;
-					const avail = d.tickets_available || 0;
-					const totalTix = sold + avail;
-					const soldPct = totalTix > 0 ? Math.round((sold / totalTix) * 100) : 0;
-					const availPct = totalTix > 0 ? 100 - soldPct : 100;
-
-					if (valSold) valSold.textContent = `${sold.toLocaleString()} (${soldPct}%)`;
-					if (valAvail) valAvail.textContent = `${avail.toLocaleString()} (${availPct}%)`;
-
-					const donutSoldPath = document.getElementById("donutSoldPath");
-					if (donutSoldPath) donutSoldPath.setAttribute("stroke-dasharray", `${soldPct}, 100`);
-
-					// Attendance Donut Legend
-					const valCheckedIn = document.getElementById("valCheckedIn");
-					const valYetToCheckIn = document.getElementById("valYetToCheckIn");
-					const checked = d.checked_in || 0;
-					const yetCheck = d.yet_to_checkin || 0;
-
-					if (valCheckedIn) valCheckedIn.textContent = checked.toLocaleString();
-					if (valYetToCheckIn) valYetToCheckIn.textContent = yetCheck.toLocaleString();
+					applyLiveAttendanceStats(d);
+					drawTrendChart(d.registration_trend);
 
 					// Website Preview Box
 					const webTitleBadge = document.getElementById("webTitleBadge");
@@ -1182,6 +1203,150 @@ async function initOrganizerDashboard() {
 			}
 		} catch (err) {
 			console.warn("Could not load dynamic dashboard data:", err);
+		}
+	}
+
+	function applyLiveAttendanceStats(d) {
+		const sold = Number(d.tickets_sold || 0);
+		const avail = Number(d.tickets_available || 0);
+		const totalTix = sold + avail;
+		const soldPct = totalTix > 0 ? Math.round((sold / totalTix) * 100) : 0;
+		const availPct = totalTix > 0 ? 100 - soldPct : 100;
+		const checked = Number(d.checked_in || 0);
+		const yetCheck = Number(d.yet_to_checkin || 0);
+		const attendeeTotal = Math.max(sold, checked + yetCheck);
+		const checkedPct = attendeeTotal > 0 ? Math.round((checked / attendeeTotal) * 100) : 0;
+
+		const valSold = document.getElementById("valSold");
+		const valAvail = document.getElementById("valAvail");
+		if (valSold) valSold.textContent = `${sold.toLocaleString()} (${soldPct}%)`;
+		if (valAvail) valAvail.textContent = `${avail.toLocaleString()} (${availPct}%)`;
+		const donutSoldPath = document.getElementById("donutSoldPath");
+		if (donutSoldPath) donutSoldPath.setAttribute("stroke-dasharray", `${soldPct}, 100`);
+
+		const valCheckedIn = document.getElementById("valCheckedIn");
+		const valYetToCheckIn = document.getElementById("valYetToCheckIn");
+		if (valCheckedIn) valCheckedIn.textContent = checked.toLocaleString();
+		if (valYetToCheckIn) valYetToCheckIn.textContent = yetCheck.toLocaleString();
+		const donutCheckinPath = document.getElementById("donutCheckinPath");
+		if (donutCheckinPath) donutCheckinPath.setAttribute("stroke-dasharray", `${checkedPct}, 100`);
+
+		const sidebarBadge = document.getElementById("sidebarCheckinCount");
+		if (sidebarBadge) {
+			sidebarBadge.textContent = String(checked);
+			sidebarBadge.classList.toggle("is-visible", checked > 0);
+		}
+
+		const evLiveInside = document.getElementById("evLiveInside");
+		const evCheckinsProcessed = document.getElementById("evCheckinsProcessed");
+		const evHallOccupancy = document.getElementById("evHallOccupancy");
+		if (evLiveInside) evLiveInside.textContent = checked.toLocaleString();
+		if (evCheckinsProcessed) evCheckinsProcessed.textContent = `${checked} / ${attendeeTotal}`;
+		if (evHallOccupancy) evHallOccupancy.textContent = `${checkedPct}%`;
+
+		const attKpiCheckedIn = document.getElementById("attKpiCheckedIn");
+		const attKpiYetToCheckIn = document.getElementById("attKpiYetToCheckIn");
+		const attKpiSold = document.getElementById("attKpiSold");
+		if (attKpiCheckedIn) attKpiCheckedIn.textContent = checked.toLocaleString();
+		if (attKpiYetToCheckIn) attKpiYetToCheckIn.textContent = yetCheck.toLocaleString();
+		if (attKpiSold) attKpiSold.textContent = sold.toLocaleString();
+
+		if (Array.isArray(d.attendees)) {
+			renderAttendanceTable(d.attendees);
+		}
+	}
+
+	function renderAttendanceTable(attendees) {
+		const body = document.getElementById("attendanceTableBody");
+		if (!body) return;
+		if (!attendees || attendees.length === 0) {
+			body.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #94a3b8;">No ticket check-ins yet.</td></tr>`;
+			return;
+		}
+		body.innerHTML = attendees.map((row) => {
+			const checked = row.status === "checked_in";
+			const when = row.checked_in_at ? new Date(row.checked_in_at).toLocaleString() : "—";
+			const badge = checked
+				? `<span style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:700;">Checked-in</span>`
+				: `<span style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:700;">Yet to check-in</span>`;
+			return `<tr style="border-bottom:1px solid #f1f5f9;">
+				<td style="padding:0.85rem 1.2rem;">
+					<div style="font-weight:700;color:#0f172a;">${row.attendee_name || "Guest"}</div>
+					<div style="font-size:0.78rem;color:#94a3b8;">${row.attendee_email || ""}</div>
+				</td>
+				<td style="padding:0.85rem 1.2rem;color:#475569;">${row.ticket_type || "Ticket"}</td>
+				<td style="padding:0.85rem 1.2rem;">${badge}</td>
+				<td style="padding:0.85rem 1.2rem;color:#64748b;">${when}</td>
+			</tr>`;
+		}).join("");
+	}
+
+	async function loadAttendanceData() {
+		if (!email) return;
+		try {
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/attendance?email=${encodeURIComponent(email)}${activeEventId ? "&event_id=" + activeEventId : ""}`, {
+				headers: getAuthHeaders()
+			});
+			if (!res.ok) return;
+			const data = await res.json();
+			applyLiveAttendanceStats(data);
+		} catch (err) {
+			console.warn("Could not load attendance data:", err);
+		}
+	}
+
+	function paintCheckinResult(el, ok, message, already) {
+		if (!el) return;
+		el.style.display = "block";
+		if (ok) {
+			el.style.background = "#f0fdf4";
+			el.style.borderColor = "#bbf7d0";
+			el.style.color = "#166534";
+		} else if (already) {
+			el.style.background = "#fff7ed";
+			el.style.borderColor = "#fdba74";
+			el.style.color = "#9a3412";
+		} else {
+			el.style.background = "#fef2f2";
+			el.style.borderColor = "#fecaca";
+			el.style.color = "#b91c1c";
+		}
+		el.textContent = message;
+	}
+
+	async function performTicketCheckin(code, resultEl) {
+		const value = String(code || "").trim();
+		if (!value) {
+			paintCheckinResult(resultEl, false, "Enter an attendee email or ticket code to validate.");
+			return null;
+		}
+		try {
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/registrations/checkin`, {
+				method: "POST",
+				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+				body: JSON.stringify({
+					organizer_email: email,
+					event_id: activeEventId,
+					qr_token: value,
+					attendee_email: value.includes("@") ? value : undefined,
+					scan_method: "manual",
+					status: "checked_in",
+					notes: "Validated from organizer dashboard"
+				})
+			});
+			const data = await res.json().catch(() => ({}));
+			const already = Boolean(data.already_checked_in || data.status === "already_used");
+			const ok = res.ok && data.valid !== false && !already && data.status !== "cancelled";
+			const detail = typeof data.detail === "string" ? data.detail : "";
+			const message = data.message || detail || (ok ? `${value} checked in successfully.` : "Could not validate this ticket.");
+			paintCheckinResult(resultEl, ok, (ok ? "✓ " : "") + message.replace(/^✓\s*/, ""), already);
+			await loadDashboardData();
+			await loadAttendanceData();
+			return data;
+		} catch (err) {
+			console.warn("Could not validate QR/check-in:", err);
+			paintCheckinResult(resultEl, false, "Could not reach the check-in service.");
+			return null;
 		}
 	}
 
@@ -1263,6 +1428,15 @@ async function initOrganizerDashboard() {
 		}
 	}
 
+	function formatInr(amount, withSign) {
+		const value = Number(amount || 0);
+		const formatted = `₹${Math.abs(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+		if (!withSign) return formatted;
+		if (value > 0) return `+${formatted}`;
+		if (value < 0) return `-${formatted}`;
+		return `-${formatted}`;
+	}
+
 	async function loadReportsData() {
 		if (!email) return;
 		try {
@@ -1271,14 +1445,52 @@ async function initOrganizerDashboard() {
 			});
 			if (!res.ok) return;
 			const data = await res.json();
+			const gross = Number(data.gross_revenue || 0);
+			const platformFee = Number(data.platform_fee != null ? data.platform_fee : gross * 0.05);
+			const gstFee = Number(data.gst_fee != null ? data.gst_fee : gross * 0.05);
+			const net = Number(data.net_earnings != null ? data.net_earnings : gross - platformFee - gstFee);
+			const platformPct = Number(data.platform_fee_pct || 5);
+			const gstPct = Number(data.gst_fee_pct || 5);
+
 			const grossRevenueEl = document.getElementById("repGrossRevenue");
 			const netEarningsEl = document.getElementById("repNetEarnings");
 			const attendanceRateEl = document.getElementById("repAttendanceRate");
 			const conversionRateEl = document.getElementById("repConversionRate");
-			if (grossRevenueEl) grossRevenueEl.textContent = `₹${Number(data.gross_revenue || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-			if (netEarningsEl) netEarningsEl.textContent = `₹${Number(data.net_earnings || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+			if (grossRevenueEl) grossRevenueEl.textContent = formatInr(gross);
+			if (netEarningsEl) netEarningsEl.textContent = formatInr(net);
 			if (attendanceRateEl) attendanceRateEl.textContent = `${Number(data.attendance_rate || 0).toFixed(1)}%`;
 			if (conversionRateEl) conversionRateEl.textContent = `${Number(data.conversion_rate || 0).toFixed(1)}%`;
+
+			const grossSalesEl = document.getElementById("repGrossSales");
+			const platformFeeEl = document.getElementById("repPlatformFee");
+			const gstFeeEl = document.getElementById("repGstFee");
+			const netPayoutEl = document.getElementById("repNetPayout");
+			const platformLabel = document.getElementById("repPlatformFeeLabel");
+			const gstLabel = document.getElementById("repGstFeeLabel");
+			if (grossSalesEl) grossSalesEl.textContent = formatInr(gross);
+			if (platformFeeEl) platformFeeEl.textContent = formatInr(-platformFee, true);
+			if (gstFeeEl) gstFeeEl.textContent = formatInr(-gstFee, true);
+			if (netPayoutEl) netPayoutEl.textContent = formatInr(net);
+			if (platformLabel) platformLabel.textContent = `Platform Service Fee (${platformPct}%)`;
+			if (gstLabel) gstLabel.textContent = `Taxes & Statutory GST (${gstPct}%)`;
+
+			const citiesEl = document.getElementById("repTopCities");
+			if (citiesEl) {
+				const cities = Array.isArray(data.top_cities) ? data.top_cities : [];
+				if (!cities.length) {
+					citiesEl.innerHTML = `<div style="text-align: center; padding: 1.2rem 0.5rem; color: #94a3b8;">No attendee locations yet.</div>`;
+				} else {
+					citiesEl.innerHTML = cities.map((row, index) => {
+						const isLast = index === cities.length - 1;
+						const isOther = /other locations|location not shared/i.test(row.city || "");
+						const wrapStyle = isLast
+							? "display:flex;justify-content:space-between;padding-top:0.4rem;font-size:0.9rem;font-weight:700;color:#475569;"
+							: "display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9;padding-bottom:0.5rem;color:#475569;";
+						const countStyle = isOther ? "" : "font-weight:700;color:#0f172a;";
+						return `<div style="${wrapStyle}"><span>${row.city || "Unknown"}</span><span style="${countStyle}">${Number(row.count || 0).toLocaleString("en-IN")} (${Number(row.percent || 0)}%)</span></div>`;
+					}).join("");
+				}
+			}
 		} catch (err) {
 			console.warn("Could not load reports data:", err);
 		}
@@ -1809,34 +2021,23 @@ async function initOrganizerDashboard() {
 	if (btnValidateQr) {
 		btnValidateQr.addEventListener("click", async () => {
 			const value = liveQrInput ? liveQrInput.value.trim() : "";
-			if (!value) {
-				if (qrScanResult) {
-					qrScanResult.style.display = "block";
-					qrScanResult.textContent = "Enter an attendee email or ticket code to validate.";
-				}
-				return;
+			await performTicketCheckin(value, qrScanResult);
+		});
+	}
+	if (liveQrInput) {
+		liveQrInput.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") {
+				e.preventDefault();
+				btnValidateQr && btnValidateQr.click();
 			}
-			try {
-				const res = await fetch(`${HOST_EVENTS_API_BASE}/registrations/checkin`, {
-					method: "POST",
-					headers: Object.assign({"Content-Type": "application/json"}, getAuthHeaders()),
-					body: JSON.stringify({
-						organizer_email: email,
-						event_id: activeEventId,
-						attendee_email: value,
-						attendee_name: value,
-						scan_method: "manual",
-						status: "checked_in",
-						notes: "Validated from organizer dashboard"
-					})
-				});
-				if (qrScanResult) {
-					qrScanResult.style.display = "block";
-					qrScanResult.textContent = res.ok ? `✓ ${value} checked in successfully.` : "Could not validate this attendee right now.";
-				}
-			} catch (err) {
-				console.warn("Could not validate QR/check-in:", err);
-			}
+		});
+	}
+
+	const btnRefreshAttendance = document.getElementById("btnRefreshAttendance");
+	if (btnRefreshAttendance) {
+		btnRefreshAttendance.addEventListener("click", () => {
+			loadDashboardData();
+			loadAttendanceData();
 		});
 	}
 
@@ -2004,7 +2205,8 @@ async function initOrganizerDashboard() {
 	updateManageQuestionsPreview();
 
 	// Draw Smooth Line Chart on Canvas
-	function drawTrendChart() {
+	let lastTrendData = [];
+	function drawTrendChart(incoming) {
 		const canvas = document.getElementById("trendChartCanvas");
 		if (!canvas) return;
 		const ctx = canvas.getContext("2d");
@@ -2021,23 +2223,27 @@ async function initOrganizerDashboard() {
 
 		ctx.clearRect(0, 0, width, height);
 
-		const trendData = [
-			{ date: "Mar 19", value: 400 },
-			{ date: "Mar 22", value: 2800 },
-			{ date: "Mar 25", value: 600 },
-			{ date: "Mar 28", value: 1800 },
-			{ date: "Mar 30", value: 3600 },
-			{ date: "Sat", value: 2400 }
-		];
+		if (Array.isArray(incoming) && incoming.length) {
+			lastTrendData = incoming.map((row) => ({
+				date: row.date || "Now",
+				value: Number(row.value) || 0
+			}));
+		}
+		const trendData = lastTrendData.length
+			? lastTrendData
+			: [{ date: "Now", value: 0 }];
 
 		const paddingX = 35;
 		const paddingY = 25;
 		const chartW = width - paddingX * 2;
 		const chartH = height - paddingY * 2;
-		const maxVal = 4000;
+		const rawMax = Math.max(1, ...trendData.map((d) => d.value));
+		const maxVal = Math.max(4, Math.ceil(rawMax / 4) * 4);
+		const gridStep = maxVal / 4;
 
+		const denom = Math.max(1, trendData.length - 1);
 		const points = trendData.map((d, i) => {
-			const x = paddingX + (i / (trendData.length - 1)) * chartW;
+			const x = paddingX + (i / denom) * chartW;
 			const y = height - paddingY - (d.value / maxVal) * chartH;
 			return { x, y, date: d.date };
 		});
@@ -2047,7 +2253,8 @@ async function initOrganizerDashboard() {
 		ctx.lineWidth = 1;
 		ctx.setLineDash([4, 4]);
 
-		[0, 1000, 2000, 3000, 4000].forEach(val => {
+		for (let i = 0; i <= 4; i++) {
+			const val = Math.round(gridStep * i);
 			const y = height - paddingY - (val / maxVal) * chartH;
 			ctx.beginPath();
 			ctx.moveTo(paddingX, y);
@@ -2057,8 +2264,8 @@ async function initOrganizerDashboard() {
 			ctx.fillStyle = "#94a3b8";
 			ctx.font = "10px sans-serif";
 			ctx.textAlign = "right";
-			ctx.fillText(val, paddingX - 6, y + 3);
-		});
+			ctx.fillText(String(val), paddingX - 6, y + 3);
+		}
 
 		ctx.setLineDash([]);
 
@@ -2149,6 +2356,7 @@ async function initOrganizerDashboard() {
 					hasEvent = true;
 					sessionStorage.setItem(`has_event_${email}`, "true");
 					renderOverviewState();
+					loadDashboardData();
 				} else {
 					hasEvent = false;
 					sessionStorage.removeItem(`has_event_${email}`);
@@ -2204,6 +2412,8 @@ async function initOrganizerDashboard() {
 			event_mode: document.getElementById("eventFormatInput") ? document.getElementById("eventFormatInput").value : "Hybrid",
 			venue: document.getElementById("eventLocationInput") ? document.getElementById("eventLocationInput").value : "",
 			address: document.getElementById("eventLocationInput") ? document.getElementById("eventLocationInput").value : "",
+			latitude: readVenueCoord("eventVenueLat"),
+			longitude: readVenueCoord("eventVenueLon"),
 			event_start_date: event_start_date,
 			event_end_date: event_end_date,
 			event_start_time: timeFromDatetimeLocal(dateInput && dateInput.value),
@@ -2453,8 +2663,318 @@ async function initOrganizerDashboard() {
 			formatPills.forEach(p => p.classList.remove("active"));
 			pill.classList.add("active");
 			if (eventFormatInput) eventFormatInput.value = pill.getAttribute("data-value");
+			updateVenueMapVisibility();
+			triggerManageAutoSave();
 		});
 	});
+
+	function readVenueCoord(id) {
+		const el = document.getElementById(id);
+		const n = el ? parseFloat(el.value) : NaN;
+		return Number.isFinite(n) ? n : null;
+	}
+
+	function writeVenueCoords(lat, lon) {
+		const latEl = document.getElementById("eventVenueLat");
+		const lonEl = document.getElementById("eventVenueLon");
+		if (latEl) latEl.value = lat != null ? String(lat) : "";
+		if (lonEl) lonEl.value = lon != null ? String(lon) : "";
+	}
+
+	function setVenueHint(text, isAddress) {
+		const el = document.getElementById("venueMapHint");
+		if (!el) return;
+		el.textContent = text || "";
+		el.classList.toggle("is-address", Boolean(isAddress));
+	}
+
+	function updateVenueMapVisibility() {
+		const panel = document.getElementById("venueMapPanel");
+		const modeEl = document.getElementById("eventFormatInput");
+		const mode = (modeEl && modeEl.value) || "";
+		const hide = mode === "Online";
+		if (panel) panel.classList.toggle("is-hidden", hide);
+		if (!hide) setTimeout(() => invalidateVenueMap(), 80);
+	}
+
+	function invalidateVenueMap() {
+		if (venueMap && typeof venueMap.invalidateSize === "function") {
+			venueMap.invalidateSize();
+		}
+	}
+
+	function formatStreetAreaPin(address, displayName, namedetails) {
+		const addr = address || {};
+		const indic = /[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/;
+		const skipState = /^(india|tamil nadu|karnataka|maharashtra|delhi|nct of delhi|west bengal|telangana|kerala|andhra pradesh|gujarat|rajasthan|uttar pradesh|madhya pradesh|bihar|odisha|punjab|haryana|assam)$/i;
+		const adminOnly = /^(cmwssb(\s+division)?(\s+\d+)?|ward\s+\d+|zone\s+\d+|division\s+\d+|circle\s+\d+)$/i;
+		const adminPrefix = /^(cmwssb\b|ward\s+\d+|division\s+\d+|circle\s+\d+)/i;
+		const zonePrefix = /^zone\s+\d+\s+(.+)$/i;
+
+		function cleanAdmin(text) {
+			let s = String(text || "").trim();
+			if (!s) return "";
+			if (adminOnly.test(s) || adminPrefix.test(s)) return "";
+			const zone = s.match(zonePrefix);
+			if (zone) s = String(zone[1] || "").trim();
+			if (skipState.test(s)) return "";
+			return s;
+		}
+
+		function isEnglishPart(text) {
+			const s = String(text || "").trim();
+			if (!s) return false;
+			if (indic.test(s)) return false;
+			if (skipState.test(s)) return false;
+			return true;
+		}
+
+		function pickEnglish() {
+			for (let i = 0; i < arguments.length; i++) {
+				const val = cleanAdmin(arguments[i]);
+				if (isEnglishPart(val)) return val;
+			}
+			return "";
+		}
+
+		function addPart(parts, value) {
+			let val = cleanAdmin(value);
+			const raw = String(value || "").trim();
+			const pin = raw.replace(/\D/g, "");
+			if (!val && pin.length === 6 && pin === raw.replace(/\s/g, "")) val = pin;
+			if (!val) return;
+			if (!(val.length === 6 && /^\d{6}$/.test(val)) && !isEnglishPart(val)) return;
+			const low = val.toLowerCase();
+			for (let i = 0; i < parts.length; i++) {
+				const ex = parts[i].toLowerCase();
+				if (ex === low) return;
+				if (low.length < ex.length && ex.includes(low)) return;
+				if (ex.length < low.length && low.includes(ex)) {
+					parts[i] = val;
+					return;
+				}
+			}
+			parts.push(val);
+		}
+
+		const house = pickEnglish(addr.house_number);
+		const road = pickEnglish(addr.road, addr.pedestrian, addr.residential, addr.street);
+		const poi = pickEnglish(addr.building, addr.amenity, addr.shop, addr.tourism, addr.railway, addr.public_building);
+		const neighbourhood = pickEnglish(addr.neighbourhood, addr.quarter, addr.hamlet, addr.allotments);
+		const suburb = pickEnglish(addr.suburb, addr.village, addr.city_district);
+		const city = pickEnglish(addr.city, addr.town, addr.municipality, addr.county);
+		const pin = String(addr.postcode || "").replace(/\s/g, "");
+		const street = [house, road].filter(Boolean).join(" ");
+
+		const parts = [];
+		addPart(parts, poi);
+		addPart(parts, street);
+		addPart(parts, neighbourhood);
+		addPart(parts, suburb);
+		addPart(parts, city);
+		if (/^\d{6}$/.test(pin)) addPart(parts, pin);
+
+		if (parts.length < 2) {
+			String(displayName || "").split(",").forEach((chunk) => addPart(parts, chunk.trim()));
+		}
+
+		return parts.join(", ") || "";
+	}
+
+	function fillVenueAddress(text) {
+		const input = document.getElementById("eventLocationInput");
+		if (!input || !text) return;
+		venueFillingFromMap = true;
+		input.value = text;
+		venueFillingFromMap = false;
+		setVenueHint("📍 " + text + " — drag the pin to adjust", true);
+		triggerManageAutoSave();
+	}
+
+	function venuePinIcon() {
+		return window.L.divIcon({
+			className: "venue-pin-wrap",
+			html: '<div class="venue-pin"></div>',
+			iconSize: [30, 42],
+			iconAnchor: [15, 40],
+			popupAnchor: [0, -36],
+		});
+	}
+
+	function ensureVenueMap() {
+		if (!window.L) return null;
+		const el = document.getElementById("venueMap");
+		if (!el) return null;
+		if (!venueMap) {
+			venueMap = window.L.map(el, {
+				zoomControl: true,
+				scrollWheelZoom: true,
+			}).setView([20.5937, 78.9629], 5);
+			window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+				maxZoom: 19,
+				attribution: "&copy; OpenStreetMap",
+			}).addTo(venueMap);
+			if (!venueMapClickBound) {
+				venueMapClickBound = true;
+				venueMap.on("click", (e) => {
+					if (!e || !e.latlng) return;
+					plotVenuePin(e.latlng.lat, e.latlng.lng, { fly: !venueMarker, reverse: true });
+				});
+			}
+		}
+		setTimeout(() => invalidateVenueMap(), 60);
+		return venueMap;
+	}
+
+	function plotVenuePin(lat, lon, opts) {
+		opts = opts || {};
+		if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+		if (!ensureVenueMap()) return;
+		writeVenueCoords(lat, lon);
+		if (venueMarker) {
+			venueMarker.setLatLng([lat, lon]);
+		} else {
+			venueMarker = window.L.marker([lat, lon], {
+				icon: venuePinIcon(),
+				draggable: true,
+				autoPan: true,
+				autoPanPadding: [48, 48],
+				riseOnDrag: true,
+				title: "Drag to set the exact venue",
+			}).addTo(venueMap);
+			venueMarker.on("dragstart", () => {
+				if (venueMarker.closePopup) venueMarker.closePopup();
+				setVenueHint("Drop the pin on the exact venue.");
+			});
+			venueMarker.on("dragend", (e) => {
+				const p = e.target.getLatLng();
+				writeVenueCoords(p.lat, p.lng);
+				reverseGeocodeVenue(p.lat, p.lng);
+			});
+		}
+		if (opts.fly !== false) {
+			const zoom = venueMap.getZoom() < 14 ? 16 : Math.max(venueMap.getZoom(), 16);
+			if (typeof venueMap.flyTo === "function") venueMap.flyTo([lat, lon], zoom, { duration: 0.7 });
+			else venueMap.setView([lat, lon], zoom);
+		}
+		if (opts.reverse) reverseGeocodeVenue(lat, lon);
+		else setTimeout(() => invalidateVenueMap(), 80);
+	}
+
+	async function reverseGeocodeVenue(lat, lon) {
+		setVenueHint("Looking up street, area, and pincode…");
+		try {
+			let formatted = "";
+			try {
+				const res = await fetch(`${LOCATION_API_BASE}/venue-reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+				if (res.ok) {
+					const data = await res.json();
+					formatted = String(data.formatted || "").trim();
+				}
+			} catch (_) {}
+
+			if (!formatted) {
+				const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&namedetails=1&zoom=18&accept-language=en&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+				const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
+				if (!res.ok) throw new Error("reverse failed");
+				const hit = await res.json();
+				formatted = formatStreetAreaPin(hit.address || {}, hit.display_name || hit.name, hit.namedetails || {});
+			}
+
+			if (formatted) {
+				fillVenueAddress(formatted);
+				if (venueMarker) {
+					venueMarker.bindPopup(formatted.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))).openPopup();
+				}
+			} else {
+				setVenueHint("Pin dropped. Drag again if this is not the right spot.");
+			}
+		} catch (_) {
+			setVenueHint("Pin dropped. Street lookup failed — you can still type the address.");
+		}
+	}
+
+	async function geocodeVenueQuery(query) {
+		const q = String(query || "").trim();
+		if (q.length < 3) return;
+		setVenueHint("Finding this venue on the map…");
+		try {
+			let hitLat = NaN;
+			let hitLon = NaN;
+			let formatted = "";
+
+			try {
+				const res = await fetch(`${LOCATION_API_BASE}/venue-search?q=${encodeURIComponent(q)}`);
+				if (res.ok) {
+					const data = await res.json();
+					hitLat = parseFloat(data.location_lat);
+					hitLon = parseFloat(data.location_lon);
+					formatted = String(data.formatted || "").trim();
+				}
+			} catch (_) {}
+
+			if (!Number.isFinite(hitLat) || !Number.isFinite(hitLon)) {
+				const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&namedetails=1&countrycodes=in&limit=1&accept-language=en&q=${encodeURIComponent(q)}`;
+				const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
+				if (!res.ok) return;
+				const results = await res.json();
+				if (!Array.isArray(results) || !results.length) {
+					setVenueHint("Place not found. Click the map or drag a pin to set the venue.");
+					return;
+				}
+				const hit = results[0];
+				hitLat = parseFloat(hit.lat);
+				hitLon = parseFloat(hit.lon);
+				formatted = formatStreetAreaPin(hit.address || {}, hit.display_name || hit.name, hit.namedetails || {});
+			}
+
+			if (!Number.isFinite(hitLat) || !Number.isFinite(hitLon)) {
+				setVenueHint("Place not found. Click the map or drag a pin to set the venue.");
+				return;
+			}
+
+			plotVenuePin(hitLat, hitLon, { fly: true, reverse: false });
+			if (formatted) {
+				const typed = q;
+				const merged = (!formatted.toLowerCase().includes(typed.toLowerCase()) && typed.length <= 48 && !/,/.test(typed) && !/\d{6}/.test(typed))
+					? `${typed}, ${formatted}`
+					: formatted;
+				fillVenueAddress(merged);
+				if (venueMarker) venueMarker.bindPopup(merged.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))).openPopup();
+			}
+		} catch (_) {
+			setVenueHint("Could not search that place. Click the map to drop a pin.");
+		}
+	}
+
+	function initVenueMapPicker() {
+		ensureVenueMap();
+		updateVenueMapVisibility();
+		const input = document.getElementById("eventLocationInput");
+		if (input) {
+			input.addEventListener("input", () => {
+				if (venueFillingFromMap) return;
+				clearTimeout(venueGeocodeTimer);
+				venueGeocodeTimer = setTimeout(() => geocodeVenueQuery(input.value), 650);
+			});
+			input.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					clearTimeout(venueGeocodeTimer);
+					geocodeVenueQuery(input.value);
+				}
+			});
+		}
+		const lat = readVenueCoord("eventVenueLat");
+		const lon = readVenueCoord("eventVenueLon");
+		if (lat != null && lon != null) {
+			plotVenuePin(lat, lon, { fly: true, reverse: false });
+		} else if (input && input.value.trim().length >= 3) {
+			geocodeVenueQuery(input.value.trim());
+		}
+	}
+
+	initVenueMapPicker();
 
 	// Dynamic Ticket Tier Rows Adder
 	const ticketTiersRows = document.getElementById("ticketTiersRows");
@@ -2624,6 +3144,20 @@ async function initOrganizerDashboard() {
 		}
 		const locationInput = document.getElementById("eventLocationInput");
 		if (locationInput) locationInput.value = event.venue || event.address || "";
+		const latEl = document.getElementById("eventVenueLat");
+		const lonEl = document.getElementById("eventVenueLon");
+		if (latEl) latEl.value = event.latitude != null ? String(event.latitude) : "";
+		if (lonEl) lonEl.value = event.longitude != null ? String(event.longitude) : "";
+		setTimeout(() => {
+			updateVenueMapVisibility();
+			if (event.latitude != null && event.longitude != null) {
+				plotVenuePin(Number(event.latitude), Number(event.longitude), { fly: true, reverse: false });
+			} else if (locationInput && locationInput.value.trim()) {
+				geocodeVenueQuery(locationInput.value.trim());
+			} else {
+				invalidateVenueMap();
+			}
+		}, 250);
 		if (event.policies) populatePoliciesFromJson(event.policies);
 		if (ticketTiersRows && Array.isArray(event.tickets) && event.tickets.length) {
 			ticketTiersRows.innerHTML = "";
@@ -3520,8 +4054,8 @@ async function initOrganizerDashboard() {
 		if (!scanHistoryWrap || !scanHistoryList) return;
 		scanHistoryWrap.style.display = "block";
 		const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-		const color = status === "valid" ? "#10b981" : "#f59e0b";
-		const label = status === "valid" ? "✔ Valid" : "⚠ Duplicate";
+		const color = status === "valid" ? "#10b981" : (status === "invalid" ? "#f87171" : "#f59e0b");
+		const label = status === "valid" ? "✔ Valid" : (status === "invalid" ? "✖ Invalid" : "⚠ Duplicate");
 		const row = document.createElement("div");
 		row.style.cssText = "display:flex;justify-content:space-between;align-items:center;background:#1e293b;border-radius:6px;padding:0.4rem 0.7rem;font-size:0.8rem;";
 		row.innerHTML = `<span style="color:#f1f5f9;font-weight:600;">${name}</span><span style="color:#94a3b8;font-size:0.75rem;">${code.slice(0,18)}…</span><span style="color:${color};font-weight:700;">${label}</span><span style="color:#64748b;font-size:0.72rem;">${now}</span>`;
@@ -3529,7 +4063,7 @@ async function initOrganizerDashboard() {
 	}
 
 	if (btnVerifyQr && modalScanResult && cameraQrInput) {
-		btnVerifyQr.addEventListener("click", () => {
+		btnVerifyQr.addEventListener("click", async () => {
 			const code = cameraQrInput.value.trim();
 			if (!code) {
 				cameraQrInput.style.borderColor = "#ef4444";
@@ -3537,44 +4071,15 @@ async function initOrganizerDashboard() {
 				setTimeout(() => (cameraQrInput.style.borderColor = "#334155"), 1500);
 				return;
 			}
-
-			const existing = _scanRegistry.get(code);
-			const attendee = _mockLookup(code);
-			const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
-			if (!existing) {
-				// First scan – VALID
-				_scanRegistry.set(code, { count: 1, name: attendee.name, firstTime: now });
-				modalScanResult.style.display = "block";
-				modalScanResult.style.background = "#064e3b";
-				modalScanResult.style.borderColor = "#059669";
-				modalScanResult.style.color = "#a7f3d0";
-				modalScanResult.innerHTML = `
-					<strong style="font-size:1rem;">✔ VALID TICKET PASS!</strong><br/>
-					Attendee: <strong>${attendee.name}</strong> &mdash; <em>${attendee.type}</em><br/>
-					Ticket Code: <strong>${code}</strong><br/>
-					Gate Status: <strong>Verified &amp; Checked‑in</strong> at ${attendee.gate} &mdash; ${now}
-				`;
-				_addHistoryRow(code, "valid", attendee.name);
+			const data = await performTicketCheckin(code, modalScanResult);
+			const name = (data && data.attendee_name) || "Attendee";
+			if (data && (data.valid || data.status === "success")) {
+				_addHistoryRow(code, "valid", name);
+			} else if (data && (data.already_checked_in || data.status === "already_used")) {
+				_addHistoryRow(code, "duplicate", name);
 			} else {
-				// 2nd or more scan – ALREADY SCANNED
-				existing.count += 1;
-				_scanRegistry.set(code, existing);
-				modalScanResult.style.display = "block";
-				modalScanResult.style.background = "#7c2d12";
-				modalScanResult.style.borderColor = "#dc2626";
-				modalScanResult.style.color = "#fecaca";
-				modalScanResult.innerHTML = `
-					<strong style="font-size:1rem;">⚠ ALREADY SCANNED!</strong><br/>
-					Attendee: <strong>${existing.name}</strong><br/>
-					Ticket Code: <strong>${code}</strong><br/>
-					This ticket was first verified at <strong>${existing.firstTime}</strong> at ${attendee.gate}.<br/>
-					<span style="opacity:.85;">Total scan attempts: <strong>${existing.count}</strong> &mdash; Entry Denied.</span>
-				`;
-				_addHistoryRow(code, "duplicate", existing.name);
+				_addHistoryRow(code, "invalid", name);
 			}
-
-			// Clear input for next scan
 			cameraQrInput.value = "";
 			cameraQrInput.focus();
 		});
@@ -3606,22 +4111,6 @@ async function initOrganizerDashboard() {
 				if (scanHistoryList) scanHistoryList.innerHTML = "";
 				if (cameraQrInput) cameraQrInput.value = "";
 			}
-		});
-	}
-
-	// Manual QR Code Validation
-	if (btnValidateQr && liveQrInput && qrScanResult) {
-		btnValidateQr.addEventListener("click", () => {
-			const val = liveQrInput.value.trim();
-			if (!val) {
-				alert("Please enter or scan a QR Ticket Code first.");
-				return;
-			}
-			qrScanResult.style.display = "block";
-			qrScanResult.style.background = "#f0fdf4";
-			qrScanResult.style.borderColor = "#bbf7d0";
-			qrScanResult.style.color = "#166534";
-			qrScanResult.innerHTML = `Verified &amp; Checked In: Code <strong>${val}</strong> is Valid.`;
 		});
 	}
 
@@ -4134,6 +4623,8 @@ async function initOrganizerDashboard() {
 						event_mode: formatInput ? formatInput.value : undefined,
 						venue: locationInput ? locationInput.value.trim() : undefined,
 						address: locationInput ? locationInput.value.trim() : undefined,
+						latitude: readVenueCoord("eventVenueLat"),
+						longitude: readVenueCoord("eventVenueLon"),
 						event_start_date: toIstIsoFromDatetimeLocal(dateInput && dateInput.value),
 						event_end_date: toIstIsoFromDatetimeLocal(endDateInput && endDateInput.value),
 						event_start_time: timeFromDatetimeLocal(dateInput && dateInput.value),

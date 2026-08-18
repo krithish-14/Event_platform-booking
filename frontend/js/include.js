@@ -4,6 +4,7 @@
 	const pageName = window.location.pathname.split("/").pop() || "index.html";
 	const isHome = pageName === "index.html" || pageName === "";
 	const isAboutPage = pageName === "about.html";
+	const isCategoryPage = pageName === "category.html";
 	const isLoginPage = pageName === "login.html";
 	const isSignupPage = pageName === "signup.html";
 	const isPolicyPage = ["privacy-policy.html", "terms-and-conditions.html", "return-and-refund-policy.html"].includes(pageName);
@@ -60,6 +61,12 @@
 				link.setAttribute("aria-current", "page");
 			});
 		}
+		if (isCategoryPage) {
+			header.querySelectorAll("a[href='category.html']").forEach((link) => {
+				link.classList.add("is-active");
+				link.setAttribute("aria-current", "page");
+			});
+		}
 		if (isLoginPage) {
 			header.querySelectorAll("a[href='login.html']").forEach((link) => {
 				link.classList.add("is-active");
@@ -94,7 +101,7 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=14"));
 	const footerEl = document.getElementById("footer");
 	if (footerEl) promises.push(loadComponent("footer", "components/footer.html"));
 

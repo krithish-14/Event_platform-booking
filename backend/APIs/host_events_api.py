@@ -435,23 +435,435 @@ def _extract_min_ticket_price(event_mgt: EventManagement) -> float:
     return min(prices) if prices else 0.0
 
 
+def _guid_equals_clauses(column, event_id):
+    """Match a UUID column without mixing uuid = text (which aborts PG sessions)."""
+    try:
+        return [column == uuid.UUID(str(event_id))]
+    except (ValueError, TypeError, AttributeError):
+        return [column == event_id]
+
+
 def _public_event_id_matches(db, Event, event_id):
     """Find public catalog rows by UUID or string id."""
     found = {}
-    candidates = [event_id]
-    try:
-        candidates.append(uuid.UUID(str(event_id)))
-    except (ValueError, TypeError, AttributeError):
-        pass
-    candidates.append(str(event_id))
-    for candidate in candidates:
+    for clause in _guid_equals_clauses(Event.id, event_id):
         try:
-            row = db.query(Event).filter(Event.id == candidate).first()
+            row = db.query(Event).filter(clause).first()
         except Exception:
+            db.rollback()
             row = None
         if row:
             found[str(row.id)] = row
     return list(found.values())
+
+
+_CANCELLED_STATUSES = {"CANCELLED", "CANCELED", "REFUNDED"}
+_CHECKED_IN_STATUSES = {"USED", "CHECKED_IN", "CHECKED-IN", "CHECKEDIN"}
+
+
+def _normalize_scan_code(value: Optional[str]) -> str:
+    return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
+
+
+def _event_public_ids(db: Session, event_mgt: EventManagement) -> List[Any]:
+    from Models.event import Event
+
+    rows = _public_event_id_matches(db, Event, event_mgt.event_id)
+    ids: List[Any] = [row.id for row in rows]
+    if event_mgt.event_id not in ids:
+        ids.append(event_mgt.event_id)
+    try:
+        as_uuid = uuid.UUID(str(event_mgt.event_id))
+        if as_uuid not in ids:
+            ids.append(as_uuid)
+    except (ValueError, TypeError, AttributeError):
+        pass
+    return ids
+
+
+def _capacity_for_event(db: Session, event_mgt: EventManagement) -> int:
+    total = 0
+    if event_mgt.tickets_json and isinstance(event_mgt.tickets_json, list):
+        for item in event_mgt.tickets_json:
+            if not isinstance(item, dict):
+                continue
+            try:
+                total += int(item.get("quantity") or item.get("qty") or 0)
+            except (TypeError, ValueError):
+                pass
+    cfg_tickets = db.query(EventRegistrationTicket).filter(
+        EventRegistrationTicket.event_id == event_mgt.event_id,
+        EventRegistrationTicket.deleted_at.is_(None),
+    ).all()
+    cfg_qty = sum(int(ticket.quantity or 0) for ticket in cfg_tickets)
+    total = max(total, cfg_qty)
+    from Models.event import Event
+    for public_event in _public_event_id_matches(db, Event, event_mgt.event_id):
+        try:
+            total = max(total, int(public_event.capacity or 0))
+        except (TypeError, ValueError):
+            pass
+    return total
+
+
+def _form_submissions_for_event(db: Session, event_mgt: EventManagement) -> list:
+    from Models.form_definitions import FormDefinition
+    from Models.form_submissions import FormSubmission
+    from sqlalchemy import func, or_
+
+    id_strs = {str(eid).lower().strip() for eid in _event_public_ids(db, event_mgt)}
+    id_strs.add(str(event_mgt.event_id).lower().strip())
+    compact = {value.replace("-", "") for value in id_strs}
+    organizer_email = (event_mgt.organizer_email or "").lower().strip()
+
+    forms = []
+    form_ids = []
+    form_event_by_id = {}
+    if organizer_email:
+        try:
+            forms = db.query(FormDefinition).filter(func.lower(FormDefinition.organizer_email) == organizer_email).all()
+        except Exception:
+            db.rollback()
+            forms = []
+        form_ids = [form.id for form in forms if form.id is not None]
+        form_event_by_id = {
+            form.id: str(form.event_id or "").lower().strip()
+            for form in forms
+        }
+
+    filters = []
+    if form_ids:
+        filters.append(FormSubmission.form_id.in_(form_ids))
+    for value in id_strs:
+        if value:
+            filters.append(func.lower(FormSubmission.event_id) == value)
+    if not filters:
+        return []
+
+    try:
+        rows = db.query(FormSubmission).filter(or_(*filters)).all()
+    except Exception:
+        db.rollback()
+        return []
+
+    found = {}
+    for row in rows:
+        stored = str(row.event_id or "").lower().strip()
+        compact_stored = stored.replace("-", "")
+        form_eid = form_event_by_id.get(row.form_id, "")
+        compact_form = form_eid.replace("-", "")
+        if compact_stored:
+            if compact_stored not in compact:
+                continue
+        elif compact_form:
+            if compact_form not in compact:
+                continue
+        else:
+            continue
+        found[row.id] = row
+    return [
+        row for row in found.values()
+        if (row.status or "").lower() not in ("abandoned", "draft", "cancelled", "canceled")
+    ]
+
+
+def _tickets_for_event(db: Session, event_mgt: EventManagement) -> list:
+    from Models.ticket import Ticket
+    from sqlalchemy.orm import joinedload
+    from sqlalchemy import or_
+
+    clauses = []
+    for eid in _event_public_ids(db, event_mgt):
+        clauses.extend(_guid_equals_clauses(Ticket.event_id, eid))
+    if not clauses:
+        return []
+    try:
+        rows = db.query(Ticket).options(joinedload(Ticket.booking)).filter(or_(*clauses)).all()
+    except Exception:
+        db.rollback()
+        return []
+    found = {str(ticket.ticket_id): ticket for ticket in rows}
+    return list(found.values())
+
+
+def _ticket_matches_scan(ticket, raw: str, needle: str) -> bool:
+    token = (ticket.qr_token or "").strip()
+    if raw and token == raw:
+        return True
+    token_n = _normalize_scan_code(token)
+    tid_n = _normalize_scan_code(str(ticket.ticket_id))
+    bid_n = _normalize_scan_code(str(ticket.booking_id))
+    if needle and token_n and (needle == token_n or needle in token_n or token_n.endswith(needle)):
+        return True
+    return bool(needle and len(needle) >= 6 and (tid_n.startswith(needle) or bid_n.startswith(needle)))
+
+
+def _find_event_ticket(db: Session, event_mgt: EventManagement, code: str):
+    from Models.ticket import Ticket
+    from sqlalchemy import cast, String, func, or_
+    from sqlalchemy.orm import joinedload
+
+    raw = (code or "").strip()
+    if not raw:
+        return None
+    needle = _normalize_scan_code(raw)
+    tickets = _tickets_for_event(db, event_mgt)
+
+    exact = next((ticket for ticket in tickets if (ticket.qr_token or "").strip() == raw), None)
+    if exact:
+        return exact
+
+    for ticket in tickets:
+        if _ticket_matches_scan(ticket, raw, needle):
+            return ticket
+
+    if "@" in raw:
+        email = raw.lower()
+        for ticket in tickets:
+            booking = ticket.booking
+            receiver = ((booking.receiver_email if booking else "") or "").lower().strip()
+            if receiver == email and (ticket.ticket_status or "").upper() == "VALID":
+                return ticket
+        for ticket in tickets:
+            booking = ticket.booking
+            receiver = ((booking.receiver_email if booking else "") or "").lower().strip()
+            if receiver == email:
+                return ticket
+
+    try:
+        global_match = db.query(Ticket).options(joinedload(Ticket.booking)).filter(Ticket.qr_token == raw).first()
+    except Exception:
+        db.rollback()
+        global_match = None
+    if global_match:
+        return global_match
+
+    if needle and len(needle) >= 6:
+        compact = needle.lower()
+        bid_txt = func.replace(func.lower(cast(Ticket.booking_id, String)), "-", "")
+        tid_txt = func.replace(func.lower(cast(Ticket.ticket_id, String)), "-", "")
+        try:
+            prefix_match = (
+                db.query(Ticket)
+                .options(joinedload(Ticket.booking))
+                .filter(or_(
+                    bid_txt.like(compact + "%"),
+                    tid_txt.like(compact + "%"),
+                    Ticket.qr_token.ilike(f"%{raw}%"),
+                ))
+                .first()
+            )
+        except Exception:
+            db.rollback()
+            prefix_match = None
+        if prefix_match:
+            return prefix_match
+    return None
+
+
+def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[str, Any]:
+    """Live sold / available / check-in counts from bookings, tickets, and forms."""
+    from Models.booking import Booking
+    from sqlalchemy import or_
+
+    public_ids = _event_public_ids(db, event_mgt)
+    booking_clauses = []
+    for eid in public_ids:
+        booking_clauses.extend(_guid_equals_clauses(Booking.event_id, eid))
+    bookings = []
+    seen_bookings = set()
+    if booking_clauses:
+        try:
+            booking_rows = db.query(Booking).filter(or_(*booking_clauses)).all()
+        except Exception:
+            db.rollback()
+            booking_rows = []
+        for booking in booking_rows:
+            key = str(booking.booking_id)
+            if key in seen_bookings:
+                continue
+            seen_bookings.add(key)
+            bookings.append(booking)
+    tickets = _tickets_for_event(db, event_mgt)
+    try:
+        submissions = _form_submissions_for_event(db, event_mgt)
+    except Exception:
+        db.rollback()
+        submissions = []
+    try:
+        event_regs = db.query(EventRegistration).filter(
+            EventRegistration.event_id == event_mgt.event_id,
+            EventRegistration.deleted_at.is_(None),
+        ).all()
+    except Exception:
+        db.rollback()
+        event_regs = []
+    try:
+        checkin_rows = db.query(EventAttendanceCheckin).filter(
+            EventAttendanceCheckin.event_id == event_mgt.event_id,
+            EventAttendanceCheckin.deleted_at.is_(None),
+        ).all()
+    except Exception:
+        db.rollback()
+        checkin_rows = []
+
+    active_bookings = [b for b in bookings if (b.status or "").upper() not in _CANCELLED_STATUSES]
+    active_tickets = [t for t in tickets if (t.ticket_status or "").upper() not in _CANCELLED_STATUSES]
+    used_tickets = [t for t in active_tickets if (t.ticket_status or "").upper() in _CHECKED_IN_STATUSES]
+
+    sold = sum(max(1, int(b.quantity or 1)) for b in active_bookings)
+    if sold == 0:
+        sold = len(active_tickets)
+    paid_subs = [s for s in submissions if (s.status or "").lower() in ("paid", "completed", "confirmed")]
+    if sold == 0 and paid_subs:
+        sold = len(paid_subs)
+
+    total_sales = round(sum(float(b.total_price or 0) for b in active_bookings), 2)
+
+    unique_emails = set()
+    for row in submissions:
+        if row.user_email:
+            unique_emails.add(row.user_email.lower().strip())
+    for booking in active_bookings:
+        email = (booking.receiver_email or "").lower().strip()
+        if email:
+            unique_emails.add(email)
+    for reg in event_regs:
+        email = (reg.attendee_email or "").lower().strip()
+        if email:
+            unique_emails.add(email)
+
+    total_registrations = len(submissions) if submissions else 0
+    if total_registrations == 0:
+        total_registrations = len(event_regs) if event_regs else len(active_bookings)
+    if total_registrations == 0:
+        total_registrations = len(unique_emails)
+
+    if sold == 0:
+        sold = total_registrations
+
+    used_emails = set()
+    attendees = []
+    for ticket in active_tickets:
+        booking = ticket.booking
+        email = ((booking.receiver_email if booking else "") or "").lower().strip()
+        name = (booking.receiver_name if booking else None) or "Guest"
+        is_used = (ticket.ticket_status or "").upper() in _CHECKED_IN_STATUSES
+        if is_used and email:
+            used_emails.add(email)
+        attendees.append({
+            "ticket_id": str(ticket.ticket_id),
+            "booking_id": str(ticket.booking_id),
+            "attendee_name": name,
+            "attendee_email": (booking.receiver_email if booking else "") or "",
+            "ticket_type": ticket.ticket_type or "Standard Access",
+            "status": "checked_in" if is_used else "yet_to_checkin",
+            "checked_in_at": ticket.used_at.isoformat() if ticket.used_at else None,
+            "scanned_by": ticket.scanned_by,
+        })
+
+    extra_checkins = 0
+    listed_emails = {(item.get("attendee_email") or "").lower().strip() for item in attendees}
+    for row in checkin_rows:
+        email = (row.attendee_email or "").lower().strip()
+        status_ok = (row.status or "checked_in").lower() in ("checked_in", "checked-in", "used", "")
+        if not status_ok:
+            continue
+        if email and email in used_emails:
+            continue
+        if not email and used_tickets:
+            continue
+        extra_checkins += 1
+        if email:
+            used_emails.add(email)
+        if email and email in listed_emails:
+            continue
+        attendees.append({
+            "ticket_id": None,
+            "booking_id": None,
+            "attendee_name": row.attendee_name or "Attendee",
+            "attendee_email": row.attendee_email or "",
+            "ticket_type": "",
+            "status": "checked_in",
+            "checked_in_at": row.created_at.isoformat() if row.created_at else None,
+            "scanned_by": row.created_by,
+        })
+        if email:
+            listed_emails.add(email)
+
+    for row in submissions:
+        email = (row.user_email or "").lower().strip()
+        if email and email in listed_emails:
+            continue
+        answers = row.answers_json if isinstance(row.answers_json, dict) else {}
+        name = (
+            answers.get("Full Name")
+            or answers.get("full_name")
+            or answers.get("Name")
+            or (row.user_email.split("@")[0] if row.user_email else "Attendee")
+        )
+        checked = bool(email and email in used_emails)
+        attendees.append({
+            "ticket_id": None,
+            "booking_id": str(row.booking_id) if row.booking_id else None,
+            "attendee_name": name,
+            "attendee_email": row.user_email or "",
+            "ticket_type": row.ticket_type or "",
+            "status": "checked_in" if checked else "yet_to_checkin",
+            "checked_in_at": None,
+            "scanned_by": None,
+        })
+        if email:
+            listed_emails.add(email)
+
+    checked_in = len(used_tickets) + extra_checkins
+    if checked_in == 0 and checkin_rows:
+        checked_in = sum(
+            1 for row in checkin_rows
+            if (row.status or "checked_in").lower() in ("checked_in", "checked-in", "used", "")
+        )
+    if sold and checked_in > sold:
+        checked_in = sold
+
+    capacity = _capacity_for_event(db, event_mgt)
+    available = max(0, capacity - sold) if capacity else 0
+    yet_to_checkin = max(0, sold - checked_in)
+
+    day_counts = {}
+    if submissions:
+        for row in submissions:
+            when = getattr(row, "submission_time", None)
+            if not when:
+                continue
+            day = when.date() if hasattr(when, "date") else when
+            day_counts[day] = day_counts.get(day, 0) + 1
+    else:
+        for booking in active_bookings:
+            when = booking.booked_at
+            if not when:
+                continue
+            day = when.date() if hasattr(when, "date") else when
+            day_counts[day] = day_counts.get(day, 0) + 1
+    registration_trend = [
+        {"date": day.strftime("%b %d"), "value": count}
+        for day, count in sorted(day_counts.items())[-8:]
+    ]
+    if not registration_trend and total_registrations:
+        registration_trend = [{"date": "Now", "value": total_registrations}]
+
+    return {
+        "total_sales": total_sales,
+        "total_registrations": total_registrations,
+        "unique_attendees": len(unique_emails),
+        "tickets_sold": sold,
+        "tickets_available": available,
+        "ticket_capacity": capacity,
+        "checked_in": checked_in,
+        "yet_to_checkin": yet_to_checkin,
+        "attendees_count": sold,
+        "attendees": attendees,
+        "registration_trend": registration_trend,
+    }
 
 
 def hide_public_catalog_events(
@@ -623,6 +1035,8 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             description=description,
             location=event_mgt.venue or event_mgt.address or "Chennai",
             venue=event_mgt.venue,
+            latitude=getattr(event_mgt, "latitude", None),
+            longitude=getattr(event_mgt, "longitude", None),
             category=normalize_category(event_mgt.event_category) or event_mgt.event_category,
             image_url=image_url or "images/hero-event.jpg",
             start_date=start_dt,
@@ -646,6 +1060,10 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
         public_event.description = description or public_event.description
         public_event.location = event_mgt.venue or event_mgt.address or public_event.location
         public_event.venue = event_mgt.venue or public_event.venue
+        if getattr(event_mgt, "latitude", None) is not None:
+            public_event.latitude = event_mgt.latitude
+        if getattr(event_mgt, "longitude", None) is not None:
+            public_event.longitude = event_mgt.longitude
         public_event.category = normalize_category(event_mgt.event_category) or event_mgt.event_category or public_event.category
         public_event.event_format = event_mgt.event_mode or public_event.event_format
         if image_url:
@@ -687,6 +1105,8 @@ class SaveManageEventRequest(BaseModel):
     event_end_time: Optional[str] = None
     venue: Optional[str] = None
     address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     organizer_name: Optional[str] = None
     organizer_phone: Optional[str] = None
     event_status: Optional[str] = None
@@ -827,9 +1247,12 @@ class SaveCheckinRequest(BaseModel):
     registration_id: Optional[str] = None
     attendee_name: Optional[str] = None
     attendee_email: Optional[str] = None
+    qr_token: Optional[str] = None
+    ticket_code: Optional[str] = None
     scan_method: Optional[str] = "manual"
     status: Optional[str] = "checked_in"
     notes: Optional[str] = None
+    scanned_by: Optional[str] = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -936,6 +1359,8 @@ def save_manage_event(
     if payload.event_mode: event.event_mode = payload.event_mode
     if payload.venue: event.venue = payload.venue
     if payload.address: event.address = payload.address
+    if payload.latitude is not None: event.latitude = payload.latitude
+    if payload.longitude is not None: event.longitude = payload.longitude
     if payload.organizer_name: event.organizer_name = payload.organizer_name
     if payload.organizer_phone: event.organizer_phone = payload.organizer_phone
     if payload.event_status:
@@ -1033,6 +1458,8 @@ def save_manage_event(
             "event_category": event.event_category,
             "event_mode": event.event_mode,
             "venue": event.venue,
+            "latitude": getattr(event, "latitude", None),
+            "longitude": getattr(event, "longitude", None),
             "event_status": event.event_status,
             "tickets": event.tickets_json,
             "agenda": event.agenda_json,
@@ -1284,6 +1711,8 @@ def get_current_host_event(
             "event_type": event.event_type,
             "venue": event.venue,
             "address": event.address,
+            "latitude": event.latitude,
+            "longitude": event.longitude,
             "organizer_name": event.organizer_name,
             "organizer_email": event.organizer_email,
             "organizer_phone": event.organizer_phone,
@@ -1365,6 +1794,7 @@ def get_registration_module_data(
         EventAttendanceCheckin.event_id == event.event_id,
         EventAttendanceCheckin.deleted_at.is_(None)
     ).all()
+    live = compute_live_event_stats(db, event)
 
     return {
         "event_id": str(event.event_id),
@@ -1415,11 +1845,12 @@ def get_registration_module_data(
             for item in registrations
         ],
         "summary": {
-            "total_registrations": len(registrations),
+            "total_registrations": live.get("total_registrations", len(registrations)),
             "pending_registrations": sum(1 for item in registrations if item.status == "pending"),
             "confirmed_registrations": sum(1 for item in registrations if item.status == "confirmed"),
-            "checked_in_count": len(checkins),
-            "tickets_available": sum(ticket.quantity or 0 for ticket in tickets),
+            "checked_in_count": live.get("checked_in", len(checkins)),
+            "tickets_sold": live.get("tickets_sold", 0),
+            "tickets_available": live.get("tickets_available", sum(ticket.quantity or 0 for ticket in tickets)),
         },
     }
 
@@ -1629,9 +2060,88 @@ def save_registration_checkin(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """Create a check-in entry for a registration or attendee."""
-    event, customer_id, host_id = resolve_or_create_event(db, payload.organizer_email, payload.event_id, current_user)
+    """Validate a ticket QR/code or attendee email and record a live check-in."""
+    event, customer_id, host_id = resolve_or_create_event(
+        db, payload.organizer_email, payload.event_id, current_user, create_if_missing=False
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="No event found for this host.")
+
     email_clean = payload.organizer_email.lower().strip()
+    scan_code = (payload.qr_token or payload.ticket_code or payload.attendee_email or "").strip()
+    staff_name = payload.scanned_by or (current_user.full_name if current_user else None) or email_clean
+    now_utc = datetime.utcnow()
+
+    ticket = _find_event_ticket(db, event, scan_code)
+    if ticket:
+        status_now = (ticket.ticket_status or "").upper()
+        booking = ticket.booking
+        attendee_name = payload.attendee_name or (booking.receiver_name if booking else None) or "Guest"
+        attendee_email = (
+            payload.attendee_email
+            if payload.attendee_email and "@" in payload.attendee_email
+            else ((booking.receiver_email if booking else None) or None)
+        )
+        if status_now in _CANCELLED_STATUSES:
+            stats = compute_live_event_stats(db, event)
+            return {
+                "status": "cancelled",
+                "valid": False,
+                "message": "This ticket has been cancelled.",
+                "attendee_name": attendee_name,
+                "attendee_email": attendee_email,
+                **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
+            }
+        if status_now in _CHECKED_IN_STATUSES:
+            stats = compute_live_event_stats(db, event)
+            when = ticket.used_at.strftime("%I:%M %p, %b %d") if ticket.used_at else "earlier"
+            return {
+                "status": "already_used",
+                "valid": False,
+                "already_checked_in": True,
+                "message": f"Already checked in at {when}.",
+                "attendee_name": attendee_name,
+                "attendee_email": attendee_email,
+                "used_at": ticket.used_at.isoformat() if ticket.used_at else None,
+                **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
+            }
+
+        ticket.ticket_status = "USED"
+        ticket.used_at = now_utc
+        ticket.scanned_by = staff_name
+
+        existing_ci = None
+        if attendee_email:
+            existing_ci = db.query(EventAttendanceCheckin).filter(
+                EventAttendanceCheckin.event_id == event.event_id,
+                EventAttendanceCheckin.attendee_email == attendee_email.lower().strip(),
+                EventAttendanceCheckin.deleted_at.is_(None),
+            ).first()
+        if not existing_ci:
+            db.add(EventAttendanceCheckin(
+                id=uuid.uuid4(),
+                event_id=event.event_id,
+                customer_id=customer_id,
+                host_id=host_id,
+                created_by=staff_name,
+                attendee_name=attendee_name,
+                attendee_email=(attendee_email or "").lower().strip() if attendee_email else None,
+                scan_method=payload.scan_method or "manual",
+                status="checked_in",
+                notes=payload.notes or f"Ticket {ticket.ticket_id}",
+            ))
+        db.commit()
+        stats = compute_live_event_stats(db, event)
+        return {
+            "status": "success",
+            "valid": True,
+            "message": f"{attendee_name} checked in successfully.",
+            "attendee_name": attendee_name,
+            "attendee_email": attendee_email,
+            "ticket_id": str(ticket.ticket_id),
+            "ticket_status": "USED",
+            **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
+        }
 
     registration = None
     if payload.registration_id:
@@ -1640,35 +2150,90 @@ def save_registration_checkin(
             registration = db.query(EventRegistration).filter(EventRegistration.id == reg_uuid).first()
         except ValueError:
             pass
-    if not registration and payload.attendee_email:
+    lookup_email = payload.attendee_email if payload.attendee_email and "@" in payload.attendee_email else None
+    if not registration and lookup_email:
         registration = db.query(EventRegistration).filter(
             EventRegistration.event_id == event.event_id,
-            EventRegistration.attendee_email == payload.attendee_email.lower().strip()
+            EventRegistration.attendee_email == lookup_email.lower().strip()
         ).order_by(EventRegistration.created_at.desc()).first()
+
+    if not registration and not lookup_email:
+        raise HTTPException(status_code=404, detail="Ticket code not found for this event.")
+
+    if registration and (registration.checkin_status or "").lower() in ("checked_in", "used"):
+        stats = compute_live_event_stats(db, event)
+        return {
+            "status": "already_used",
+            "valid": False,
+            "already_checked_in": True,
+            "message": "This attendee is already checked in.",
+            "attendee_name": registration.attendee_name,
+            "attendee_email": registration.attendee_email,
+            **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
+        }
 
     checkin = EventAttendanceCheckin(
         id=uuid.uuid4(),
         event_id=event.event_id,
         customer_id=customer_id,
         host_id=host_id,
-        created_by=email_clean,
+        created_by=staff_name,
         registration_id=registration.id if registration else None,
         attendee_name=payload.attendee_name or (registration.attendee_name if registration else None),
-        attendee_email=payload.attendee_email or (registration.attendee_email if registration else None),
+        attendee_email=lookup_email or (registration.attendee_email if registration else None),
         scan_method=payload.scan_method or "manual",
         status=payload.status or "checked_in",
         notes=payload.notes,
     )
     db.add(checkin)
-
     if registration:
         registration.checkin_status = payload.status or "checked_in"
-        registration.updated_at = datetime.utcnow()
-
+        registration.updated_at = now_utc
     db.commit()
     db.refresh(checkin)
+    stats = compute_live_event_stats(db, event)
+    name = checkin.attendee_name or scan_code
+    return {
+        "status": "success",
+        "valid": True,
+        "checkin_id": str(checkin.id),
+        "message": f"{name} checked in successfully.",
+        "attendee_name": checkin.attendee_name,
+        "attendee_email": checkin.attendee_email,
+        **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
+    }
 
-    return {"status": "success", "checkin_id": str(checkin.id), "message": "Check-in saved"}
+
+@router.get("/attendance")
+def get_event_attendance(
+    email: str = Query(..., description="Organizer email address"),
+    event_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Checked-in vs yet-to-check-in attendees for the host sidebar Attendance tab."""
+    event, customer_id, host_id = resolve_or_create_event(
+        db, email, event_id, current_user, create_if_missing=False
+    )
+    if not event:
+        return {
+            "event_id": None,
+            "customer_id": customer_id,
+            "host_id": host_id,
+            "checked_in": 0,
+            "yet_to_checkin": 0,
+            "tickets_sold": 0,
+            "total_registrations": 0,
+            "attendees": [],
+        }
+    stats = compute_live_event_stats(db, event)
+    return {
+        "event_id": str(event.event_id),
+        "event_title": event.event_title,
+        "customer_id": event.customer_id or customer_id,
+        "host_id": event.host_id or host_id,
+        **stats,
+    }
 
 
 # ── Communication Endpoints ────────────────────────────────────────────────
@@ -1752,6 +2317,141 @@ def save_communication(
     return {"status": "success", "communication_id": str(communication.id), "message": "Communication saved"}
 
 
+def _city_from_form_answers(answers: Any) -> str:
+    if not isinstance(answers, dict):
+        return ""
+    for key, value in answers.items():
+        label = str(key or "").strip().lower()
+        if label in {"city", "town", "location", "city / town"} or label.endswith(" city") or label == "city/town":
+            text = " ".join(str(value or "").replace(",", " ").split())
+            if text:
+                return text.title()
+    return ""
+
+
+def _audience_top_cities(db: Session, event_mgt: EventManagement) -> List[Dict[str, Any]]:
+    """Unique attendees grouped by city from form answers and user profiles."""
+    from Models.user import User
+    from Models.booking import Booking
+    from sqlalchemy import or_, func
+
+    people: Dict[str, str] = {}
+
+    def remember(email: Optional[str], city: str = ""):
+        key = (email or "").lower().strip()
+        if not key:
+            return
+        current = people.get(key, "")
+        if city and (not current or current == "Location not shared"):
+            people[key] = city
+        elif key not in people:
+            people[key] = city or "Location not shared"
+
+    submissions = _form_submissions_for_event(db, event_mgt)
+    emails = set()
+    customer_ids = set()
+    for row in submissions:
+        city = _city_from_form_answers(row.answers_json)
+        remember(row.user_email, city)
+        if row.user_email:
+            emails.add(row.user_email.lower().strip())
+        if row.customer_id:
+            customer_ids.add(row.customer_id)
+
+    public_ids = _event_public_ids(db, event_mgt)
+    booking_clauses = []
+    for eid in public_ids:
+        booking_clauses.extend(_guid_equals_clauses(Booking.event_id, eid))
+    bookings = []
+    if booking_clauses:
+        try:
+            bookings = db.query(Booking).filter(or_(*booking_clauses)).all()
+        except Exception:
+            db.rollback()
+            bookings = []
+    for booking in bookings:
+        if (booking.status or "").upper() in _CANCELLED_STATUSES:
+            continue
+        remember(booking.receiver_email)
+        if booking.receiver_email:
+            emails.add(booking.receiver_email.lower().strip())
+        if booking.customer_id:
+            customer_ids.add(booking.customer_id)
+
+    user_filters = []
+    if emails:
+        user_filters.append(func.lower(User.email).in_(list(emails)))
+    if customer_ids:
+        user_filters.append(User.customer_id.in_(list(customer_ids)))
+    users = []
+    if user_filters:
+        try:
+            users = db.query(User).filter(or_(*user_filters)).all()
+        except Exception:
+            db.rollback()
+            users = []
+    city_by_email = {}
+    city_by_customer = {}
+    for user in users:
+        city = " ".join(str(user.city or "").split()).title()
+        if not city:
+            continue
+        if user.email:
+            city_by_email[user.email.lower().strip()] = city
+        if user.customer_id:
+            city_by_customer[user.customer_id] = city
+
+    for email, city in list(people.items()):
+        if city and city != "Location not shared":
+            continue
+        people[email] = city_by_email.get(email) or city or "Location not shared"
+
+    for booking in bookings:
+        if (booking.status or "").upper() in _CANCELLED_STATUSES:
+            continue
+        email = (booking.receiver_email or "").lower().strip()
+        if not email:
+            continue
+        if people.get(email) and people[email] != "Location not shared":
+            continue
+        people[email] = city_by_customer.get(booking.customer_id) or city_by_email.get(email) or people.get(email) or "Location not shared"
+
+    counts: Dict[str, int] = {}
+    for city in people.values():
+        label = city or "Location not shared"
+        counts[label] = counts.get(label, 0) + 1
+    total = sum(counts.values()) or 1
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    named = [(name, count) for name, count in ranked if name != "Location not shared"]
+    unknown = counts.get("Location not shared", 0)
+
+    rows = []
+    other_count = 0
+    for index, (name, count) in enumerate(named):
+        if index < 3:
+            rows.append({
+                "city": name,
+                "count": count,
+                "percent": round(count * 100 / total),
+            })
+        else:
+            other_count += count
+    other_count += unknown
+    if other_count and rows:
+        rows.append({
+            "city": "Other Locations",
+            "count": other_count,
+            "percent": round(other_count * 100 / total),
+        })
+    elif other_count and not rows:
+        rows.append({
+            "city": "Location not shared",
+            "count": other_count,
+            "percent": 100,
+        })
+    return rows
+
+
 # ── Reports Endpoint ───────────────────────────────────────────────────────
 @router.get("/reports")
 def get_reports_summary(
@@ -1766,26 +2466,25 @@ def get_reports_summary(
         return {
             "event_title": None,
             "gross_revenue": 0,
+            "platform_fee": 0,
+            "gst_fee": 0,
             "net_earnings": 0,
+            "platform_fee_pct": 5,
+            "gst_fee_pct": 5,
             "attendance_rate": 0,
             "conversion_rate": 0,
             "registrations_count": 0,
+            "tickets_sold": 0,
+            "ticket_capacity": 0,
             "checkins_count": 0,
             "communications_count": 0,
             "exhibitors_count": 0,
+            "top_cities": [],
         }
 
     tickets = db.query(EventRegistrationTicket).filter(
         EventRegistrationTicket.event_id == event.event_id,
         EventRegistrationTicket.deleted_at.is_(None)
-    ).all()
-    registrations = db.query(EventRegistration).filter(
-        EventRegistration.event_id == event.event_id,
-        EventRegistration.deleted_at.is_(None)
-    ).all()
-    checkins = db.query(EventAttendanceCheckin).filter(
-        EventAttendanceCheckin.event_id == event.event_id,
-        EventAttendanceCheckin.deleted_at.is_(None)
     ).all()
     communications = db.query(EventCommunication).filter(
         EventCommunication.event_id == event.event_id,
@@ -1796,26 +2495,36 @@ def get_reports_summary(
         Exhibitor.deleted_at.is_(None)
     ).all()
 
-    gross_revenue = 0.0
-    for registration in registrations:
-        ticket = db.query(EventRegistrationTicket).filter(EventRegistrationTicket.id == registration.ticket_id).first() if registration.ticket_id else None
-        if ticket:
-            gross_revenue += float(ticket.price or 0.0)
-
-    attendance_rate = round((len(checkins) / len(registrations) * 100) if registrations else 0.0, 1)
-    conversion_rate = round((len(registrations) / max(sum(ticket.quantity or 0 for ticket in tickets), 1) * 100), 1)
-    net_earnings = round(gross_revenue * 0.9, 2)
+    live = compute_live_event_stats(db, event)
+    sold = live["tickets_sold"] or 0
+    checked = live["checked_in"] or 0
+    capacity = live["ticket_capacity"] or sum(ticket.quantity or 0 for ticket in tickets)
+    gross_revenue = round(float(live["total_sales"] or 0), 2)
+    platform_fee_pct = 5
+    gst_fee_pct = 5
+    platform_fee = round(gross_revenue * platform_fee_pct / 100, 2)
+    gst_fee = round(gross_revenue * gst_fee_pct / 100, 2)
+    net_earnings = round(gross_revenue - platform_fee - gst_fee, 2)
+    attendance_rate = round((checked / sold * 100) if sold else 0.0, 1)
+    conversion_rate = round((sold / max(capacity, 1) * 100), 1)
 
     return {
         "event_title": event.event_title,
-        "gross_revenue": round(gross_revenue, 2),
+        "gross_revenue": gross_revenue,
+        "platform_fee": platform_fee,
+        "gst_fee": gst_fee,
         "net_earnings": net_earnings,
+        "platform_fee_pct": platform_fee_pct,
+        "gst_fee_pct": gst_fee_pct,
         "attendance_rate": attendance_rate,
         "conversion_rate": conversion_rate,
-        "registrations_count": len(registrations),
-        "checkins_count": len(checkins),
+        "registrations_count": live["total_registrations"],
+        "tickets_sold": sold,
+        "ticket_capacity": capacity,
+        "checkins_count": checked,
         "communications_count": len(communications),
         "exhibitors_count": len(exhibitors),
+        "top_cities": _audience_top_cities(db, event),
     }
 
 
@@ -1879,14 +2588,22 @@ def get_dashboard_summary(
     exhibitors_confirmed = sum(1 for e in exhibitors_list if e.status == "confirmed")
     exhibitors_pending = sum(1 for e in exhibitors_list if e.status == "pending")
 
-    # Ticket capacity calculation
-    total_capacity = 0
-    if event.tickets_json and isinstance(event.tickets_json, list):
-        for t in event.tickets_json:
-            try:
-                total_capacity += int(t.get("quantity", t.get("qty", 0)))
-            except (ValueError, TypeError):
-                pass
+    try:
+        live = compute_live_event_stats(db, event)
+    except Exception:
+        db.rollback()
+        live = {
+            "total_sales": 0.0,
+            "total_registrations": 0,
+            "tickets_sold": 0,
+            "tickets_available": 0,
+            "ticket_capacity": 0,
+            "checked_in": 0,
+            "yet_to_checkin": 0,
+            "attendees_count": 0,
+            "attendees": [],
+            "registration_trend": [],
+        }
 
     return {
         "has_event": True,
@@ -1895,20 +2612,24 @@ def get_dashboard_summary(
         "event_status": event.event_status,
         "customer_id": event.customer_id or customer_id,
         "host_id": event.host_id or host_id,
-        "total_sales": 0.0,  # Live booking integration placeholder
-        "total_registrations": 0,
+        "total_sales": live["total_sales"],
+        "total_registrations": live["total_registrations"],
         "days_to_event": days_left,
-        "tickets_sold": 0,
-        "tickets_available": total_capacity,
-        "checked_in": 0,
-        "yet_to_checkin": 0,
+        "tickets_sold": live["tickets_sold"],
+        "tickets_available": live["tickets_available"],
+        "ticket_capacity": live["ticket_capacity"],
+        "checked_in": live["checked_in"],
+        "yet_to_checkin": live["yet_to_checkin"],
+        "attendees_count": live["attendees_count"],
+        "attendees": live.get("attendees") or [],
         "speakers_count": speakers_count,
         "sponsors_count": sponsors_count,
         "exhibitors_count": exhibitors_count,
         "exhibitors_confirmed": exhibitors_confirmed,
         "exhibitors_pending": exhibitors_pending,
         "event_start_date": event.event_start_date.isoformat() if event.event_start_date else None,
-        "venue": event.venue or "Venue TBD"
+        "venue": event.venue or "Venue TBD",
+        "registration_trend": live.get("registration_trend") or [],
     }
 
 

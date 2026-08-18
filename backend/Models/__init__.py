@@ -28,6 +28,7 @@ from Models.user_signups import UserSignup
 from Models.user_logins import UserLogin
 from Models.wishlist import WishlistItem
 from Models.stored_file import StoredFile
+from Models.support_ticket import SupportTicket
 
 __all__ = [
     "Base",
@@ -60,4 +61,5 @@ __all__ = [
     "UserLogin",
     "WishlistItem",
     "StoredFile",
+    "SupportTicket",
 ]

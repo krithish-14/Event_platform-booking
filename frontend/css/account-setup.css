@@ -29,6 +29,23 @@
 	line-height: 1.5;
 }
 
+.bank-setup-hint {
+	max-width: 960px;
+	margin: 0 0 1.25rem;
+	color: #64748b;
+	font-size: 0.92rem;
+	line-height: 1.5;
+}
+
+.bank-setup-only .kyc-only-stage,
+.bank-setup-only .setup-wizard-steps {
+	display: none !important;
+}
+
+.bank-setup-only .setup-grid-2:has(.kyc-only-stage) {
+	grid-template-columns: 1fr;
+}
+
 /* Wizard Steps Navigation Bar */
 .setup-wizard-steps {
 	max-width: 960px;

@@ -192,6 +192,44 @@
 			vertical-align: middle;
 			margin-right: .5rem;
 		}
+
+		.bookings-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
+		.bookings-table thead tr {
+			background: #faf8f5;
+			border-bottom: 1px solid var(--border);
+			color: var(--muted);
+			font-size: .78rem;
+			text-transform: uppercase;
+			letter-spacing: .04em;
+		}
+		.bookings-table th, .bookings-table td { padding: .875rem 1rem; }
+		.bookings-table tbody tr { border-bottom: 1px solid #f3f4f6; }
+		.bookings-table tbody tr:last-child { border-bottom: none; }
+		.bookings-table .is-cancelled { opacity: .72; }
+		.status-pill {
+			display: inline-block;
+			font-weight: 700;
+			padding: 2px 8px;
+			border-radius: 999px;
+			font-size: .75rem;
+		}
+		.status-pill.upcoming { background: #dcfce7; color: #15803d; }
+		.status-pill.cancelled { background: rgba(231,76,60,.12); color: #e74c3c; }
+		.status-pill.completed { background: #e5e7eb; color: #4b5563; }
+		.view-booking-btn {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			padding: .4rem .9rem;
+			border-radius: 999px;
+			background: var(--primary);
+			color: #fff;
+			font-size: .78rem;
+			font-weight: 700;
+			text-decoration: none;
+			white-space: nowrap;
+		}
+		.view-booking-btn:hover { filter: brightness(1.05); color: #fff; }
 	</style>
 </head>
 <body class="sub-page">
@@ -257,7 +295,7 @@
 							</div>
 							<div>
 								<div class="stat-label">Wishlist Items</div>
-								<div class="stat-value">0</div>
+								<div class="stat-value" id="wishlistItemsVal">0</div>
 							</div>
 						</div>
 						<div class="stat-card">
@@ -266,7 +304,7 @@
 							</div>
 							<div>
 								<div class="stat-label">Events Attended</div>
-								<div class="stat-value">0</div>
+								<div class="stat-value" id="eventsAttendedVal">0</div>
 							</div>
 						</div>
 					</div>
@@ -303,7 +341,7 @@
 			</section>
 
 			<!-- Recent Bookings -->
-			<section class="dashboard-section" style="padding-top:0">
+			<section class="dashboard-section" style="padding-top:0;padding-bottom:4rem">
 				<div class="container">
 					<h2 class="section-title"><span></span>Your Recent Bookings</h2>
 					<div id="recentBookingsContainer" style="background:#fff;border-radius:16px;border:1px solid var(--border);overflow:hidden">
@@ -315,36 +353,20 @@
 					</div>
 				</div>
 			</section>
-
-			<!-- Event Host & Admin Tracking Dashboard -->
-			<section class="dashboard-section" style="padding-top:0;padding-bottom:4rem">
-				<div class="container">
-					<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.125rem;">
-						<h2 class="section-title" style="margin:0;"><span></span>Event Host & Admin Tracking Dashboard</h2>
-						<span style="font-size:.78rem;background:#eef2ff;color:#4f46e5;font-weight:700;padding:.25rem .75rem;border-radius:999px;border:1px solid #c7d2fe;">Customer ID Verification Active</span>
-					</div>
-					<p style="font-size:.875rem;color:var(--muted);margin-top:-.5rem;margin-bottom:1rem;">
-						Event hosts and admins can track user sign-ins, logged-in sessions, and ticket verification using unique <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;color:var(--primary)">Customer ID</code> tags.
-					</p>
-					<div id="hostTrackingContainer" style="background:#fff;border-radius:16px;border:1px solid var(--border);overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.04);">
-						<div style="padding:2rem;text-align:center;color:var(--muted)">Loading host tracking data…</div>
-					</div>
-				</div>
-			</section>
 		</main>
 
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=10"></script>
+	<script src="js/include.js?v=14"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=10"></script>
-	<script src="js/profile.js?v=1"></script>
+	<script src="js/auth.js?v=17"></script>
+	<script src="js/profile.js?v=3"></script>
+	<script src="js/wishlist.js?v=1"></script>
 	<script src="js/location.js?v=2"></script>
 	<script src="js/search.js?v=1"></script>
 	<script src="js/script.js?v=14"></script>
 	<script>
-		// Dashboard-specific: populate user info, avatar, bookings, and host tracking
 		(function initDashboard() {
 			const AVATAR_KEY = "jod_profile_avatar";
 
@@ -353,6 +375,45 @@
 					const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
 					return raw ? JSON.parse(raw) : null;
 				} catch (_) { return null; }
+			}
+
+			function getApiBase() {
+				if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
+				if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") return window.JodHealth.getApiBaseUrl();
+				return "http://127.0.0.1:8001";
+			}
+
+			function getToken() {
+				if (window.JodAuth && typeof window.JodAuth.getToken === "function") return window.JodAuth.getToken();
+				return localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token");
+			}
+
+			function escapeHtml(value) {
+				return String(value == null ? "" : value)
+					.replace(/&/g, "&amp;")
+					.replace(/</g, "&lt;")
+					.replace(/>/g, "&gt;")
+					.replace(/"/g, "&quot;");
+			}
+
+			function isCancelled(booking) {
+				const status = String(booking.status || "").toUpperCase();
+				return status === "CANCELLED" || status === "CANCELED" || status === "REFUNDED";
+			}
+
+			function isUpcomingBooking(booking) {
+				if (isCancelled(booking)) return false;
+				if (!booking.event_start_date) return true;
+				return new Date(booking.event_start_date).getTime() >= Date.now();
+			}
+
+			function uniqueEventCount(list) {
+				const ids = new Set();
+				list.forEach((booking) => {
+					const key = String(booking.event_id || booking.event_title || booking.booking_id || "").trim().toLowerCase();
+					if (key) ids.add(key);
+				});
+				return ids.size;
 			}
 
 			// Auth guard
@@ -388,26 +449,58 @@
 				}
 			}
 
+			async function loadWishlistCount() {
+				const el = document.getElementById("wishlistItemsVal");
+				if (!el) return;
+				try {
+					if (window.JodWishlist && typeof window.JodWishlist.loadIds === "function") {
+						const ids = await window.JodWishlist.loadIds();
+						el.textContent = String((ids && ids.length) || 0);
+						return;
+					}
+					const token = getToken();
+					if (!token) return;
+					const res = await fetch(`${getApiBase()}/api/wishlist/ids`, {
+						headers: { Authorization: `Bearer ${token}` },
+						cache: "no-store"
+					});
+					if (!res.ok) return;
+					const data = await res.json();
+					const ids = Array.isArray(data) ? data : (data.ids || data.event_ids || []);
+					el.textContent = String(ids.length || 0);
+				} catch (_) {}
+			}
+
 			async function loadMyBookings() {
 				const container = document.getElementById("recentBookingsContainer");
 				const totalVal = document.getElementById("totalBookingsVal");
 				const upcomingVal = document.getElementById("upcomingEventsVal");
+				const attendedVal = document.getElementById("eventsAttendedVal");
 
 				try {
-					const apiBase = (window.JodAuth && typeof window.JodAuth.getApiBase === "function") ? window.JodAuth.getApiBase() : "http://127.0.0.1:8001";
-					const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+					const token = getToken();
 					if (!token) return;
 
-					const res = await fetch(`${apiBase}/api/bookings/my-bookings`, {
-						headers: { "Authorization": `Bearer ${token}` }
-					});
+					const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+						? window.JodAuth.fetchAuth.bind(window.JodAuth)
+						: (url, options) => fetch(url, { ...options, headers: { ...(options && options.headers), Authorization: `Bearer ${token}` } });
+
+					const res = await fetchFn(`${getApiBase()}/api/bookings/my-bookings`, { cache: "no-store" });
 					if (!res.ok) return;
 					const bookings = await res.json();
+					const list = Array.isArray(bookings) ? bookings : [];
 
-					if (totalVal) totalVal.textContent = bookings.length;
-					if (upcomingVal) upcomingVal.textContent = bookings.length;
+					const active = list.filter((b) => !isCancelled(b));
+					const upcoming = active.filter(isUpcomingBooking);
+					const attended = active.filter((b) => !isUpcomingBooking(b));
 
-					if (!bookings || bookings.length === 0) {
+					if (totalVal) totalVal.textContent = String(uniqueEventCount(active));
+					if (upcomingVal) upcomingVal.textContent = String(uniqueEventCount(upcoming));
+					if (attendedVal) attendedVal.textContent = String(uniqueEventCount(attended));
+
+					if (!container) return;
+
+					if (list.length === 0) {
 						container.innerHTML = `
 							<div class="empty-state">
 								<div class="empty-icon">🎟️</div>
@@ -418,98 +511,47 @@
 					}
 
 					let tableHtml = `
-						<table style="width:100%;border-collapse:collapse;text-align:left;font-size:.875rem;">
+						<div style="overflow-x:auto;">
+						<table class="bookings-table">
 							<thead>
-								<tr style="background:#faf8f5;border-bottom:1px solid var(--border);color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;">
-									<th style="padding:.75rem 1rem;">Booking ID</th>
-									<th style="padding:.75rem 1rem;">Customer ID</th>
-									<th style="padding:.75rem 1rem;">Event</th>
-									<th style="padding:.75rem 1rem;">Ticket / Qty</th>
-									<th style="padding:.75rem 1rem;">Amount</th>
-									<th style="padding:.75rem 1rem;">Status</th>
+								<tr>
+									<th>Event</th>
+									<th>Ticket / Qty</th>
+									<th>Amount</th>
+									<th>Status</th>
+									<th></th>
 								</tr>
 							</thead>
 							<tbody>`;
 
-					bookings.forEach(b => {
-						const dateStr = b.booked_at ? new Date(b.booked_at).toLocaleDateString() : "";
+					list.forEach((b) => {
+						const cancelled = isCancelled(b);
+						const upcomingRow = isUpcomingBooking(b);
+						let statusClass = "completed";
+						let statusLabel = "Completed";
+						if (cancelled) {
+							statusClass = "cancelled";
+							statusLabel = "Cancelled";
+						} else if (upcomingRow) {
+							statusClass = "upcoming";
+							statusLabel = "Upcoming";
+						}
+						const bookingId = encodeURIComponent(b.booking_id || "");
 						tableHtml += `
-							<tr style="border-bottom:1px solid #f3f4f6;">
-								<td style="padding:.875rem 1rem;font-weight:600;color:var(--foreground);font-family:monospace;font-size:.8rem;">${b.booking_id.substring(0,8)}...</td>
-								<td style="padding:.875rem 1rem;"><span style="background:rgba(255,117,8,.08);color:var(--primary);font-weight:600;padding:2px 8px;border-radius:6px;font-size:.75rem;border:1px solid rgba(255,117,8,.2);">${b.customer_id}</span></td>
-								<td style="padding:.875rem 1rem;font-weight:600;color:var(--foreground);">${b.event_title || 'Event'}</td>
-								<td style="padding:.875rem 1rem;">${b.ticket_type} (x${b.quantity})</td>
-								<td style="padding:.875rem 1rem;font-weight:700;color:#16a34a;">₹${b.total_price.toLocaleString()}</td>
-								<td style="padding:.875rem 1rem;"><span style="background:#dcfce7;color:#15803d;font-weight:700;padding:2px 8px;border-radius:999px;font-size:.75rem;">${b.status}</span></td>
+							<tr class="${cancelled ? "is-cancelled" : ""}">
+								<td style="font-weight:600;color:var(--foreground);">${escapeHtml(b.event_title || "Event")}</td>
+								<td>${escapeHtml(b.ticket_type || "Ticket")} (x${Number(b.quantity || 1)})</td>
+								<td style="font-weight:700;color:#16a34a;">₹${Number(b.total_price || 0).toLocaleString("en-IN")}</td>
+								<td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
+								<td><a class="view-booking-btn" href="ticket-details.html?id=${bookingId}">View</a></td>
 							</tr>`;
 					});
 
-					tableHtml += `</tbody></table>`;
+					tableHtml += `</tbody></table></div>`;
 					container.innerHTML = tableHtml;
 				} catch (_) {}
 			}
 
-			async function loadHostTracking() {
-				const container = document.getElementById("hostTrackingContainer");
-				if (!container) return;
-
-				try {
-					const apiBase = (window.JodAuth && typeof window.JodAuth.getApiBase === "function") ? window.JodAuth.getApiBase() : "http://127.0.0.1:8001";
-					const res = await fetch(`${apiBase}/api/bookings/host/tracking`);
-					if (!res.ok) {
-						container.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted)">Unable to load host tracking data.</div>`;
-						return;
-					}
-					const bookings = await res.json();
-
-					if (!bookings || bookings.length === 0) {
-						container.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted)">No customer bookings recorded yet. New user bookings will appear here in real-time.</div>`;
-						return;
-					}
-
-					let html = `
-						<div style="overflow-x:auto;">
-						<table style="width:100%;border-collapse:collapse;text-align:left;font-size:.85rem;">
-							<thead>
-								<tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;color:#64748b;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;">
-									<th style="padding:.875rem 1rem;">Customer ID</th>
-									<th style="padding:.875rem 1rem;">User Details</th>
-									<th style="padding:.875rem 1rem;">City / Location</th>
-									<th style="padding:.875rem 1rem;">Event Title</th>
-									<th style="padding:.875rem 1rem;">Ticket Type</th>
-									<th style="padding:.875rem 1rem;">Paid</th>
-									<th style="padding:.875rem 1rem;">Booked At</th>
-									<th style="padding:.875rem 1rem;">Host Verification</th>
-								</tr>
-							</thead>
-							<tbody>`;
-
-					bookings.forEach(b => {
-						const dateStr = b.booked_at ? new Date(b.booked_at).toLocaleString() : "Just now";
-						html += `
-							<tr style="border-bottom:1px solid #f1f5f9;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
-								<td style="padding:.875rem 1rem;"><span style="background:#eff6ff;color:#2563eb;font-weight:700;padding:3px 10px;border-radius:6px;font-size:.78rem;border:1px solid #bfdbfe;display:inline-block;">${b.customer_id}</span></td>
-								<td style="padding:.875rem 1rem;">
-									<div style="font-weight:700;color:var(--foreground);">${b.user_name || 'Anonymous User'}</div>
-									<div style="font-size:.75rem;color:var(--muted);">${b.user_email || ''}</div>
-								</td>
-								<td style="padding:.875rem 1rem;color:var(--primary);font-weight:600;">📍 ${b.user_city || 'Chennai'}</td>
-								<td style="padding:.875rem 1rem;font-weight:600;color:var(--foreground);">${b.event_title || 'Event'}</td>
-								<td style="padding:.875rem 1rem;">${b.ticket_type} (x${b.quantity})</td>
-								<td style="padding:.875rem 1rem;font-weight:700;color:#16a34a;">₹${b.total_price.toLocaleString()}</td>
-								<td style="padding:.875rem 1rem;font-size:.78rem;color:var(--muted);">${dateStr}</td>
-								<td style="padding:.875rem 1rem;"><span style="background:#dcfce7;color:#166534;font-weight:700;padding:3px 8px;border-radius:999px;font-size:.72rem;">✓ Verified Logged-In</span></td>
-							</tr>`;
-					});
-
-					html += `</tbody></table></div>`;
-					container.innerHTML = html;
-				} catch (_) {
-					container.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted)">Host tracking available on backend port 8001.</div>`;
-				}
-			}
-
-			// Populate user info after DOM ready
 			document.addEventListener("DOMContentLoaded", () => {
 				const user = getUser();
 				if (user) {
@@ -520,14 +562,11 @@
 					if (window.updateProfileLocation) {
 						window.updateProfileLocation(user.city || null);
 					}
-
 				}
 				renderDashboardAvatar();
 				loadMyBookings();
-				loadHostTracking();
+				loadWishlistCount();
 
-
-				// Avatar click also triggers upload
 				const avatarEl = document.getElementById("dashboardAvatar");
 				if (avatarEl) {
 					avatarEl.addEventListener("click", () => {
@@ -535,7 +574,6 @@
 					});
 				}
 
-				// File input change with Crop Modal
 				const fileInput = document.getElementById("avatarFileInput");
 				if (fileInput) {
 					fileInput.addEventListener("change", (e) => {
@@ -562,7 +600,6 @@
 					});
 				}
 
-				// Remove photo
 				const removeBtn = document.getElementById("removePhotoBtn");
 				if (removeBtn) {
 					removeBtn.addEventListener("click", () => {

@@ -4,7 +4,7 @@ EventManagement SQLAlchemy model.
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Float
 from sqlalchemy.orm import relationship
 
 from Models.base import Base, GUID, JSONType
@@ -26,6 +26,8 @@ class EventManagement(Base):
     event_end_time   = Column(String(50), nullable=True)
     venue            = Column(String(300), nullable=True)
     address          = Column(Text, nullable=True)
+    latitude         = Column(Float, nullable=True)
+    longitude        = Column(Float, nullable=True)
     organizer_name   = Column(String(200), nullable=True)
     organizer_email  = Column(String(255), nullable=False)
     organizer_phone  = Column(String(50), nullable=True)

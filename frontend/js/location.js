@@ -32,10 +32,58 @@ window.JodLocation = (() => {
 
   const LS_CITY_KEY    = "jod_user_city";
   const LS_PINCODE_KEY = "jod_user_pincode";
+  const LS_ADDRESS_KEY = "jod_user_address";
   const LS_LAT_KEY     = "jod_user_lat";
   const LS_LON_KEY     = "jod_user_lon";
   const LS_ASKED_KEY   = "jod_location_asked";
   const SS_PENDING_KEY = "jod_location_pending";
+  const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+  const LEAFLET_JS  = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  const INDIA_CENTER = [20.5937, 78.9629];
+  const CITY_COORDS = {
+    chennai: [13.0827, 80.2707],
+    mumbai: [19.076, 72.8777],
+    bangalore: [12.9716, 77.5946],
+    bengaluru: [12.9716, 77.5946],
+    hyderabad: [17.385, 78.4867],
+    delhi: [28.6139, 77.209],
+    "new delhi": [28.6139, 77.209],
+    kolkata: [22.5726, 88.3639],
+    pune: [18.5204, 73.8567],
+    ahmedabad: [23.0225, 72.5714],
+    jaipur: [26.9124, 75.7873],
+    coimbatore: [11.0168, 76.9558],
+    kochi: [9.9312, 76.2673],
+    cochin: [9.9312, 76.2673],
+    madurai: [9.9252, 78.1198],
+    trichy: [10.7905, 78.7047],
+    tiruchirappalli: [10.7905, 78.7047],
+  };
+  const PIN_PREFIX_CITY = {
+    "110": "delhi", "121": "delhi", "122": "delhi",
+    "400": "mumbai", "401": "mumbai", "410": "mumbai",
+    "560": "bangalore", "561": "bangalore", "562": "bangalore",
+    "600": "chennai", "601": "chennai", "602": "chennai", "603": "chennai",
+    "500": "hyderabad", "501": "hyderabad",
+    "700": "kolkata",
+    "411": "pune",
+    "380": "ahmedabad",
+    "302": "jaipur",
+    "641": "coimbatore",
+    "682": "kochi",
+    "625": "madurai",
+    "620": "trichy",
+  };
+
+  let locMap = null;
+  let locMarker = null;
+  let locAreaLayer = null;
+  let previewTimer = null;
+  let lastPreview = null;
+  let mapInitPromise = null;
+  let previewSeq = 0;
+  let mapPickBound = false;
+  let fillingFromMap = false;
 
   /* ── Haversine (client-side, mirrors backend) ─────────── */
   function haversineKm(lat1, lon1, lat2, lon2) {
@@ -69,23 +117,53 @@ window.JodLocation = (() => {
       : { "Content-Type": "application/json" };
   }
 
-  function cacheLocation(city, pincode, lat, lon) {
+  function extractCityFromAddress(address) {
+    const cleaned = cleanCityName(address);
+    const parts = cleaned.split(",").map((s) => s.trim()).filter(Boolean);
+    const useful = parts.filter((p) => {
+      const digits = p.replace(/\D/g, "");
+      if (digits.length === 6 && digits === p.replace(/\s/g, "")) return false;
+      return !/^(india|tamil nadu|karnataka|maharashtra|delhi|nct of delhi|west bengal|telangana|kerala|andhra pradesh)$/i.test(p);
+    });
+    for (let i = useful.length - 1; i >= 0; i--) {
+      if (CITY_COORDS[useful[i].toLowerCase()]) return useful[i];
+    }
+    return useful[useful.length - 1] || cleaned;
+  }
+
+  function fullAreaAddress(preview) {
+    if (!preview) return "";
+    const formatted = String(preview.formatted || preview.area_address || preview.display_name || "").trim();
+    const pin = String(preview.location_pincode || preview.pincode || "").replace(/\D/g, "");
+    const city = cleanCityName(preview.city || "");
+    if (formatted && !/^\d+(\.\d+)?,\s*\d+(\.\d+)?$/.test(formatted)) return formatted;
+    if (city && pin) return `${city}, ${pin}`;
+    return city || pin || "";
+  }
+
+  function cacheLocation(city, pincode, lat, lon, address) {
     try {
-      if (city) {
-        localStorage.setItem(LS_CITY_KEY, city);
-        try { sessionStorage.setItem(LS_CITY_KEY, city); } catch (_) {}
-        // Sync user object in storage
+      const fullAddress = String(address || "").trim();
+      const shortCity = extractCityFromAddress(fullAddress || city);
+      if (shortCity) {
+        localStorage.setItem(LS_CITY_KEY, shortCity);
+        try { sessionStorage.setItem(LS_CITY_KEY, shortCity); } catch (_) {}
         ["jod_user"].forEach((key) => {
           const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
           if (raw) {
             try {
               const u = JSON.parse(raw);
-              u.city = city;
+              u.city = shortCity;
+              if (fullAddress) u.location_address = fullAddress;
               if (localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(u));
               if (sessionStorage.getItem(key)) sessionStorage.setItem(key, JSON.stringify(u));
             } catch (_) {}
           }
         });
+      }
+      if (fullAddress) {
+        localStorage.setItem(LS_ADDRESS_KEY, fullAddress);
+        try { sessionStorage.setItem(LS_ADDRESS_KEY, fullAddress); } catch (_) {}
       }
       if (pincode) {
         localStorage.setItem(LS_PINCODE_KEY, pincode);
@@ -101,6 +179,17 @@ window.JodLocation = (() => {
       }
       markAsked();
       try { sessionStorage.setItem("jod_location_acquired", "true"); } catch (_) {}
+      try {
+        window.dispatchEvent(new CustomEvent("jod-location-updated", {
+          detail: {
+            city: shortCity || city || null,
+            pincode: pincode || null,
+            address: fullAddress || null,
+            lat: lat ?? null,
+            lon: lon ?? null
+          }
+        }));
+      } catch (_) {}
     } catch (_) {}
   }
 
@@ -130,6 +219,12 @@ window.JodLocation = (() => {
     } catch (_) {}
     return {
       city: getCachedCity(),
+      pincode: (function () {
+        try { return sessionStorage.getItem(LS_PINCODE_KEY) || localStorage.getItem(LS_PINCODE_KEY) || ""; } catch (_) { return ""; }
+      })(),
+      address: (function () {
+        try { return sessionStorage.getItem(LS_ADDRESS_KEY) || localStorage.getItem(LS_ADDRESS_KEY) || ""; } catch (_) { return ""; }
+      })(),
       lat: Number.isFinite(lat) ? lat : null,
       lon: Number.isFinite(lon) ? lon : null,
     };
@@ -146,6 +241,7 @@ window.JodLocation = (() => {
       sessionStorage.removeItem("jod_location_acquired");
       sessionStorage.removeItem(LS_CITY_KEY);
       sessionStorage.removeItem(LS_PINCODE_KEY);
+      sessionStorage.removeItem(LS_ADDRESS_KEY);
       sessionStorage.removeItem(LS_LAT_KEY);
       sessionStorage.removeItem(LS_LON_KEY);
     } catch (_) {}
@@ -185,7 +281,33 @@ window.JodLocation = (() => {
   }
 
   /* ── DOM injection helpers ──────────────────────────────── */
+  function ensureLocationStyles() {
+    if (document.getElementById("jodLocMapStyles")) return;
+    const style = document.createElement("style");
+    style.id = "jodLocMapStyles";
+    style.textContent = `
+      .jod-loc-modal-box { width: min(100%, 34rem); max-height: calc(100vh - 2rem); overflow-y: auto; }
+      .jod-loc-map-panel { margin: 0 0 .9rem; border: 1px solid rgba(37,33,28,.12); border-radius: .85rem; overflow: hidden; background: #f6f3ef; }
+      .jod-loc-map { width: 100%; height: 13.5rem; background: #e8efe6; }
+      .jod-loc-map-status { margin: 0; padding: .55rem .75rem; font-size: .78rem; line-height: 1.4; color: rgba(37,33,28,.62); background: #fff; border-top: 1px solid rgba(37,33,28,.08); }
+      .jod-loc-map-status.is-address { color: var(--dark, #25211c); font-weight: 600; }
+      .jod-loc-pin-wrap { background: none !important; border: none !important; cursor: grab; }
+      .jod-loc-pin-wrap.leaflet-marker-draggable { cursor: grab; }
+      .leaflet-dragging .jod-loc-pin-wrap { cursor: grabbing; }
+      .jod-loc-pin {
+        width: 22px; height: 22px;
+        background: #ff7508;
+        border: 3px solid #fff;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        box-shadow: 0 2px 8px rgba(0,0,0,.35);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function ensureLocationUI() {
+    ensureLocationStyles();
     if (document.getElementById("jodLocationToast")) return;
 
     const toast = document.createElement("div");
@@ -223,17 +345,17 @@ window.JodLocation = (() => {
         <div class="jod-loc-modal-header">
           <span class="jod-loc-modal-icon" aria-hidden="true">🗺️</span>
           <h2 class="jod-loc-modal-title" id="jodLocModalTitle">Enter Your Location</h2>
-          <p class="jod-loc-modal-sub">Help us show events near you by entering your city or pincode.</p>
+          <p class="jod-loc-modal-sub">Enter your area or pincode, then drag the pin (or tap the map) to fill the exact address.</p>
         </div>
         <div class="jod-loc-modal-body">
           <div class="jod-loc-field">
-            <label class="jod-loc-label" for="jodLocCityInput">City Name</label>
+            <label class="jod-loc-label" for="jodLocCityInput">Area / Address</label>
             <input
               class="jod-loc-input"
               type="text"
               id="jodLocCityInput"
-              placeholder="e.g. Chennai, Mumbai, Bangalore…"
-              autocomplete="address-level2"
+              placeholder="e.g. Old Washermanpet, Royapuram, Chennai"
+              autocomplete="street-address"
             />
           </div>
           <div class="jod-loc-field">
@@ -246,6 +368,10 @@ window.JodLocation = (() => {
               inputmode="numeric"
               maxlength="10"
             />
+          </div>
+          <div class="jod-loc-map-panel" id="jodLocMapPanel">
+            <div class="jod-loc-map" id="jodLocMap" role="img" aria-label="Location map"></div>
+            <p class="jod-loc-map-status" id="jodLocMapStatus">Enter a city or pincode to plot it on the map.</p>
           </div>
           <p class="jod-loc-field-error" id="jodLocFieldError" hidden></p>
           <button class="jod-loc-submit" id="jodLocSubmit" type="button">
@@ -268,24 +394,17 @@ window.JodLocation = (() => {
     });
     document.getElementById("jodLocationDismiss").addEventListener("click", hideToast);
     document.getElementById("jodLocSubmit").addEventListener("click", handleManualSubmit);
-    document.getElementById("jodLocGpsRetry").addEventListener("click", () => {
-      closeModal();
-      getUserLocation()
-        .then(({ lat, lon }) => sendLocationToBackend(lat, lon))
-        .then((loc) => {
-          if (loc?.city) {
-            showLocationConfirmation(loc.city);
-            updateRecommendations(loc);
-          }
-        })
-        .catch(() => openModal());
-    });
+    document.getElementById("jodLocGpsRetry").addEventListener("click", handleGpsRetry);
     document.getElementById("jodLocCityInput").addEventListener("keydown", (e) => {
       if (e.key === "Enter") handleManualSubmit();
     });
     document.getElementById("jodLocPincodeInput").addEventListener("keydown", (e) => {
       if (e.key === "Enter") handleManualSubmit();
     });
+    document.getElementById("jodLocCityInput").addEventListener("input", scheduleMapPreview);
+    document.getElementById("jodLocPincodeInput").addEventListener("input", scheduleMapPreview);
+    document.getElementById("jodLocCityInput").addEventListener("change", scheduleMapPreview);
+    document.getElementById("jodLocPincodeInput").addEventListener("change", scheduleMapPreview);
   }
 
   function showToast() {
@@ -306,7 +425,35 @@ window.JodLocation = (() => {
       void m.offsetWidth;
       m.classList.add("is-open");
       const inp = document.getElementById("jodLocCityInput");
+      const pin = document.getElementById("jodLocPincodeInput");
+      const cached = getCachedLocation();
+      if (inp && !inp.value) {
+        const area = cached.address || String(cached.city || "").replace(/\s+(municipal\s+)?corporation$/i, "").trim();
+        if (area) inp.value = area;
+      }
+      if (pin && !pin.value) {
+        try {
+          pin.value = sessionStorage.getItem(LS_PINCODE_KEY) || localStorage.getItem(LS_PINCODE_KEY) || "";
+        } catch (_) {}
+      }
       if (inp) inp.focus();
+      initLocationMap().then(() => {
+        if ((inp && inp.value.trim()) || (pin && pin.value.trim())) {
+          previewAndPlotMap();
+        } else if (cached.lat != null && cached.lon != null) {
+          plotOnMap({
+            location_lat: cached.lat,
+            location_lon: cached.lon,
+            city: cached.city,
+            display_name: cached.address || (cached.city ? `${cached.city}, India` : ""),
+            formatted: cached.address || "",
+          });
+        } else {
+          setMapStatus("Enter a city or pincode to plot it on the map.");
+        }
+      }).catch(() => {
+        setMapStatus("Map could not load. You can still confirm your city.");
+      });
     }
   }
 
@@ -319,6 +466,497 @@ window.JodLocation = (() => {
     }
   }
 
+  function setMapStatus(text, isAddress) {
+    const el = document.getElementById("jodLocMapStatus");
+    if (!el) return;
+    el.textContent = text || "";
+    el.classList.toggle("is-address", Boolean(isAddress && text));
+  }
+
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve(window.L);
+    if (mapInitPromise) return mapInitPromise;
+    mapInitPromise = new Promise((resolve, reject) => {
+      if (!document.getElementById("jodLeafletCss")) {
+        const link = document.createElement("link");
+        link.id = "jodLeafletCss";
+        link.rel = "stylesheet";
+        link.href = LEAFLET_CSS;
+        document.head.appendChild(link);
+      }
+      const script = document.createElement("script");
+      script.src = LEAFLET_JS;
+      script.async = true;
+      script.onload = () => {
+        if (!window.L) {
+          reject(new Error("Leaflet failed to initialize"));
+          return;
+        }
+        try {
+          window.L.Icon.Default.mergeOptions({
+            iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+            iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+            shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+          });
+        } catch (_) {}
+        resolve(window.L);
+      };
+      script.onerror = () => reject(new Error("Could not load map library"));
+      document.head.appendChild(script);
+    });
+    return mapInitPromise;
+  }
+
+  async function initLocationMap() {
+    const L = await loadLeaflet();
+    const el = document.getElementById("jodLocMap");
+    if (!el) throw new Error("Map container missing");
+    if (!locMap) {
+      locMap = L.map(el, {
+        zoomControl: true,
+        scrollWheelZoom: true,
+        attributionControl: true,
+      }).setView(INDIA_CENTER, 5);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>",
+      }).addTo(locMap);
+      bindMapPickHandlers();
+    }
+    setTimeout(() => {
+      if (locMap) locMap.invalidateSize();
+    }, 80);
+    setTimeout(() => {
+      if (locMap) locMap.invalidateSize();
+    }, 340);
+    return locMap;
+  }
+
+  function clearMapLayers() {
+    if (!locMap) return;
+    if (locMarker) {
+      locMap.removeLayer(locMarker);
+      locMarker = null;
+    }
+    if (locAreaLayer) {
+      locMap.removeLayer(locAreaLayer);
+      locAreaLayer = null;
+    }
+  }
+
+  function plotOnMap(preview, opts) {
+    opts = opts || {};
+    if (!preview || preview.location_lat == null || preview.location_lon == null) return;
+    const lat = Number(preview.location_lat);
+    const lon = Number(preview.location_lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    lastPreview = Object.assign({}, preview, { location_lat: lat, location_lon: lon });
+    applyPreviewToInputs(lastPreview);
+    const L = window.L;
+    if (!L || !locMap) {
+      initLocationMap().then(() => plotOnMap(preview, opts)).catch(() => {});
+      return;
+    }
+
+    clearMapLayers();
+    locMap.invalidateSize();
+
+    const pin = String(preview.location_pincode || "").replace(/\D/g, "");
+    const zoom = pin.length === 6 ? 16 : 14;
+    const radius = pin.length === 6 ? 900 : 3500;
+
+    locAreaLayer = L.circle([lat, lon], {
+      radius,
+      color: "#ff7508",
+      weight: 2,
+      fillColor: "#ff7508",
+      fillOpacity: 0.18,
+    }).addTo(locMap);
+
+    const address = formatLocationLabel(preview.city, preview.location_pincode, preview.display_name);
+    const pinIcon = L.divIcon({
+      className: "jod-loc-pin-wrap",
+      html: '<div class="jod-loc-pin"></div>',
+      iconSize: [30, 42],
+      iconAnchor: [15, 40],
+      popupAnchor: [0, -36],
+    });
+    locMarker = L.marker([lat, lon], {
+      icon: pinIcon,
+      draggable: true,
+      autoPan: true,
+      autoPanPadding: [48, 48],
+      riseOnDrag: true,
+      zIndexOffset: 600,
+      title: "Drag to set your exact location",
+    }).addTo(locMap);
+
+    locMarker.on("drag", (e) => {
+      const p = e.target.getLatLng();
+      if (locAreaLayer && typeof locAreaLayer.setLatLng === "function") {
+        locAreaLayer.setLatLng(p);
+      }
+    });
+    locMarker.on("dragstart", () => {
+      if (locMarker.closePopup) locMarker.closePopup();
+      setMapStatus("Drop the pin on your exact location.");
+    });
+    locMarker.on("dragend", (e) => {
+      const p = e.target.getLatLng();
+      lastPreview = Object.assign({}, lastPreview || {}, {
+        location_lat: p.lat,
+        location_lon: p.lng,
+      });
+      reverseGeocodeDroppedPin(p.lat, p.lng);
+    });
+
+    if (address) {
+      locMarker.bindPopup(escapeHtml(address) + "<br><small>Drag the pin to adjust</small>").openPopup();
+    }
+    setMapStatus(address ? `📍 ${address} — drag the pin to adjust` : "Drag the pin to your exact spot.", true);
+    const parsed = parseCityAndPin(lastPreview);
+    if (!opts.skipReverse && (!parsed.city || !parsed.pincode)) {
+      reverseGeocodeDroppedPin(lat, lon);
+    }
+
+    if (opts.keepView) return;
+    const move = () => {
+      if (!locMap) return;
+      locMap.invalidateSize();
+      if (typeof locMap.flyTo === "function") {
+        locMap.flyTo([lat, lon], zoom, { duration: 0.85 });
+      } else {
+        locMap.setView([lat, lon], zoom);
+      }
+    };
+    requestAnimationFrame(move);
+    setTimeout(move, 120);
+  }
+
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[ch]));
+  }
+
+  function bindMapPickHandlers() {
+    if (!locMap || mapPickBound) return;
+    mapPickBound = true;
+    locMap.on("click", (e) => {
+      if (!e || !e.latlng) return;
+      placePinAt(e.latlng.lat, e.latlng.lng, { keepView: true });
+    });
+  }
+
+  function placePinAt(lat, lon, opts) {
+    opts = opts || {};
+    const alreadyHadPin = Boolean(locMarker);
+    if (alreadyHadPin && locAreaLayer) {
+      locMarker.setLatLng([lat, lon]);
+      if (typeof locAreaLayer.setLatLng === "function") locAreaLayer.setLatLng([lat, lon]);
+      lastPreview = Object.assign({}, lastPreview || {}, {
+        location_lat: lat,
+        location_lon: lon,
+      });
+      reverseGeocodeDroppedPin(lat, lon);
+      return;
+    }
+    plotOnMap({
+      city: (document.getElementById("jodLocCityInput")?.value || "").trim(),
+      location_pincode: (document.getElementById("jodLocPincodeInput")?.value || "").trim(),
+      location_lat: lat,
+      location_lon: lon,
+      display_name: "",
+    }, { keepView: Boolean(opts.keepView && alreadyHadPin) });
+  }
+
+  async function reverseGeocodeDroppedPin(lat, lon) {
+    setMapStatus("Updating address for this pin…");
+    try {
+      const preview = await fetchCoordsPreview(lat, lon);
+      preview.location_lat = lat;
+      preview.location_lon = lon;
+      lastPreview = preview;
+      applyPreviewToInputs(preview);
+      const parsed = parseCityAndPin(preview);
+      const address = formatLocationLabel(parsed.city, parsed.pincode, preview.display_name);
+      if (locMarker) {
+        locMarker.bindPopup(escapeHtml(address || "Dropped pin") + "<br><small>Drag the pin to adjust</small>").openPopup();
+      }
+      setMapStatus(address ? `📍 ${address} — drag the pin to adjust` : "Pin moved. Drag again or confirm this spot.", true);
+    } catch (_) {
+      lastPreview = Object.assign({}, lastPreview || {}, {
+        location_lat: lat,
+        location_lon: lon,
+      });
+      setMapStatus("Pin moved. Drag again or confirm this spot.", true);
+    }
+  }
+
+  function applyPreviewToInputs(preview) {
+    if (!preview) return;
+    const parsed = parseCityAndPin(preview);
+    const cityInput = document.getElementById("jodLocCityInput");
+    const pinInput = document.getElementById("jodLocPincodeInput");
+    const area = fullAreaAddress(Object.assign({}, preview, {
+      location_pincode: parsed.pincode || preview.location_pincode,
+    }));
+    fillingFromMap = true;
+    try {
+      if (cityInput && area) cityInput.value = area;
+      if (pinInput && parsed.pincode) pinInput.value = parsed.pincode;
+    } finally {
+      fillingFromMap = false;
+    }
+    lastPreview = Object.assign({}, lastPreview || {}, preview, {
+      city: parsed.city || preview.city,
+      location_pincode: parsed.pincode || preview.location_pincode,
+      formatted: area || preview.formatted,
+    });
+  }
+
+  function cleanCityName(name) {
+    return String(name || "")
+      .replace(/^(greater|brihan)\s+/i, "")
+      .replace(/\s+(municipal\s+)?corporation$/i, "")
+      .trim();
+  }
+
+  function parseCityAndPin(preview) {
+    const rawCity = cleanCityName(preview && (preview.city || preview.town));
+    let pin = String((preview && (preview.location_pincode || preview.pincode)) || "").replace(/\D/g, "");
+    let city = rawCity && !/^\d+$/.test(rawCity) ? rawCity : "";
+    const display = String((preview && preview.display_name) || "");
+    if (!pin) {
+      const m = display.match(/\b(\d{6})\b/);
+      if (m) pin = m[1];
+    }
+    if (!city) {
+      const first = display.split(",")[0] || "";
+      city = cleanCityName(first.replace(/\b\d{6}\b/g, ""));
+    }
+    return { city, pincode: pin };
+  }
+
+  function scheduleMapPreview() {
+    if (fillingFromMap) return;
+    if (previewTimer) clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      previewAndPlotMap().catch(() => {});
+    }, 400);
+  }
+
+  async function previewAndPlotMap() {
+    const city = (document.getElementById("jodLocCityInput")?.value || "").trim();
+    const pincode = (document.getElementById("jodLocPincodeInput")?.value || "").trim();
+    const errEl = document.getElementById("jodLocFieldError");
+    if (!city && pincode.replace(/\D/g, "").length < 6) {
+      setMapStatus("Enter a city or pincode to plot it on the map.");
+      return null;
+    }
+    if (city && city.length < 2 && pincode.replace(/\D/g, "").length < 6) return null;
+
+    const seq = ++previewSeq;
+    setMapStatus("Finding this area on the map…");
+    try {
+      const preview = await fetchLocationPreview(city, pincode);
+      if (seq !== previewSeq) return null;
+      if (errEl) errEl.hidden = true;
+      await initLocationMap();
+      if (seq !== previewSeq) return null;
+      plotOnMap(preview);
+      return preview;
+    } catch (err) {
+      if (seq !== previewSeq) return null;
+      setMapStatus(err.message || "Could not find that area. Try another city or pincode.");
+      return null;
+    }
+  }
+
+  async function fetchLocationPreview(city, pincode) {
+    const params = new URLSearchParams();
+    if (city) params.set("city", city);
+    if (pincode) params.set("pincode", pincode);
+    try {
+      const res = await fetch(`${API_BASE}/api/location/preview?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Number.isFinite(Number(data.location_lat)) && Number.isFinite(Number(data.location_lon))) {
+          return data;
+        }
+      }
+    } catch (_) {}
+    return geocodeWithFallbacks(city, pincode);
+  }
+
+  async function fetchCoordsPreview(lat, lon) {
+    const params = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+    try {
+      const venueRes = await fetch(`${API_BASE}/api/location/venue-reverse?${params.toString()}`);
+      if (venueRes.ok) {
+        const data = await venueRes.json();
+        const addr = data.address || {};
+        const pin = String(addr.postcode || "").replace(/\D/g, "");
+        const city = cleanCityName(addr.city || addr.town || addr.municipality || "");
+        return {
+          city,
+          location_pincode: pin,
+          location_lat: lat,
+          location_lon: lon,
+          display_name: data.formatted || data.display_name,
+          formatted: data.formatted || "",
+          boundingbox: null,
+        };
+      }
+    } catch (_) {}
+    try {
+      const res = await fetch(`${API_BASE}/api/location/preview/coords?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          data.location_lat = lat;
+          data.location_lon = lon;
+          return data;
+        }
+      }
+    } catch (_) {}
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&namedetails=1&accept-language=en&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+      const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
+      if (res.ok) {
+        const hit = await res.json();
+        const address = hit.address || {};
+        const city = cleanCityName(
+          address.city || address.town || address.village || address.suburb ||
+          address.municipality || address.state_district || address.county || hit.name
+        );
+        const pin = String(address.postcode || "").replace(/\D/g, "") || (String(hit.name || "").match(/\d{6}/) || [])[0] || null;
+        const skipAdmin = /^(cmwssb\b|ward\s+\d+|zone\s+\d+|division\s+\d+|circle\s+\d+)/i;
+        const neighbourhoodRaw = address.neighbourhood || address.quarter || "";
+        const neighbourhood = skipAdmin.test(neighbourhoodRaw) ? "" : neighbourhoodRaw;
+        const suburb = String(address.suburb || "").replace(/^zone\s+\d+\s+/i, "");
+        const road = [address.house_number, address.road || address.pedestrian].filter(Boolean).join(" ");
+        const parts = [road, neighbourhood, suburb, city, pin].map((p) => String(p || "").trim()).filter((p) => p && !skipAdmin.test(p));
+        const unique = [];
+        parts.forEach((p) => {
+          if (!unique.some((u) => u.toLowerCase() === p.toLowerCase())) unique.push(p);
+        });
+        const formatted = unique.join(", ");
+        return {
+          city,
+          location_pincode: pin,
+          location_lat: lat,
+          location_lon: lon,
+          display_name: formatted || formatLocationLabel(city, pin, hit.display_name),
+          formatted: formatted || hit.display_name || "",
+          boundingbox: null,
+        };
+      }
+    } catch (_) {}
+    return {
+      city: (document.getElementById("jodLocCityInput")?.value || "").trim() || null,
+      location_pincode: (document.getElementById("jodLocPincodeInput")?.value || "").trim() || null,
+      location_lat: lat,
+      location_lon: lon,
+      display_name: `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+      boundingbox: null,
+    };
+  }
+
+  async function geocodeWithFallbacks(city, pincode) {
+    const pin = String(pincode || "").replace(/\D/g, "");
+    const cityQ = String(city || "").replace(/\s+(municipal\s+)?corporation$/i, "").trim();
+    const queries = [];
+    if (cityQ && pin.length === 6) queries.push(`${cityQ} ${pin}`);
+    if (pin.length === 6) queries.push(pin);
+    if (cityQ) queries.push(`${cityQ}, India`);
+
+    let results = [];
+    for (const q of queries) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=in&limit=5&accept-language=en&q=${encodeURIComponent(q)}`;
+        const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length) {
+          results = data;
+          break;
+        }
+      } catch (_) {}
+    }
+
+    if (results.length) {
+      const cityL = cityQ.toLowerCase();
+      const hit = results.slice().sort((a, b) => {
+        const score = (item) => {
+          const addr = item.address || {};
+          const post = String(addr.postcode || item.name || "").replace(/\D/g, "");
+          let n = Number(item.importance || 0);
+          if (pin && (post === pin || String(item.name || "") === pin)) n += 90;
+          const name = `${item.name || ""} ${item.display_name || ""}`.toLowerCase();
+          if (cityL && name.includes(cityL)) n += 40;
+          if ((item.addresstype || item.type) === "postcode") n += 50;
+          if (/corporation/i.test(name)) n -= 25;
+          return n;
+        };
+        return score(b) - score(a);
+      })[0];
+      const address = hit.address || {};
+      const resolvedCity = (cityQ && !/^\d+$/.test(cityQ))
+        ? cityQ
+        : (address.city || address.town || address.village || cityQ || null);
+      const resolvedPin = pin || address.postcode || null;
+      return {
+        city: resolvedCity,
+        location_pincode: resolvedPin,
+        location_lat: parseFloat(hit.lat),
+        location_lon: parseFloat(hit.lon),
+        display_name: formatLocationLabel(resolvedCity, resolvedPin, hit.display_name),
+        boundingbox: null,
+      };
+    }
+
+    const cityKey = cityQ.toLowerCase();
+    const prefix = pin.slice(0, 3);
+    const mapped = CITY_COORDS[cityKey] ? cityKey : PIN_PREFIX_CITY[prefix];
+    const coords = mapped ? CITY_COORDS[mapped] : null;
+    if (coords) {
+      const labelCity = cityQ || mapped;
+      return {
+        city: labelCity,
+        location_pincode: pin || null,
+        location_lat: coords[0],
+        location_lon: coords[1],
+        display_name: formatLocationLabel(labelCity, pin),
+        boundingbox: null,
+      };
+    }
+    throw new Error("Could not find that city or pincode. Please try another.");
+  }
+
+  async function handleGpsRetry() {
+    const errEl = document.getElementById("jodLocFieldError");
+    const gpsBtn = document.getElementById("jodLocGpsRetry");
+    if (gpsBtn) gpsBtn.disabled = true;
+    setMapStatus("Locating you with GPS…");
+    try {
+      const { lat, lon } = await getUserLocation();
+      const preview = await fetchCoordsPreview(lat, lon);
+      if (errEl) errEl.hidden = true;
+      await initLocationMap();
+      plotOnMap(preview);
+    } catch (_) {
+      setMapStatus("GPS unavailable. Enter a city or pincode to plot the area.");
+      if (errEl) {
+        errEl.textContent = "GPS is blocked or unavailable. Enter your city instead.";
+        errEl.hidden = false;
+      }
+    } finally {
+      if (gpsBtn) gpsBtn.disabled = false;
+    }
+  }
+
   async function handleManualSubmit() {
     const cityInput    = document.getElementById("jodLocCityInput");
     const pincodeInput = document.getElementById("jodLocPincodeInput");
@@ -328,9 +966,10 @@ window.JodLocation = (() => {
 
     const city    = cityInput?.value.trim() || "";
     const pincode = pincodeInput?.value.trim() || "";
+    const dropped = locMarker && typeof locMarker.getLatLng === "function" ? locMarker.getLatLng() : null;
 
-    if (!city && !pincode) {
-      if (errEl) { errEl.textContent = "Please enter a city name or pincode."; errEl.hidden = false; }
+    if (!city && !pincode && !dropped) {
+      if (errEl) { errEl.textContent = "Please enter a city name or pincode, or drop a pin on the map."; errEl.hidden = false; }
       cityInput?.focus();
       return;
     }
@@ -340,10 +979,43 @@ window.JodLocation = (() => {
     if (submitBtn) submitBtn.disabled = true;
 
     try {
-      const result = await fallbackManualEntry(city || pincode, pincode || undefined);
+      let result = null;
+      if (dropped && Number.isFinite(dropped.lat) && Number.isFinite(dropped.lng)) {
+        await reverseGeocodeDroppedPin(dropped.lat, dropped.lng);
+        const filledCity = (cityInput?.value || "").trim() || city;
+        const filledPin = (pincodeInput?.value || "").trim() || pincode;
+        try {
+          result = await sendLocationToBackend(dropped.lat, dropped.lng);
+        } catch (_) {
+          cacheLocation(filledCity, filledPin, dropped.lat, dropped.lng, filledCity);
+          result = {
+            city: filledCity,
+            location_pincode: filledPin,
+            lat: dropped.lat,
+            lon: dropped.lng,
+            address: filledCity,
+          };
+        }
+      } else {
+        await previewAndPlotMap();
+        if (locMarker) {
+          const p = locMarker.getLatLng();
+          await reverseGeocodeDroppedPin(p.lat, p.lng);
+          const filledCity = (cityInput?.value || "").trim() || city;
+          const filledPin = (pincodeInput?.value || "").trim() || pincode;
+          try {
+            result = await sendLocationToBackend(p.lat, p.lng);
+          } catch (_) {
+            cacheLocation(filledCity, filledPin, p.lat, p.lng, filledCity);
+            result = { city: filledCity, location_pincode: filledPin, lat: p.lat, lon: p.lng, address: filledCity };
+          }
+        } else {
+          result = await fallbackManualEntry(city || pincode, pincode || undefined);
+        }
+      }
       closeModal();
-      if (result?.city) {
-        showLocationConfirmation(result.city);
+      if (result?.city || result?.location_pincode || result?.lat != null) {
+        showLocationConfirmation(result.city, result.location_pincode);
         updateRecommendations(result);
       }
     } catch (err) {
@@ -441,17 +1113,22 @@ window.JodLocation = (() => {
       throw new Error(data?.detail || `Location update failed (${res.status})`);
     }
     const result = await res.json();
+    const area = (lastPreview && (lastPreview.formatted || lastPreview.display_name))
+      || (document.getElementById("jodLocCityInput")?.value || "").trim()
+      || result.city;
     cacheLocation(
       result.city,
       result.location_pincode,
       result.location_lat ?? lat,
-      result.location_lon ?? lon
+      result.location_lon ?? lon,
+      area
     );
     return {
       city: result.city,
       location_pincode: result.location_pincode,
       lat: result.location_lat ?? lat,
       lon: result.location_lon ?? lon,
+      address: area,
     };
   }
 
@@ -477,38 +1154,59 @@ window.JodLocation = (() => {
       result.city,
       result.location_pincode,
       result.location_lat,
-      result.location_lon
+      result.location_lon,
+      city
     );
     return {
       city: result.city,
       location_pincode: result.location_pincode,
       lat: result.location_lat,
       lon: result.location_lon,
+      address: city,
     };
   }
 
-  function showLocationConfirmation(city) {
+  function formatLocationLabel(city, pincode, displayName) {
+    let name = String(city || "").replace(/\s+(municipal\s+)?corporation$/i, "").trim();
+    const pin = String(pincode || "").replace(/\D/g, "");
+    if (name && pin) return `${name}, ${pin}, India`;
+    if (name) return name.toLowerCase().includes("india") ? name : `${name}, India`;
+    if (pin) return `${pin}, India`;
+    const fallback = String(displayName || "").replace(/\s+(municipal\s+)?corporation/ig, "").trim();
+    return fallback;
+  }
+
+  function showLocationConfirmation(city, pincode) {
     ensureLocationUI();
     const cityEl = document.getElementById("jodLocationCity");
-    if (cityEl) cityEl.textContent = `You are in ${city}, India — Change location?`;
+    const label = formatLocationLabel(city, pincode);
+    if (cityEl) cityEl.textContent = label
+      ? `You are in ${label} — Change location?`
+      : "Location saved — Change location?";
     showToast();
     setTimeout(hideToast, 8000);
   }
 
   function updateProfileLocation(cityOrLoc) {
     let city = "";
+    let pincode = "";
     if (typeof cityOrLoc === "string") {
       city = cityOrLoc.trim();
     } else if (cityOrLoc && typeof cityOrLoc === "object") {
       city = (cityOrLoc.city || "").trim();
+      pincode = cityOrLoc.location_pincode || cityOrLoc.pincode || "";
     }
     if (!city) {
       const cached = getCachedCity();
       if (cached) city = cached.trim();
     }
-    if (!city) return;
-
-    const formattedLocation = city.toLowerCase().includes("india") ? city : `${city}, India`;
+    if (!pincode) {
+      try {
+        pincode = sessionStorage.getItem(LS_PINCODE_KEY) || localStorage.getItem(LS_PINCODE_KEY) || "";
+      } catch (_) {}
+    }
+    const formattedLocation = formatLocationLabel(city, pincode);
+    if (!formattedLocation) return;
 
     // 1. Update dashboard profile section (#dashUserLocation)
     const dashLocEl = document.getElementById("dashUserLocation");
@@ -585,7 +1283,7 @@ window.JodLocation = (() => {
       const { lat, lon } = await getUserLocation();
       const loc = await sendLocationToBackend(lat, lon);
       if (loc?.city) {
-        showLocationConfirmation(loc.city);
+        showLocationConfirmation(loc.city, loc.location_pincode);
         updateRecommendations(loc);
       }
     } catch (_geoErr) {
@@ -629,6 +1327,8 @@ window.JodLocation = (() => {
     initLocationFlow,
     applyCachedRecommendations,
     hasAcquiredLocation,
+    getCachedCity,
+    getCachedLocation,
     clearLocationSession,
     haversineKm,
     RADIUS_KM,

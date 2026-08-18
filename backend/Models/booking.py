@@ -33,6 +33,7 @@ class Booking(Base):
     customer = relationship("User", back_populates="bookings")
     event    = relationship("Event", back_populates="bookings")
     tickets  = relationship("Ticket", back_populates="booking", cascade="all, delete-orphan")
+    form_submissions = relationship("FormSubmission", back_populates="booking")
 
     def __repr__(self):
         return f"<Booking(booking_id={self.booking_id}, customer_id={self.customer_id}, event_id={self.event_id})>"

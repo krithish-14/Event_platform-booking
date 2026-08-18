@@ -1,16 +1,16 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<meta name="description" content="Get help with your event bookings, tickets, payments, and account on JOD Events." />
+	<meta name="description" content="Get help with bookings, tickets, payments, and hosting on JOD Events. Search FAQs or raise a support ticket." />
 	<title>Help & Support | JOD Events</title>
 	<link rel="stylesheet" href="css/style.css?v=13" />
 	<link rel="stylesheet" href="css/responsive.css?v=13" />
 	<style>
 		.page-hero {
-			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
-			padding: 4.5rem 0 3rem;
+			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 58%, #3d2a14 100%);
+			padding: 5rem 0 3.25rem;
 			color: #fff;
 			position: relative;
 			overflow: hidden;
@@ -18,146 +18,412 @@
 		.page-hero::before {
 			content: '';
 			position: absolute; inset: 0;
-			background: radial-gradient(ellipse at 70% 50%, rgba(255,117,8,.18) 0%, transparent 65%);
+			background:
+				radial-gradient(ellipse at 78% 18%, rgba(255,117,8,.28) 0%, transparent 52%),
+				radial-gradient(ellipse at 12% 86%, rgba(255,161,54,.14) 0%, transparent 46%);
 			pointer-events: none;
 		}
 		.hero-content {
-			max-width: 640px;
+			max-width: 760px;
 			margin: 0 auto;
 			text-align: center;
+			position: relative;
+		}
+		.help-kicker {
+			display: inline-flex;
+			align-items: center;
+			gap: .4rem;
+			font-size: .72rem;
+			font-weight: 700;
+			letter-spacing: .14em;
+			text-transform: uppercase;
+			color: #ffd7a8;
+			background: rgba(255,117,8,.16);
+			border: 1px solid rgba(255,117,8,.32);
+			border-radius: 999px;
+			padding: .32rem .85rem;
+			margin-bottom: 1rem;
 		}
 		.hero-content h1 {
-			font-size: 2.25rem;
-			margin: 0 0 .5rem;
+			font-size: clamp(2rem, 4vw, 3rem);
+			margin: 0 0 .55rem;
 			font-family: var(--display);
+			letter-spacing: -.03em;
 		}
 		.hero-content p {
-			color: rgba(255,255,255,.7);
-			font-size: 1rem;
-			margin-bottom: 1.5rem;
+			color: rgba(255,255,255,.72);
+			font-size: 1.05rem;
+			line-height: 1.55;
+			margin: 0 auto 1.6rem;
+			max-width: 560px;
 		}
 		.help-search-wrap {
 			position: relative;
+			max-width: 620px;
+			margin: 0 auto;
 		}
 		.help-search-wrap input {
 			width: 100%;
-			padding: 1rem 1.25rem 1rem 3rem;
+			padding: 1.05rem 1.25rem 1.05rem 3.15rem;
 			border-radius: 999px;
-			border: 1px solid rgba(255,255,255,.2);
+			border: 1px solid rgba(255,255,255,.18);
 			background: rgba(255,255,255,.12);
-			backdrop-filter: blur(10px);
+			backdrop-filter: blur(12px);
 			color: #fff;
-			font-size: .95rem;
+			font-size: .98rem;
 			outline: none;
-			transition: background .2s, border-color .2s;
+			box-shadow: 0 18px 40px rgba(0,0,0,.18);
+			transition: background .2s, border-color .2s, box-shadow .2s;
 		}
-		.help-search-wrap input::placeholder { color: rgba(255,255,255,.6); }
+		.help-search-wrap input::placeholder { color: rgba(255,255,255,.58); }
 		.help-search-wrap input:focus {
-			background: rgba(255,255,255,.22);
+			background: rgba(255,255,255,.2);
 			border-color: var(--primary);
+			box-shadow: 0 0 0 4px rgba(255,117,8,.22);
 		}
 		.help-search-wrap svg {
 			position: absolute;
-			left: 1.1rem;
+			left: 1.15rem;
 			top: 50%;
 			transform: translateY(-50%);
 			width: 1.25rem; height: 1.25rem;
-			fill: rgba(255,255,255,.6);
+			fill: rgba(255,255,255,.7);
+		}
+		.help-chips {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			gap: .5rem;
+			margin-top: 1.15rem;
+		}
+		.help-chip {
+			border: 1px solid rgba(255,255,255,.16);
+			background: rgba(255,255,255,.08);
+			color: #fff;
+			border-radius: 999px;
+			padding: .38rem .85rem;
+			font-size: .8rem;
+			font-weight: 600;
+			cursor: pointer;
+			transition: background .2s, border-color .2s, transform .15s;
+		}
+		.help-chip:hover, .help-chip.is-active {
+			background: var(--primary);
+			border-color: var(--primary);
+			transform: translateY(-1px);
 		}
 
-		.help-section { padding: 3.5rem 0 4rem; }
+		.help-section { padding: 2.75rem 0 4.5rem; }
+
+		.help-topics {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 1rem;
+			margin: -2.4rem 0 2.5rem;
+			position: relative;
+			z-index: 2;
+		}
+		.help-topic {
+			background: #fff;
+			border: 1px solid var(--border);
+			border-radius: 18px;
+			padding: 1.2rem 1.15rem 1.15rem;
+			box-shadow: 0 16px 40px rgba(38,35,31,.08);
+			text-align: left;
+			cursor: pointer;
+			transition: transform .2s, box-shadow .2s, border-color .2s;
+			display: flex;
+			flex-direction: column;
+			gap: .45rem;
+			min-height: 148px;
+		}
+		.help-topic:hover {
+			transform: translateY(-4px);
+			border-color: #fed7aa;
+			box-shadow: 0 22px 48px rgba(255,117,8,.14);
+		}
+		.help-topic-icon {
+			width: 2.6rem; height: 2.6rem;
+			border-radius: 12px;
+			display: flex; align-items: center; justify-content: center;
+			background: rgba(255,117,8,.12);
+			color: var(--primary);
+		}
+		.help-topic-icon svg {
+			width: 1.2rem; height: 1.2rem;
+			stroke: currentColor;
+			fill: none;
+		}
+		.help-topic h3 {
+			margin: .15rem 0 0;
+			font-size: 1rem;
+			color: var(--foreground);
+		}
+		.help-topic p {
+			margin: 0;
+			font-size: .82rem;
+			color: var(--muted);
+			line-height: 1.45;
+		}
 
 		.help-grid {
 			display: grid;
-			grid-template-columns: 1fr 340px;
-			gap: 2.5rem;
+			grid-template-columns: minmax(0, 1fr) 340px;
+			gap: 1.75rem;
+			align-items: start;
 		}
-		@media (max-width: 860px) {
-			.help-grid { grid-template-columns: 1fr; }
-		}
-
 		.section-h2 {
 			font-size: 1.35rem;
-			margin: 0 0 1.25rem;
+			margin: 0 0 .35rem;
 			color: var(--foreground);
 		}
-
-		.faq-accordion {
-			display: flex;
-			flex-direction: column;
-			gap: 1rem;
+		.section-sub {
+			margin: 0 0 1.15rem;
+			color: var(--muted);
+			font-size: .9rem;
 		}
-		.faq-item {
+
+		.help-faq { display: flex; flex-direction: column; gap: .8rem; }
+		.help-faq-item {
 			background: #fff;
-			border-radius: 14px;
+			border-radius: 16px;
 			border: 1px solid var(--border);
 			overflow: hidden;
-			box-shadow: 0 2px 10px rgba(38,35,31,.03);
-			transition: border-color .2s;
+			box-shadow: 0 2px 12px rgba(38,35,31,.04);
+			transition: border-color .2s, box-shadow .2s;
 		}
-		.faq-item.is-open {
-			border-color: var(--primary);
+		.help-faq-item.is-open {
+			border-color: #fdba74;
+			box-shadow: 0 10px 28px rgba(255,117,8,.1);
 		}
-		.faq-question {
-			padding: 1.25rem 1.5rem;
+		.help-faq-q {
+			width: 100%;
+			padding: 1.15rem 1.25rem;
 			font-weight: 700;
-			font-size: 1rem;
+			font-size: .98rem;
 			color: var(--foreground);
 			cursor: pointer;
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
-			user-select: none;
+			gap: 1rem;
+			text-align: left;
+			background: none;
+			border: 0;
+			font-family: inherit;
 		}
-		.faq-question span { font-size: 1.2rem; transition: transform .25s; }
-		.faq-item.is-open .faq-question span { transform: rotate(45deg); }
-		.faq-answer {
-			padding: 0 1.5rem 1.25rem;
+		.help-faq-plus {
+			width: 1.7rem; height: 1.7rem;
+			border-radius: 50%;
+			background: rgba(255,117,8,.1);
+			color: var(--primary);
+			display: grid; place-items: center;
+			font-size: 1.15rem;
+			flex-shrink: 0;
+			transition: transform .25s, background .2s, color .2s;
+		}
+		.help-faq-item.is-open .help-faq-plus {
+			transform: rotate(45deg);
+			background: var(--primary);
+			color: #fff;
+		}
+		.help-faq-a {
+			display: none;
+			padding: 0 1.25rem 1.2rem;
 			font-size: .925rem;
 			color: var(--muted);
-			line-height: 1.6;
-			display: none;
+			line-height: 1.65;
 		}
-		.faq-item.is-open .faq-answer { display: block; }
+		.help-faq-item.is-open .help-faq-a { display: block; }
+		.help-faq-a a { color: var(--primary); font-weight: 600; }
 
-		/* Support card */
-		.support-card {
+		.support-card, .ticket-panel, .lookup-card {
 			background: #fff;
-			border-radius: 16px;
+			border-radius: 20px;
 			border: 1px solid var(--border);
-			padding: 1.75rem;
-			box-shadow: 0 4px 20px rgba(38,35,31,.06);
-			height: fit-content;
+			padding: 1.5rem 1.45rem;
+			box-shadow: 0 10px 32px rgba(38,35,31,.06);
 		}
-		.support-card h3 {
-			font-size: 1.15rem;
-			margin: 0 0 1rem;
+		.support-card h3, .ticket-panel h3 {
+			font-size: 1.12rem;
+			margin: 0 0 .35rem;
 			color: var(--foreground);
+		}
+		.support-card > p, .ticket-panel > p {
+			margin: 0 0 1.1rem;
+			color: var(--muted);
+			font-size: .84rem;
+			line-height: 1.5;
 		}
 		.contact-channel {
 			display: flex;
 			align-items: center;
-			gap: .875rem;
-			padding: .875rem 0;
+			gap: .85rem;
+			padding: .85rem 0;
 			border-bottom: 1px solid var(--border);
+			text-decoration: none;
+			color: inherit;
 		}
-		.contact-channel:last-child { border-bottom: none; }
+		.contact-channel:last-of-type { border-bottom: none; }
 		.cc-icon {
-			width: 2.5rem; height: 2.5rem;
-			border-radius: 50%;
-			background: rgba(255,117,8,.1);
+			width: 2.55rem; height: 2.55rem;
+			border-radius: 12px;
+			background: linear-gradient(180deg, #fff7ed, #ffedd5);
 			color: var(--primary);
 			display: flex; align-items: center; justify-content: center;
-			font-size: 1.1rem;
 			flex-shrink: 0;
 		}
-		.cc-info div { font-weight: 700; font-size: .875rem; color: var(--foreground); }
-		.cc-info p { margin: 0; font-size: .78rem; color: var(--muted); }
+		.cc-icon svg {
+			width: 1.2rem; height: 1.2rem;
+			stroke: currentColor;
+			fill: none;
+		}
+		.cc-info div { font-weight: 700; font-size: .86rem; color: var(--foreground); }
+		.cc-info p { margin: .12rem 0 0; font-size: .78rem; color: var(--muted); }
+		.sla-note {
+			margin-top: 1rem;
+			padding: .75rem .85rem;
+			border-radius: 12px;
+			background: #fff7ed;
+			border: 1px solid #fed7aa;
+			color: #9a3412;
+			font-size: .78rem;
+			line-height: 1.45;
+		}
+
+		.ticket-section { margin-top: 2.5rem; }
+		.ticket-layout {
+			display: grid;
+			grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr);
+			gap: 1.5rem;
+			align-items: start;
+		}
+		.ticket-form-grid {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 1rem;
+		}
+		.help-field { display: flex; flex-direction: column; gap: .4rem; }
+		.help-field.full { grid-column: 1 / -1; }
+		.help-field label {
+			font-size: .82rem;
+			font-weight: 700;
+			color: var(--foreground);
+		}
+		.help-field input, .help-field select, .help-field textarea {
+			padding: .78rem 1rem;
+			border-radius: 12px;
+			border: 1px solid var(--border);
+			font-size: .925rem;
+			font-family: inherit;
+			outline: none;
+			background: #fff;
+			transition: border-color .2s, box-shadow .2s;
+		}
+		.help-field textarea { min-height: 140px; resize: vertical; }
+		.help-field input:focus, .help-field select:focus, .help-field textarea:focus {
+			border-color: var(--primary);
+			box-shadow: 0 0 0 3px rgba(255,117,8,.15);
+		}
+		.help-field .field-hint { font-size: .75rem; color: var(--muted); }
+		.priority-pills { display: flex; gap: .5rem; flex-wrap: wrap; }
+		.priority-pill {
+			border: 1px solid var(--border);
+			background: #fff;
+			border-radius: 999px;
+			padding: .42rem .85rem;
+			font-size: .8rem;
+			font-weight: 700;
+			cursor: pointer;
+			color: var(--muted);
+		}
+		.priority-pill.is-active[data-priority="normal"] { background: #ecfdf5; border-color: #86efac; color: #166534; }
+		.priority-pill.is-active[data-priority="high"] { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+		.priority-pill.is-active[data-priority="urgent"] { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+
+		.ticket-success {
+			display: none;
+			margin-bottom: 1rem;
+			padding: .95rem 1rem;
+			border-radius: 14px;
+			background: #ecfdf5;
+			border: 1px solid #bbf7d0;
+			color: #166534;
+			font-size: .9rem;
+			line-height: 1.5;
+		}
+		.ticket-success.is-visible { display: block; }
+		.ticket-error {
+			display: none;
+			margin-bottom: 1rem;
+			padding: .85rem 1rem;
+			border-radius: 14px;
+			background: #fef2f2;
+			border: 1px solid #fecaca;
+			color: #991b1b;
+			font-size: .88rem;
+		}
+		.ticket-error.is-visible { display: block; }
+
+		.ticket-list { display: flex; flex-direction: column; gap: .75rem; max-height: 620px; overflow: auto; }
+		.ticket-card {
+			border: 1px solid var(--border);
+			border-radius: 14px;
+			padding: .95rem 1rem;
+			background: #fffefa;
+		}
+		.ticket-card-top {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: .75rem;
+			margin-bottom: .4rem;
+		}
+		.ticket-code { font-weight: 800; font-size: .82rem; color: var(--foreground); letter-spacing: .02em; }
+		.status-badge {
+			font-size: .68rem;
+			font-weight: 800;
+			letter-spacing: .06em;
+			text-transform: uppercase;
+			padding: .22rem .55rem;
+			border-radius: 999px;
+		}
+		.status-open { background: #fff7ed; color: #c2410c; }
+		.status-in_progress { background: #eff6ff; color: #1d4ed8; }
+		.status-resolved { background: #ecfdf5; color: #047857; }
+		.ticket-subject { margin: 0; font-size: .92rem; font-weight: 700; color: var(--foreground); }
+		.ticket-meta { margin: .3rem 0 0; font-size: .75rem; color: var(--muted); }
+		.ticket-msg {
+			margin: .55rem 0 0;
+			font-size: .8rem;
+			color: #57534e;
+			line-height: 1.5;
+			display: -webkit-box;
+			-webkit-line-clamp: 3;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+		}
+		.empty-tickets {
+			text-align: center;
+			padding: 1.6rem .75rem;
+			color: var(--muted);
+			font-size: .88rem;
+		}
+		.lookup-row { display: flex; gap: .5rem; }
+		.lookup-row input { flex: 1; padding: .7rem .9rem; border-radius: 10px; border: 1px solid var(--border); font-size: .88rem; }
+		.no-match { display: none; padding: .75rem; color: var(--muted); font-size: .88rem; }
+
+		@media (max-width: 980px) {
+			.help-topics { grid-template-columns: 1fr 1fr; margin-top: 1.5rem; }
+			.help-grid, .ticket-layout { grid-template-columns: 1fr; }
+		}
+		@media (max-width: 640px) {
+			.help-topics, .ticket-form-grid { grid-template-columns: 1fr; }
+			.lookup-row { flex-direction: column; }
+		}
 	</style>
 </head>
 <body class="sub-page">
-
-
 	<canvas class="bg-canvas" id="bgCanvas"></canvas>
 	<div class="bg-gradient-layer"></div>
 
@@ -168,11 +434,20 @@
 			<section class="page-hero">
 				<div class="container">
 					<div class="hero-content">
+						<div class="help-kicker">Help Centre</div>
 						<h1>How can we help you?</h1>
-						<p>Find quick answers to common questions or reach out to our dedicated event support team.</p>
+						<p>Search answers, browse common topics, or raise a support ticket and our team will get back to you.</p>
 						<div class="help-search-wrap">
-							<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-							<input type="text" placeholder="Search topics (e.g. refund, e-ticket, check-in)..." id="helpSearchInput" />
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+							<input type="search" id="helpSearchInput" placeholder="Search refunds, e-tickets, check-in, hosting…"" autocomplete="off" />
+						</div>
+						<div class="help-chips" id="helpChips">
+							<button class="help-chip" type="button" data-term="">All</button>
+							<button class="help-chip" type="button" data-term="refund">Refunds</button>
+							<button class="help-chip" type="button" data-term="ticket">E-Tickets</button>
+							<button class="help-chip" type="button" data-term="check-in">Check-in</button>
+							<button class="help-chip" type="button" data-term="host">Hosting</button>
+							<button class="help-chip" type="button" data-term="account">Account</button>
 						</div>
 					</div>
 				</div>
@@ -180,76 +455,193 @@
 
 			<section class="help-section">
 				<div class="container">
+					<div class="help-topics" id="helpTopics">
+						<button class="help-topic" type="button" data-category="bookings" data-search="booking order cancel">
+							<div class="help-topic-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+							</div>
+							<h3>Bookings</h3>
+							<p>Orders, attendee names, and changing a confirmed booking.</p>
+						</button>
+						<button class="help-topic" type="button" data-category="tickets" data-search="e-ticket qr pdf">
+							<div class="help-topic-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+							</div>
+							<h3>E-Tickets &amp; QR</h3>
+							<p>Where to find tickets, PDF copies, and what to show at the gate.</p>
+						</button>
+						<button class="help-topic" type="button" data-category="payments" data-search="refund payment cancel">
+							<div class="help-topic-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+							</div>
+							<h3>Payments &amp; Refunds</h3>
+							<p>Charges, refund windows, and transferring a pass to a friend.</p>
+						</button>
+						<button class="help-topic" type="button" data-category="hosting" data-search="host publish venue">
+							<div class="help-topic-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg>
+							</div>
+							<h3>Host your event</h3>
+							<p>Publishing, venue details, and payout bank setup for hosts.</p>
+						</button>
+						<button class="help-topic" type="button" data-category="account" data-search="profile photo password">
+							<div class="help-topic-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+							</div>
+							<h3>Account &amp; profile</h3>
+							<p>Photo, password, location, and notification preferences.</p>
+						</button>
+						<button class="help-topic" type="button" data-category="checkin" data-search="check-in venue id">
+							<div class="help-topic-icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+							</div>
+							<h3>Venue check-in</h3>
+							<p>What to bring, ID matching, and entry timing on event day.</p>
+						</button>
+					</div>
+
 					<div class="help-grid">
-						<!-- FAQs -->
 						<div>
-							<h2 class="section-h2">Frequently Asked Questions</h2>
-							<div class="faq-accordion" id="faqAccordion">
-								<div class="faq-item is-open">
-									<div class="faq-question">How do I access my event E-Tickets? <span>+</span></div>
-									<div class="faq-answer">
-										Once your booking is confirmed, your E-Tickets are available directly under <a href="orders.html" style="color:var(--primary);font-weight:600">Your Orders</a> in your profile dropdown. You will also receive an email with the PDF ticket attachment and QR code.
-									</div>
+							<h2 class="section-h2">Frequently asked questions</h2>
+							<p class="section-sub">Quick answers for the things people ask us most.</p>
+							<div class="help-faq" id="faqAccordion">
+								<div class="help-faq-item is-open" data-topics="tickets bookings">
+									<button class="help-faq-q" type="button">How do I access my event e-tickets? <span class="help-faq-plus">+</span></button>
+									<div class="help-faq-a">Once your booking is confirmed, e-tickets live under <a href="orders.html">Your Orders</a>. You also get an email with the PDF and QR code. Open the ticket on your phone at the venue — a printed copy works too.</div>
 								</div>
-								<div class="faq-item">
-									<div class="faq-question">What is the event cancellation and refund policy? <span>+</span></div>
-									<div class="faq-answer">
-										Cancellations made 48 hours prior to the event start time are eligible for a 100% refund. Refunds are processed back to your original payment method within 3–5 business days.
-									</div>
+								<div class="help-faq-item" data-topics="payments bookings">
+									<button class="help-faq-q" type="button">What is the cancellation and refund policy? <span class="help-faq-plus">+</span></button>
+									<div class="help-faq-a">Cancellations made 48 hours before the event start time are eligible for a full refund to the original payment method, usually within 3–5 business days. See the <a href="return-and-refund-policy.html">Return and Refund Policy</a> for full terms.</div>
 								</div>
-								<div class="faq-item">
-									<div class="faq-question">Can I transfer my ticket to another attendee? <span>+</span></div>
-									<div class="faq-answer">
-										Yes! You can transfer your ticket by navigating to <a href="orders.html" style="color:var(--primary);font-weight:600">Your Orders</a>, selecting the ticket, and updating the attendee name and email.
-									</div>
+								<div class="help-faq-item" data-topics="tickets bookings">
+									<button class="help-faq-q" type="button">Can I transfer my ticket to someone else? <span class="help-faq-plus">+</span></button>
+									<div class="help-faq-a">Yes. Go to <a href="orders.html">Your Orders</a>, open the ticket, and update the attendee name and email. Transfers are free up to 12 hours before the event starts.</div>
 								</div>
-								<div class="faq-item">
-									<div class="faq-question">How do I change or upload my profile picture? <span>+</span></div>
-									<div class="faq-answer">
-										Click on your profile avatar icon in the top header and select <a href="dashboard.html" style="color:var(--primary);font-weight:600">Dashboard</a> or <a href="settings.html" style="color:var(--primary);font-weight:600">Settings</a>. Click on your avatar circle to upload your photo.
-									</div>
+								<div class="help-faq-item" data-topics="account">
+									<button class="help-faq-q" type="button">How do I change my profile picture or password? <span class="help-faq-plus">+</span></button>
+									<div class="help-faq-a">Open <a href="settings.html">Settings</a> to upload or remove your photo, update your name, and change your password. Use a square JPG, PNG, or WEBP for the clearest result.</div>
 								</div>
-								<div class="faq-item">
-									<div class="faq-question">What should I bring for check-in at the venue? <span>+</span></div>
-									<div class="faq-answer">
-										Please present your digital E-Ticket QR code on your smartphone or a printed copy along with a valid government ID matching the primary ticket holder's name.
-									</div>
+								<div class="help-faq-item" data-topics="checkin tickets">
+									<button class="help-faq-q" type="button">What should I bring for check-in? <span class="help-faq-plus">+</span></button>
+									<div class="help-faq-a">Show your digital QR code (or a printout) plus a valid government ID that matches the primary ticket holder. Arrive a little early if the event has timed entry.</div>
+								</div>
+								<div class="help-faq-item" data-topics="hosting">
+									<button class="help-faq-q" type="button">How do I host an event on JOD Events? <span class="help-faq-plus">+</span></button>
+									<div class="help-faq-a">Use <a href="host-your-event.html">Host Your Event</a>. After you sign in, add payout bank details once, then create and publish from the organizer dashboard. Pin the exact venue on the map so guests get a street-level address.</div>
 								</div>
 							</div>
+							<p class="no-match" id="faqNoMatch">No articles match that search. Raise a ticket below and we will help you directly.</p>
 						</div>
 
-						<!-- Contact channels -->
-						<div>
+						<aside>
 							<div class="support-card">
-								<h3>Contact Support</h3>
-								<div class="contact-channel">
-									<div class="cc-icon">✉️</div>
+								<h3>Talk to support</h3>
+								<p>Prefer a human? Reach the team or raise a ticket so we can track your query.</p>
+								<a class="contact-channel" href="mailto:support@jodevents.com">
+									<div class="cc-icon" aria-hidden="true">
+										<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+									</div>
 									<div class="cc-info">
-										<div>Email Us</div>
+										<div>Email</div>
 										<p>support@jodevents.com</p>
 									</div>
-								</div>
-								<div class="contact-channel">
-									<div class="cc-icon">📞</div>
+								</a>
+								<a class="contact-channel" href="tel:+914428009000">
+									<div class="cc-icon" aria-hidden="true">
+										<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.81.3 1.6.57 2.36a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.72-1.14a2 2 0 0 1 2.11-.45c.76.27 1.55.45 2.36.57A2 2 0 0 1 22 16.92z"/></svg>
+									</div>
 									<div class="cc-info">
 										<div>Helpline</div>
-										<p>+91 44 2800 9000 (Mon–Sat)</p>
+										<p>+91 44 2800 9000 · Mon–Sat</p>
 									</div>
-								</div>
+								</a>
 								<div class="contact-channel">
-									<div class="cc-icon">💬</div>
+									<div class="cc-icon" aria-hidden="true">
+										<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+									</div>
 									<div class="cc-info">
-										<div>Live Chat</div>
-										<p>Available 9 AM – 8 PM IST</p>
+										<div>Typical reply</div>
+										<p>Within a few hours on working days</p>
 									</div>
 								</div>
+								<div class="sla-note">For booking or payment issues, include your order ID so we can trace it faster.</div>
+								<a class="button button-primary" href="#raiseTicket" style="width:100%;justify-content:center;margin-top:1.15rem;">Raise a help ticket</a>
+							</div>
+						</aside>
+					</div>
 
-								<div style="margin-top:1.5rem;">
-									<button class="button button-primary" style="width:100%;justify-content:center;" onclick="alert('Support ticket system opening...')">Submit Support Ticket</button>
+					<section class="ticket-section" id="raiseTicket">
+						<h2 class="section-h2">Raise a help ticket</h2>
+						<p class="section-sub">Tell us what went wrong. You will get a ticket ID to track the conversation.</p>
+						<div class="ticket-layout">
+							<div class="ticket-panel">
+								<h3>New support request</h3>
+								<p>Share as much detail as you can — event name, date, and what you already tried.</p>
+								<div class="ticket-success" id="ticketSuccess"></div>
+								<div class="ticket-error" id="ticketError"></div>
+								<form id="helpTicketForm">
+									<div class="ticket-form-grid">
+										<div class="help-field">
+											<label for="ticketName">Your name</label>
+											<input type="text" id="ticketName" name="name" placeholder="Full name" required minlength="2" />
+										</div>
+										<div class="help-field">
+											<label for="ticketEmail">Email</label>
+											<input type="email" id="ticketEmail" name="email" placeholder="you@email.com" required />
+										</div>
+										<div class="help-field">
+											<label for="ticketCategory">Category</label>
+											<select id="ticketCategory" name="category" required>
+												<option value="bookings">Bookings &amp; orders</option>
+												<option value="tickets">E-Tickets &amp; QR</option>
+												<option value="payments">Payments &amp; refunds</option>
+												<option value="hosting">Hosting an event</option>
+												<option value="account">Account &amp; profile</option>
+												<option value="checkin">Venue check-in</option>
+												<option value="other">Something else</option>
+											</select>
+										</div>
+										<div class="help-field">
+											<label>Priority</label>
+											<div class="priority-pills" id="priorityPills">
+												<button class="priority-pill is-active" type="button" data-priority="normal">Normal</button>
+												<button class="priority-pill" type="button" data-priority="high">High</button>
+												<button class="priority-pill" type="button" data-priority="urgent">Urgent</button>
+											</div>
+											<input type="hidden" id="ticketPriority" name="priority" value="normal" />
+										</div>
+										<div class="help-field full">
+											<label for="ticketSubject">Subject</label>
+											<input type="text" id="ticketSubject" name="subject" placeholder="e.g. Refund not received for Chennai workshop" required minlength="6" />
+										</div>
+										<div class="help-field full">
+											<label for="ticketMessage">Describe your query</label>
+											<textarea id="ticketMessage" name="message" placeholder="What happened, when, and what you need from us…" required minlength="20"></textarea>
+											<span class="field-hint">At least 20 characters. Include order IDs if you have them.</span>
+										</div>
+									</div>
+									<div style="margin-top:1.15rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
+										<button class="button button-primary" type="submit" id="ticketSubmitBtn">Submit ticket</button>
+										<span class="field-hint" id="ticketGuestHint">You can submit without signing in. We will reply to this email.</span>
+									</div>
+								</form>
+							</div>
+
+							<div class="ticket-panel">
+								<h3>Your tickets</h3>
+								<p>Open tickets stay here so you can check status after you submit.</p>
+								<div class="lookup-card" id="ticketLookupWrap" style="padding:0;border:0;box-shadow:none;margin-bottom:.9rem;">
+									<div class="lookup-row">
+										<input type="email" id="ticketLookupEmail" placeholder="Look up tickets by email" />
+										<button class="button button-ghost" type="button" id="ticketLookupBtn">Find</button>
+									</div>
+								</div>
+								<div class="ticket-list" id="ticketList">
+									<div class="empty-tickets" id="ticketEmpty">No tickets yet. Submit a request and it will appear here with an HT- ID.</div>
 								</div>
 							</div>
 						</div>
-					</div>
+					</section>
 				</div>
 			</section>
 		</main>
@@ -257,36 +649,278 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=10"></script>
-	<script src="js/auth.js?v=10"></script>
-	<script src="js/profile.js?v=1"></script>
+	<script src="js/include.js?v=14"></script>
+	<script src="js/health.js?v=1"></script>
+	<script src="js/auth.js?v=17"></script>
+	<script src="js/profile.js?v=3"></script>
 	<script src="js/script.js?v=13"></script>
 	<script>
-		// FAQ accordion toggle
-		document.querySelectorAll(".faq-question").forEach(q => {
-			q.addEventListener("click", () => {
-				const item = q.closest(".faq-item");
-				const wasOpen = item.classList.contains("is-open");
-				document.querySelectorAll(".faq-item").forEach(i => i.classList.remove("is-open"));
-				if (!wasOpen) item.classList.add("is-open");
-			});
-		});
+		const LS_TICKETS = "jod_help_tickets";
+		const LS_EMAIL = "jod_help_ticket_email";
 
-		// Search filter
-		const searchInput = document.getElementById("helpSearchInput");
-		if (searchInput) {
-			searchInput.addEventListener("input", (e) => {
-				const term = e.target.value.toLowerCase().trim();
-				document.querySelectorAll(".faq-item").forEach(item => {
-					const text = item.textContent.toLowerCase();
-					if (text.includes(term)) {
-						item.style.display = "block";
-					} else {
-						item.style.display = "none";
+		function apiBase() {
+			if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
+			if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") return window.JodHealth.getApiBaseUrl();
+			return "http://127.0.0.1:8001";
+		}
+
+		function getUser() {
+			if (window.JodAuth && typeof window.JodAuth.getUser === "function") return window.JodAuth.getUser();
+			try {
+				const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+				return raw ? JSON.parse(raw) : null;
+			} catch (_) { return null; }
+		}
+
+		function escapeHtml(value) {
+			return String(value || "").replace(/[&<>"']/g, (ch) => ({
+				"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+			}[ch]));
+		}
+
+		function readLocalTickets() {
+			try {
+				const raw = localStorage.getItem(LS_TICKETS);
+				const list = raw ? JSON.parse(raw) : [];
+				return Array.isArray(list) ? list : [];
+			} catch (_) { return []; }
+		}
+
+		function writeLocalTickets(list) {
+			try { localStorage.setItem(LS_TICKETS, JSON.stringify(list.slice(0, 40))); } catch (_) {}
+		}
+
+		function upsertLocalTicket(ticket) {
+			const list = readLocalTickets().filter((row) => row.ticket_code !== ticket.ticket_code);
+			list.unshift(ticket);
+			writeLocalTickets(list);
+		}
+
+		function statusLabel(status) {
+			if (status === "in_progress") return "In progress";
+			if (status === "resolved") return "Resolved";
+			return "Open";
+		}
+
+		function formatWhen(iso) {
+			if (!iso) return "Just now";
+			const date = new Date(iso);
+			if (Number.isNaN(date.getTime())) return "Just now";
+			return date.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+		}
+
+		function renderTickets(tickets) {
+			const listEl = document.getElementById("ticketList");
+			const empty = document.getElementById("ticketEmpty");
+			if (!listEl) return;
+			const rows = Array.isArray(tickets) ? tickets : [];
+			if (!rows.length) {
+				listEl.innerHTML = `<div class="empty-tickets" id="ticketEmpty">No tickets yet. Submit a request and it will appear here with an HT- ID.</div>`;
+				return;
+			}
+			if (empty) empty.remove();
+			listEl.innerHTML = rows.map((ticket) => {
+				const status = ticket.status || "open";
+				return `<article class="ticket-card">
+					<div class="ticket-card-top">
+						<span class="ticket-code">${escapeHtml(ticket.ticket_code)}</span>
+						<span class="status-badge status-${escapeHtml(status)}">${escapeHtml(statusLabel(status))}</span>
+					</div>
+					<p class="ticket-subject">${escapeHtml(ticket.subject)}</p>
+					<p class="ticket-meta">${escapeHtml(ticket.category)} · ${escapeHtml(ticket.priority || "normal")} · ${escapeHtml(formatWhen(ticket.created_at))}}</p>
+					<p class="ticket-msg">${escapeHtml(ticket.message)}</p>
+				</article>`;
+			}).join("");
+		}
+
+		function applySearch(term) {
+			const q = String(term || "").toLowerCase().trim();
+			let visible = 0;
+			document.querySelectorAll(".help-faq-item").forEach((item) => {
+				const match = !q || item.textContent.toLowerCase().includes(q);
+				item.style.display = match ? "" : "none";
+				if (match) visible += 1;
+			});
+			document.querySelectorAll(".help-topic").forEach((card) => {
+				const hay = `${card.textContent} ${card.dataset.search || ""}`.toLowerCase();
+				card.style.display = !q || hay.includes(q) ? "" : "none";
+			});
+			document.querySelectorAll(".help-chip").forEach((chip) => {
+				chip.classList.toggle("is-active", (!q && chip.dataset.term === "") || (q && chip.dataset.term === q));
+			});
+			const none = document.getElementById("faqNoMatch");
+			if (none) none.style.display = visible ? "none" : "block";
+		}
+
+		async function fetchTickets(email) {
+			const user = getUser();
+			const lookup = (email || (user && user.email) || localStorage.getItem(LS_EMAIL) || "").trim().toLowerCase();
+			try {
+				const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+					? window.JodAuth.fetchAuth
+					: fetch;
+				const url = new URL(`${apiBase()}/api/support/tickets`);
+				if (lookup) url.searchParams.set("email", lookup);
+				const res = await fetchFn(url.toString());
+				if (res.ok) {
+					const data = await res.json();
+					if (Array.isArray(data) && data.length) {
+						data.forEach(upsertLocalTicket);
+						renderTickets(data);
+						return;
 					}
+				}
+			} catch (_) {}
+			const local = readLocalTickets().filter((row) => {
+				if (!lookup) return true;
+				return String(row.email || "").toLowerCase() === lookup;
+			});
+			renderTickets(local);
+		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			const user = getUser() || {};
+			const nameInput = document.getElementById("ticketName");
+			const emailInput = document.getElementById("ticketEmail");
+			const lookupInput = document.getElementById("ticketLookupEmail");
+			if (nameInput && (user.full_name || user.username)) nameInput.value = user.full_name || user.username;
+			if (emailInput && user.email) {
+				emailInput.value = user.email;
+				emailInput.readOnly = true;
+				emailInput.style.background = "#f8fafc";
+			}
+			const savedEmail = user.email || localStorage.getItem(LS_EMAIL) || "";
+			if (lookupInput && savedEmail) lookupInput.value = savedEmail;
+			const hint = document.getElementById("ticketGuestHint");
+			if (hint && user.email) hint.textContent = "Replies go to your account email.";
+
+			document.querySelectorAll(".help-faq-q").forEach((btn) => {
+				btn.addEventListener("click", () => {
+					const item = btn.closest(".help-faq-item");
+					const wasOpen = item.classList.contains("is-open");
+					document.querySelectorAll(".help-faq-item").forEach((row) => row.classList.remove("is-open"));
+					if (!wasOpen) item.classList.add("is-open");
 				});
 			});
-		}
+
+			const searchInput = document.getElementById("helpSearchInput");
+			if (searchInput) {
+				searchInput.addEventListener("input", (e) => applySearch(e.target.value));
+			}
+			document.querySelectorAll(".help-chip").forEach((chip) => {
+				chip.addEventListener("click", () => {
+					if (searchInput) searchInput.value = chip.dataset.term || "";
+					applySearch(chip.dataset.term);
+				});
+			});
+			document.querySelectorAll(".help-topic").forEach((card) => {
+				card.addEventListener("click", () => {
+					const category = card.dataset.category;
+					const select = document.getElementById("ticketCategory");
+					if (select && category) select.value = category;
+					document.querySelectorAll(".help-faq-item").forEach((item) => {
+						const topics = item.dataset.topics || "";
+						item.style.display = "";
+						item.classList.toggle("is-open", topics.includes(category));
+					});
+					const none = document.getElementById("faqNoMatch");
+					if (none) none.style.display = "none";
+					document.getElementById("raiseTicket").scrollIntoView({ behavior: "smooth", block: "start" });
+				});
+			});
+
+			document.querySelectorAll(".priority-pill").forEach((pill) => {
+				pill.addEventListener("click", () => {
+					document.querySelectorAll(".priority-pill").forEach((el) => el.classList.remove("is-active"));
+					pill.classList.add("is-active");
+					document.getElementById("ticketPriority").value = pill.dataset.priority;
+				});
+			});
+
+			document.getElementById("ticketLookupBtn").addEventListener("click", () => {
+				const email = (document.getElementById("ticketLookupEmail").value || "").trim();
+				if (email) {
+					try { localStorage.setItem(LS_EMAIL, email); } catch (_) {}
+				}
+				fetchTickets(email);
+			});
+
+			document.getElementById("helpTicketForm").addEventListener("submit", async (e) => {
+				e.preventDefault();
+				const successEl = document.getElementById("ticketSuccess");
+				const errorEl = document.getElementById("ticketError");
+				const btn = document.getElementById("ticketSubmitBtn");
+				successEl.classList.remove("is-visible");
+				errorEl.classList.remove("is-visible");
+
+				const payload = {
+					name: document.getElementById("ticketName").value.trim(),
+					email: document.getElementById("ticketEmail").value.trim(),
+					category: document.getElementById("ticketCategory").value,
+					priority: document.getElementById("ticketPriority").value || "normal",
+					subject: document.getElementById("ticketSubject").value.trim(),
+					message: document.getElementById("ticketMessage").value.trim(),
+				};
+				if (payload.message.length < 20) {
+					errorEl.textContent = "Please add a bit more detail so the team can help (20+ characters).";
+					errorEl.classList.add("is-visible");
+					return;
+				}
+
+				btn.disabled = true;
+				btn.textContent = "Submitting…";
+				let ticket = null;
+				try {
+					const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+						? window.JodAuth.fetchAuth
+						: fetch;
+					const res = await fetchFn(`${apiBase()}/api/support/tickets`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(payload),
+					});
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						const detail = data.detail;
+						const msg = Array.isArray(detail)
+							? detail.map((row) => row.msg || row).join(" ")
+							: (detail || "Could not submit ticket.");
+						throw new Error(typeof msg === "string" ? msg : "Could not submit ticket.");
+					}
+					ticket = data;
+				} catch (err) {
+					const offline = /failed to fetch|networkerror|load failed/i.test(String(err && err.message || ""));
+					if (!offline) {
+						errorEl.textContent = String((err && err.message) || "Could not submit ticket.");
+						errorEl.classList.add("is-visible");
+						btn.disabled = false;
+						btn.textContent = "Submit ticket";
+						return;
+					}
+					ticket = {
+						ticket_code: `HT-${Math.floor(100000 + Math.random() * 900000)}`,
+						...payload,
+						status: "open",
+						created_at: new Date().toISOString(),
+						offline: true,
+					};
+				}
+
+				upsertLocalTicket(ticket);
+				try { localStorage.setItem(LS_EMAIL, payload.email); } catch (_) {}
+				renderTickets([ticket].concat(readLocalTickets().filter((row) => row.ticket_code !== ticket.ticket_code)));
+				successEl.innerHTML = ticket.offline
+					? `Ticket <strong>${escapeHtml(ticket.ticket_code)}</strong> is saved on this device. We will sync it when support is reachable.`
+					: `Ticket <strong>${escapeHtml(ticket.ticket_code)}</strong> is with the support team. Keep this ID handy — we will reply to ${escapeHtml(payload.email)}.`;
+				successEl.classList.add("is-visible");
+				document.getElementById("ticketSubject").value = "";
+				document.getElementById("ticketMessage").value = "";
+				btn.disabled = false;
+				btn.textContent = "Submit ticket";
+			});
+
+			fetchTickets(savedEmail);
+		});
 	</script>
 </body>
 </html>

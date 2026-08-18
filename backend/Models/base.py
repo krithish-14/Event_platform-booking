@@ -387,6 +387,27 @@ def _migrate_tables(engine=None):
                             print(f"  [DB MIGRATION WARN] Could not add column bookings.{col_name}: {e}", flush=True)
                 conn.commit()
 
+        if "form_submissions" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("form_submissions")}
+            form_sub_migrations = [
+                ("customer_id", "VARCHAR(50)"),
+                ("booking_id", "UUID" if is_pg else "VARCHAR(36)"),
+                ("ticket_type", "VARCHAR(100)"),
+                ("ticket_price", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in form_sub_migrations:
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE form_submissions ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE form_submissions ADD COLUMN {col_name} {col_type};"))
+                            print(f"  [DB MIGRATION] Added column form_submissions.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column form_submissions.{col_name}: {e}", flush=True)
+                conn.commit()
+
         if "organizer_accounts" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("organizer_accounts")}
             org_migrations = [
@@ -436,6 +457,8 @@ def _migrate_tables(engine=None):
                 ("event_end_time", "VARCHAR(50)"),
                 ("venue", "VARCHAR(300)"),
                 ("address", "TEXT"),
+                ("latitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("longitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("organizer_name", "VARCHAR(200)"),
                 ("organizer_phone", "VARCHAR(50)"),
                 ("event_status", "VARCHAR(50)"),

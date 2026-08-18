@@ -277,7 +277,29 @@ body.dashboard-body {
 
 /* Temporary visual feedback when a sidebar item is clicked */
 .sidebar-item.click-flash {
+	transform: scale(0.96);
 	animation: sidebar-click-flash 260ms ease-out;
+}
+
+.sidebar-checkin-badge {
+	position: absolute;
+	top: 6px;
+	right: 10px;
+	min-width: 1.15rem;
+	height: 1.15rem;
+	padding: 0 4px;
+	border-radius: 999px;
+	background: #10b981;
+	color: #fff;
+	font-size: 0.62rem;
+	font-weight: 800;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
+}
+.sidebar-checkin-badge.is-visible {
+	display: flex;
 }
 
 @keyframes sidebar-click-flash {
@@ -822,6 +844,59 @@ canvas#trendChartCanvas {
 	min-height: 100px;
 	padding: 0.8rem 1rem;
 	resize: vertical;
+}
+
+.venue-map-panel {
+	margin-top: 0.7rem;
+	border: 1.5px solid #cbd5e1;
+	border-radius: 12px;
+	overflow: hidden;
+	background: #f8fafc;
+}
+
+.venue-map {
+	width: 100%;
+	height: 16.5rem;
+	background: #e2e8f0;
+}
+
+.venue-map-hint {
+	margin: 0;
+	padding: 0.55rem 0.85rem;
+	font-size: 0.78rem;
+	line-height: 1.4;
+	color: #64748b;
+	background: #fff;
+	border-top: 1px solid #e2e8f0;
+}
+
+.venue-map-hint.is-address {
+	color: #0f172a;
+	font-weight: 600;
+}
+
+.venue-pin-wrap {
+	background: none !important;
+	border: none !important;
+	cursor: grab;
+}
+
+.leaflet-dragging .venue-pin-wrap {
+	cursor: grabbing;
+}
+
+.venue-pin {
+	width: 22px;
+	height: 22px;
+	background: #2563eb;
+	border: 3px solid #fff;
+	border-radius: 50% 50% 50% 0;
+	transform: rotate(-45deg);
+	box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+}
+
+.venue-map-panel.is-hidden {
+	display: none;
 }
 
 /* Custom Format Pill Selectors */

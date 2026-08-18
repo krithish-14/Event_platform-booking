@@ -43,6 +43,17 @@ def is_organizer_verified(internal_status: Optional[str]) -> bool:
     return to_public_verification_status(internal_status) == "VERIFIED"
 
 
+def has_payout_bank(acc: Optional[OrganizerAccount]) -> bool:
+    if not acc:
+        return False
+    return bool(
+        (acc.beneficiary_name or "").strip()
+        and (acc.bank_name or "").strip()
+        and (acc.account_number or "").strip()
+        and (acc.bank_ifsc or "").strip()
+    )
+
+
 def safe_print(msg: str) -> None:
     """Print helper for Windows non-UTF8 stdout fallback."""
     try:
@@ -283,6 +294,11 @@ def save_account_setup(
     org_acc.cancelled_cheque_url = payload.cancelled_cheque_url
 
     if payload.is_final_submit:
+        if not has_payout_bank(org_acc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Bank details are required before you can host events."
+            )
         # Resubmission: if previously rejected, clear rejection reason
         if org_acc.status == "rejected":
             org_acc.rejection_reason = None
@@ -390,6 +406,7 @@ def get_account_setup(
         "verification_status": to_public_verification_status(org_acc.status),
         "rejection_reason": org_acc.rejection_reason,
         "kyc_complete": _is_kyc_complete(org_acc),
+        "bank_complete": has_payout_bank(org_acc),
         "submitted_at": org_acc.submitted_at.isoformat() if org_acc.submitted_at else None,
         "verified_at": org_acc.verified_at.isoformat() if org_acc.verified_at else None,
         "account": {

@@ -22,6 +22,7 @@ class UserProfileResponse(BaseModel):
     username: str
     full_name: Optional[str]
     city: Optional[str] = None
+    location_pincode: Optional[str] = None
     bio: Optional[str]
     avatar_url: Optional[str]
     is_active: bool

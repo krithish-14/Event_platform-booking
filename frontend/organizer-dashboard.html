@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta name="description" content="Manage your event tickets, registrations, speakers, exhibitors, and sales stats on the JOD Events Organizer Dashboard." />
 		<title>Organizer Event Dashboard - JOD Events</title>
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=5" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=6" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 	</head>
@@ -70,6 +70,11 @@
 					<a href="#" class="sidebar-item" data-tab="eventday" role="tab" tabindex="0" aria-selected="false">
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
 						<span>Event day</span>
+					</a>
+					<a href="#" class="sidebar-item" id="navAttendance" data-tab="attendance" role="tab" tabindex="0" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+						<span>Attendance</span>
+						<span class="sidebar-checkin-badge" id="sidebarCheckinCount">0</span>
 					</a>
 				</div>
 				<div class="sidebar-menu-bottom">
@@ -1364,42 +1369,27 @@
 								<div style="display: flex; flex-direction: column; gap: 0.8rem; font-size: 0.9rem;">
 									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
 										<span>Gross Ticket Sales</span>
-										<span style="font-weight: 700; color: #0f172a;">$142,850.00</span>
+										<span id="repGrossSales" style="font-weight: 700; color: #0f172a;">₹0.00</span>
 									</div>
 									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
-										<span>Platform Service Fee (5%)</span>
-										<span style="font-weight: 700; color: #dc2626;">-$7,142.50</span>
+										<span id="repPlatformFeeLabel">Platform Service Fee (5%)</span>
+										<span id="repPlatformFee" style="font-weight: 700; color: #dc2626;">-₹0.00</span>
 									</div>
 									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
-										<span>Taxes &amp; Statutory GST (5%)</span>
-										<span style="font-weight: 700; color: #dc2626;">-$7,142.50</span>
+										<span id="repGstFeeLabel">Taxes &amp; Statutory GST (5%)</span>
+										<span id="repGstFee" style="font-weight: 700; color: #dc2626;">-₹0.00</span>
 									</div>
 									<div style="display: flex; justify-content: space-between; padding-top: 0.4rem; font-size: 1rem; font-weight: 800; color: #166534;">
 										<span>Net Host Payout</span>
-										<span>$128,565.00</span>
+										<span id="repNetPayout">₹0.00</span>
 									</div>
 								</div>
 							</div>
 
 							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.4rem;">
 								<h4 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin-bottom: 1rem;">Audience Top Cities</h4>
-								<div style="display: flex; flex-direction: column; gap: 0.8rem; font-size: 0.9rem;">
-									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
-										<span>Chennai, Tamil Nadu</span>
-										<span style="font-weight: 700; color: #0f172a;">4,820 (42%)</span>
-									</div>
-									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
-										<span>Bengaluru, Karnataka</span>
-										<span style="font-weight: 700; color: #0f172a;">3,120 (27%)</span>
-									</div>
-									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
-										<span>Hyderabad, Telangana</span>
-										<span style="font-weight: 700; color: #0f172a;">1,950 (17%)</span>
-									</div>
-									<div style="display: flex; justify-content: space-between; padding-top: 0.4rem; font-size: 0.9rem; font-weight: 700; color: #475569;">
-										<span>Other Locations</span>
-										<span>1,590 (14%)</span>
-									</div>
+								<div id="repTopCities" style="display: flex; flex-direction: column; gap: 0.8rem; font-size: 0.9rem;">
+									<div style="text-align: center; padding: 1.2rem 0.5rem; color: #94a3b8;">No attendee locations yet.</div>
 								</div>
 							</div>
 						</div>
@@ -1628,6 +1618,71 @@
 					</div>
 				</div>
 
+				<!-- ── TAB 10: ATTENDANCE ────────────────────────────────────────── -->
+				<div id="sectionAttendance" class="tab-section">
+					<div class="rich-form-container" style="max-width: 1200px; margin: 0 auto; padding: 1.8rem 2rem;">
+						<div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.2rem; margin-bottom: 1.8rem;">
+							<div>
+								<span class="form-pill-badge">Live Gate Attendance</span>
+								<h2 class="rich-form-title" style="font-size: 1.6rem; margin: 0.3rem 0 0.2rem 0;">Checked-in attendees</h2>
+								<p class="rich-form-subtitle" style="margin-bottom: 0;">See who has scanned in at the gate. Counts update when a ticket is validated.</p>
+							</div>
+							<button type="button" class="btn-card-action" id="btnRefreshAttendance">Refresh</button>
+						</div>
+
+						<section class="kpi-row" style="margin-bottom: 1.5rem;">
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-regs">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Checked-in</span>
+									<span class="kpi-value" id="attKpiCheckedIn">0</span>
+								</div>
+							</div>
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-days">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Yet to check-in</span>
+									<span class="kpi-value" id="attKpiYetToCheckIn">0</span>
+								</div>
+							</div>
+							<div class="kpi-card">
+								<div class="kpi-icon-circle icon-sales">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+								</div>
+								<div class="kpi-details">
+									<span class="kpi-label">Tickets sold</span>
+									<span class="kpi-value" id="attKpiSold">0</span>
+								</div>
+							</div>
+						</section>
+
+						<div class="dash-card" style="padding: 0; overflow: hidden;">
+							<div class="dash-card-header" style="padding: 1rem 1.2rem;">
+								<h3 class="dash-card-title">Attendee check-in list</h3>
+							</div>
+							<div style="overflow-x: auto;">
+								<table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+									<thead>
+										<tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #475569; font-weight: 700;">
+											<th style="padding: 0.75rem 1.2rem;">Attendee</th>
+											<th style="padding: 0.75rem 1.2rem;">Ticket</th>
+											<th style="padding: 0.75rem 1.2rem;">Status</th>
+											<th style="padding: 0.75rem 1.2rem;">Checked in</th>
+										</tr>
+									</thead>
+									<tbody id="attendanceTableBody">
+										<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #94a3b8;">No ticket check-ins yet.</td></tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
+
 				<!-- ── CAMERA QR SCANNER MODAL ────────────────────────────────────── -->
 				<div id="cameraScannerModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 99999; align-items: center; justify-content: center; padding: 1rem;">
 					<div style="background: #0f172a; border: 1px solid #334155; border-radius: 16px; width: 100%; max-width: 520px; padding: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5); color: #ffffff;">
@@ -1788,12 +1843,12 @@
 			</div>
 		</div>
 
-		<script src="js/include.js?v=13"></script>
+		<script src="js/include.js?v=14"></script>
 		<script src="js/auth.js?v=13"></script>
 		<script src="js/profile.js?v=1"></script>
 		<script src="js/script.js?v=13"></script>
 		<script src="js/form-builder.js?v=20260816_v6"></script>
-		<script src="js/organizer-dashboard.js?v=20260816_v9"></script>
+		<script src="js/organizer-dashboard.js?v=20260817_v12"></script>
 	</body>
 </html>
 

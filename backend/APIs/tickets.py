@@ -10,8 +10,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_, cast, String, func
 
-from Authentication.dependencies import get_current_user
+from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.base import get_db
 from Models.booking import Booking
 from Models.event import Event
@@ -63,6 +64,50 @@ def _extract_token(payload: TokenVerificationRequest | TokenCheckinRequest) -> s
     return tok
 
 
+def _normalize_scan_code(value: Optional[str]) -> str:
+    return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
+
+
+def _lookup_ticket(db: Session, token_str: str, event_id: Optional[str] = None) -> Optional[Ticket]:
+    raw = (token_str or "").strip()
+    if not raw:
+        return None
+    ticket = (
+        db.query(Ticket)
+        .options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
+        .filter(Ticket.qr_token == raw)
+        .first()
+    )
+    if ticket:
+        return ticket
+
+    needle = _normalize_scan_code(raw)
+    query = db.query(Ticket).options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
+    if event_id:
+        try:
+            query = query.filter(Ticket.event_id == UUID(str(event_id)))
+        except Exception:
+            query = query.filter(Ticket.event_id == event_id)
+    if needle and len(needle) >= 6:
+        matches = query.filter(Ticket.qr_token.ilike(f"%{raw}%")).all()
+        if matches:
+            return matches[0]
+        compact = needle.lower()
+        bid_txt = func.replace(func.lower(cast(Ticket.booking_id, String)), "-", "")
+        tid_txt = func.replace(func.lower(cast(Ticket.ticket_id, String)), "-", "")
+        try:
+            prefix = query.filter(or_(
+                bid_txt.like(compact + "%"),
+                tid_txt.like(compact + "%"),
+            )).first()
+        except Exception:
+            db.rollback()
+            prefix = None
+        if prefix:
+            return prefix
+    return None
+
+
 def _serialize_ticket_success(t: Ticket, message: str = "Ticket is valid for entry.") -> dict:
     b = t.booking
     ev = t.event or (b.event if b else None)
@@ -108,12 +153,7 @@ def verify_ticket_token(
     """
     token_str = _extract_token(payload)
 
-    ticket = (
-        db.query(Ticket)
-        .options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
-        .filter(Ticket.qr_token == token_str)
-        .first()
-    )
+    ticket = _lookup_ticket(db, token_str, payload.event_id)
 
     if not ticket:
         return {
@@ -178,13 +218,15 @@ def verify_ticket_token(
 def checkin_ticket_entry(
     payload: TokenCheckinRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Atomically verify and check in a ticket at venue gate.
     Uses conditional DB updates to prevent double check-in under race conditions.
     """
     token_str = _extract_token(payload)
+    ticket = _lookup_ticket(db, token_str)
+    resolved_token = ticket.qr_token if ticket else token_str
 
     staff_name = payload.scanned_by
     if not staff_name:
@@ -198,7 +240,7 @@ def checkin_ticket_entry(
     # Atomic SQL UPDATE — only updates if ticket_status is currently 'VALID'
     rows_updated = (
         db.query(Ticket)
-        .filter(Ticket.qr_token == token_str, Ticket.ticket_status == "VALID")
+        .filter(Ticket.qr_token == resolved_token, Ticket.ticket_status == "VALID")
         .update(
             {
                 Ticket.ticket_status: "USED",
@@ -214,7 +256,7 @@ def checkin_ticket_entry(
     ticket = (
         db.query(Ticket)
         .options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
-        .filter(Ticket.qr_token == token_str)
+        .filter(Ticket.qr_token == resolved_token)
         .first()
     )
 

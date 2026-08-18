@@ -106,6 +106,12 @@
 		if (!data) return;
 
 		const isCancelled = (data.status || "").toUpperCase() === "CANCELLED";
+		const isCheckedIn = !isCancelled && String(data.ticket_status || "").toUpperCase() === "USED";
+		const ticketCard = document.getElementById("printableTicketArea");
+		if (ticketCard) {
+			ticketCard.classList.toggle("is-cancelled", isCancelled);
+			ticketCard.classList.toggle("is-checked-in", isCheckedIn);
+		}
 
 		// Status Badge & Header ID
 		const statusBadge = document.getElementById("ticketStatusBadge");
@@ -119,6 +125,9 @@
 			if (isCancelled) {
 				statusBadge.textContent = "CANCELLED";
 				statusBadge.className = "status-badge badge-cancelled";
+			} else if (isCheckedIn) {
+				statusBadge.textContent = "CHECKED IN";
+				statusBadge.className = "status-badge badge-checkedin";
 			} else {
 				statusBadge.textContent = "CONFIRMED";
 				statusBadge.className = "status-badge badge-confirmed";
@@ -129,6 +138,9 @@
 			if (isCancelled) {
 				statusVal.textContent = "Cancelled / Refund Processed";
 				statusVal.className = "info-val status-text-cancelled";
+			} else if (isCheckedIn) {
+				statusVal.textContent = "Checked in at the venue";
+				statusVal.className = "info-val status-text-checkedin";
 			} else {
 				statusVal.textContent = "Active / Valid for Entry";
 				statusVal.className = "info-val status-text-confirmed";
@@ -150,10 +162,8 @@
 		if (catBadge) catBadge.textContent = `🎟️ ${data.ticket_type || "Standard Access"}`;
 		if (imgEl && data.image_url) imgEl.src = data.image_url;
 
-		// Seating Block
 		const countVal = document.getElementById("ticketCountVal");
 		const catVal = document.getElementById("ticketCategoryVal");
-		const seatVal = document.getElementById("ticketSeatVal");
 		const idVal = document.getElementById("ticketIdVal");
 		const bookedTimeVal = document.getElementById("ticketBookedTimeVal");
 
@@ -162,30 +172,15 @@
 		if (catVal) catVal.textContent = data.ticket_type || "Standard Access Pass";
 		if (countVal) countVal.textContent = `${data.quantity || 1} Ticket(s)`;
 		if (bookedTimeVal) bookedTimeVal.textContent = formatDateFull(data.booked_at);
-		if (seatVal) seatVal.textContent = data.seat_number || "General Admission";
 
 		// Booking ID & Secure QR Code Block
 		const bookingIdText = document.getElementById("ticketBookingIdText");
 		const qrImg = document.getElementById("ticketQrCodeImg");
-		const qrText = document.getElementById("ticketQrCodeText");
-		const qrToken = data.qr_token || `JOD-TKT-${shortId}9900AABBCCDD`;
+		const qrToken = data.qr_token || "";
 
-		if (bookingIdText) bookingIdText.textContent = `BOOKING ID: ${shortId}-JOD`;
-		if (qrImg) {
+		if (bookingIdText) bookingIdText.textContent = `BOOKING ID: ${shortId}`;
+		if (qrImg && qrToken) {
 			qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrToken)}`;
-		}
-		if (qrText) {
-			qrText.textContent = `Token: ${qrToken}`;
-		}
-
-		// Policy & Support Banner
-		const policyBanner = document.getElementById("ticketPolicyBanner");
-		if (policyBanner) {
-			if (isCancelled) {
-				policyBanner.innerHTML = `<span style="color:#ef4444;font-weight:700;">Ticket Cancelled — Refund initialized to payment mode</span>`;
-			} else {
-				policyBanner.innerHTML = `<span>Cancellation available up to 24h prior to showtime</span>`;
-			}
 		}
 
 		// Bill & Pricing Summary
@@ -255,7 +250,7 @@
 <head>
 	<meta charset="UTF-8" />
 	<title>${printTitle}</title>
-	<link rel="stylesheet" href="css/ticket-details.css?v=3" />
+	<link rel="stylesheet" href="css/ticket-details.css?v=6" />
 	<style>
 		@page { size: A4 portrait; margin: 12mm; }
 		html, body {
@@ -281,7 +276,7 @@
 			overflow: hidden;
 		}
 		.mticket-header-section, .mticket-seating-block, .mticket-qr-block,
-		.mticket-policy-bar, .mticket-price-summary { padding: 1rem 1.1rem; }
+		.mticket-price-summary { padding: 1rem 1.1rem; }
 		.mticket-poster img, #ticketEventImg { width: 88px; height: 110px; object-fit: cover; border-radius: 8px; }
 		.mticket-header-section { display: flex; gap: 0.85rem; align-items: flex-start; }
 		.mticket-event-details h1, #ticketEventTitle { font-size: 1.15rem; margin: 0 0 0.35rem; }
@@ -360,6 +355,11 @@
 
 	document.addEventListener("DOMContentLoaded", async () => {
 		const bookingId = getQueryParam("id") || getQueryParam("booking_id");
+		if (bookingId && window.JodInbox) {
+			window.JodInbox.markRead(`booking-confirmed-${bookingId}`);
+			window.JodInbox.markRead(`booking-cancelled-${bookingId}`);
+			window.JodInbox.markRead(`remind-${bookingId}`);
+		}
 		const bookingData = await loadBookingData(bookingId);
 		renderTicketDOM(bookingData);
 		bindActions(bookingData);

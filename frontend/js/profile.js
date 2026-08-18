@@ -73,6 +73,33 @@
 }
 .profile-avatar-btn:hover { opacity: .85; }
 
+.profile-avatar-shell {
+	position: relative;
+	flex-shrink: 0;
+}
+.profile-notif-badge {
+	position: absolute;
+	top: -5px;
+	right: -5px;
+	min-width: 1.1rem;
+	height: 1.1rem;
+	padding: 0 .28rem;
+	border-radius: 999px;
+	background: #ef4444;
+	color: #fff;
+	font-size: .62rem;
+	font-weight: 800;
+	line-height: 1;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	border: 2px solid #fff;
+	box-shadow: 0 2px 6px rgba(239,68,68,.35);
+	z-index: 3;
+	pointer-events: none;
+}
+.profile-notif-badge.is-visible { display: inline-flex; }
+
 .profile-avatar {
 	width: 2.375rem;
 	height: 2.375rem;
@@ -607,7 +634,14 @@
 		btn.id = "profileAvatarBtn";
 
 		const avatarEl = buildAvatarEl(user);
-		btn.appendChild(avatarEl);
+		const shell = document.createElement("div");
+		shell.className = "profile-avatar-shell";
+		shell.appendChild(avatarEl);
+		const badge = document.createElement("span");
+		badge.className = "profile-notif-badge";
+		badge.setAttribute("aria-label", "Unread notifications");
+		shell.appendChild(badge);
+		btn.appendChild(shell);
 
 		const metaWrap = document.createElement("div");
 		metaWrap.className = "profile-meta-wrap";
@@ -617,15 +651,6 @@
 		nameSpan.className = "profile-name-text";
 		nameSpan.textContent = user.full_name || user.username || "Profile";
 		metaWrap.appendChild(nameSpan);
-
-		const initialCity = (user && user.city) || (typeof localStorage !== "undefined" ? localStorage.getItem("jod_user_city") : null);
-		const locText = initialCity ? (initialCity.toLowerCase().includes("india") ? initialCity : `${initialCity}, India`) : "Detecting location…";
-
-		const locSpan = document.createElement("span");
-		locSpan.className = "profile-location-text";
-		locSpan.style.cssText = "font-size:.725rem;color:var(--primary);font-weight:600;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;";
-		locSpan.textContent = `📍 ${locText}`;
-		metaWrap.appendChild(locSpan);
 
 		btn.appendChild(metaWrap);
 
@@ -677,17 +702,16 @@
 			? `<img src="${savedPhoto}" alt="Profile picture" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`
 			: initials;
 
-		const mCity = (user && user.city) || (typeof localStorage !== "undefined" ? localStorage.getItem("jod_user_city") : null);
-		const mLocText = mCity ? (mCity.toLowerCase().includes("india") ? mCity : `${mCity}, India`) : "Detecting location…";
-
 		mobileGroup.innerHTML = `
 			<div class="mobile-user-profile" style="padding:1rem .5rem .5rem;">
 				<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;">
-					<div class="profile-avatar" style="width:42px;height:42px;border-radius:50%;background:var(--brand-gradient);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0;">${avatarHtml}</div>
+					<div class="profile-avatar-shell">
+						<div class="profile-avatar" style="width:42px;height:42px;border-radius:50%;background:var(--brand-gradient);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0;">${avatarHtml}</div>
+						<span class="profile-notif-badge" aria-label="Unread notifications"></span>
+					</div>
 					<div style="line-height:1.2;min-width:0;">
 						<div style="font-weight:700;color:var(--foreground);font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(displayName)}</div>
 						<div style="font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(user.email || "")}</div>
-						<div class="mobile-pd-location" style="font-size:.75rem;color:var(--primary);font-weight:600;margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📍 ${escHtml(mLocText)}</div>
 					</div>
 				</div>
 				<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem;">
@@ -695,7 +719,7 @@
 					<a href="orders.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Your Orders</a>
 					<a href="wishlist.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Wishlist</a>
 					<a href="settings.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Settings</a>
-					<a href="settings.html#notificationsSection" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Notifications</a>
+					<a href="notifications.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Notifications</a>
 					<a href="help.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Help & Support</a>
 				</div>
 				<button class="button button-sm button-login" id="mobile-profile-logout-btn" type="button" style="width:100%;background:#fef2e6;color:#ff7508;border:1px solid #ffcd9a;font-size:.85rem;font-weight:600;">Log Out</button>
@@ -753,7 +777,7 @@
 			{ label: "Your Orders",    href: "orders.html",                     icon: ordersIcon() },
 			{ label: "Your Wishlist",  href: "wishlist.html",                   icon: wishlistIcon() },
 			{ label: "Settings",       href: "settings.html",                   icon: settingsIcon() },
-			{ label: "Notifications",  href: "settings.html#notificationsSection", icon: notificationsIcon() },
+			{ label: "Notifications",  href: "notifications.html",              icon: notificationsIcon() },
 			{ label: "Help & Support", href: "help.html",                       icon: helpIcon() },
 		];
 
@@ -766,9 +790,6 @@
 			if (path !== hrefPath) return false;
 
 			if (hrefHash) {
-				if (hrefHash === "notificationssection") {
-					return hash === "#notificationssection" || hash === "#notifications";
-				}
 				return hash === `#${hrefHash}`;
 			}
 
@@ -907,6 +928,26 @@
 		if (window.updateProfileLocation) {
 			window.updateProfileLocation();
 		}
+		ensureInbox();
+	}
+
+	function ensureInbox() {
+		const run = () => {
+			if (window.JodInbox && typeof window.JodInbox.start === "function") window.JodInbox.start();
+		};
+		if (window.JodInbox) {
+			run();
+			return;
+		}
+		if (document.querySelector("script[data-jod-inbox]")) {
+			document.querySelector("script[data-jod-inbox]").addEventListener("load", run);
+			return;
+		}
+		const script = document.createElement("script");
+		script.src = "js/notifications-inbox.js?v=1";
+		script.dataset.jodInbox = "1";
+		script.onload = run;
+		document.head.appendChild(script);
 	}
 
 	// Header is injected via include.js — wait for it
