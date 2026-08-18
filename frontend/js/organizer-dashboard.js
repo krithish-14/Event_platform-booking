@@ -176,6 +176,10 @@ async function initOrganizerDashboard() {
 		? "http://127.0.0.1:8001/api/host-events"
 		: "/api/host-events";
 
+	const VOLUNTEERS_API = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
+		? "http://127.0.0.1:8001/api/volunteers"
+		: "/api/volunteers";
+
 	const LOCATION_API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
 		? "http://127.0.0.1:8001/api/location"
 		: "/api/location";
@@ -225,6 +229,7 @@ async function initOrganizerDashboard() {
 	let activeCustomerId = null;
 	let activeHostId = null;
 	let bannerImageUrl = null;
+	let cardImageUrl = null;
 	let galleryImageUrls = [];
 	let pendingHostDesignData = null;
 	let pendingManageEvent = null;
@@ -982,6 +987,7 @@ async function initOrganizerDashboard() {
 
 	const kpiSales = document.getElementById("kpiSales");
 	const kpiRegs = document.getElementById("kpiRegs");
+	const kpiPending = document.getElementById("kpiPending");
 	const kpiAttendees = document.getElementById("kpiAttendees");
 	const kpiDays = document.getElementById("kpiDays");
 
@@ -1078,10 +1084,14 @@ async function initOrganizerDashboard() {
 			loadReportsData();
 		} else if (tabName === 'eventday') {
 			loadGates();
-			loadScanners();
+			loadVolunteers();
+			loadEventDayVolunteerStats();
 			loadDashboardData();
 		} else if (tabName === 'attendance') {
 			loadAttendanceData();
+			startAttendancePolling();
+		} else {
+			stopAttendancePolling();
 		}
 	}
 
@@ -1146,6 +1156,38 @@ async function initOrganizerDashboard() {
 	window.switchTab = switchTab;
 	window.dashSwitchTab = switchTab;
 
+	function updateEventPagePreview(data) {
+		const link = document.getElementById("eventPagePreviewLink");
+		const banner = document.getElementById("webBannerImg");
+		const badge = document.getElementById("webTitleBadge");
+		const headline = document.getElementById("webHeadline");
+		const venue = document.getElementById("webDate");
+		const eventId = (data && data.event_id) || activeEventId;
+		const title = (data && data.event_title) || (headline && headline.textContent) || "My Event";
+		const isLive = data && String(data.event_status || "").toLowerCase() === "published";
+
+		if (link) {
+			link.href = eventId
+				? `event-details.html?id=${encodeURIComponent(eventId)}`
+				: "event-details.html";
+		}
+		if (banner) {
+			const imgSrc = (data && (data.banner_image || data.image_url))
+				|| bannerImageUrl
+				|| "images/hero-event.jpg";
+			banner.src = resolveUploadUrl(imgSrc);
+			banner.alt = `${title} banner`;
+		}
+		if (badge) {
+			badge.textContent = isLive ? "Live" : "Draft";
+			badge.classList.toggle("is-draft", !isLive);
+		}
+		if (headline) headline.textContent = title;
+		if (venue) {
+			venue.textContent = (data && data.venue) || (document.getElementById("eventLocationInput")?.value.trim()) || "Venue TBD";
+		}
+	}
+
 	// ── Dynamic Dashboard Data Loader ──────────────────────────────────────────
 	async function loadDashboardData() {
 		if (!email) return;
@@ -1165,20 +1207,18 @@ async function initOrganizerDashboard() {
 					// Top 3 KPI Cards
 					if (kpiSales) kpiSales.textContent = `₹${(d.total_sales || 0).toLocaleString("en-IN", {minimumFractionDigits: 2})}`;
 					if (kpiRegs) kpiRegs.textContent = (d.total_registrations || 0).toLocaleString("en-IN");
+					if (kpiPending) {
+						const pendingCount = (d.pending_registrations != null)
+							? d.pending_registrations
+							: Math.max(0, Number(d.total_registrations || 0) - Number(d.tickets_sold || 0));
+						kpiPending.textContent = Number(pendingCount || 0).toLocaleString("en-IN");
+					}
 					if (kpiAttendees) kpiAttendees.textContent = (d.attendees_count || d.tickets_sold || 0).toLocaleString("en-IN");
 					if (kpiDays) kpiDays.textContent = d.days_to_event !== undefined ? d.days_to_event : 0;
 
 					applyLiveAttendanceStats(d);
 					drawTrendChart(d.registration_trend);
-
-					// Website Preview Box
-					const webTitleBadge = document.getElementById("webTitleBadge");
-					const webHeadline = document.getElementById("webHeadline");
-					const webDate = document.getElementById("webDate");
-
-					if (webTitleBadge) webTitleBadge.textContent = d.event_status === "published" ? "Live" : "Draft";
-					if (webHeadline) webHeadline.textContent = d.event_title || "My Event";
-					if (webDate) webDate.textContent = `${d.venue || "Venue TBD"}`;
+					updateEventPagePreview(d);
 
 					// Event Numbers Grid
 					const numSpeakers = document.getElementById("numSpeakers");
@@ -1208,21 +1248,56 @@ async function initOrganizerDashboard() {
 
 	function applyLiveAttendanceStats(d) {
 		const sold = Number(d.tickets_sold || 0);
-		const avail = Number(d.tickets_available || 0);
-		const totalTix = sold + avail;
-		const soldPct = totalTix > 0 ? Math.round((sold / totalTix) * 100) : 0;
-		const availPct = totalTix > 0 ? 100 - soldPct : 100;
+		const pending = Number(
+			d.pending_registrations != null
+				? d.pending_registrations
+				: Math.max(0, Number(d.total_registrations || 0) - sold)
+		);
+		const claimed = sold + pending;
+		const capacity = Number(d.ticket_capacity || 0);
+		const avail = capacity > 0
+			? Math.max(0, capacity - claimed)
+			: Number(d.tickets_available || 0);
+		const total = (capacity > 0 ? capacity : (claimed + avail)) || 1;
+
+		const rawSold = (sold / total) * 100;
+		const rawPending = (pending / total) * 100;
+		const soldPct = total > 0 ? rawSold : 0;
+		const pendingPct = total > 0 ? rawPending : 0;
+		const availPct = Math.max(0, 100 - soldPct - pendingPct);
+
+		function fmtPct(n) {
+			if (!Number.isFinite(n) || n <= 0) return "0";
+			if (n < 1) return n.toFixed(1);
+			return String(Math.round(n));
+		}
+
 		const checked = Number(d.checked_in || 0);
 		const yetCheck = Number(d.yet_to_checkin || 0);
 		const attendeeTotal = Math.max(sold, checked + yetCheck);
 		const checkedPct = attendeeTotal > 0 ? Math.round((checked / attendeeTotal) * 100) : 0;
 
 		const valSold = document.getElementById("valSold");
+		const valPending = document.getElementById("valPending");
 		const valAvail = document.getElementById("valAvail");
-		if (valSold) valSold.textContent = `${sold.toLocaleString()} (${soldPct}%)`;
-		if (valAvail) valAvail.textContent = `${avail.toLocaleString()} (${availPct}%)`;
+		if (valSold) valSold.textContent = `${sold.toLocaleString()} (${fmtPct(soldPct)}%)`;
+		if (valPending) valPending.textContent = `${pending.toLocaleString()} (${fmtPct(pendingPct)}%)`;
+		if (valAvail) valAvail.textContent = `${avail.toLocaleString()} (${fmtPct(availPct)}%)`;
+
+		const claimedArc = soldPct + pendingPct;
+		const donutPendingPath = document.getElementById("donutPendingPath");
 		const donutSoldPath = document.getElementById("donutSoldPath");
-		if (donutSoldPath) donutSoldPath.setAttribute("stroke-dasharray", `${soldPct}, 100`);
+		if (donutPendingPath) donutPendingPath.setAttribute("stroke-dasharray", `${claimedArc.toFixed(2)}, 100`);
+		if (donutSoldPath) donutSoldPath.setAttribute("stroke-dasharray", `${soldPct.toFixed(2)}, 100`);
+
+		const donutCenterValue = document.getElementById("donutCenterValue");
+		const donutCenterLabel = document.getElementById("donutCenterLabel");
+		const donutCaption = document.getElementById("donutCaption");
+		if (donutCenterValue) donutCenterValue.textContent = claimed.toLocaleString();
+		if (donutCenterLabel) donutCenterLabel.textContent = `of ${total.toLocaleString()} tickets`;
+		if (donutCaption) {
+			donutCaption.textContent = `${sold.toLocaleString()} sold + ${pending.toLocaleString()} pending are held. ${avail.toLocaleString()} still available.`;
+		}
 
 		const valCheckedIn = document.getElementById("valCheckedIn");
 		const valYetToCheckIn = document.getElementById("valYetToCheckIn");
@@ -1237,12 +1312,14 @@ async function initOrganizerDashboard() {
 			sidebarBadge.classList.toggle("is-visible", checked > 0);
 		}
 
-		const evLiveInside = document.getElementById("evLiveInside");
-		const evCheckinsProcessed = document.getElementById("evCheckinsProcessed");
-		const evHallOccupancy = document.getElementById("evHallOccupancy");
-		if (evLiveInside) evLiveInside.textContent = checked.toLocaleString();
-		if (evCheckinsProcessed) evCheckinsProcessed.textContent = `${checked} / ${attendeeTotal}`;
-		if (evHallOccupancy) evHallOccupancy.textContent = `${checkedPct}%`;
+		const evTotalTickets = document.getElementById("evTotalTickets");
+		const evCheckedIn = document.getElementById("evCheckedIn");
+		const evNotCheckedIn = document.getElementById("evNotCheckedIn");
+		const evCheckinRate = document.getElementById("evCheckinRate");
+		if (evTotalTickets) evTotalTickets.textContent = sold.toLocaleString();
+		if (evCheckedIn) evCheckedIn.textContent = checked.toLocaleString();
+		if (evNotCheckedIn) evNotCheckedIn.textContent = yetCheck.toLocaleString();
+		if (evCheckinRate) evCheckinRate.textContent = `${checkedPct}%`;
 
 		const attKpiCheckedIn = document.getElementById("attKpiCheckedIn");
 		const attKpiYetToCheckIn = document.getElementById("attKpiYetToCheckIn");
@@ -1260,25 +1337,44 @@ async function initOrganizerDashboard() {
 		const body = document.getElementById("attendanceTableBody");
 		if (!body) return;
 		if (!attendees || attendees.length === 0) {
-			body.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #94a3b8;">No ticket check-ins yet.</td></tr>`;
+			body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">No ticket check-ins yet.</td></tr>`;
 			return;
 		}
 		body.innerHTML = attendees.map((row) => {
 			const checked = row.status === "checked_in";
 			const when = row.checked_in_at ? new Date(row.checked_in_at).toLocaleString() : "—";
+			const volunteer = checked ? (row.volunteer_name || row.scanned_by || "—") : "—";
 			const badge = checked
 				? `<span style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:700;">Checked-in</span>`
 				: `<span style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:700;">Yet to check-in</span>`;
 			return `<tr style="border-bottom:1px solid #f1f5f9;">
 				<td style="padding:0.85rem 1.2rem;">
-					<div style="font-weight:700;color:#0f172a;">${row.attendee_name || "Guest"}</div>
-					<div style="font-size:0.78rem;color:#94a3b8;">${row.attendee_email || ""}</div>
+					<div style="font-weight:700;color:#0f172a;">${escapeVolunteerHtml(row.attendee_name || "Guest")}</div>
+					<div style="font-size:0.78rem;color:#94a3b8;">${escapeVolunteerHtml(row.attendee_email || "")}</div>
 				</td>
-				<td style="padding:0.85rem 1.2rem;color:#475569;">${row.ticket_type || "Ticket"}</td>
+				<td style="padding:0.85rem 1.2rem;color:#475569;">${escapeVolunteerHtml(row.ticket_type || "Ticket")}</td>
 				<td style="padding:0.85rem 1.2rem;">${badge}</td>
 				<td style="padding:0.85rem 1.2rem;color:#64748b;">${when}</td>
+				<td style="padding:0.85rem 1.2rem;color:#475569;font-weight:600;">${escapeVolunteerHtml(volunteer)}</td>
 			</tr>`;
 		}).join("");
+	}
+
+	let attendancePollTimer = null;
+	const ATTENDANCE_POLL_MS = 8000;
+
+	function startAttendancePolling() {
+		stopAttendancePolling();
+		attendancePollTimer = setInterval(() => {
+			if (document.visibilityState === "visible") loadAttendanceData();
+		}, ATTENDANCE_POLL_MS);
+	}
+
+	function stopAttendancePolling() {
+		if (attendancePollTimer) {
+			clearInterval(attendancePollTimer);
+			attendancePollTimer = null;
+		}
 	}
 
 	async function loadAttendanceData() {
@@ -1496,6 +1592,38 @@ async function initOrganizerDashboard() {
 		}
 	}
 
+	let cachedCommAudienceOptions = [];
+
+	function renderCommAudienceOptions(options, selectedValue) {
+		const audienceSelect = document.getElementById("commAudienceSelect");
+		if (!audienceSelect) return;
+		cachedCommAudienceOptions = Array.isArray(options) ? options : [];
+		const prev = selectedValue || audienceSelect.value;
+		if (!cachedCommAudienceOptions.length) {
+			audienceSelect.innerHTML = `<option value="all_tickets">All Ticket Holders (0)</option>`;
+			return;
+		}
+		audienceSelect.innerHTML = cachedCommAudienceOptions.map((opt) => {
+			const label = escapeVolunteerHtml(opt.label || "Ticket");
+			const count = Number(opt.count || 0);
+			const value = escapeVolunteerHtml(opt.value || "all_tickets");
+			return `<option value="${value}">${label} (${count})</option>`;
+		}).join("");
+		if (prev && [...audienceSelect.options].some((o) => o.value === prev)) {
+			audienceSelect.value = prev;
+		}
+	}
+
+	function commAudienceLabel(value) {
+		const match = cachedCommAudienceOptions.find((opt) => opt.value === value);
+		if (match) return `${match.label} (${match.count})`;
+		if (value === "all_tickets" || value === "all_attendees") return "All Ticket Holders";
+		if (value && value.startsWith("ticket_type:")) {
+			return value.replace("ticket_type:", "").replace(/_/g, " ");
+		}
+		return value || "All Ticket Holders";
+	}
+
 	async function loadCommunicationsData() {
 		if (!email) return;
 		try {
@@ -1505,10 +1633,7 @@ async function initOrganizerDashboard() {
 			if (!res.ok) return;
 			const data = await res.json();
 			const communications = data.communications || [];
-			const audienceSelect = document.getElementById("commAudienceSelect");
-			if (audienceSelect) {
-				audienceSelect.options[0].text = `All Registered Attendees (${communications.length})`;
-			}
+			renderCommAudienceOptions(data.audience_options || []);
 
 			const commHistoryContainer = document.getElementById("commHistoryContainer");
 			if (commHistoryContainer) {
@@ -1517,15 +1642,15 @@ async function initOrganizerDashboard() {
 						<div style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 8px;">
 							<div style="font-size: 1.5rem; margin-bottom: 0.4rem;">📢</div>
 							<div style="font-weight: 700; color: #475569;">No Communications Sent Yet</div>
-							<div style="font-size: 0.82rem; margin-top: 0.2rem;">Use the composer above to broadcast updates to attendees, VIPs, or exhibitors.</div>
+							<div style="font-size: 0.82rem; margin-top: 0.2rem;">Use the composer above to broadcast updates to ticket holders by pass type.</div>
 						</div>
 					`;
 				} else {
 					commHistoryContainer.innerHTML = communications.map(c => `
 						<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
 							<div>
-								<div style="font-weight: 700; color: #0f172a; font-size: 0.95rem;">${c.subject || 'Broadcast Message'}</div>
-								<div style="font-size: 0.82rem; color: #64748b; margin-top: 0.2rem;">Channel: ${c.channel || 'Email'} | Audience: ${c.audience || 'All Attendees'}</div>
+								<div style="font-weight: 700; color: #0f172a; font-size: 0.95rem;">${escapeVolunteerHtml(c.subject || 'Broadcast Message')}</div>
+								<div style="font-size: 0.82rem; color: #64748b; margin-top: 0.2rem;">Channel: ${escapeVolunteerHtml(c.channel || 'Email')} | Audience: ${escapeVolunteerHtml(commAudienceLabel(c.audience))}</div>
 							</div>
 							<span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">Sent</span>
 						</div>
@@ -1807,16 +1932,24 @@ async function initOrganizerDashboard() {
 	}
 
 	function populateGateDropdown(gates) {
+		const volunteerGateSelect = document.getElementById("volunteerGateSelect");
+		const volunteerGateField = document.getElementById("volunteerGateField");
+		const volunteerGateHint = document.getElementById("volunteerGateHint");
+		const inviteBtn = document.getElementById("btnInviteVolunteer");
+		const activeGates = (gates || []).filter((g) => String(g.status || "Active").toLowerCase() === "active");
+		const hasGates = activeGates.length > 0;
+		if (volunteerGateField) volunteerGateField.style.display = hasGates ? "block" : "none";
+		if (volunteerGateHint) volunteerGateHint.style.display = hasGates ? "none" : "block";
+		if (inviteBtn) inviteBtn.disabled = !hasGates;
 		if (!volunteerGateSelect) return;
-		// Filter only Active gates for dropdown selection
-		const activeGates = gates.filter(g => g.status === "Active");
-		if (activeGates.length === 0) {
-			volunteerGateSelect.innerHTML = `<option value="" disabled selected>No active gates configured yet</option>`;
+		if (!hasGates) {
+			volunteerGateSelect.innerHTML = `<option value="" disabled selected>Save a gate first</option>`;
 			return;
 		}
-		volunteerGateSelect.innerHTML = activeGates.map(g => `
-			<option value="${g.gate_id}">${g.gate_name} ${g.gate_code ? '(' + g.gate_code + ')' : ''}</option>
-		`).join('');
+		volunteerGateSelect.innerHTML = `<option value="" disabled selected>Select a saved gate</option>` + activeGates.map((g) => {
+			const code = g.gate_code ? ` (${escapeVolunteerHtml(g.gate_code)})` : "";
+			return `<option value="${escapeVolunteerHtml(g.gate_id)}">${escapeVolunteerHtml(g.gate_name)}${code}</option>`;
+		}).join("");
 	}
 
 	// Gate Form Submit Listener
@@ -1863,71 +1996,186 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-	async function loadScanners() {
-		if (!email) return;
+	async function loadVolunteers() {
 		const tableBody = document.getElementById("volunteerTableBody");
 		if (!tableBody) return;
 
 		try {
-			const res = await fetch(`${HOST_EVENTS_API_BASE}/scanners?organizer_email=${encodeURIComponent(email)}${activeEventId ? '&event_id=' + activeEventId : ''}`, {
+			const qs = activeEventId ? `?event_id=${encodeURIComponent(activeEventId)}` : "";
+			const res = await fetch(`${VOLUNTEERS_API}${qs}`, {
 				headers: getAuthHeaders()
 			});
 			if (res.ok) {
 				const data = await res.json();
-				cachedScanners = data.scanners || [];
-				renderScannersTable(cachedScanners);
+				cachedScanners = data.volunteers || [];
+				renderVolunteersTable(cachedScanners);
+			} else if (res.status === 401) {
+				tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Sign in to manage volunteers.</td></tr>`;
 			}
 		} catch (err) {
-			console.warn("Could not load volunteer scanners:", err);
+			console.warn("Could not load volunteers:", err);
 		}
 	}
 
-	function renderScannersTable(scanners) {
+	function loadScanners() {
+		return loadVolunteers();
+	}
+
+	function volunteerStatusStyle(status) {
+		const s = String(status || "").toUpperCase();
+		if (s === "ACTIVE") return { bg: "#f0fdf4", border: "#bbf7d0", color: "#166534", label: "Active" };
+		if (s === "PENDING") return { bg: "#fff7ed", border: "#fed7aa", color: "#c2410c", label: "Pending" };
+		if (s === "REVOKED") return { bg: "#fef2f2", border: "#fecaca", color: "#dc2626", label: "Revoked" };
+		if (s === "EXPIRED") return { bg: "#f8fafc", border: "#e2e8f0", color: "#64748b", label: "Expired" };
+		return { bg: "#f8fafc", border: "#e2e8f0", color: "#475569", label: s || "Unknown" };
+	}
+
+	function escapeVolunteerHtml(value) {
+		return String(value == null ? "" : value)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
+	function renderVolunteersTable(volunteers) {
 		const tableBody = document.getElementById("volunteerTableBody");
 		if (!tableBody) return;
 
-		if (!scanners || scanners.length === 0) {
+		if (!volunteers || volunteers.length === 0) {
 			tableBody.innerHTML = `
 				<tr>
-					<td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">
-						No volunteer scanners connected yet. Generate a scanner link above to assign staff.
+					<td colspan="6" style="text-align: center; padding: 1.5rem; color: #94a3b8;">
+						No volunteers invited yet. Save a gate, then add a volunteer email above.
 					</td>
 				</tr>
 			`;
 			return;
 		}
 
-		tableBody.innerHTML = scanners.map(s => `
+		tableBody.innerHTML = volunteers.map((row) => {
+			const st = volunteerStatusStyle(row.status);
+			const roleLabel = (row.role || "SCANNER").toUpperCase() === "SCANNER" ? "Scanner" : escapeVolunteerHtml(row.role);
+			const gateLabel = row.gate_name || "—";
+			const canResend = String(row.status || "").toUpperCase() === "PENDING";
+			const canRevoke = ["PENDING", "ACTIVE"].includes(String(row.status || "").toUpperCase());
+			const actions = [];
+			if (canResend) {
+				actions.push(`<button type="button" class="btn-resend-volunteer" data-id="${escapeVolunteerHtml(row.id)}" data-name="${escapeVolunteerHtml(row.name)}" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer; margin-left: 0.35rem;">Resend</button>`);
+			}
+			if (canRevoke) {
+				actions.push(`<button type="button" class="btn-revoke-volunteer" data-id="${escapeVolunteerHtml(row.id)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer; margin-left: 0.35rem;">Revoke</button>`);
+			}
+			return `
 			<tr style="border-bottom: 1px solid #f1f5f9;">
-				<td style="padding: 0.8rem 1rem; font-weight: 700; color: #0f172a;">${s.name}</td>
-				<td style="padding: 0.8rem 1rem; color: #475569;">${s.gate_name}</td>
-				<td style="padding: 0.8rem 1rem; font-weight: 700; color: #2563eb;">${s.scans_processed} Check-ins</td>
-				<td style="padding: 0.8rem 1rem;"><span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">${s.status || 'Live Scanning'}</span></td>
-				<td style="padding: 0.8rem 1rem; text-align: right;"><button type="button" class="btn-revoke-scanner" data-id="${s.scanner_id}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Revoke</button></td>
-			</tr>
-		`).join('');
+				<td style="padding: 0.8rem 1rem; font-weight: 700; color: #0f172a;">${escapeVolunteerHtml(row.name)}</td>
+				<td style="padding: 0.8rem 1rem; color: #475569;">${escapeVolunteerHtml(row.email)}</td>
+				<td style="padding: 0.8rem 1rem; color: #475569;">${escapeVolunteerHtml(gateLabel)}</td>
+				<td style="padding: 0.8rem 1rem; color: #475569;">${roleLabel}</td>
+				<td style="padding: 0.8rem 1rem;"><span style="background: ${st.bg}; border: 1px solid ${st.border}; color: ${st.color}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">${st.label}</span></td>
+				<td style="padding: 0.8rem 1rem; text-align: right;">${actions.join("") || "—"}</td>
+			</tr>`;
+		}).join("");
 
-		tableBody.querySelectorAll(".btn-revoke-scanner").forEach(btn => {
+		tableBody.querySelectorAll(".btn-revoke-volunteer").forEach((btn) => {
 			btn.addEventListener("click", async () => {
-				const scannerId = btn.getAttribute("data-id");
-				if (confirm("Revoke access for this scanner?")) {
-					try {
-						const res = await fetch(`${HOST_EVENTS_API_BASE}/scanners/${scannerId}`, {
-							method: "DELETE",
-							headers: getAuthHeaders()
-						});
-						if (res.ok) {
-							loadScanners();
-							showNotification("Scanner revoked successfully.");
-						} else {
-							alert("Could not revoke scanner.");
-						}
-					} catch (err) {
-						console.warn(err);
+				const volunteerId = btn.getAttribute("data-id");
+				if (!confirm("Revoke this volunteer's scanner access?")) return;
+				try {
+					const res = await fetch(`${VOLUNTEERS_API}/${volunteerId}/revoke`, {
+						method: "POST",
+						headers: getAuthHeaders()
+					});
+					if (res.ok) {
+						loadVolunteers();
+						loadEventDayVolunteerStats();
+						showNotification("Volunteer access revoked.");
+					} else {
+						const err = await res.json().catch(() => ({}));
+						alert(apiErrorMessage(err, "Could not revoke volunteer."));
 					}
+				} catch (err) {
+					console.warn(err);
 				}
 			});
 		});
+
+		tableBody.querySelectorAll(".btn-resend-volunteer").forEach((btn) => {
+			btn.addEventListener("click", async () => {
+				const volunteerId = btn.getAttribute("data-id");
+				const volunteerName = btn.getAttribute("data-name") || "";
+				hideVolunteerInviteLink();
+				try {
+					const res = await fetch(`${VOLUNTEERS_API}/${volunteerId}/resend`, {
+						method: "POST",
+						headers: getAuthHeaders()
+					});
+					const data = await res.json().catch(() => ({}));
+					if (res.ok) {
+						showVolunteerInviteLink(data.invite_url, volunteerName);
+						loadVolunteers();
+						showNotification("Invitation resent.");
+					} else {
+						alert(apiErrorMessage(data, "Could not resend invitation."));
+					}
+				} catch (err) {
+					console.warn(err);
+				}
+			});
+		});
+	}
+
+	function hideVolunteerInviteLink() {
+		const generatedLinkContainer = document.getElementById("generatedLinkContainer");
+		const volunteerPortalUrl = document.getElementById("volunteerPortalUrl");
+		const volunteerLinkLabel = document.getElementById("volunteerLinkLabel");
+		if (volunteerPortalUrl) volunteerPortalUrl.value = "";
+		if (volunteerLinkLabel) volunteerLinkLabel.textContent = "Invitation link (also emailed):";
+		if (generatedLinkContainer) generatedLinkContainer.style.display = "none";
+	}
+
+	function showVolunteerInviteLink(url, volunteerName) {
+		const generatedLinkContainer = document.getElementById("generatedLinkContainer");
+		const volunteerPortalUrl = document.getElementById("volunteerPortalUrl");
+		const volunteerLinkLabel = document.getElementById("volunteerLinkLabel");
+		if (!generatedLinkContainer || !volunteerPortalUrl || !url) return;
+		volunteerPortalUrl.value = url;
+		if (volunteerLinkLabel) {
+			volunteerLinkLabel.textContent = volunteerName
+				? `Invitation link for ${volunteerName} (also emailed):`
+				: "Invitation link (also emailed):";
+		}
+		generatedLinkContainer.style.display = "block";
+	}
+
+	function formatEventDayTime(iso) {
+		if (!iso) return "";
+		const date = new Date(iso);
+		if (Number.isNaN(date.getTime())) return "";
+		return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+	}
+
+	async function loadEventDayVolunteerStats() {
+		try {
+			const qs = activeEventId ? `?event_id=${encodeURIComponent(activeEventId)}` : "";
+			const res = await fetch(`${VOLUNTEERS_API}/event-day-stats${qs}`, {
+				headers: getAuthHeaders()
+			});
+			if (!res.ok) return;
+			const data = await res.json();
+			const totalEl = document.getElementById("evTotalTickets");
+			const checkedEl = document.getElementById("evCheckedIn");
+			const notEl = document.getElementById("evNotCheckedIn");
+			const rateEl = document.getElementById("evCheckinRate");
+			const activeEl = document.getElementById("evActiveVolunteers");
+			if (totalEl) totalEl.textContent = Number(data.total_tickets || 0).toLocaleString();
+			if (checkedEl) checkedEl.textContent = Number(data.checked_in || 0).toLocaleString();
+			if (notEl) notEl.textContent = Number(data.not_checked_in || 0).toLocaleString();
+			if (rateEl) rateEl.textContent = `${Number(data.checkin_rate || 0)}%`;
+			if (activeEl) activeEl.textContent = Number(data.active_volunteers || 0).toLocaleString();
+		} catch (err) {
+			console.warn("Could not load event day volunteer stats:", err);
+		}
 	}
 
 	// Quick Action Buttons Listener
@@ -1948,7 +2196,7 @@ async function initOrganizerDashboard() {
 		btnSendBroadcast.addEventListener("click", async () => {
 			const subject = document.getElementById("commSubjectInput")?.value.trim();
 			const message = document.getElementById("commBodyInput")?.value.trim();
-			const audience = document.getElementById("commAudienceSelect")?.value || "all_attendees";
+			const audience = document.getElementById("commAudienceSelect")?.value || "all_tickets";
 			const channel = document.getElementById("commChannelSelect")?.value || "email";
 			if (!subject || !message) {
 				alert("Please enter both a subject and a message before sending.");
@@ -1998,7 +2246,7 @@ async function initOrganizerDashboard() {
 					body: JSON.stringify({
 						organizer_email: email,
 						event_id: activeEventId,
-						audience: document.getElementById("commAudienceSelect")?.value || "all_attendees",
+						audience: document.getElementById("commAudienceSelect")?.value || "all_tickets",
 						channel: document.getElementById("commChannelSelect")?.value || "email",
 						subject,
 						message,
@@ -2040,6 +2288,17 @@ async function initOrganizerDashboard() {
 			loadAttendanceData();
 		});
 	}
+
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState === "visible" && normalizeTab(new URLSearchParams(window.location.search).get("tab") || "") === "attendance") {
+			loadAttendanceData();
+		}
+	});
+	window.addEventListener("focus", () => {
+		if (normalizeTab(new URLSearchParams(window.location.search).get("tab") || "") === "attendance") {
+			loadAttendanceData();
+		}
+	});
 
 	function applySectionActionLabels() {
 		const published = isPublishedLifecycle() || currentLifecycle === "ended";
@@ -2206,17 +2465,95 @@ async function initOrganizerDashboard() {
 
 	// Draw Smooth Line Chart on Canvas
 	let lastTrendData = [];
+	let lastTrendPoints = [];
+	let trendHoverIndex = -1;
+	let trendChartEventsBound = false;
+
+	function showTrendTooltip(point, canvas, mx, my) {
+		const tip = document.getElementById("trendChartTooltip");
+		if (!tip || !point || !canvas) return;
+		const count = Number(point.value) || 0;
+		const label = count === 1 ? "registration" : "registrations";
+		const rect = canvas.getBoundingClientRect();
+		tip.innerHTML = `
+			<div class="tip-date">${escapeVolunteerHtml(point.date)}</div>
+			<div class="tip-count">${count.toLocaleString("en-IN")} ${label}</div>
+		`;
+		tip.style.left = `${rect.left + mx}px`;
+		tip.style.top = `${rect.top + my}px`;
+		tip.classList.add("is-visible");
+	}
+
+	function hideTrendTooltip() {
+		const tip = document.getElementById("trendChartTooltip");
+		if (!tip) return;
+		tip.classList.remove("is-visible");
+	}
+
+	function onTrendChartMouseLeave() {
+		trendHoverIndex = -1;
+		hideTrendTooltip();
+		const canvas = document.getElementById("trendChartCanvas");
+		if (canvas) canvas.style.cursor = "default";
+		drawTrendChart();
+	}
+
+	function onTrendChartMouseMove(e) {
+		const canvas = document.getElementById("trendChartCanvas");
+		if (!canvas || !lastTrendPoints.length) return;
+		const rect = canvas.getBoundingClientRect();
+		const mx = e.clientX - rect.left;
+		const my = e.clientY - rect.top;
+		const hitRadius = 14;
+		let found = -1;
+		let bestDist = Infinity;
+		lastTrendPoints.forEach((p, i) => {
+			const dx = mx - p.x;
+			const dy = my - p.y;
+			const dist = Math.sqrt(dx * dx + dy * dy);
+			if (dist <= hitRadius && dist < bestDist) {
+				bestDist = dist;
+				found = i;
+			}
+		});
+		if (found !== trendHoverIndex) {
+			trendHoverIndex = found;
+			drawTrendChart();
+		}
+		if (found >= 0) {
+			showTrendTooltip(lastTrendPoints[found], canvas, mx, my);
+			canvas.style.cursor = "pointer";
+		} else {
+			hideTrendTooltip();
+			canvas.style.cursor = "default";
+		}
+	}
+
+	function bindTrendChartEvents() {
+		const canvas = document.getElementById("trendChartCanvas");
+		if (!canvas || trendChartEventsBound) return;
+		trendChartEventsBound = true;
+		canvas.addEventListener("mousemove", onTrendChartMouseMove);
+		canvas.addEventListener("mouseleave", onTrendChartMouseLeave);
+	}
+
 	function drawTrendChart(incoming) {
 		const canvas = document.getElementById("trendChartCanvas");
 		if (!canvas) return;
 		const ctx = canvas.getContext("2d");
 		
 		const rect = canvas.getBoundingClientRect();
-		if (rect.width === 0) return;
+		if (rect.width === 0 || rect.height === 0) return;
 
-		canvas.width = rect.width * 2;
-		canvas.height = rect.height * 2;
-		ctx.scale(2, 2);
+		const dpr = window.devicePixelRatio || 1;
+		const targetW = Math.round(rect.width * dpr);
+		const targetH = Math.round(rect.height * dpr);
+		if (canvas.width !== targetW || canvas.height !== targetH) {
+			canvas.width = targetW;
+			canvas.height = targetH;
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.scale(dpr, dpr);
+		}
 
 		const width = rect.width;
 		const height = rect.height;
@@ -2245,8 +2582,9 @@ async function initOrganizerDashboard() {
 		const points = trendData.map((d, i) => {
 			const x = paddingX + (i / denom) * chartW;
 			const y = height - paddingY - (d.value / maxVal) * chartH;
-			return { x, y, date: d.date };
+			return { x, y, date: d.date, value: d.value };
 		});
+		lastTrendPoints = points;
 
 		// Horizontal Grid Lines
 		ctx.strokeStyle = "#e2e8f0";
@@ -2302,17 +2640,25 @@ async function initOrganizerDashboard() {
 		ctx.stroke();
 
 		// Data Points & X-Labels
-		points.forEach(p => {
-			ctx.fillStyle = "#3b82f6";
+		points.forEach((p, i) => {
+			const hovered = i === trendHoverIndex;
+			ctx.fillStyle = hovered ? "#1d4ed8" : "#3b82f6";
 			ctx.beginPath();
-			ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+			ctx.arc(p.x, p.y, hovered ? 6 : 4, 0, Math.PI * 2);
 			ctx.fill();
+			if (hovered) {
+				ctx.strokeStyle = "#ffffff";
+				ctx.lineWidth = 2;
+				ctx.stroke();
+			}
 
 			ctx.fillStyle = "#64748b";
 			ctx.font = "10px sans-serif";
 			ctx.textAlign = "center";
 			ctx.fillText(p.date, p.x, height - 6);
 		});
+
+		bindTrendChartEvents();
 	}
 
 	// Fetch Current Host Event, Customer ID, & Host ID from API
@@ -2471,6 +2817,7 @@ async function initOrganizerDashboard() {
 			theme_color: "#2563eb",
 			font: "Inter",
 			banner_image: bannerImageUrl || undefined,
+			card_image: cardImageUrl || "",
 			gallery_images: galleryImageUrls.length ? galleryImageUrls : undefined,
 			sponsor_details: collectSponsorDetails(),
 			speaker_details: collectSpeakerDetails(),
@@ -2558,10 +2905,13 @@ async function initOrganizerDashboard() {
 		if (dashEventTitle) dashEventTitle.textContent = title;
 		if (dashEventMeta) dashEventMeta.textContent = metaText;
 
-		const webTitleBadge = document.getElementById("webTitleBadge");
-		const webHeadline = document.getElementById("webHeadline");
-		if (webTitleBadge) webTitleBadge.textContent = title.split(" ")[0];
-		if (webHeadline) webHeadline.textContent = title;
+		updateEventPagePreview({
+			event_id: activeEventId,
+			event_title: title,
+			venue: locationInput && locationInput.value.trim() ? locationInput.value.trim() : "Venue TBD",
+			event_status: isPublishedLifecycle() ? "published" : "draft",
+			banner_image: bannerImageUrl || undefined
+		});
 	}
 
 	function setWizardNavBusy(button, busy, busyLabel) {
@@ -3463,6 +3813,7 @@ async function initOrganizerDashboard() {
 				bannerPreviewImg.src = resolveUploadUrl(url);
 				bannerDropzoneContent.style.display = "none";
 				bannerPreviewBox.style.display = "block";
+				updateEventPagePreview({ event_id: activeEventId, banner_image: url });
 				triggerLiveAutoSave();
 			} catch (err) {
 				setInlineUploadError(host, formatDesignUploadError(err));
@@ -3482,6 +3833,75 @@ async function initOrganizerDashboard() {
 				triggerLiveAutoSave();
 			});
 		}
+	}
+
+	function readImageDimensions(file) {
+		return new Promise((resolve) => {
+			const url = URL.createObjectURL(file);
+			const img = new Image();
+			img.onload = () => {
+				URL.revokeObjectURL(url);
+				resolve({ width: img.naturalWidth || img.width, height: img.naturalHeight || img.height });
+			};
+			img.onerror = () => {
+				URL.revokeObjectURL(url);
+				resolve(null);
+			};
+			img.src = url;
+		});
+	}
+
+	// Card Image Upload (Home / Category / Ticket thumbnail)
+	const cardImageDropzone = document.getElementById("cardImageDropzone");
+	const cardImageFileInput = document.getElementById("cardImageFileInput");
+	const cardImageDropzoneContent = document.getElementById("cardImageDropzoneContent");
+	const cardImagePreviewBox = document.getElementById("cardImagePreviewBox");
+	const cardImagePreviewImg = document.getElementById("cardImagePreviewImg");
+	const btnClearCardImage = document.getElementById("btnClearCardImage");
+
+	if (cardImageDropzone && cardImageFileInput) {
+		cardImageDropzone.addEventListener("click", (e) => {
+			if (e.target.id !== "btnClearCardImage") cardImageFileInput.click();
+		});
+
+		cardImageFileInput.addEventListener("change", async (e) => {
+			const file = e.target.files && e.target.files[0];
+			if (!file) return;
+			const host = document.getElementById("cardImageUploadHost");
+			setInlineUploadError(host, "");
+			const dims = await readImageDimensions(file);
+			if (dims && (dims.width < 300 || dims.height < 150)) {
+				setInlineUploadError(host, `Card image is ${dims.width} × ${dims.height}px. Minimum size is 300 × 150 px.`);
+				cardImageFileInput.value = "";
+				return;
+			}
+			try {
+				cardImageDropzoneContent.style.opacity = "0.6";
+				const url = await uploadDesignAsset(file, "card_image");
+				cardImageUrl = url;
+				cardImagePreviewImg.src = resolveUploadUrl(url);
+				cardImageDropzoneContent.style.display = "none";
+				cardImagePreviewBox.style.display = "block";
+				triggerLiveAutoSave();
+			} catch (err) {
+				setInlineUploadError(host, formatDesignUploadError(err));
+			} finally {
+				cardImageDropzoneContent.style.opacity = "1";
+				cardImageFileInput.value = "";
+			}
+		});
+	}
+
+	if (btnClearCardImage) {
+		btnClearCardImage.addEventListener("click", (e) => {
+			e.stopPropagation();
+			cardImageUrl = null;
+			if (cardImagePreviewImg) cardImagePreviewImg.src = "";
+			if (cardImagePreviewBox) cardImagePreviewBox.style.display = "none";
+			if (cardImageDropzoneContent) cardImageDropzoneContent.style.display = "flex";
+			setInlineUploadError(document.getElementById("cardImageUploadHost"), "");
+			triggerLiveAutoSave();
+		});
 	}
 
 	// Dynamic Sponsor Row Adder
@@ -3794,11 +4214,21 @@ async function initOrganizerDashboard() {
 				const desc = document.getElementById("eventDescInput");
 				if (desc && !desc.value) desc.value = d.about_event;
 			}
+			if (d.card_image) {
+				cardImageUrl = d.card_image;
+				const cardPreviewImg = document.getElementById("cardImagePreviewImg");
+				const cardDropzoneContent = document.getElementById("cardImageDropzoneContent");
+				const cardPreviewBox = document.getElementById("cardImagePreviewBox");
+				if (cardPreviewImg) cardPreviewImg.src = resolveUploadUrl(d.card_image);
+				if (cardDropzoneContent) cardDropzoneContent.style.display = "none";
+				if (cardPreviewBox) cardPreviewBox.style.display = "block";
+			}
 			if (d.banner_image) {
 				bannerImageUrl = d.banner_image;
 				if (bannerPreviewImg) bannerPreviewImg.src = resolveUploadUrl(d.banner_image);
 				if (bannerDropzoneContent) bannerDropzoneContent.style.display = "none";
 				if (bannerPreviewBox) bannerPreviewBox.style.display = "block";
+				updateEventPagePreview({ event_id: activeEventId, banner_image: d.banner_image });
 			}
 			if (d.gallery_images && Array.isArray(d.gallery_images) && d.gallery_images.length) {
 				galleryImageUrls = d.gallery_images.slice();
@@ -4114,58 +4544,82 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-	// Generate Volunteer Scanner Access Link & Passcode
-	if (btnCreateVolunteerLink && volunteerNameInput && generatedLinkContainer) {
-		btnCreateVolunteerLink.addEventListener("click", async () => {
-			const name = volunteerNameInput.value.trim() || "Volunteer Staff";
-			const gateId = volunteerGateSelect.value;
-			if (!gateId) {
-				alert("Please configure and select an entry gate first.");
+	const volunteerNameInput = document.getElementById("volunteerNameInput");
+	const volunteerEmailInput = document.getElementById("volunteerEmailInput");
+	const volunteerRoleSelect = document.getElementById("volunteerRoleSelect");
+	const volunteerGateSelectEl = document.getElementById("volunteerGateSelect");
+	const btnInviteVolunteer = document.getElementById("btnInviteVolunteer");
+	const generatedLinkContainer = document.getElementById("generatedLinkContainer");
+	const volunteerPortalUrl = document.getElementById("volunteerPortalUrl");
+	const btnCopyVolunteerUrl = document.getElementById("btnCopyVolunteerUrl");
+
+	if (btnInviteVolunteer) {
+		btnInviteVolunteer.addEventListener("click", async () => {
+			const name = (volunteerNameInput && volunteerNameInput.value.trim()) || "";
+			const volunteerEmail = (volunteerEmailInput && volunteerEmailInput.value.trim()) || "";
+			const role = (volunteerRoleSelect && volunteerRoleSelect.value) || "SCANNER";
+			const gateId = (volunteerGateSelectEl && volunteerGateSelectEl.value) || "";
+			if (!name) {
+				alert("Enter the volunteer name.");
 				return;
 			}
-			const code = "VOL-2026-" + Math.floor(1000 + Math.random() * 9000);
-
+			if (!volunteerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(volunteerEmail)) {
+				alert("Enter a valid volunteer email address.");
+				return;
+			}
+			if (!gateId) {
+				alert("Save a gate first, then assign this volunteer to that gate.");
+				return;
+			}
+			hideVolunteerInviteLink();
 			try {
-				const res = await fetch(`${HOST_EVENTS_API_BASE}/scanners`, {
+				const res = await fetch(VOLUNTEERS_API, {
 					method: "POST",
 					headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
 					body: JSON.stringify({
-						organizer_email: email,
-						event_id: activeEventId,
-						name: name,
+						volunteer_name: name,
+						email: volunteerEmail,
+						role,
 						gate_id: gateId,
-						passcode: code
+						event_id: activeEventId
 					})
 				});
-
+				const data = await res.json().catch(() => ({}));
 				if (res.ok) {
-					const scannerData = await res.json();
-					const gateName = scannerData.gate_name || "Assigned Gate";
-					const link = `${window.location.origin}/volunteer-scanner.html?code=${code}&gate=${encodeURIComponent(gateName)}`;
-
-					passcodeBadge.textContent = `Passcode: ${code}`;
-					volunteerPortalUrl.value = link;
-					const btnOpen = document.getElementById("btnOpenVolunteerPortal");
-					if (btnOpen) btnOpen.href = link;
-					generatedLinkContainer.style.display = "block";
-
-					loadScanners();
-					showNotification(`Volunteer Scanner link created for ${name} (${gateName})!`);
+					showVolunteerInviteLink(data.invite_url, name);
+					if (volunteerNameInput) volunteerNameInput.value = "";
+					if (volunteerEmailInput) volunteerEmailInput.value = "";
+					if (volunteerGateSelectEl) volunteerGateSelectEl.selectedIndex = 0;
+					loadVolunteers();
+					loadEventDayVolunteerStats();
+					showNotification(`Invitation sent to ${volunteerEmail}.`);
 				} else {
-					const err = await res.json();
-					alert(err.detail || "Could not generate volunteer scanner link.");
+					alert(apiErrorMessage(data, "Could not send volunteer invitation."));
 				}
 			} catch (err) {
 				console.warn(err);
+				alert("Could not send volunteer invitation.");
 			}
 		});
 	}
 
 	if (btnCopyVolunteerUrl && volunteerPortalUrl) {
-		btnCopyVolunteerUrl.addEventListener("click", () => {
-			volunteerPortalUrl.select();
-			navigator.clipboard.writeText(volunteerPortalUrl.value);
-			showNotification("Volunteer Scanner Link copied to clipboard!");
+		btnCopyVolunteerUrl.addEventListener("click", async () => {
+			const url = (volunteerPortalUrl.value || "").trim();
+			if (!url) return;
+			try {
+				if (navigator.clipboard && navigator.clipboard.writeText) {
+					await navigator.clipboard.writeText(url);
+				} else {
+					volunteerPortalUrl.select();
+					document.execCommand("copy");
+				}
+				showNotification("Invitation link copied.");
+				hideVolunteerInviteLink();
+			} catch (err) {
+				console.warn(err);
+				alert("Could not copy the invitation link.");
+			}
 		});
 	}
 
@@ -5122,7 +5576,8 @@ async function initOrganizerDashboard() {
 	window.loadReportsData = loadReportsData;
 	window.loadExhibitors = loadExhibitors;
 	window.loadGates = loadGates;
-	window.loadScanners = loadScanners;
+	window.loadVolunteers = loadVolunteers;
+	window.loadScanners = loadVolunteers;
 	window.renderOverviewState = renderOverviewState;
 
 	// Hash change listener for URL routing (legacy support)

@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Float
 from sqlalchemy.orm import relationship, synonym
 
-from Models.base import Base, GUID
+from Models.base import Base, GUID, JSONType
 
 
 def generate_customer_id():
@@ -30,6 +30,8 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     bio             = Column(Text, nullable=True)
     avatar_url      = Column(String(500), nullable=True)
+    notification_read_ids = Column(JSONType, nullable=True)
+    notification_cleared_ids = Column(JSONType, nullable=True)
     is_active       = Column(Boolean, default=True, nullable=True)
     is_admin        = Column(Boolean, default=False, nullable=True)
     created_at      = Column(DateTime, default=datetime.utcnow, nullable=True)

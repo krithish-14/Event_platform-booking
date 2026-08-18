@@ -24,6 +24,7 @@ window.JodAuth = (() => {
 
 	function getUser() {
 		try {
+			if (!getToken()) return null;
 			const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
 			if (raw && raw !== "null" && raw !== "undefined") {
 				const parsed = JSON.parse(raw);
@@ -31,53 +32,192 @@ window.JodAuth = (() => {
 					return parsed;
 				}
 			}
-			const verifiedEmail = sessionStorage.getItem("verified_organizer_email");
-			if (verifiedEmail) {
-				const fallbackUser = {
-					email: verifiedEmail,
-					username: verifiedEmail.split("@")[0],
-					full_name: verifiedEmail.split("@")[0],
-					is_organizer: true
-				};
-				return fallbackUser;
-			}
 			return null;
 		} catch (_) { return null; }
 	}
 
 	function isLoggedIn() {
 		try {
-			const user = getUser();
 			const token = getToken();
-			if (user && (user.id || user.customer_id || user.email)) return true;
-			if (token && token !== "null" && token !== "undefined" && token.length > 5) return true;
-			return false;
+			const user = getUser();
+			return Boolean(token && user && (user.id || user.customer_id || user.email));
 		} catch (_) {
 			return false;
 		}
 	}
 
+	function currentUserScope() {
+		const user = getUser();
+		if (!user) return null;
+		return String(user.customer_id || user.id || user.email || "").trim().toLowerCase() || null;
+	}
+
+	function userIdentityAliases(user) {
+		const source = user || getUser() || {};
+		const aliases = [];
+		["customer_id", "id", "email"].forEach((field) => {
+			const value = String(source[field] || "").trim().toLowerCase();
+			if (value && !aliases.includes(value)) aliases.push(value);
+		});
+		return aliases;
+	}
+
+	function scopedKey(prefix, user) {
+		const aliases = userIdentityAliases(user);
+		return aliases.length ? `${prefix}_${aliases[0]}` : null;
+	}
+
+	function scopedKeyAliases(prefix, user) {
+		return userIdentityAliases(user).map((alias) => `${prefix}_${alias}`);
+	}
+
+	function bookingsCacheKey() {
+		return scopedKey("jod_user_bookings");
+	}
+
+	function avatarCacheKey() {
+		return scopedKey("jod_profile_avatar");
+	}
+
+	function readScopedCache(prefix, user) {
+		const keys = scopedKeyAliases(prefix, user);
+		if (!keys.length) return null;
+		try {
+			for (const key of keys) {
+				const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+				if (value) return value;
+			}
+		} catch (_) {}
+		return null;
+	}
+
+	function writeScopedCache(prefix, value, user) {
+		const keys = scopedKeyAliases(prefix, user);
+		if (!keys.length) return;
+		keys.forEach((key) => {
+			try {
+				if (value == null) {
+					localStorage.removeItem(key);
+					sessionStorage.removeItem(key);
+				} else {
+					localStorage.setItem(key, value);
+				}
+			} catch (_) {}
+		});
+	}
+
+	const SESSION_ONLY_KEYS = new Set([
+		"jod_access_token",
+		"jod_user",
+		"user_email",
+		"jod_user_city",
+		"jod_user_pincode",
+		"jod_user_address",
+		"jod_user_lat",
+		"jod_user_lon",
+		"jod_location_asked",
+		"jod_location_acquired",
+		"jod_location_pending",
+		"jod_volunteer_portal_token",
+	]);
+
+	function isActiveSessionKey(key) {
+		if (!key) return false;
+		return SESSION_ONLY_KEYS.has(key);
+	}
+
+	function wipeActiveSessionStore(store) {
+		if (!store) return;
+		const keys = [];
+		for (let i = 0; i < store.length; i += 1) {
+			const key = store.key(i);
+			if (key) keys.push(key);
+		}
+		keys.forEach((key) => {
+			if (isActiveSessionKey(key)) store.removeItem(key);
+		});
+	}
+
 	function clearAuth() {
 		try {
-			console.log("[Auth Debug] Clearing session storage and tokens.");
-			localStorage.removeItem("jod_access_token");
-			sessionStorage.removeItem("jod_access_token");
-			localStorage.removeItem("jod_user");
-			sessionStorage.removeItem("jod_user");
-			sessionStorage.removeItem("verified_organizer_email");
-			Object.keys(sessionStorage).forEach((k) => {
-				if (k.startsWith("verified_organizer_")) sessionStorage.removeItem(k);
-			});
+			wipeActiveSessionStore(localStorage);
+			wipeActiveSessionStore(sessionStorage);
 			if (window.JodLocation && typeof window.JodLocation.clearLocationSession === "function") {
 				window.JodLocation.clearLocationSession();
-			} else {
-				try {
-					sessionStorage.removeItem("jod_location_asked");
-					sessionStorage.removeItem("jod_location_acquired");
-					sessionStorage.removeItem("jod_user_city");
-				} catch (_) {}
 			}
 		} catch (_) { }
+	}
+
+	function userHasSavedLocation(user) {
+		if (!user || typeof user !== "object") return false;
+		return Boolean(
+			String(user.city || "").trim() ||
+			String(user.location_address || "").trim() ||
+			String(user.location_pincode || user.location_pin || "").trim()
+		);
+	}
+
+	function hydrateLocationFromUser(user) {
+		if (!userHasSavedLocation(user) && user?.location_lat == null && user?.latitude == null) return;
+		try {
+			const city = String(user.city || "").trim();
+			const pin = String(user.location_pincode || user.location_pin || "").trim();
+			const address = String(user.location_address || "").trim();
+			if (city) {
+				localStorage.setItem("jod_user_city", city);
+				sessionStorage.setItem("jod_user_city", city);
+			}
+			if (pin) {
+				localStorage.setItem("jod_user_pincode", pin);
+				sessionStorage.setItem("jod_user_pincode", pin);
+			}
+			if (address) {
+				localStorage.setItem("jod_user_address", address);
+				sessionStorage.setItem("jod_user_address", address);
+			}
+			const lat = user.location_lat ?? user.latitude;
+			const lon = user.location_lon ?? user.longitude;
+			if (lat != null && lat !== "") {
+				localStorage.setItem("jod_user_lat", String(lat));
+				sessionStorage.setItem("jod_user_lat", String(lat));
+			}
+			if (lon != null && lon !== "") {
+				localStorage.setItem("jod_user_lon", String(lon));
+				sessionStorage.setItem("jod_user_lon", String(lon));
+			}
+			if (userHasSavedLocation(user)) {
+				sessionStorage.setItem("jod_location_acquired", "true");
+				localStorage.setItem("jod_location_acquired", "true");
+				sessionStorage.removeItem("jod_location_pending");
+			}
+		} catch (_) {}
+	}
+
+	function queueLocationPrompt(user) {
+		try {
+			if (userHasSavedLocation(user)) {
+				sessionStorage.removeItem("jod_location_pending");
+			} else {
+				sessionStorage.setItem("jod_location_pending", "1");
+			}
+		} catch (_) {}
+	}
+
+	function persistAuthSession(token, user) {
+		clearAuth();
+		if (!token || !user) return;
+		try {
+			localStorage.setItem("jod_access_token", token);
+			sessionStorage.setItem("jod_access_token", token);
+			localStorage.setItem("jod_user", JSON.stringify(user));
+			sessionStorage.setItem("jod_user", JSON.stringify(user));
+			hydrateLocationFromUser(user);
+			const avatar = user.avatar_url;
+			if (avatar && /^https?:\/\//i.test(String(avatar))) {
+				const existing = readScopedCache("jod_profile_avatar", user);
+				if (!existing) writeScopedCache("jod_profile_avatar", avatar, user);
+			}
+		} catch (_) {}
 	}
 
 	function getRedirectTarget() {
@@ -111,6 +251,7 @@ window.JodAuth = (() => {
 
 	function isHostFlowUrl(url) {
 		const u = String(url || "").toLowerCase();
+		if (u.includes("volunteer-")) return false;
 		return u.includes("account-setup") || u.includes("host-your-event") || u.includes("organizer-dashboard");
 	}
 
@@ -153,6 +294,12 @@ window.JodAuth = (() => {
 				const isRemembered = Boolean(localStorage.getItem("jod_access_token"));
 				const storage = isRemembered ? localStorage : sessionStorage;
 				storage.setItem("jod_user", JSON.stringify(user));
+				hydrateLocationFromUser(user);
+				const avatar = user.avatar_url;
+				if (avatar && /^https?:\/\//i.test(String(avatar))) {
+					const existing = readScopedCache("jod_profile_avatar", user);
+					if (!existing) writeScopedCache("jod_profile_avatar", avatar, user);
+				}
 				return user;
 			} else if (res.status === 401 || res.status === 403) {
 				clearAuth();
@@ -340,21 +487,7 @@ window.JodAuth = (() => {
 				if (!res.ok) {
 					showAlert(alertEl, "error", data.detail || `Login failed (${res.status}). Please try again.`);
 				} else {
-					try {
-						const remember = loginForm.querySelector("#rememberMe")?.checked;
-						if (remember) {
-							localStorage.setItem("jod_access_token", data.access_token);
-							localStorage.setItem("jod_user", JSON.stringify(data.user));
-						} else {
-							sessionStorage.setItem("jod_access_token", data.access_token);
-							sessionStorage.setItem("jod_user", JSON.stringify(data.user));
-						}
-						// Keep both storages in sync for cross-page compatibility
-						localStorage.setItem("jod_access_token", data.access_token);
-						sessionStorage.setItem("jod_access_token", data.access_token);
-						localStorage.setItem("jod_user", JSON.stringify(data.user));
-						sessionStorage.setItem("jod_user", JSON.stringify(data.user));
-					} catch (_) {}
+					persistAuthSession(data.access_token, data.user);
 
 					console.log("[Auth Debug] Login Successful:", {
 						user_id: data.user?.id,
@@ -366,7 +499,7 @@ window.JodAuth = (() => {
 					});
 
 					showAlert(alertEl, "success", "Login successful! Redirecting…");
-					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
+					queueLocationPrompt(data.user);
 
 					setTimeout(async () => {
 						const targetUrl = getRedirectTarget();
@@ -503,6 +636,13 @@ window.JodAuth = (() => {
 		const passwordInput = signupForm.querySelector("#signupPassword");
 		const confirmInput = signupForm.querySelector("#signupConfirmPassword");
 
+		try {
+			const invitedEmail = sessionStorage.getItem("jod_volunteer_invite_email");
+			if (invitedEmail && emailInput && !emailInput.value) {
+				emailInput.value = invitedEmail;
+			}
+		} catch (_) {}
+
 		async function fetchAvailability(params) {
 			const qs = new URLSearchParams(params).toString();
 			const res = await fetch(`${API_BASE}/api/auth/check?${qs}`, { cache: "no-store" });
@@ -581,18 +721,13 @@ window.JodAuth = (() => {
 
 		function finishSignupSuccess(data) {
 			try {
-				if (data && data.access_token) {
-					localStorage.setItem("jod_access_token", data.access_token);
-					sessionStorage.setItem("jod_access_token", data.access_token);
-				}
-				if (data && data.user) {
-					localStorage.setItem("jod_user", JSON.stringify(data.user));
-					sessionStorage.setItem("jod_user", JSON.stringify(data.user));
+				if (data && data.access_token && data.user) {
+					persistAuthSession(data.access_token, data.user);
 				}
 			} catch (_) { }
 
 			showAlert(alertEl, "success", "Account created! Redirecting…");
-			try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) { }
+			queueLocationPrompt(data && data.user);
 			const targetUrl = getRedirectTarget();
 			setTimeout(async () => {
 				try {
@@ -606,10 +741,6 @@ window.JodAuth = (() => {
 		async function doSignup(e) {
 			if (e && e.preventDefault) e.preventDefault();
 			if (signupBusy) return;
-			if (getToken()) {
-				finishSignupSuccess({ access_token: getToken(), user: getUser() });
-				return;
-			}
 
 			clearErrors(signupForm);
 			hideAlert(alertEl);
@@ -620,6 +751,15 @@ window.JodAuth = (() => {
 			const password = passwordInput ? passwordInput.value : "";
 			const confirm = confirmInput ? confirmInput.value : "";
 			let valid = true;
+
+			if (getToken()) {
+				const existing = getUser();
+				if (existing && existing.email && email && existing.email.toLowerCase() === email.toLowerCase()) {
+					finishSignupSuccess({ access_token: getToken(), user: existing });
+					return;
+				}
+				clearAuth();
+			}
 
 			if (!username) { setError(signupForm.querySelector("#signupUsername"), "Username is required."); valid = false; }
 			else if (username.length < 3) { setError(signupForm.querySelector("#signupUsername"), "Username must be at least 3 characters."); valid = false; }
@@ -696,8 +836,9 @@ window.JodAuth = (() => {
 
 				finishSignupSuccess(data);
 			} catch (err) {
-				if (getToken()) {
-					finishSignupSuccess({ access_token: getToken(), user: getUser() });
+				const existing = getUser();
+				if (getToken() && existing && existing.email && existing.email.toLowerCase() === email.toLowerCase()) {
+					finishSignupSuccess({ access_token: getToken(), user: existing });
 					return;
 				}
 				const online = window.JodHealth
@@ -761,21 +902,12 @@ window.JodAuth = (() => {
 		if (alertEl) hideAlert(alertEl);
 
 		try {
-			let city = null;
-			let pincode = null;
-			if (window.JodLocation) {
-				city = localStorage.getItem("jod_user_city") || sessionStorage.getItem("jod_user_city") || null;
-				pincode = localStorage.getItem("jod_user_pincode") || sessionStorage.getItem("jod_user_pincode") || null;
-			}
-
 			const payload = {};
 			if (response.credential) payload.credential = response.credential;
 			if (response.code) {
 				payload.code = response.code;
 				payload.redirect_uri = window.location.origin + window.location.pathname;
 			}
-			if (city) payload.city = city;
-			if (pincode) payload.location_pincode = pincode;
 
 			const res = await fetch(`${API_BASE}/api/auth/google`, {
 				method: "POST",
@@ -790,18 +922,10 @@ window.JodAuth = (() => {
 				clearAuth();
 				if (alertEl) showAlert(alertEl, "error", data.detail || `Google authentication failed (${res.status}).`);
 			} else {
-				try {
-					sessionStorage.setItem("jod_access_token", data.access_token);
-					sessionStorage.setItem("jod_user", JSON.stringify(data.user));
-					localStorage.setItem("jod_access_token", data.access_token);
-					localStorage.setItem("jod_user", JSON.stringify(data.user));
-				} catch (_) {}
+				persistAuthSession(data.access_token, data.user);
 
 				if (alertEl) showAlert(alertEl, "success", "Google Sign-In successful! Redirecting…");
-
-				if (data.location_required || !data.user.city) {
-					try { sessionStorage.setItem("jod_location_pending", "1"); } catch (_) {}
-				}
+				queueLocationPrompt(data.user);
 
 				const targetUrl = getRedirectTarget();
 				setTimeout(async () => {
@@ -1261,6 +1385,16 @@ window.JodAuth = (() => {
 		isLoggedIn,
 		logout,
 		clearAuth,
+		persistAuthSession,
+		userHasSavedLocation,
+		currentUserScope,
+		userIdentityAliases,
+		scopedKey,
+		scopedKeyAliases,
+		readScopedCache,
+		writeScopedCache,
+		bookingsCacheKey,
+		avatarCacheKey,
 		fetchAuth,
 		navigateToHostFlow,
 		hasHostPayoutBank,

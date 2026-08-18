@@ -51,6 +51,7 @@ class EventManagement(Base):
     exhibitors               = relationship("Exhibitor", back_populates="event_management", cascade="all, delete-orphan")
     entry_gates              = relationship("EventEntryGate", back_populates="event_management", cascade="all, delete-orphan")
     staff_scanners           = relationship("EventStaffScanner", back_populates="event_management", cascade="all, delete-orphan")
+    volunteers               = relationship("EventVolunteer", back_populates="event_management", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<EventManagement(event_id={self.event_id}, title={self.event_title})>"

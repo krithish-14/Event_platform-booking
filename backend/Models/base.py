@@ -233,6 +233,8 @@ def _migrate_tables(engine=None):
                 ("location_lon", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("bio", "TEXT"),
                 ("avatar_url", "VARCHAR(500)"),
+                ("notification_read_ids", "JSON" if is_pg else "TEXT"),
+                ("notification_cleared_ids", "JSON" if is_pg else "TEXT"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in user_migrations:
@@ -344,6 +346,7 @@ def _migrate_tables(engine=None):
                 ("terms", "TEXT"),
                 ("host_id", "VARCHAR(50)"),
                 ("customer_id", "VARCHAR(100)"),
+                ("card_image", "VARCHAR(500)"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in event_migrations:
@@ -477,6 +480,39 @@ def _migrate_tables(engine=None):
                             print(f"  [DB MIGRATION] Added column event_management.{col_name}", flush=True)
                         except Exception as e:
                             print(f"  [DB MIGRATION WARN] Could not add column event_management.{col_name}: {e}", flush=True)
+                conn.commit()
+
+        if "event_design" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("event_design")}
+            design_migrations = [
+                ("card_image", "VARCHAR(500)"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in design_migrations:
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE event_design ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE event_design ADD COLUMN {col_name} {col_type};"))
+                            print(f"  [DB MIGRATION] Added column event_design.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column event_design.{col_name}: {e}", flush=True)
+                conn.commit()
+
+        if "event_volunteers" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("event_volunteers")}
+            with engine.connect() as conn:
+                if "gate_id" not in existing_cols:
+                    try:
+                        col_type = "UUID" if is_pg else "CHAR(36)"
+                        if is_pg:
+                            conn.execute(text(f"ALTER TABLE event_volunteers ADD COLUMN IF NOT EXISTS gate_id {col_type};"))
+                        else:
+                            conn.execute(text(f"ALTER TABLE event_volunteers ADD COLUMN gate_id {col_type};"))
+                        print("  [DB MIGRATION] Added column event_volunteers.gate_id", flush=True)
+                    except Exception as e:
+                        print(f"  [DB MIGRATION WARN] Could not add column event_volunteers.gate_id: {e}", flush=True)
                 conn.commit()
     except Exception as exc:
         print(f"  [WARN] Auto-migration check: {exc}", flush=True)

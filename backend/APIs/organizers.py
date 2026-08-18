@@ -20,6 +20,12 @@ from Utils.id_generator import generate_customer_id, generate_host_id_from_custo
 router = APIRouter()
 
 
+def _bound_organizer_email(email: Optional[str], current_user: Optional[User] = None) -> str:
+    if current_user and getattr(current_user, "email", None):
+        return current_user.email.lower().strip()
+    return (email or "").lower().strip()
+
+
 # ── Public verification status mapping ────────────────────────────────────────
 # Internal (DB) status  →  Public (API / UI) state
 # ──────────────────────────────────────────────────────────
@@ -365,18 +371,12 @@ def save_account_setup(
 def get_account_setup(
     email: Optional[str] = Query(None, description="Organizer email address"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
-    """Fetch saved organizer account details by authenticated token or email."""
-    if not current_user and not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication token or email is required."
-        )
+    """Fetch saved organizer account details for the authenticated host."""
+    email_clean = current_user.email.lower().strip()
 
-    email_clean = (email or (current_user.email if current_user else "")).lower().strip()
-
-    if current_user and email and current_user.email.lower() != email_clean:
+    if email and current_user.email.lower() != email.lower().strip():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not authorized to view another user's host account."
@@ -453,7 +453,7 @@ def upload_document(
 ):
     """Upload PAN card or Cancelled Cheque image/PDF (<= 2MB)."""
     import os
-    email_clean = email.lower().strip()
+    email_clean = _bound_organizer_email(email, current_user)
 
     if current_user and current_user.email.lower() != email_clean:
         raise HTTPException(
@@ -537,7 +537,7 @@ def get_organizer_dashboard(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Fetch organizer dashboard data, stats, and event metrics matching dashboard screenshot."""
-    email_clean = email.lower().strip()
+    email_clean = _bound_organizer_email(email, current_user)
 
     if current_user and current_user.email.lower() != email_clean:
         raise HTTPException(
@@ -632,7 +632,7 @@ def get_verification_status(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Return the organizer's public verification status + KYC readiness."""
-    email_clean = email.lower().strip()
+    email_clean = _bound_organizer_email(email, current_user)
 
     if current_user and current_user.email.lower() != email_clean:
         raise HTTPException(

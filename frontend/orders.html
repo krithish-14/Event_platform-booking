@@ -185,10 +185,10 @@
 
 	<script src="js/include.js?v=14"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=10"></script>
-	<script src="js/profile.js?v=3"></script>
-	<script src="js/location.js?v=2"></script>
-	<script src="js/script.js?v=13"></script>
+	<script src="js/auth.js?v=22"></script>
+	<script src="js/profile.js?v=5"></script>
+	<script src="js/location.js?v=12"></script>
+	<script src="js/script.js?v=22"></script>
 	<script>
 		// Auth check & filter tabs logic
 		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
@@ -199,9 +199,18 @@
 
 		let allBookingsData = [];
 
+		function bookingsStorageKey() {
+			if (window.JodAuth && typeof window.JodAuth.bookingsCacheKey === "function") {
+				return window.JodAuth.bookingsCacheKey();
+			}
+			return null;
+		}
+
 		function getLocalBookingsCache() {
 			try {
-				const raw = localStorage.getItem("jod_user_bookings");
+				const key = bookingsStorageKey();
+				if (!key) return [];
+				const raw = localStorage.getItem(key);
 				return raw ? JSON.parse(raw) : [];
 			} catch (_) {
 				return [];
@@ -210,7 +219,9 @@
 
 		function saveLocalBookingsCache(bookings) {
 			try {
-				localStorage.setItem("jod_user_bookings", JSON.stringify(bookings));
+				const key = bookingsStorageKey();
+				if (!key) return;
+				localStorage.setItem(key, JSON.stringify(bookings));
 			} catch (_) {}
 		}
 
@@ -287,33 +298,27 @@
 		}
 
 		async function fetchUserOrders() {
-			const localCache = getLocalBookingsCache();
-			if (localCache.length > 0) {
-				allBookingsData = localCache;
-				renderOrders("all");
-			}
+			allBookingsData = [];
+			renderOrders("all");
 
 			try {
-				const apiBase = (window.JodAuth && typeof window.JodAuth.getApiBase === "function") ? window.JodAuth.getApiBase() : "http://127.0.0.1:8001";
+				const apiBase = (window.JodAuth && window.JodAuth.API_BASE) ? window.JodAuth.API_BASE : "http://127.0.0.1:8001";
 				const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
 				if (!token) return;
 
 				const res = await fetch(`${apiBase}/api/bookings/my-bookings`, {
-					headers: { "Authorization": `Bearer ${token}` }
+					headers: { "Authorization": `Bearer ${token}` },
+					cache: "no-store"
 				});
 				if (res.ok) {
 					const remoteData = await res.json();
 					if (Array.isArray(remoteData)) {
-						// Merge remote and local data by booking_id
-						const mergedMap = new Map();
-						localCache.forEach(b => mergedMap.set(b.booking_id, b));
-						remoteData.forEach(b => {
-							// If remote has status update or newer, prioritize remote
-							mergedMap.set(b.booking_id, { ...mergedMap.get(b.booking_id), ...b });
-						});
-						allBookingsData = Array.from(mergedMap.values()).sort((a, b) => new Date(b.booked_at || 0) - new Date(a.booked_at || 0));
+						allBookingsData = remoteData.slice().sort((a, b) => new Date(b.booked_at || 0) - new Date(a.booked_at || 0));
 						saveLocalBookingsCache(allBookingsData);
 						renderOrders("all");
+						if (window.JodInbox && typeof window.JodInbox.refresh === "function") {
+							window.JodInbox.refresh({ toastNew: true });
+						}
 					}
 				}
 			} catch (_) {}
@@ -321,6 +326,11 @@
 
 		document.addEventListener("DOMContentLoaded", () => {
 			fetchUserOrders();
+
+			document.addEventListener("visibilitychange", () => {
+				if (document.visibilityState === "visible") fetchUserOrders();
+			});
+			window.addEventListener("focus", fetchUserOrders);
 
 			document.querySelectorAll(".filter-tab").forEach(tab => {
 				tab.addEventListener("click", () => {

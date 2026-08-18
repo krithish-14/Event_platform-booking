@@ -23,6 +23,8 @@ class UserProfileResponse(BaseModel):
     full_name: Optional[str]
     city: Optional[str] = None
     location_pincode: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lon: Optional[float] = None
     bio: Optional[str]
     avatar_url: Optional[str]
     is_active: bool
@@ -61,12 +63,20 @@ def update_my_profile(
 
 
 @router.get("/{identifier}", response_model=UserProfileResponse)
-def get_user_by_id_or_username(identifier: str, db: Session = Depends(get_db)):
-    """Get a public user profile by username or customer_id."""
-    user = db.query(User).filter(
-        (User.username == identifier) | (User.customer_id == identifier)
-    ).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
-    return user
+def get_user_by_id_or_username(
+    identifier: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return a profile only when it belongs to the authenticated user."""
+    ident = (identifier or "").strip()
+    mine = {
+        str(current_user.username or "").lower(),
+        str(current_user.customer_id or "").lower(),
+        str(current_user.id or "").lower(),
+        str(current_user.email or "").lower(),
+    }
+    if ident.lower() not in mine:
+        raise HTTPException(status_code=403, detail="You can only view your own profile.")
+    return current_user
 

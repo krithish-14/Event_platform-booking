@@ -109,6 +109,10 @@ def create_support_ticket(
 ):
     name = payload.name.strip()
     email = str(payload.email).strip().lower()
+    if current_user and current_user.email:
+        email = current_user.email.lower().strip()
+        if current_user.full_name:
+            name = current_user.full_name.strip() or name
     subject = payload.subject.strip()
     message = payload.message.strip()
     if not name or not subject or not message:
@@ -152,10 +156,10 @@ def list_support_tickets(
             )
         )
     else:
-        lookup = str(email or "").strip().lower()
-        if not lookup or "@" not in lookup:
-            raise HTTPException(status_code=400, detail="Sign in or enter the email used on your ticket.")
-        query = query.filter(SupportTicket.email == lookup)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in to view your support tickets.",
+        )
 
     rows = query.order_by(SupportTicket.created_at.desc()).limit(40).all()
     return [_serialize(row) for row in rows]

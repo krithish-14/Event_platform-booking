@@ -341,8 +341,8 @@ body.dashboard-body {
 /* ── KPI Cards Row (Top 3 Cards) ────────────────────────────────────────────── */
 .kpi-row {
 	display: grid;
-	grid-template-columns: repeat(4, 1fr);
-	gap: 1.25rem;
+	grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+	gap: 1.1rem;
 }
 
 .kpi-card {
@@ -368,6 +368,7 @@ body.dashboard-body {
 
 .icon-sales { background-color: #fef3c7; color: #d97706; }
 .icon-regs { background-color: #d1fae5; color: #059669; }
+.icon-pending { background-color: #ffedd5; color: #c2410c; }
 .icon-attendees { background-color: #dbeafe; color: #1d4ed8; }
 .icon-days { background-color: #fce7f3; color: #db2777; }
 
@@ -498,13 +499,54 @@ body.dashboard-body {
 /* Trend Line Chart */
 .chart-container {
 	flex: 1;
-	min-height: 180px;
+	height: 240px;
+	min-height: 240px;
+	max-height: 240px;
 	position: relative;
+	overflow: hidden;
 }
 
 canvas#trendChartCanvas {
+	display: block;
 	width: 100% !important;
 	height: 100% !important;
+	cursor: default;
+}
+
+.trend-chart-tooltip {
+	position: fixed;
+	pointer-events: none;
+	background: #0f172a;
+	color: #f8fafc;
+	padding: 0.45rem 0.7rem;
+	border-radius: 8px;
+	font-size: 0.72rem;
+	font-weight: 600;
+	line-height: 1.4;
+	box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+	transform: translate(-50%, calc(-100% - 10px));
+	white-space: nowrap;
+	z-index: 1000;
+	visibility: hidden;
+	opacity: 0;
+	transition: opacity 0.12s ease;
+}
+
+.trend-chart-tooltip.is-visible {
+	visibility: visible;
+	opacity: 1;
+}
+
+.trend-chart-tooltip .tip-date {
+	color: #cbd5e1;
+	font-weight: 700;
+	font-size: 0.74rem;
+}
+
+.trend-chart-tooltip .tip-count {
+	color: #93c5fd;
+	font-size: 0.82rem;
+	margin-top: 0.1rem;
 }
 
 .btn-card-action {
@@ -532,6 +574,42 @@ canvas#trendChartCanvas {
 	justify-content: center;
 	position: relative;
 	margin: 0.5rem 0;
+}
+
+.donut-wrap .circular-chart {
+	display: block;
+}
+
+.donut-center {
+	position: absolute;
+	top: 46%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	text-align: center;
+	pointer-events: none;
+	line-height: 1.15;
+}
+
+.donut-center strong {
+	display: block;
+	font-size: 1.15rem;
+	font-weight: 800;
+	color: var(--dash-text-dark);
+}
+
+.donut-center span {
+	display: block;
+	font-size: 0.68rem;
+	font-weight: 600;
+	color: var(--dash-text-muted);
+}
+
+.donut-caption {
+	margin: 0 0 0.35rem;
+	text-align: center;
+	font-size: 0.75rem;
+	line-height: 1.4;
+	color: var(--dash-text-muted);
 }
 
 .donut-legend {
@@ -605,7 +683,105 @@ canvas#trendChartCanvas {
 	color: var(--dash-text-dark);
 }
 
-/* Website Preview Card */
+/* Event Page Preview Card */
+.dash-card-event-page {
+	min-height: 320px;
+}
+
+.event-page-preview {
+	display: block;
+	background: #0f172a;
+	border-radius: 12px;
+	overflow: hidden;
+	color: #ffffff;
+	text-decoration: none;
+	transition: transform 0.18s ease, box-shadow 0.18s ease;
+	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+	min-height: 260px;
+}
+
+.event-page-preview:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+}
+
+.event-page-banner-wrap {
+	position: relative;
+	height: 140px;
+	overflow: hidden;
+	background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+.event-page-banner {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.event-page-banner-wrap::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(180deg, rgba(15, 23, 42, 0.05) 0%, rgba(15, 23, 42, 0.55) 100%);
+	pointer-events: none;
+}
+
+.event-page-badge {
+	position: absolute;
+	top: 0.75rem;
+	left: 0.75rem;
+	z-index: 2;
+	background: #2563eb;
+	color: #fff;
+	padding: 0.2rem 0.55rem;
+	border-radius: 6px;
+	font-size: 0.68rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+.event-page-badge.is-draft {
+	background: #64748b;
+}
+
+.event-page-body {
+	padding: 1rem 1.1rem 1.15rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	min-height: 120px;
+}
+
+.event-page-body h4 {
+	font-size: 1.05rem;
+	font-weight: 800;
+	margin: 0;
+	line-height: 1.25;
+	color: #f8fafc;
+}
+
+.event-page-body p {
+	font-size: 0.82rem;
+	color: #94a3b8;
+	margin: 0;
+	line-height: 1.45;
+}
+
+.event-page-cta {
+	margin-top: auto;
+	padding-top: 0.55rem;
+	font-size: 0.82rem;
+	font-weight: 700;
+	color: #60a5fa;
+}
+
+.event-page-preview:hover .event-page-cta {
+	color: #93c5fd;
+}
+
+/* Legacy alias kept for any older references */
 .website-preview-box {
 	background: #0f172a;
 	border-radius: 8px;

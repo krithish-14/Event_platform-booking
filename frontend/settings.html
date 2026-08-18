@@ -641,11 +641,11 @@
 
 	<script src="js/include.js?v=14"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=17"></script>
-	<script src="js/profile.js?v=3"></script>
-	<script src="js/location.js?v=10"></script>
+	<script src="js/auth.js?v=22"></script>
+	<script src="js/profile.js?v=5"></script>
+	<script src="js/location.js?v=12"></script>
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-	<script src="js/script.js?v=13"></script>
+	<script src="js/script.js?v=22"></script>
 	<script>
 		// Auth check
 		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
@@ -675,41 +675,19 @@
 
 		function readStoredLocation() {
 			const user = getUser() || {};
-			let city = "";
-			let pin = "";
-			let address = "";
-			let lat = null;
-			let lon = null;
+			let city = user.city || "";
+			let pin = user.location_pincode || user.location_pin || "";
+			let address = user.location_address || "";
+			let lat = Number.isFinite(user.location_lat) ? Number(user.location_lat) : (Number.isFinite(user.latitude) ? Number(user.latitude) : null);
+			let lon = Number.isFinite(user.location_lon) ? Number(user.location_lon) : (Number.isFinite(user.longitude) ? Number(user.longitude) : null);
 			try {
 				if (window.JodLocation && typeof window.JodLocation.getCachedLocation === "function") {
 					const cached = window.JodLocation.getCachedLocation() || {};
-					city = cached.city || "";
-					address = cached.address || "";
-					pin = cached.pincode || "";
-					lat = cached.lat;
-					lon = cached.lon;
-				}
-				address = address
-					|| user.location_address
-					|| sessionStorage.getItem("jod_user_address")
-					|| localStorage.getItem("jod_user_address")
-					|| "";
-				city = city
-					|| user.city
-					|| sessionStorage.getItem("jod_user_city")
-					|| localStorage.getItem("jod_user_city")
-					|| "";
-				pin = pin
-					|| user.location_pincode
-					|| user.location_pin
-					|| sessionStorage.getItem("jod_user_pincode")
-					|| localStorage.getItem("jod_user_pincode")
-					|| "";
-				if (lat == null) {
-					const rawLat = sessionStorage.getItem("jod_user_lat") || localStorage.getItem("jod_user_lat");
-					const rawLon = sessionStorage.getItem("jod_user_lon") || localStorage.getItem("jod_user_lon");
-					if (rawLat) lat = parseFloat(rawLat);
-					if (rawLon) lon = parseFloat(rawLon);
+					if (!city) city = cached.city || "";
+					if (!address) address = cached.address || "";
+					if (!pin) pin = cached.pincode || "";
+					if (lat == null) lat = cached.lat;
+					if (lon == null) lon = cached.lon;
 				}
 			} catch (_) {}
 			return {
@@ -1127,7 +1105,9 @@
 		function renderSettingsAvatar() {
 			const avatarEl = document.getElementById("settingsAvatar");
 			if (!avatarEl) return;
-			const saved = localStorage.getItem("jod_profile_avatar");
+			const saved = (window.JodProfile && typeof window.JodProfile.getSavedAvatar === "function")
+				? window.JodProfile.getSavedAvatar()
+				: null;
 			const user = getUser();
 			if (saved) {
 				avatarEl.innerHTML = `<img src="${saved}" alt="Profile picture" />`;
@@ -1136,8 +1116,28 @@
 			}
 		}
 
-		document.addEventListener("DOMContentLoaded", () => {
-			const user = getUser();
+		document.addEventListener("DOMContentLoaded", async () => {
+			async function hydrateProfileFromApi() {
+				try {
+					const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+						? window.JodAuth.fetchAuth
+						: fetch;
+					const res = await fetchFn(`${apiBase()}/api/users/me`);
+					if (!res || !res.ok) return getUser();
+					const data = await res.json();
+					try {
+						if (data) {
+							localStorage.setItem("jod_user", JSON.stringify(data));
+							sessionStorage.setItem("jod_user", JSON.stringify(data));
+						}
+					} catch (_) {}
+					return data;
+				} catch (_) {
+					return getUser();
+				}
+			}
+
+			const user = await hydrateProfileFromApi() || getUser();
 			if (user) {
 				document.getElementById("setFullName").value = user.full_name || user.username || "";
 
@@ -1177,8 +1177,9 @@
 							const dataUrl = ev.target.result;
 							if (window.JodProfile) {
 								window.JodProfile.setProfilePicture(dataUrl);
-							} else {
-								localStorage.setItem("jod_profile_avatar", dataUrl);
+							} else if (window.JodAuth && typeof window.JodAuth.avatarCacheKey === "function") {
+								const key = window.JodAuth.avatarCacheKey();
+								if (key) localStorage.setItem(key, dataUrl);
 							}
 							renderSettingsAvatar();
 						};
@@ -1188,10 +1189,17 @@
 				});
 			}
 
+			function notifPrefsKey() {
+				if (window.JodAuth && typeof window.JodAuth.scopedKey === "function") {
+					return window.JodAuth.scopedKey("jod_notif_prefs") || "jod_notif_prefs_anon";
+				}
+				return "jod_notif_prefs_anon";
+			}
+
 			function loadNotifPrefs() {
 				const defaults = { bookingEmails: true, eventReminders: true, offers: false };
 				try {
-					const raw = localStorage.getItem("jod_notif_prefs");
+					const raw = localStorage.getItem(notifPrefsKey());
 					return raw ? Object.assign(defaults, JSON.parse(raw)) : defaults;
 				} catch (_) {
 					return defaults;
@@ -1199,7 +1207,7 @@
 			}
 
 			function saveNotifPrefs(prefs) {
-				try { localStorage.setItem("jod_notif_prefs", JSON.stringify(prefs)); } catch (_) {}
+				try { localStorage.setItem(notifPrefsKey(), JSON.stringify(prefs)); } catch (_) {}
 				const toast = document.getElementById("notifPrefToast");
 				if (toast) {
 					toast.style.display = "block";
@@ -1248,8 +1256,9 @@
 				removeBtn.addEventListener("click", () => {
 					if (window.JodProfile) {
 						window.JodProfile.removeProfilePicture();
-					} else {
-						localStorage.removeItem("jod_profile_avatar");
+					} else if (window.JodAuth && typeof window.JodAuth.avatarCacheKey === "function") {
+						const key = window.JodAuth.avatarCacheKey();
+						if (key) localStorage.removeItem(key);
 					}
 					renderSettingsAvatar();
 				});

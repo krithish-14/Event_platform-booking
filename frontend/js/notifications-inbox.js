@@ -8,10 +8,27 @@ window.JodInbox = (() => {
 	const CLEARED_KEY = "jod_notif_cleared_ids";
 	const KNOWN_KEY = "jod_notif_known_ids";
 	const PREFS_KEY = "jod_notif_prefs";
-	const POLL_MS = 45000;
+	const POLL_MS = 15000;
+
+	function scopedInboxKey(base) {
+		if (window.JodAuth && typeof window.JodAuth.scopedKey === "function") {
+			return window.JodAuth.scopedKey(base) || null;
+		}
+		return null;
+	}
+
+	function inboxKeyAliases(base) {
+		if (window.JodAuth && typeof window.JodAuth.scopedKeyAliases === "function") {
+			return window.JodAuth.scopedKeyAliases(base) || [];
+		}
+		const key = scopedInboxKey(base);
+		return key ? [key] : [];
+	}
 
 	let started = false;
 	let pollTimer = null;
+	let stateSyncTimer = null;
+	let serverStateLoaded = false;
 
 	function apiBase() {
 		if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
@@ -37,13 +54,61 @@ window.JodInbox = (() => {
 
 	function readJson(key, fallback) {
 		try {
-			const raw = localStorage.getItem(key);
-			return raw ? JSON.parse(raw) : fallback;
-		} catch (_) { return fallback; }
+			const aliases = inboxKeyAliases(key);
+			for (const storageKey of aliases) {
+				const raw = localStorage.getItem(storageKey);
+				if (raw) return JSON.parse(raw);
+			}
+		} catch (_) {}
+		return fallback;
 	}
 
 	function writeJson(key, value) {
-		try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+		const aliases = inboxKeyAliases(key);
+		if (!aliases.length) return;
+		const payload = JSON.stringify(value);
+		aliases.forEach((storageKey) => {
+			try { localStorage.setItem(storageKey, payload); } catch (_) {}
+		});
+		scheduleStateSync();
+	}
+
+	function mergeIdLists(localList, serverList) {
+		return [...new Set([...(localList || []), ...(serverList || [])].map(String))];
+	}
+
+	async function hydrateStateFromServer() {
+		if (!isLoggedIn() || serverStateLoaded) return;
+		try {
+			const res = await authFetch(`${apiBase()}/api/notifications/state`);
+			if (!res.ok) return;
+			const data = await res.json();
+			const localRead = readJson(READ_KEY, []);
+			const localCleared = readJson(CLEARED_KEY, []);
+			writeJson(READ_KEY, mergeIdLists(localRead, data.read_ids || []));
+			writeJson(CLEARED_KEY, mergeIdLists(localCleared, data.cleared_ids || []));
+			serverStateLoaded = true;
+		} catch (_) {}
+	}
+
+	function scheduleStateSync() {
+		if (!isLoggedIn()) return;
+		if (stateSyncTimer) clearTimeout(stateSyncTimer);
+		stateSyncTimer = setTimeout(pushStateToServer, 400);
+	}
+
+	async function pushStateToServer() {
+		if (!isLoggedIn()) return;
+		try {
+			await authFetch(`${apiBase()}/api/notifications/state`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					read_ids: readJson(READ_KEY, []),
+					cleared_ids: readJson(CLEARED_KEY, []),
+				}),
+			});
+		} catch (_) {}
 	}
 
 	function loadPrefs() {
@@ -259,6 +324,25 @@ window.JodInbox = (() => {
 						}
 					}
 
+					const ticketStatus = String(b.ticket_status || "").toUpperCase();
+					if (status !== "CANCELLED" && ticketStatus === "USED") {
+						const id = `booking-checkedin-${bookingId}`;
+						if (!clearedIds.has(id)) {
+							const plain = `You're checked in for ${title}.`;
+							items.push({
+								id,
+								icon: "✅",
+								title: "Checked in successfully",
+								time: timeAgo(b.used_at || b.booked_at),
+								unread: !readIds.has(id),
+								href,
+								plain,
+								html: `You're checked in for <strong>${escapeHtml(title)}</strong>. Enjoy the event!`,
+								sort: new Date(b.used_at || b.booked_at || 0).getTime() + 20000,
+							});
+						}
+					}
+
 					if (prefs.eventReminders && status !== "CANCELLED" && b.event_start_date) {
 						const days = daysUntil(b.event_start_date);
 						if (days != null && days >= 0 && days <= 7) {
@@ -311,6 +395,33 @@ window.JodInbox = (() => {
 			} catch (_) {}
 		}
 
+		try {
+			const res = await authFetch(`${apiBase()}/api/notifications/inbox`);
+			if (res.ok) {
+				const rows = await res.json();
+				(Array.isArray(rows) ? rows : []).forEach((row) => {
+					const id = String(row.id || "");
+					if (!id || clearedIds.has(id)) return;
+					const place = row.location || "your city";
+					const message = row.message || `A new event is upcoming in ${place}.`;
+					items.push({
+						id,
+						icon: "📍",
+						title: row.title || "New upcoming event",
+						time: timeAgo(row.created_at),
+						unread: !readIds.has(id),
+						href: row.href || (row.event_id ? `event-details.html?id=${encodeURIComponent(row.event_id)}` : "index.html#upcoming"),
+						plain: message,
+						html: escapeHtml(message).replace(
+							escapeHtml(place),
+							`<strong>${escapeHtml(place)}</strong>`
+						),
+						sort: new Date(row.created_at || 0).getTime() + 5000,
+					});
+				});
+			}
+		} catch (_) {}
+
 		items.sort((a, b) => (b.sort || 0) - (a.sort || 0));
 		return items;
 	}
@@ -342,6 +453,7 @@ window.JodInbox = (() => {
 		function start() {
 			if (started || !isLoggedIn()) return;
 			started = true;
+			serverStateLoaded = false;
 			const params = new URLSearchParams(window.location.search || "");
 			const bookingId = params.get("id") || params.get("booking_id");
 			if (bookingId && /ticket-details\.html/i.test(window.location.pathname || "")) {
@@ -349,9 +461,21 @@ window.JodInbox = (() => {
 				markRead(`booking-cancelled-${bookingId}`);
 				markRead(`remind-${bookingId}`);
 			}
-			refresh({ toastNew: true });
+			hydrateStateFromServer().then(() => refresh({ toastNew: true }));
 			if (pollTimer) clearInterval(pollTimer);
 			pollTimer = setInterval(() => refresh({ toastNew: true }), POLL_MS);
+
+			document.addEventListener("visibilitychange", () => {
+				if (document.visibilityState === "visible" && isLoggedIn()) {
+					refresh({ toastNew: true });
+				}
+			});
+			window.addEventListener("focus", () => {
+				if (isLoggedIn()) refresh({ toastNew: true });
+			});
+			window.addEventListener("jod:inbox-refresh", () => {
+				if (isLoggedIn()) refresh({ toastNew: true });
+			});
 		}
 
 	return {

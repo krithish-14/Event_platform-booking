@@ -117,7 +117,7 @@
 	</div>
 
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=16"></script>
+	<script src="js/auth.js?v=22"></script>
 	<script>
 		(function () {
 			const params = new URLSearchParams(window.location.search);
@@ -297,12 +297,17 @@
 					}
 					try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
 					try {
-						const cache = JSON.parse(localStorage.getItem("jod_user_bookings") || "[]");
-						const next = Array.isArray(cache) ? cache : [];
-						const idx = next.findIndex((row) => row && row.booking_id === data.booking_id);
-						if (idx >= 0) next[idx] = Object.assign({}, next[idx], data);
-						else next.unshift(data);
-						localStorage.setItem("jod_user_bookings", JSON.stringify(next));
+						const key = window.JodAuth && typeof window.JodAuth.bookingsCacheKey === "function"
+							? window.JodAuth.bookingsCacheKey()
+							: null;
+						if (key) {
+							const cache = JSON.parse(localStorage.getItem(key) || "[]");
+							const next = Array.isArray(cache) ? cache : [];
+							const idx = next.findIndex((row) => row && row.booking_id === data.booking_id);
+							if (idx >= 0) next[idx] = Object.assign({}, next[idx], data);
+							else next.unshift(data);
+							localStorage.setItem(key, JSON.stringify(next));
+						}
 					} catch (_) {}
 					const bookingId = data.booking_id;
 					window.location.href = bookingId

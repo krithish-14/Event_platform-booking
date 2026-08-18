@@ -37,9 +37,13 @@ class SubmissionRequest(BaseModel):
 
 
 @router.post("/save-draft")
-def save_form_draft(payload: FormSaveRequest, db: Session = Depends(get_db)):
+def save_form_draft(
+    payload: FormSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
 	"""Save or update draft registration form schema."""
-	email = payload.organizer_email.lower().strip()
+	email = (current_user.email if current_user and current_user.email else payload.organizer_email).lower().strip()
 
 	form = db.query(FormDefinition).filter(
 		FormDefinition.organizer_email == email
@@ -253,9 +257,13 @@ def get_form_by_event(
 
 
 @router.post("/publish")
-def publish_form(payload: FormSaveRequest, db: Session = Depends(get_db)):
+def publish_form(
+	payload: FormSaveRequest,
+	db: Session = Depends(get_db),
+	current_user: Optional[User] = Depends(get_current_user_optional),
+):
 	"""Publish current registration form version for attendees."""
-	email = payload.organizer_email.lower().strip()
+	email = (current_user.email if current_user and current_user.email else payload.organizer_email).lower().strip()
 
 	form = db.query(FormDefinition).filter(
 		FormDefinition.organizer_email == email
@@ -391,10 +399,9 @@ def get_form_submissions(
 	current_user: Optional[User] = Depends(get_current_user_optional)
 ):
 	"""Fetch submissions table and analytics metrics for organizer."""
-	if not current_user and not email:
+	if not current_user:
 		raise HTTPException(status_code=401, detail="Authentication required.")
-
-	email_clean = (email or (current_user.email if current_user else "")).lower().strip()
+	email_clean = current_user.email.lower().strip()
 
 	form = db.query(FormDefinition).filter(
 		FormDefinition.organizer_email == email_clean
@@ -430,9 +437,15 @@ def get_form_submissions(
 
 
 @router.get("/export-csv")
-def export_submissions_csv(email: str = Query(..., description="Organizer email address"), db: Session = Depends(get_db)):
+def export_submissions_csv(
+	email: Optional[str] = Query(None, description="Organizer email address"),
+	db: Session = Depends(get_db),
+	current_user: User = Depends(get_current_user_optional),
+):
 	"""Export form submissions as downloadable CSV file."""
-	email_clean = email.lower().strip()
+	if not current_user:
+		raise HTTPException(status_code=401, detail="Authentication required.")
+	email_clean = current_user.email.lower().strip()
 	form = db.query(FormDefinition).filter(
 		FormDefinition.organizer_email == email_clean
 	).order_by(FormDefinition.id.desc()).first()
@@ -452,9 +465,6 @@ def export_submissions_csv(email: str = Query(..., description="Organizer email 
 	if submissions:
 		for s in submissions:
 			writer.writerow([s.id, s.user_email, s.submission_time.isoformat(), s.status, str(s.answers_json)])
-	else:
-		writer.writerow([101, "john.doe@example.com", "2026-08-03T14:15:00", "completed", '{"Full Name": "John Doe", "Dietary Preference": "Vegetarian"}'])
-		writer.writerow([102, "sarah.smith@techcorp.com", "2026-08-03T15:40:00", "completed", '{"Full Name": "Sarah Smith", "Dietary Preference": "Vegan"}'])
 
 	csv_content = output.getvalue()
 	filename = f"event_registrations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"

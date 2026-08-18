@@ -305,28 +305,41 @@ def checkin_ticket_entry(
 
 
 # ── Additional Query Endpoints ────────────────────────────────────────────────
+def _assert_ticket_owner(ticket: Ticket, current_user: User) -> None:
+    if str(ticket.customer_id) != str(current_user.customer_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access your own tickets.",
+        )
+
+
 @router.get("/booking/{booking_id}", response_model=List[TicketResponse])
 def get_tickets_for_booking(
     booking_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Retrieve all ticket records generated for a specific booking ID."""
+    """Retrieve tickets for a booking owned by the authenticated user."""
+    booking = None
     try:
         b_uuid = UUID(booking_id)
-        tickets = (
-            db.query(Ticket)
-            .options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
-            .filter(Ticket.booking_id == b_uuid)
-            .all()
-        )
+        booking = db.query(Booking).filter(Booking.booking_id == b_uuid).first()
     except Exception:
-        tickets = (
-            db.query(Ticket)
-            .options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
-            .filter(Ticket.booking_id == booking_id)
-            .all()
+        booking = db.query(Booking).filter(Booking.booking_id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if str(booking.customer_id) != str(current_user.customer_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access your own tickets.",
         )
 
+    tickets = (
+        db.query(Ticket)
+        .options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
+        .filter(Ticket.booking_id == booking.booking_id)
+        .all()
+    )
     return [_serialize_ticket_success(t) for t in tickets]
 
 
@@ -350,8 +363,9 @@ def get_my_tickets(
 def get_single_ticket_by_id(
     ticket_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Get single ticket details by UUID."""
+    """Get a single ticket owned by the authenticated user."""
     try:
         t_uuid = UUID(ticket_id)
         t = (
@@ -370,4 +384,5 @@ def get_single_ticket_by_id(
 
     if not t:
         raise HTTPException(status_code=404, detail="Ticket not found.")
+    _assert_ticket_owner(t, current_user)
     return _serialize_ticket_success(t)

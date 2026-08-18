@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8" />
@@ -651,12 +651,28 @@
 
 	<script src="js/include.js?v=14"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=17"></script>
-	<script src="js/profile.js?v=3"></script>
-	<script src="js/script.js?v=13"></script>
+	<script src="js/auth.js?v=22"></script>
+	<script src="js/profile.js?v=5"></script>
+	<script src="js/script.js?v=22"></script>
 	<script>
 		const LS_TICKETS = "jod_help_tickets";
 		const LS_EMAIL = "jod_help_ticket_email";
+
+		function helpScope() {
+			const user = getUser();
+			if (user && (user.customer_id || user.email)) {
+				return String(user.customer_id || user.email).toLowerCase();
+			}
+			return "guest";
+		}
+
+		function ticketsStorageKey() {
+			return `${LS_TICKETS}_${helpScope()}`;
+		}
+
+		function emailStorageKey() {
+			return `${LS_EMAIL}_${helpScope()}`;
+		}
 
 		function apiBase() {
 			if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
@@ -680,14 +696,14 @@
 
 		function readLocalTickets() {
 			try {
-				const raw = localStorage.getItem(LS_TICKETS);
+				const raw = localStorage.getItem(ticketsStorageKey());
 				const list = raw ? JSON.parse(raw) : [];
 				return Array.isArray(list) ? list : [];
 			} catch (_) { return []; }
 		}
 
 		function writeLocalTickets(list) {
-			try { localStorage.setItem(LS_TICKETS, JSON.stringify(list.slice(0, 40))); } catch (_) {}
+			try { localStorage.setItem(ticketsStorageKey(), JSON.stringify(list.slice(0, 40))); } catch (_) {}
 		}
 
 		function upsertLocalTicket(ticket) {
@@ -754,7 +770,7 @@
 
 		async function fetchTickets(email) {
 			const user = getUser();
-			const lookup = (email || (user && user.email) || localStorage.getItem(LS_EMAIL) || "").trim().toLowerCase();
+			const lookup = (user && user.email) || "";
 			try {
 				const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
 					? window.JodAuth.fetchAuth
@@ -789,7 +805,7 @@
 				emailInput.readOnly = true;
 				emailInput.style.background = "#f8fafc";
 			}
-			const savedEmail = user.email || localStorage.getItem(LS_EMAIL) || "";
+			const savedEmail = user.email || "";
 			if (lookupInput && savedEmail) lookupInput.value = savedEmail;
 			const hint = document.getElementById("ticketGuestHint");
 			if (hint && user.email) hint.textContent = "Replies go to your account email.";
@@ -838,11 +854,7 @@
 			});
 
 			document.getElementById("ticketLookupBtn").addEventListener("click", () => {
-				const email = (document.getElementById("ticketLookupEmail").value || "").trim();
-				if (email) {
-					try { localStorage.setItem(LS_EMAIL, email); } catch (_) {}
-				}
-				fetchTickets(email);
+				fetchTickets();
 			});
 
 			document.getElementById("helpTicketForm").addEventListener("submit", async (e) => {
@@ -907,7 +919,7 @@
 				}
 
 				upsertLocalTicket(ticket);
-				try { localStorage.setItem(LS_EMAIL, payload.email); } catch (_) {}
+				try { localStorage.setItem(emailStorageKey(), payload.email); } catch (_) {}
 				renderTickets([ticket].concat(readLocalTickets().filter((row) => row.ticket_code !== ticket.ticket_code)));
 				successEl.innerHTML = ticket.offline
 					? `Ticket <strong>${escapeHtml(ticket.ticket_code)}</strong> is saved on this device. We will sync it when support is reachable.`

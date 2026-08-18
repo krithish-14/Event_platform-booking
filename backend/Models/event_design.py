@@ -18,6 +18,7 @@ class EventDesign(Base):
     customer_id     = Column(String(50), nullable=True)
     host_id         = Column(String(50), nullable=True)
     banner_image    = Column(String(500), nullable=True)
+    card_image      = Column(String(500), nullable=True)
     logo            = Column(String(500), nullable=True)
     theme_color     = Column(String(50), nullable=True)
     font            = Column(String(100), nullable=True)

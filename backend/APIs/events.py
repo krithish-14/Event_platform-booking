@@ -94,6 +94,7 @@ class EventResponse(BaseModel):
     distance_km: Optional[float] = None
     category: Optional[str]
     image_url: Optional[str]
+    card_image: Optional[str] = None
     start_date: datetime
     end_date: Optional[datetime]
     price: float
@@ -322,6 +323,7 @@ def _event_to_response(
         distance_km=round(distance_km, 2) if distance_km is not None else None,
         category=event.category,
         image_url=event.image_url,
+        card_image=getattr(event, "card_image", None),
         start_date=_as_utc(event.start_date),
         end_date=_as_utc(event.end_date),
         price=event.price,
@@ -509,6 +511,20 @@ def create_new_event(
         customer_id=current_user.customer_id,
         organizer_id=getattr(current_user, "id", None),
     )
+    if getattr(event, "is_published", False):
+        try:
+            from Services.notifications import ensure_published_event_announcement
+            ensure_published_event_announcement(
+                db,
+                event_id=event.id,
+                title=event.title,
+                venue=event.venue,
+                address=None,
+                location=event.location,
+                publisher_customer_id=current_user.customer_id,
+            )
+        except Exception:
+            pass
     return _event_to_response(event)
 
 
@@ -541,6 +557,20 @@ def update_existing_event(
                 detail="Please complete organizer verification before publishing an event."
             )
     updated = update_event(db, event, payload)
+    if transitioning_to_publish:
+        try:
+            from Services.notifications import ensure_published_event_announcement
+            ensure_published_event_announcement(
+                db,
+                event_id=updated.id,
+                title=updated.title,
+                venue=updated.venue,
+                address=None,
+                location=updated.location,
+                publisher_customer_id=current_user.customer_id,
+            )
+        except Exception:
+            pass
     return _event_to_response(updated)
 
 

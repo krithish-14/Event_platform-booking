@@ -688,7 +688,11 @@ function ticketStateFromBooking(row) {
 
 function findCachedBookingForEvent(eventId) {
     try {
-        const cache = JSON.parse(localStorage.getItem("jod_user_bookings") || "[]");
+        const key = window.JodAuth && typeof window.JodAuth.bookingsCacheKey === "function"
+            ? window.JodAuth.bookingsCacheKey()
+            : null;
+        if (!key) return null;
+        const cache = JSON.parse(localStorage.getItem(key) || "[]");
         if (!Array.isArray(cache)) return null;
         return cache.find((row) => row && row.booking_id && sameEventId(row.event_id, eventId) && isActiveBookingRow(row)) || null;
     } catch (_) {

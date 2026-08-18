@@ -19,6 +19,7 @@ from Models.event_communications import EventCommunication
 from Models.event_attendance_checkins import EventAttendanceCheckin
 from Models.event_entry_gates import EventEntryGate
 from Models.event_staff_scanners import EventStaffScanner
+from Models.event_volunteer import EventVolunteer, VolunteerInvitation, VolunteerCheckin, VolunteerAuditLog
 from Models.exhibitors import Exhibitor
 from Models.form_definitions import FormDefinition
 from Models.form_submissions import FormSubmission
@@ -28,6 +29,7 @@ from Models.user_logins import UserLogin
 from Models.wishlist import WishlistItem
 from Models.stored_file import StoredFile
 from Models.support_ticket import SupportTicket
+from Models.notification import EventAnnouncement
 
 __all__ = [
     "Base",
@@ -51,6 +53,10 @@ __all__ = [
     "EventAttendanceCheckin",
     "EventEntryGate",
     "EventStaffScanner",
+    "EventVolunteer",
+    "VolunteerInvitation",
+    "VolunteerCheckin",
+    "VolunteerAuditLog",
     "Exhibitor",
     "FormDefinition",
     "FormSubmission",
@@ -60,4 +66,5 @@ __all__ = [
     "WishlistItem",
     "StoredFile",
     "SupportTicket",
+    "EventAnnouncement",
 ]
