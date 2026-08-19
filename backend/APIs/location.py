@@ -606,15 +606,29 @@ async def venue_reverse(lat: float, lon: float):
 
 @router.get("/venue-search")
 async def venue_search(q: str):
-    """English forward-geocode for typing a venue address."""
+    """English forward-geocode for typing a venue address, place, or pincode."""
     query = (q or "").strip()
     if len(query) < 3:
         raise HTTPException(status_code=400, detail="Enter at least 3 characters.")
-    results = await _nominatim_search({
-        "q": query,
-        "countrycodes": "in",
-        "limit": 1,
-    })
+
+    pin = _digits_pin(query)
+    is_bare_pin = len(pin) == 6 and pin == re.sub(r"\s", "", query)
+
+    attempts: List[dict] = []
+    if is_bare_pin:
+        # A bare pincode resolves better through the postalcode field than free text.
+        attempts.append({"postalcode": pin, "country": "India", "limit": 1})
+        attempts.append({"q": f"{pin}, India", "countrycodes": "in", "limit": 1})
+    attempts.append({"q": query, "countrycodes": "in", "limit": 1})
+    if not is_bare_pin and "india" not in query.lower():
+        attempts.append({"q": f"{query}, India", "countrycodes": "in", "limit": 1})
+
+    results: list = []
+    for params in attempts:
+        results = await _nominatim_search(params)
+        if results:
+            break
+
     if not results:
         raise HTTPException(status_code=404, detail="Place not found.")
     hit = results[0]

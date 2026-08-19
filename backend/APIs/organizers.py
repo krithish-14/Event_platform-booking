@@ -16,6 +16,7 @@ from Authentication.dependencies import get_current_user, get_current_user_optio
 from Authentication.jwt_handler import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
+from Services.email import send_email
 
 router = APIRouter()
 
@@ -60,6 +61,46 @@ def has_payout_bank(acc: Optional[OrganizerAccount]) -> bool:
     )
 
 
+def has_kyc_documents(acc: Optional[OrganizerAccount]) -> bool:
+    if not acc:
+        return False
+    return bool(
+        (acc.pan_number or "").strip()
+        and (acc.pan_card_url or "").strip()
+        and (acc.cancelled_cheque_url or "").strip()
+    )
+
+
+def has_signed_agreement(acc: Optional[OrganizerAccount]) -> bool:
+    """Accounts submitted before the agreement step existed count as signed."""
+    if not acc:
+        return False
+    if acc.accepted_agreement:
+        return True
+    return (acc.status or "").lower().strip() in ("submitted", "verified")
+
+
+def is_setup_complete(acc: Optional[OrganizerAccount]) -> bool:
+    """All three onboarding steps done: general info + bank, documents, agreement."""
+    return has_payout_bank(acc) and has_kyc_documents(acc) and has_signed_agreement(acc)
+
+
+def missing_setup_steps(acc: Optional[OrganizerAccount], strict_agreement: bool = False) -> list:
+    missing = []
+    if not has_payout_bank(acc):
+        missing.append("bank details")
+    if not (acc and (acc.pan_number or "").strip()):
+        missing.append("PAN number")
+    if not (acc and (acc.pan_card_url or "").strip()):
+        missing.append("PAN card image")
+    if not (acc and (acc.cancelled_cheque_url or "").strip()):
+        missing.append("cancelled cheque image")
+    signed = bool(acc and acc.accepted_agreement) if strict_agreement else has_signed_agreement(acc)
+    if not signed:
+        missing.append("signed agreement")
+    return missing
+
+
 def safe_print(msg: str) -> None:
     """Print helper for Windows non-UTF8 stdout fallback."""
     try:
@@ -72,6 +113,7 @@ def safe_print(msg: str) -> None:
 # ── Schemas ───────────────────────────────────────────────────────────────────
 class SendOTPRequest(BaseModel):
     email: EmailStr
+    channel: Optional[str] = "email"
 
 
 class VerifyOTPRequest(BaseModel):
@@ -102,21 +144,32 @@ class AccountSetupRequest(BaseModel):
 
     pan_card_url: Optional[str] = None
     cancelled_cheque_url: Optional[str] = None
+    accepted_agreement: bool = False
 
     is_final_submit: bool = False
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+def _mask_mobile(phone: str) -> str:
+    digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+    if len(digits) < 4:
+        return phone or ""
+    if len(digits) <= 6:
+        return digits[0] + ("*" * (len(digits) - 2)) + digits[-1]
+    return f"{digits[:2]}{'*' * (len(digits) - 4)}{digits[-2:]}"
+
+
 @router.post("/send-otp")
 def send_otp(payload: SendOTPRequest, db: Session = Depends(get_db)):
-    """Generate and send a 6-digit OTP to the user's email."""
+    """Generate and send a 6-digit OTP to the user's email (and confirm a mobile channel when requested)."""
     email = payload.email.lower().strip()
-    
-    # Generate random 6-digit OTP code
+    channel = (payload.channel or "email").strip().lower()
+    if channel not in ("email", "phone"):
+        channel = "email"
+
     otp_code = f"{random.randint(100000, 999999)}"
     expires_at = datetime.utcnow() + timedelta(minutes=10)
 
-    # Invalidate prior unverified OTPs for this email
     db.query(EmailOTP).filter(
         EmailOTP.email == email,
         EmailOTP.is_verified == False
@@ -131,12 +184,50 @@ def send_otp(payload: SendOTPRequest, db: Session = Depends(get_db)):
     db.add(otp_record)
     db.commit()
 
-    safe_print(f"  [OTP SERVICE] Generated 6-digit OTP [{otp_code}] for email: {email}")
+    org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email).first()
+    phone = ""
+    if org_acc:
+        phone = str(getattr(org_acc, "contact_mobile", None) or "").strip()
+
+    if channel == "phone" and not phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No mobile number is saved on your organizer account. Add it in Host Settings, or verify by email."
+        )
+
+    destination = _mask_mobile(phone) if channel == "phone" else email
+    subject = "Your JOD Events verification code"
+    if channel == "phone":
+        text_body = (
+            f"Your JOD Events mobile verification OTP is {otp_code}. "
+            f"Use this code to confirm {destination}. It expires in 10 minutes."
+        )
+        html_body = (
+            f"<p>Your JOD Events mobile verification code is <strong>{otp_code}</strong>.</p>"
+            f"<p>Confirm number {destination}. This code expires in 10 minutes. Do not share it.</p>"
+        )
+    else:
+        text_body = f"Your JOD Events OTP is {otp_code}. It expires in 10 minutes. Do not share this code."
+        html_body = (
+            f"<p>Your JOD Events verification code is <strong>{otp_code}</strong>.</p>"
+            f"<p>It expires in 10 minutes. Do not share this code.</p>"
+        )
+
+    emailed = send_email(email, subject, text_body, html_body)
+    safe_print(f"  [OTP SERVICE] Generated 6-digit OTP [{otp_code}] for {email} channel={channel} smtp={emailed}")
+
+    if channel == "phone":
+        message = f"6-digit verification code sent to your registered email to confirm mobile {destination}."
+    else:
+        message = f"6-digit verification code sent to {email}."
 
     return {
-        "message": f"6-digit verification code sent to {email}.",
+        "message": message,
         "email": email,
-        "dev_otp": otp_code  # Provided for convenience in dev/testing environments
+        "channel": channel,
+        "destination": destination,
+        "email_delivered": emailed,
+        "dev_otp": otp_code
     }
 
 
@@ -298,12 +389,14 @@ def save_account_setup(
     org_acc.bank_ifsc = payload.bank_ifsc.upper() if payload.bank_ifsc else None
     org_acc.pan_card_url = payload.pan_card_url
     org_acc.cancelled_cheque_url = payload.cancelled_cheque_url
+    org_acc.accepted_agreement = payload.accepted_agreement
 
     if payload.is_final_submit:
-        if not has_payout_bank(org_acc):
+        missing = missing_setup_steps(org_acc, strict_agreement=True)
+        if missing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Bank details are required before you can host events."
+                detail="Please complete the following before finishing setup: " + ", ".join(missing) + "."
             )
         # Resubmission: if previously rejected, clear rejection reason
         if org_acc.status == "rejected":
@@ -333,6 +426,8 @@ def save_account_setup(
         "status": org_acc.status,
         "verification_status": to_public_verification_status(org_acc.status),
         "rejection_reason": org_acc.rejection_reason,
+        "setup_complete": is_setup_complete(org_acc),
+        "missing_steps": missing_setup_steps(org_acc),
         "account": {
             "id": str(org_acc.id),
             "customer_id": org_acc.customer_id,
@@ -356,6 +451,7 @@ def save_account_setup(
             "bank_ifsc": org_acc.bank_ifsc,
             "pan_card_url": org_acc.pan_card_url,
             "cancelled_cheque_url": org_acc.cancelled_cheque_url,
+            "accepted_agreement": bool(org_acc.accepted_agreement),
             "status": org_acc.status,
             "rejection_reason": org_acc.rejection_reason,
             "verification_status": to_public_verification_status(org_acc.status),
@@ -396,17 +492,15 @@ def get_account_setup(
             detail="No account details found for this email."
         )
 
-    def _is_kyc_complete(acc: OrganizerAccount) -> bool:
-        return bool(
-            acc.beneficiary_name and acc.bank_name and acc.account_number and acc.bank_ifsc
-            and acc.pan_number and acc.pan_card_url and acc.cancelled_cheque_url
-        )
-
     return {
         "verification_status": to_public_verification_status(org_acc.status),
         "rejection_reason": org_acc.rejection_reason,
-        "kyc_complete": _is_kyc_complete(org_acc),
+        "kyc_complete": has_payout_bank(org_acc) and has_kyc_documents(org_acc),
         "bank_complete": has_payout_bank(org_acc),
+        "documents_complete": has_kyc_documents(org_acc),
+        "agreement_signed": has_signed_agreement(org_acc),
+        "setup_complete": is_setup_complete(org_acc),
+        "missing_steps": missing_setup_steps(org_acc),
         "submitted_at": org_acc.submitted_at.isoformat() if org_acc.submitted_at else None,
         "verified_at": org_acc.verified_at.isoformat() if org_acc.verified_at else None,
         "account": {
@@ -432,6 +526,7 @@ def get_account_setup(
             "bank_ifsc": org_acc.bank_ifsc,
             "pan_card_url": org_acc.pan_card_url,
             "cancelled_cheque_url": org_acc.cancelled_cheque_url,
+            "accepted_agreement": bool(org_acc.accepted_agreement),
             "status": org_acc.status,
             "rejection_reason": org_acc.rejection_reason,
             "verification_status": to_public_verification_status(org_acc.status),
@@ -679,7 +774,8 @@ def get_verification_status(
         "bank_ifsc": bool(org_acc.bank_ifsc),
         "pan_number": bool(org_acc.pan_number),
         "pan_card_uploaded": bool(org_acc.pan_card_url),
-        "cancelled_cheque_uploaded": bool(org_acc.cancelled_cheque_url)
+        "cancelled_cheque_uploaded": bool(org_acc.cancelled_cheque_url),
+        "agreement_signed": has_signed_agreement(org_acc)
     }
     kyc_complete = all(required.values())
     public_status = to_public_verification_status(org_acc.status)
@@ -689,6 +785,8 @@ def get_verification_status(
         "internal_status": org_acc.status,
         "rejection_reason": org_acc.rejection_reason,
         "kyc_complete": kyc_complete,
+        "setup_complete": is_setup_complete(org_acc),
+        "missing_steps": missing_setup_steps(org_acc),
         "can_publish_events": is_organizer_verified(org_acc.status),
         "has_record": True,
         "host_id": org_acc.host_id,
@@ -747,15 +845,11 @@ def resubmit_verification(
         org_acc.verified_at = None
     else:
         # Standard end-user resubmission
-        required = (
-            org_acc.beneficiary_name and org_acc.bank_name and org_acc.account_number
-            and org_acc.bank_ifsc and org_acc.pan_number
-            and org_acc.pan_card_url and org_acc.cancelled_cheque_url
-        )
-        if not required:
+        missing = missing_setup_steps(org_acc)
+        if missing:
             raise HTTPException(
                 status_code=400,
-                detail="All KYC fields (bank details, PAN number, PAN image, and cancelled cheque image) must be provided before resubmitting."
+                detail="Please provide the following before resubmitting: " + ", ".join(missing) + "."
             )
         org_acc.status = "submitted"
         org_acc.rejection_reason = None

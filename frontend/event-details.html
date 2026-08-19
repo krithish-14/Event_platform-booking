@@ -18,7 +18,7 @@
 
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/style.css?v=17" />
-    <link rel="stylesheet" href="css/event-details.css?v=12" />
+    <link rel="stylesheet" href="css/event-details.css?v=13" />
 </head>
 
 <body class="event-details-page category-theme-comedy" id="eventBody">
@@ -72,12 +72,6 @@
                 <div class="section-block">
                     <h2 class="section-block-title">About The Event</h2>
                     <div class="event-description-text" id="eventDescription">Loading event description…</div>
-                </div>
-
-                <!-- Event Policies (host-entered) -->
-                <div class="section-block" id="policiesSection" style="display:none;">
-                    <h2 class="section-block-title">Event Policies</h2>
-                    <div id="eventPolicies"></div>
                 </div>
 
                 <!-- Speakers / Artists / Hosts -->
@@ -177,6 +171,10 @@
                         <button class="btn-book-now" type="button" onclick="triggerBookingModal()">
                             Book Now 🎟️
                         </button>
+                        <div class="post-purchase-actions" id="postPurchaseActions" hidden>
+                            <a class="btn-book-now btn-view-ticket" data-action="view-ticket" href="ticket-details.html">View Ticket</a>
+                            <a class="btn-view-agenda" data-action="view-agenda" href="agenda.html">View Agenda</a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -201,6 +199,10 @@
                 onclick="triggerBookingModal()">
                 Book Now 🎟️
             </button>
+            <div class="post-purchase-actions sticky-post-purchase" hidden>
+                <a class="btn-book-now btn-view-ticket" data-action="view-ticket" href="ticket-details.html">View Ticket</a>
+                <a class="btn-view-agenda" data-action="view-agenda" href="agenda.html">View Agenda</a>
+            </div>
         </div>
     </div>
 
@@ -219,14 +221,14 @@
     <!-- Scripts -->
     <script src="js/include.js?v=14"></script>
     <script src="js/health.js?v=1"></script>
-    <script src="js/auth.js?v=22"></script>
+    <script src="js/auth.js?v=23"></script>
     <script src="js/profile.js?v=5"></script>
     <script src="js/location.js?v=12"></script>
     <script src="js/search.js?v=1"></script>
     <script src="js/script.js?v=22"></script>
     <script src="js/events-public.js?v=8"></script>
     <script src="js/wishlist.js?v=1"></script>
-    <script src="js/event-details.js?v=17"></script>
+    <script src="js/event-details.js?v=18"></script>
 </body>
 
 </html>

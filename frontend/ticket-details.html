@@ -9,7 +9,8 @@
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
 	<link rel="stylesheet" href="css/style.css?v=14" />
 	<link rel="stylesheet" href="css/responsive.css?v=14" />
-	<link rel="stylesheet" href="css/ticket-details.css?v=8" />
+	<link rel="stylesheet" href="css/ticket-details.css?v=11" />
+	<link rel="stylesheet" href="css/event-agenda.css?v=1" />
 </head>
 <body class="sub-page ticket-page">
 	<div id="header"></div>
@@ -27,6 +28,10 @@
 
 			<!-- Main BookMyShow Style M-Ticket Card Box -->
 			<div class="ticket-mticket-wrapper">
+				<p class="ticket-flip-hint" id="ticketFlipHint">Tap ticket to view agenda</p>
+				<div class="ticket-flip-scene" id="ticketFlipScene">
+					<div class="ticket-flip-inner" id="ticketFlipInner">
+						<div class="ticket-face ticket-face-front">
 				<div class="ticket-card-box mticket-card" id="printableTicketArea">
 					<!-- Notch cutouts on sides -->
 					<div class="mticket-notch notch-left-top"></div>
@@ -99,7 +104,6 @@
 						<div class="mticket-total-row">
 							<div class="mticket-total-left">
 								<span class="mticket-total-label">Total Amount</span>
-								<span class="mticket-savings-badge" id="ticketSavingsBadge">₹180.00 saved</span>
 							</div>
 							<div class="mticket-total-price" id="billTotal">₹0.00</div>
 						</div>
@@ -134,6 +138,20 @@
 					</div>
 
 				</div>
+						</div>
+						<div class="ticket-face ticket-face-back">
+							<div class="ticket-card-box mticket-card mticket-card-agenda" id="ticketAgendaCard">
+								<div class="mticket-watermark">Agenda</div>
+								<div class="mticket-agenda-header">
+									<p class="agenda-page-kicker">Event roadmap</p>
+									<h2 id="ticketAgendaTitle">Event Agenda</h2>
+									<p id="ticketAgendaMeta" class="mticket-agenda-meta"></p>
+								</div>
+								<div id="ticketAgendaRoadmap" class="agenda-roadmap-wrap"></div>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 
 			<!-- Action Options Buttons at Bottom -->
@@ -153,11 +171,12 @@
 	<!-- Scripts -->
 	<script src="js/include.js?v=14"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=22"></script>
+	<script src="js/auth.js?v=23"></script>
 	<script src="js/profile.js?v=5"></script>
 	<script src="js/location.js?v=12"></script>
 	<script src="js/search.js?v=1"></script>
 	<script src="js/script.js?v=22"></script>
-	<script src="js/ticket-details.js?v=10"></script>
+	<script src="js/event-agenda.js?v=2"></script>
+	<script src="js/ticket-details.js?v=13"></script>
 </body>
 </html>

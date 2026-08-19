@@ -7,9 +7,12 @@
 		<title>Organizer Event Dashboard - JOD Events</title>
 		<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 		<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=13" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=16" />
+		<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+		<!-- Leaflet: venue location map picker in the Manage tab -->
+		<script src="vendor/leaflet/leaflet.js"></script>
 	</head>
 	<body class="dashboard-body">
 
@@ -417,7 +420,13 @@
 
 							<div class="setup-form-group" style="margin-bottom: 1.25rem;">
 								<label for="eventLocationInput">Venue / Location Address <span style="color: #ef4444;">*</span></label>
-								<input type="text" id="eventLocationInput" class="setup-input" placeholder="e.g. Chennai Trade Centre, Nandambakkam" required style="padding-left: 0.9rem;" />
+								<input type="text" id="eventLocationInput" class="setup-input" placeholder="e.g. Chennai Trade Centre, Nandambakkam or 600021" required style="padding-left: 0.9rem;" />
+								<input type="hidden" id="eventVenueLat" />
+								<input type="hidden" id="eventVenueLon" />
+								<div class="venue-map-panel" id="venueMapPanel" style="display:block; margin-top:0.75rem; border:1.5px solid #cbd5e1; border-radius:12px; overflow:hidden; background:#e2e8f0;">
+									<div class="venue-map" id="venueMap" role="application" aria-label="Venue map. Click or drag the pin to mark the street." style="width:100%; height:280px; min-height:280px; background:#dbeafe;"></div>
+									<p class="venue-map-hint" id="venueMapHint" style="margin:0; padding:0.6rem 0.9rem; font-size:0.8rem; color:#334155; background:#fff; border-top:1px solid #e2e8f0;">Click the map or drag the pin to the exact street. You can also type an address or a 6-digit pincode (e.g. 600021).</p>
+								</div>
 							</div>
 
 							<!-- SECTION 3: TICKETS & PRICING -->
@@ -572,16 +581,19 @@
 
 						<!-- Avatar & Header Section -->
 						<div class="avatar-upload-card" style="display: flex; align-items: center; gap: 1.8rem; background: #f8fafc; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem;">
-							<div style="position: relative; width: 88px; height: 88px;">
-								<img id="profileAvatarImg" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200" alt="Organizer Avatar" style="width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 3px solid #2563eb;" />
-								<button type="button" title="Change Avatar" style="position: absolute; bottom: 0; right: 0; background: #2563eb; color: #fff; border: 2px solid #fff; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; cursor: pointer;">&#128247;</button>
+							<div style="position: relative; width: 88px; height: 88px; flex-shrink: 0;">
+								<div id="profileAvatarInitials" style="width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.45rem; border: 3px solid #2563eb;">?</div>
+								<img id="profileAvatarImg" alt="Organizer Avatar" style="display: none; position: absolute; inset: 0; width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 3px solid #2563eb; background: #e2e8f0;" />
+								<button type="button" id="btnChangeHostAvatar" title="Change photo" style="position: absolute; bottom: 0; right: 0; z-index: 2; background: #2563eb; color: #fff; border: 2px solid #fff; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; cursor: pointer;">&#128247;</button>
+								<input type="file" id="hostSettingsPhotoInput" accept="image/jpeg,image/png,image/webp,image/*" style="display: none;" />
 							</div>
 							<div style="display: flex; flex-direction: column; gap: 0.6rem;">
 								<h3 id="profileHeaderName" style="font-size: 1.2rem; font-weight: 800; color: #0f172a;">Organizer Account</h3>
-								<div style="display: flex; gap: 0.8rem;">
-									<button type="button" class="btn-setup-primary active-proceed" style="padding: 0.45rem 1.2rem; font-size: 0.85rem; border-radius: 6px;">Upload New</button>
-									<button type="button" style="background: #ffffff; border: 1px solid #cbd5e1; color: #64748b; padding: 0.45rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Delete avatar</button>
+								<div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+									<button type="button" id="btnUploadHostAvatar" class="btn-setup-primary active-proceed" style="padding: 0.45rem 1.2rem; font-size: 0.85rem; border-radius: 6px;">Upload New</button>
+									<button type="button" id="btnDeleteHostAvatar" style="background: #ffffff; border: 1px solid #cbd5e1; color: #64748b; padding: 0.45rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Delete avatar</button>
 								</div>
+								<p style="margin: 0; font-size: 0.8rem; color: #64748b;">Same photo as your JOD profile. JPG, PNG, or WEBP.</p>
 							</div>
 						</div>
 
@@ -661,7 +673,7 @@
 										<h3 style="font-size: 1.15rem; font-weight: 800; color: #0f172a;">Verified Payout Bank Details</h3>
 									</div>
 									<span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">
-										Verified &amp; Locked
+										🔒 Locked
 									</span>
 								</div>
 
@@ -763,14 +775,14 @@
 							</div>
 
 							<div class="setup-form-group" id="bannerUploadHost" style="margin-bottom: 2rem;">
-								<label>Event Hero Banner (Recommended size: 1200 x 630 px)</label>
+								<label>Event Hero Banner (1200 × 630 px · up to 99 px higher or lower)</label>
 								<div id="bannerDropzone" class="doc-dropzone" style="background: #ffffff; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s;">
 									<div id="bannerDropzoneContent" style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
 										<div style="width: 48px; height: 48px; background: #eff6ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #2563eb;">
 											<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
 										</div>
 										<p style="font-weight: 700; color: #0f172a; font-size: 0.95rem;">Drag &amp; drop your Event Banner or <span style="color: #2563eb; text-decoration: underline;">Browse File</span></p>
-										<span style="font-size: 0.78rem; color: #64748b;">Supports JPG, JPEG, PNG, WEBP (Max size: 5MB) · Recommended 1200 × 630 px</span>
+										<span style="font-size: 0.78rem; color: #64748b;">Supports JPG, JPEG, PNG, WEBP (Max size: 5MB) · 1200 × 630 px (accepts up to 99 px higher or lower, not 100 px+)</span>
 									</div>
 									<div id="bannerPreviewBox" style="display: none; position: relative;">
 										<img id="bannerPreviewImg" src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=1000" alt="Banner Preview" style="width: 100%; max-height: 220px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;" />
@@ -1412,6 +1424,7 @@
 						<div class="setup-grid-2">
 							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.4rem;">
 								<h4 style="font-size: 1rem; font-weight: 800; color: #0f172a; margin-bottom: 1rem;">Financial Earnings Breakdown</h4>
+								<div id="repTicketFeeRows" style="display: none; flex-direction: column; gap: 0.65rem; margin-bottom: 0.9rem;"></div>
 								<div style="display: flex; flex-direction: column; gap: 0.8rem; font-size: 0.9rem;">
 									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
 										<span>Gross Ticket Sales</span>
@@ -1422,7 +1435,7 @@
 										<span id="repPlatformFee" style="font-weight: 700; color: #dc2626;">-₹0.00</span>
 									</div>
 									<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #475569;">
-										<span id="repGstFeeLabel">Taxes &amp; Statutory GST (5%)</span>
+										<span id="repGstFeeLabel">Taxes &amp; Statutory GST (18%)</span>
 										<span id="repGstFee" style="font-weight: 700; color: #dc2626;">-₹0.00</span>
 									</div>
 									<div style="display: flex; justify-content: space-between; padding-top: 0.4rem; font-size: 1rem; font-weight: 800; color: #166534;">
@@ -1737,7 +1750,7 @@
 										</tr>
 									</thead>
 									<tbody id="attendanceTableBody">
-										<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">No ticket check-ins yet.</td></tr>
+										<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">No check-ins yet. Names appear here after a host or volunteer verifies a ticket.</td></tr>
 									</tbody>
 								</table>
 							</div>
@@ -1906,11 +1919,11 @@
 		</div>
 
 		<script src="js/include.js?v=14"></script>
-		<script src="js/auth.js?v=22"></script>
+		<script src="js/auth.js?v=23"></script>
 		<script src="js/profile.js?v=5"></script>
 		<script src="js/script.js?v=22"></script>
 		<script src="js/form-builder.js?v=20260816_v6"></script>
-		<script src="js/organizer-dashboard.js?v=20260818_v23"></script>
+		<script src="js/organizer-dashboard.js?v=20260819_v30"></script>
 	</body>
 </html>
 

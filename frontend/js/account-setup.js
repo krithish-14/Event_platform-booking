@@ -173,13 +173,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 			step1Section.style.display = "block";
 			tabStep1.classList.add("active");
 			btnBack.style.display = "none";
-			btnProceed.textContent = "Continue to Host Dashboard";
+			btnProceed.textContent = "Continue to Upload Documents";
 		} else if (step === 2) {
 			step2Section.style.display = "block";
 			tabStep1.classList.add("active");
 			tabStep2.classList.add("active"); // Match screenshot: step 1 and step 2 active blue
 			btnBack.style.display = "inline-block";
-			btnProceed.textContent = "Proceed";
+			btnProceed.textContent = "Continue to Sign Agreement";
 		} else if (step === 3) {
 			step3Section.style.display = "block";
 			tabStep1.classList.add("active");
@@ -460,12 +460,26 @@ document.addEventListener("DOMContentLoaded", async () => {
                         chequeDropzonePreview.style.display = "block";
                 }
 
-                if (acc.accept_final_agreement !== undefined) {
+                const agreementValue = acc.accepted_agreement !== undefined
+                        ? acc.accepted_agreement
+                        : acc.accept_final_agreement;
+                if (agreementValue !== undefined) {
                         const finalAgreementCheckbox = document.getElementById("acceptFinalAgreement");
                         if (finalAgreementCheckbox) {
-                                finalAgreementCheckbox.checked = Boolean(acc.accept_final_agreement);
+                                finalAgreementCheckbox.checked = Boolean(agreementValue);
                         }
                 }
+        }
+
+        // Land the host on the first step that still needs input instead of always step 1.
+        function firstIncompleteStep(acc) {
+                const hasBank = Boolean(
+                        acc && acc.beneficiary_name && acc.account_type && acc.bank_name
+                        && acc.account_number && acc.bank_ifsc && acc.pan_number
+                );
+                if (!hasBank) return 1;
+                if (!panCardUrl || !cancelledChequeUrl) return 2;
+                return 3;
         }
 
 	// Fetch existing account data if available to pre-fill
@@ -477,19 +491,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 			if (data.account) {
                                 serverDraftLoaded = true;
 				const acc = data.account;
-				const hasBank = window.JodAuth && typeof window.JodAuth.hasHostPayoutBank === "function"
-					? window.JodAuth.hasHostPayoutBank(acc)
-					: Boolean(acc.beneficiary_name && acc.bank_name && acc.account_number && acc.bank_ifsc);
-				if (hasBank) {
+				const setupComplete = window.JodAuth && typeof window.JodAuth.isHostSetupComplete === "function"
+					? window.JodAuth.isHostSetupComplete(acc, data)
+					: Boolean(data.setup_complete);
+				if (setupComplete) {
 					window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(email)}`;
 					return;
 				}
                                 applyDraftData(acc);
                                 saveDraftToLocal({
                                         ...acc,
-                                        accept_final_agreement: document.getElementById("acceptFinalAgreement")?.checked,
+                                        accepted_agreement: document.getElementById("acceptFinalAgreement")?.checked,
                                         is_final_submit: false
                                 });
+                                goToStep(firstIncompleteStep(acc));
 			}
 		}
 	} catch (e) {
@@ -500,34 +515,83 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const localDraft = loadDraftFromLocal();
                 if (localDraft) {
                         applyDraftData(localDraft);
+                        goToStep(firstIncompleteStep(localDraft));
                         showAlert("Loaded your saved draft. You can continue from where you left off.", "success");
                 }
         }
 
-	function validateStep1() {
-		const beneficiaryName = document.getElementById("beneficiaryName").value.trim();
-		const accountType = document.getElementById("accountType").value;
-		const bankName = document.getElementById("bankName").value;
-		const accountNumber = document.getElementById("accountNumber").value.trim();
-		const bankIfsc = document.getElementById("bankIfsc").value.trim();
+	function focusAndFail(field, message) {
+		showAlert(message);
+		if (field && typeof field.focus === "function") field.focus();
+		return false;
+	}
 
-		if (!beneficiaryName) { showAlert("Please enter Beneficiary Name."); return false; }
-		if (!accountType) { showAlert("Please select Account Type."); return false; }
-		if (!bankName) { showAlert("Please select Bank Name."); return false; }
-		if (!accountNumber) { showAlert("Please enter Account Number."); return false; }
-		if (!bankIfsc) { showAlert("Please enter Bank IFSC."); return false; }
-		if (bankIfsc.length < 4) { showAlert("Please enter a valid Bank IFSC."); return false; }
+	function validateStep1() {
+		const orgName = document.getElementById("orgName");
+		const panNumber = document.getElementById("panNumber");
+		const orgAddress = document.getElementById("orgAddress");
+		const contactFullName = document.getElementById("contactFullName");
+		const contactMobile = document.getElementById("contactMobile");
+		const undertaking = document.getElementById("acceptUndertaking");
+		const beneficiaryNameEl = document.getElementById("beneficiaryName");
+		const accountTypeEl = document.getElementById("accountType");
+		const bankNameEl = document.getElementById("bankName");
+		const accountNumberEl = document.getElementById("accountNumber");
+		const bankIfscEl = document.getElementById("bankIfsc");
+
+		if (!orgName.value.trim()) return focusAndFail(orgName, "Please enter your organisation or individual name.");
+
+		const pan = panNumber.value.trim().toUpperCase();
+		if (!pan) return focusAndFail(panNumber, "Please enter your PAN card number.");
+		if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+			return focusAndFail(panNumber, "Please enter a valid 10-character PAN number (e.g. ABCDE1234F).");
+		}
+
+		if (!orgAddress.value.trim()) return focusAndFail(orgAddress, "Please enter your organisation or individual address.");
+
+		if (document.querySelector('input[name="has_gstin"]:checked')?.value === "yes" && !getGstinDataString()) {
+			return focusAndFail(gstinRows.querySelector(".gstin-num-input"), "Please enter at least one GSTIN number, or select 'No'.");
+		}
+
+		if (!contactFullName.value.trim()) return focusAndFail(contactFullName, "Please enter the contact person's full name.");
+
+		const mobile = contactMobile.value.replace(/\D/g, "");
+		if (mobile.length !== 10) return focusAndFail(contactMobile, "Please enter a valid 10-digit mobile number.");
+
+		if (!undertaking.checked) return focusAndFail(undertaking, "Please read and accept the undertaking to continue.");
+
+		if (!beneficiaryNameEl.value.trim()) return focusAndFail(beneficiaryNameEl, "Please enter Beneficiary Name.");
+		if (!accountTypeEl.value) return focusAndFail(accountTypeEl, "Please select Account Type.");
+		if (!bankNameEl.value) return focusAndFail(bankNameEl, "Please select Bank Name.");
+
+		const accountNumber = accountNumberEl.value.trim();
+		if (!accountNumber) return focusAndFail(accountNumberEl, "Please enter Account Number.");
+		if (!/^\d{6,20}$/.test(accountNumber)) return focusAndFail(accountNumberEl, "Please enter a valid account number (6-20 digits).");
+
+		const bankIfsc = bankIfscEl.value.trim().toUpperCase();
+		if (!bankIfsc) return focusAndFail(bankIfscEl, "Please enter Bank IFSC.");
+		if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIfsc)) {
+			return focusAndFail(bankIfscEl, "Please enter a valid IFSC code (e.g. HDFC0001234).");
+		}
 		return true;
 	}
 
 	function validateStep2() {
 		if (!panCardUrl) {
-			showAlert("Please upload your PAN card document.");
+			showAlert("Please upload your PAN card image before continuing.");
 			return false;
 		}
 		if (!cancelledChequeUrl) {
-			showAlert("Please upload your Cancelled Cheque document.");
+			showAlert("Please upload your cancelled cheque image before continuing.");
 			return false;
+		}
+		return true;
+	}
+
+	function validateStep3() {
+		const finalAgreement = document.getElementById("acceptFinalAgreement");
+		if (!finalAgreement || !finalAgreement.checked) {
+			return focusAndFail(finalAgreement, "Please sign the agreement by accepting the terms to finish your setup.");
 		}
 		return true;
 	}
@@ -558,12 +622,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 			bank_ifsc: document.getElementById("bankIfsc").value.trim().toUpperCase(),
 			pan_card_url: panCardUrl,
 			cancelled_cheque_url: cancelledChequeUrl,
-                        accept_final_agreement: document.getElementById("acceptFinalAgreement")?.checked || false,
+                        accepted_agreement: document.getElementById("acceptFinalAgreement")?.checked || false,
 			is_final_submit: isFinal
 		};
 	}
 
-	async function submitAccountSetup(isFinal = false) {
+	async function submitAccountSetup(isFinal = false, options = {}) {
 		hideAlert();
 		const payload = getFormData(isFinal);
                 saveDraftToLocal(payload);
@@ -583,18 +647,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 			if (isFinal) {
                                 clearDraftFromLocal(payload.email);
-				showAlert("Bank details saved. Redirecting to your Event Organizer Dashboard...", "success");
+				showAlert("Setup complete. Redirecting to your Event Organizer Dashboard...", "success");
 				setTimeout(() => {
 					window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(email)}`;
 				}, 900);
-			} else {
-				showAlert("Bank details saved. You can continue to the host dashboard when you are ready.", "success");
+			} else if (!options.silent) {
+				showAlert("Details saved. You can continue from here whenever you are ready.", "success");
 			}
+			return true;
 		} catch (err) {
                         const fallbackMessage = isFinal
                                 ? "We couldn't submit right now. Your details are still saved locally, so you can come back and continue."
                                 : "Draft saved on this browser. The server could not be reached right now, but your values will still be here when you return.";
                         showAlert(err.message === "Failed to fetch" ? fallbackMessage : (err.message || fallbackMessage));
+			return false;
 		} finally {
 			btnProceed.disabled = false;
 			btnSaveDetails.disabled = false;
@@ -606,8 +672,27 @@ document.addEventListener("DOMContentLoaded", async () => {
 		submitAccountSetup(false);
 	});
 
-	btnProceed.addEventListener("click", () => {
+	btnProceed.addEventListener("click", async () => {
 		if (!validateStep1()) return;
+
+		if (currentStep === 1) {
+			const saved = await submitAccountSetup(false, { silent: true });
+			if (saved) goToStep(2);
+			return;
+		}
+
+		if (currentStep === 2) {
+			if (!validateStep2()) return;
+			const saved = await submitAccountSetup(false, { silent: true });
+			if (saved) goToStep(3);
+			return;
+		}
+
+		if (!validateStep2()) {
+			goToStep(2);
+			return;
+		}
+		if (!validateStep3()) return;
 		submitAccountSetup(true);
 	});
 });

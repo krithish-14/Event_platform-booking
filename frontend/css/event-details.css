@@ -781,6 +781,56 @@ body.category-theme-workshop .performer-avatar {
     filter: brightness(1.05);
 }
 
+.post-purchase-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+    margin-top: 0.85rem;
+}
+
+.post-purchase-actions[hidden] {
+    display: none !important;
+}
+
+.post-purchase-actions .btn-book-now {
+    margin: 0;
+    width: 100%;
+    font-size: 0.92rem;
+    padding: 0.85rem 0.6rem;
+    text-transform: none;
+    letter-spacing: 0.02em;
+}
+
+.btn-view-agenda {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0.85rem 0.6rem;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--theme-accent, #0f172a);
+    background: #ffffff;
+    color: var(--theme-accent, #0f172a);
+    font-size: 0.92rem;
+    font-weight: 800;
+    text-decoration: none;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-view-agenda:hover {
+    background: var(--theme-accent, #0f172a);
+    color: #ffffff;
+    transform: translateY(-2px);
+}
+
+.sticky-post-purchase {
+    margin-top: 0;
+    flex: 1;
+    max-width: 320px;
+}
+
 /* ── Secondary Sticky Mobile Book Bar ───────────────────────────────────────── */
 .sticky-bottom-bar {
     display: none;
@@ -801,6 +851,7 @@ body.category-theme-workshop .performer-avatar {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
 }
 
 .bar-price-group p {

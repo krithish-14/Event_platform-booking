@@ -305,7 +305,9 @@ async function initOrganizerDashboard() {
 	const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 	const IMAGE_TYPE_MSG = "Your image is not in this standard file type. Please use JPG, JPEG, PNG, or WEBP.";
 	const IMAGE_SIZE_MSG = "Your image is not in this standard size. Maximum file size is 5MB.";
-	const BANNER_DIM_MSG = "Your image is not in this standard size. Recommended size is 1200 × 630 px.";
+	const BANNER_TARGET_W = 1200;
+	const BANNER_TARGET_H = 630;
+	const BANNER_DIM_MSG = "Your image is not in this standard size. Use 1200 × 630 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
 
 	function hasAllowedImageMagicBytes(bytes) {
 		if (!bytes || bytes.length < 12) return false;
@@ -345,7 +347,9 @@ async function initOrganizerDashboard() {
 				};
 				img.src = url;
 			});
-			if (Math.abs(dims.width - 1200) > 20 || Math.abs(dims.height - 630) > 20) {
+			const widthOff = Math.abs(dims.width - BANNER_TARGET_W);
+			const heightOff = Math.abs(dims.height - BANNER_TARGET_H);
+			if (widthOff >= 100 || heightOff >= 100) {
 				throw new Error(BANNER_DIM_MSG);
 			}
 		}
@@ -523,10 +527,10 @@ async function initOrganizerDashboard() {
 		if (bankRes.ok) {
 			const bankData = await bankRes.json();
 			const acc = bankData.account;
-			const hasBank = window.JodAuth && typeof window.JodAuth.hasHostPayoutBank === "function"
-				? window.JodAuth.hasHostPayoutBank(acc)
-				: Boolean(acc && acc.beneficiary_name && acc.bank_name && acc.account_number && acc.bank_ifsc);
-			if (!hasBank) {
+			const setupComplete = window.JodAuth && typeof window.JodAuth.isHostSetupComplete === "function"
+				? window.JodAuth.isHostSetupComplete(acc, bankData)
+				: Boolean(bankData.setup_complete);
+			if (!setupComplete) {
 				window.location.href = "account-setup.html";
 				return;
 			}
@@ -1067,6 +1071,7 @@ async function initOrganizerDashboard() {
 			renderOverviewState();
 			loadDashboardData();
 		} else if (tabName === 'settings') {
+			renderHostSettingsAvatar();
 			loadProfileAndBankDetails();
 		} else if (tabName === 'registrations') {
 			if (typeof window.renderFormBuilderQuestions === 'function') {
@@ -1137,7 +1142,11 @@ async function initOrganizerDashboard() {
 
 		loadTabModuleData(tabName);
 		if (tabName === "manage") {
-			setTimeout(() => invalidateVenueMap(), 220);
+			setTimeout(() => {
+				initVenueMapPicker();
+				invalidateVenueMap();
+			}, 80);
+			setTimeout(() => invalidateVenueMap(), 300);
 		}
 
 		window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1328,8 +1337,10 @@ async function initOrganizerDashboard() {
 		if (attKpiYetToCheckIn) attKpiYetToCheckIn.textContent = yetCheck.toLocaleString();
 		if (attKpiSold) attKpiSold.textContent = sold.toLocaleString();
 
-		if (Array.isArray(d.attendees)) {
-			renderAttendanceTable(d.attendees);
+		if (Array.isArray(d.checked_in_attendees)) {
+			renderAttendanceTable(d.checked_in_attendees);
+		} else if (Array.isArray(d.attendees)) {
+			renderAttendanceTable(d.attendees.filter((row) => row && row.status === "checked_in"));
 		}
 	}
 
@@ -1337,7 +1348,7 @@ async function initOrganizerDashboard() {
 		const body = document.getElementById("attendanceTableBody");
 		if (!body) return;
 		if (!attendees || attendees.length === 0) {
-			body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">No ticket check-ins yet.</td></tr>`;
+			body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">No check-ins yet. Names appear here after a host or volunteer verifies a ticket.</td></tr>`;
 			return;
 		}
 		body.innerHTML = attendees.map((row) => {
@@ -1543,10 +1554,10 @@ async function initOrganizerDashboard() {
 			const data = await res.json();
 			const gross = Number(data.gross_revenue || 0);
 			const platformFee = Number(data.platform_fee != null ? data.platform_fee : gross * 0.05);
-			const gstFee = Number(data.gst_fee != null ? data.gst_fee : gross * 0.05);
+			const gstFee = Number(data.gst_fee != null ? data.gst_fee : gross * 0.18);
 			const net = Number(data.net_earnings != null ? data.net_earnings : gross - platformFee - gstFee);
 			const platformPct = Number(data.platform_fee_pct || 5);
-			const gstPct = Number(data.gst_fee_pct || 5);
+			const gstPct = Number(data.gst_fee_pct != null ? data.gst_fee_pct : 18);
 
 			const grossRevenueEl = document.getElementById("repGrossRevenue");
 			const netEarningsEl = document.getElementById("repNetEarnings");
@@ -1569,6 +1580,36 @@ async function initOrganizerDashboard() {
 			if (netPayoutEl) netPayoutEl.textContent = formatInr(net);
 			if (platformLabel) platformLabel.textContent = `Platform Service Fee (${platformPct}%)`;
 			if (gstLabel) gstLabel.textContent = `Taxes & Statutory GST (${gstPct}%)`;
+
+			const ticketRowsEl = document.getElementById("repTicketFeeRows");
+			if (ticketRowsEl) {
+				const ticketRows = Array.isArray(data.ticket_fee_rows) ? data.ticket_fee_rows : [];
+				if (!ticketRows.length) {
+					ticketRowsEl.style.display = "none";
+					ticketRowsEl.innerHTML = "";
+				} else {
+					ticketRowsEl.style.display = "flex";
+					ticketRowsEl.innerHTML = ticketRows.map((row) => {
+						const qty = Number(row.quantity || 0);
+						const gstAmt = Number(row.gst_fee || 0);
+						const platAmt = Number(row.platform_fee || 0);
+						const typeName = String(row.ticket_type || "Ticket")
+							.replace(/&/g, "&amp;")
+							.replace(/</g, "&lt;")
+							.replace(/>/g, "&gt;")
+							.replace(/"/g, "&quot;");
+						return `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:0.75rem 0.85rem;">
+							<div style="display:flex;justify-content:space-between;gap:0.75rem;font-size:0.86rem;font-weight:800;color:#0f172a;margin-bottom:0.35rem;">
+								<span>${typeName}</span>
+								<span>${qty} ticket${qty === 1 ? "" : "s"} · ${formatInr(row.gross)}</span>
+							</div>
+							<div style="font-size:0.78rem;color:#64748b;line-height:1.45;">
+								Platform ${platformPct}%: ${formatInr(-platAmt, true)} · GST ${gstPct}%: ${formatInr(-gstAmt, true)} · Net ${formatInr(row.net)}
+							</div>
+						</div>`;
+					}).join("");
+				}
+			}
 
 			const citiesEl = document.getElementById("repTopCities");
 			if (citiesEl) {
@@ -3039,18 +3080,108 @@ async function initOrganizerDashboard() {
 	}
 
 	function updateVenueMapVisibility() {
-		const panel = document.getElementById("venueMapPanel");
+		const panel = document.getElementById("venueMapPanel") || ensureVenueMapMarkup();
 		const modeEl = document.getElementById("eventFormatInput");
 		const mode = (modeEl && modeEl.value) || "";
 		const hide = mode === "Online";
-		if (panel) panel.classList.toggle("is-hidden", hide);
+		if (panel) {
+			panel.classList.toggle("is-hidden", hide);
+			panel.style.display = hide ? "none" : "block";
+		}
 		if (!hide) setTimeout(() => invalidateVenueMap(), 80);
 	}
 
 	function invalidateVenueMap() {
 		if (venueMap && typeof venueMap.invalidateSize === "function") {
 			venueMap.invalidateSize();
+			if (venueMarker) {
+				const p = venueMarker.getLatLng();
+				if (p) venueMap.setView(p, Math.max(venueMap.getZoom() || 16, 16), { animate: false });
+			}
 		}
+	}
+
+	const CHENNAI_CENTER = [13.0827, 80.2707];
+
+	function ensureVenueMapMarkup() {
+		const input = document.getElementById("eventLocationInput");
+		if (!input || !input.parentNode) return null;
+
+		let latEl = document.getElementById("eventVenueLat");
+		if (!latEl) {
+			latEl = document.createElement("input");
+			latEl.type = "hidden";
+			latEl.id = "eventVenueLat";
+			input.insertAdjacentElement("afterend", latEl);
+		}
+		let lonEl = document.getElementById("eventVenueLon");
+		if (!lonEl) {
+			lonEl = document.createElement("input");
+			lonEl.type = "hidden";
+			lonEl.id = "eventVenueLon";
+			latEl.insertAdjacentElement("afterend", lonEl);
+		}
+
+		let panel = document.getElementById("venueMapPanel");
+		if (!panel) {
+			panel = document.createElement("div");
+			panel.className = "venue-map-panel";
+			panel.id = "venueMapPanel";
+			panel.style.cssText = "display:block;margin-top:0.75rem;border:1.5px solid #cbd5e1;border-radius:12px;overflow:hidden;background:#e2e8f0;";
+			panel.innerHTML = `
+				<div class="venue-map" id="venueMap" role="application" aria-label="Venue map" style="width:100%;height:280px;min-height:280px;background:#dbeafe;"></div>
+				<p class="venue-map-hint" id="venueMapHint" style="margin:0;padding:0.6rem 0.9rem;font-size:0.8rem;color:#334155;background:#fff;border-top:1px solid #e2e8f0;">Click the map or drag the pin to the exact street. You can also type an address or a 6-digit pincode (e.g. 600021).</p>
+			`;
+			const after = lonEl.nextSibling;
+			if (after) input.parentNode.insertBefore(panel, after);
+			else input.parentNode.appendChild(panel);
+		}
+		return panel;
+	}
+
+	function loadLeafletAssets() {
+		if (window.L && typeof window.L.map === "function") {
+			return Promise.resolve(window.L);
+		}
+		if (loadLeafletAssets._pending) return loadLeafletAssets._pending;
+
+		loadLeafletAssets._pending = new Promise((resolve, reject) => {
+			if (!document.getElementById("jodVenueLeafletCss")) {
+				const link = document.createElement("link");
+				link.id = "jodVenueLeafletCss";
+				link.rel = "stylesheet";
+				link.href = "vendor/leaflet/leaflet.css";
+				document.head.appendChild(link);
+			}
+			const urls = [
+				"vendor/leaflet/leaflet.js",
+				"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+				"https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+			];
+			let i = 0;
+			const tryNext = () => {
+				if (window.L && typeof window.L.map === "function") {
+					resolve(window.L);
+					return;
+				}
+				if (i >= urls.length) {
+					reject(new Error("Map library failed to load"));
+					return;
+				}
+				const src = urls[i++];
+				const script = document.createElement("script");
+				script.src = src;
+				script.async = true;
+				script.onload = () => {
+					if (window.L && typeof window.L.map === "function") resolve(window.L);
+					else tryNext();
+				};
+				script.onerror = tryNext;
+				document.head.appendChild(script);
+			};
+			tryNext();
+		});
+		return loadLeafletAssets._pending;
 	}
 
 	function formatStreetAreaPin(address, displayName, namedetails) {
@@ -3152,14 +3283,15 @@ async function initOrganizerDashboard() {
 	}
 
 	function ensureVenueMap() {
-		if (!window.L) return null;
+		ensureVenueMapMarkup();
+		if (!window.L || typeof window.L.map !== "function") return null;
 		const el = document.getElementById("venueMap");
 		if (!el) return null;
 		if (!venueMap) {
 			venueMap = window.L.map(el, {
 				zoomControl: true,
 				scrollWheelZoom: true,
-			}).setView([20.5937, 78.9629], 5);
+			}).setView(CHENNAI_CENTER, 12);
 			window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 				maxZoom: 19,
 				attribution: "&copy; OpenStreetMap",
@@ -3168,7 +3300,7 @@ async function initOrganizerDashboard() {
 				venueMapClickBound = true;
 				venueMap.on("click", (e) => {
 					if (!e || !e.latlng) return;
-					plotVenuePin(e.latlng.lat, e.latlng.lng, { fly: !venueMarker, reverse: true });
+					plotVenuePin(e.latlng.lat, e.latlng.lng, { fly: false, reverse: true });
 				});
 			}
 		}
@@ -3297,11 +3429,26 @@ async function initOrganizerDashboard() {
 		}
 	}
 
-	function initVenueMapPicker() {
-		ensureVenueMap();
+	let venueInputBound = false;
+
+	async function initVenueMapPicker() {
+		ensureVenueMapMarkup();
 		updateVenueMapVisibility();
+		setVenueHint("Loading the map…");
+		try {
+			await loadLeafletAssets();
+		} catch (err) {
+			setVenueHint("Map could not load. Type the address, or refresh the page and try again.");
+			return;
+		}
+		if (!ensureVenueMap()) {
+			setVenueHint("Map could not start. Type the address, or refresh the page and try again.");
+			return;
+		}
+
 		const input = document.getElementById("eventLocationInput");
-		if (input) {
+		if (input && !venueInputBound) {
+			venueInputBound = true;
 			input.addEventListener("input", () => {
 				if (venueFillingFromMap) return;
 				clearTimeout(venueGeocodeTimer);
@@ -3315,13 +3462,19 @@ async function initOrganizerDashboard() {
 				}
 			});
 		}
+
 		const lat = readVenueCoord("eventVenueLat");
 		const lon = readVenueCoord("eventVenueLon");
 		if (lat != null && lon != null) {
 			plotVenuePin(lat, lon, { fly: true, reverse: false });
 		} else if (input && input.value.trim().length >= 3) {
 			geocodeVenueQuery(input.value.trim());
+		} else if (!venueMarker) {
+			plotVenuePin(CHENNAI_CENTER[0], CHENNAI_CENTER[1], { fly: true, reverse: false });
+			setVenueHint("Drag the pin (or click the map) to mark the exact street. Type a pincode such as 600021 to jump there.");
 		}
+		setTimeout(() => invalidateVenueMap(), 120);
+		setTimeout(() => invalidateVenueMap(), 400);
 	}
 
 	initVenueMapPicker();
@@ -3583,10 +3736,122 @@ async function initOrganizerDashboard() {
 		});
 	}
 
+	function hostProfileInitials() {
+		if (window.JodProfile && typeof window.JodProfile.getInitials === "function") {
+			const initials = window.JodProfile.getInitials();
+			if (initials) return initials;
+		}
+		const nameEl = document.getElementById("profileHeaderName");
+		const name = (nameEl && nameEl.textContent) || "";
+		const parts = name.trim().split(/\s+/).filter(Boolean);
+		if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+		if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+		return "?";
+	}
+
+	function renderHostSettingsAvatar() {
+		const img = document.getElementById("profileAvatarImg");
+		const initialsEl = document.getElementById("profileAvatarInitials");
+		const saved = (window.JodProfile && typeof window.JodProfile.getSavedAvatar === "function")
+			? window.JodProfile.getSavedAvatar()
+			: null;
+		if (saved && img) {
+			img.onload = () => {
+				img.style.display = "block";
+				if (initialsEl) initialsEl.style.display = "none";
+			};
+			img.onerror = () => {
+				img.style.display = "none";
+				if (initialsEl) {
+					initialsEl.style.display = "flex";
+					initialsEl.textContent = hostProfileInitials();
+				}
+			};
+			img.src = saved;
+			img.alt = "Organizer avatar";
+			return;
+		}
+		if (img) {
+			img.removeAttribute("src");
+			img.style.display = "none";
+		}
+		if (initialsEl) {
+			initialsEl.style.display = "flex";
+			initialsEl.textContent = hostProfileInitials();
+		}
+	}
+
+	function applyHostAvatarDataUrl(dataUrl) {
+		if (window.JodProfile && typeof window.JodProfile.setProfilePicture === "function") {
+			window.JodProfile.setProfilePicture(dataUrl);
+		} else if (window.JodAuth && typeof window.JodAuth.avatarCacheKey === "function") {
+			const key = window.JodAuth.avatarCacheKey();
+			if (key) localStorage.setItem(key, dataUrl);
+		}
+		renderHostSettingsAvatar();
+	}
+
+	function bindHostSettingsAvatar() {
+		const fileInput = document.getElementById("hostSettingsPhotoInput");
+		const uploadBtn = document.getElementById("btnUploadHostAvatar");
+		const changeBtn = document.getElementById("btnChangeHostAvatar");
+		const deleteBtn = document.getElementById("btnDeleteHostAvatar");
+		if (!fileInput || fileInput.dataset.bound === "1") return;
+		fileInput.dataset.bound = "1";
+
+		const openPicker = () => fileInput.click();
+		if (uploadBtn) uploadBtn.addEventListener("click", openPicker);
+		if (changeBtn) changeBtn.addEventListener("click", openPicker);
+
+		fileInput.addEventListener("change", (e) => {
+			const file = e.target.files && e.target.files[0];
+			e.target.value = "";
+			if (!file) return;
+			if (!String(file.type || "").startsWith("image/")) {
+				showNotification("Please choose a JPG, PNG, or WEBP image.");
+				return;
+			}
+			if (file.size > 5 * 1024 * 1024) {
+				showNotification("Please choose an image under 5MB.");
+				return;
+			}
+			if (window.JodCropModal && typeof window.JodCropModal.open === "function") {
+				window.JodCropModal.open(file, () => {
+					renderHostSettingsAvatar();
+					showNotification("✓ Profile photo updated.");
+				});
+				return;
+			}
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				applyHostAvatarDataUrl(ev.target.result);
+				showNotification("✓ Profile photo updated.");
+			};
+			reader.readAsDataURL(file);
+		});
+
+		if (deleteBtn) {
+			deleteBtn.addEventListener("click", () => {
+				if (window.JodProfile && typeof window.JodProfile.removeProfilePicture === "function") {
+					window.JodProfile.removeProfilePicture();
+				} else if (window.JodAuth && typeof window.JodAuth.avatarCacheKey === "function") {
+					const key = window.JodAuth.avatarCacheKey();
+					if (key) localStorage.removeItem(key);
+				}
+				renderHostSettingsAvatar();
+				showNotification("Profile photo removed.");
+			});
+		}
+	}
+
+	bindHostSettingsAvatar();
+	renderHostSettingsAvatar();
+
 	// Load Profile & Bank Details for Settings Tab (status-aware: only lock when VERIFIED)
 	async function loadProfileAndBankDetails() {
 		const profEmail = document.getElementById("profEmail");
 		if (profEmail) profEmail.value = email;
+		renderHostSettingsAvatar();
 
 		// Use current verification info if available; otherwise fetch account-setup
 		let vs = "NOT_SUBMITTED";
@@ -3669,46 +3934,37 @@ async function initOrganizerDashboard() {
 						if (profLastName) profLastName.value = parts.slice(1).join(' ') || "";
 						if (profileHeaderName) profileHeaderName.textContent = acc.contact_full_name;
 					}
+					renderHostSettingsAvatar();
 					if (acc.contact_mobile && profMobile) profMobile.value = acc.contact_mobile;
 					if (acc.gstin_number && profGstin) profGstin.value = acc.gstin_number;
 					if (acc.pan_number && profPan) profPan.value = acc.pan_number;
 					if (acc.org_address && profAddress) profAddress.value = acc.org_address;
 
-					// Bank Details: Read-only if VERIFIED; editable placeholders otherwise via banner CTA
+					// Bank Details stay locked for payout security — changes go through support.
 					const profBankBeneficiary = document.getElementById("profBankBeneficiary");
 					const profBankName = document.getElementById("profBankName");
 					const profBankAccountType = document.getElementById("profBankAccountType");
 					const profBankAccountNumber = document.getElementById("profBankAccountNumber");
 					const profBankIfsc = document.getElementById("profBankIfsc");
 
-					const isVerified = vs === "VERIFIED";
-
 					[profBankBeneficiary, profBankName, profBankAccountType, profBankAccountNumber, profBankIfsc].forEach(inp => {
 						if (!inp) return;
-						if (isVerified) {
-							inp.setAttribute("readonly", "readonly");
-							inp.setAttribute("disabled", "disabled");
-							inp.style.backgroundColor = "#f1f5f9";
-							inp.style.cursor = "not-allowed";
-							inp.style.color = "#334155";
-							inp.style.fontWeight = "700";
-						} else {
-							inp.removeAttribute("readonly");
-							inp.removeAttribute("disabled");
-							inp.style.backgroundColor = "";
-							inp.style.cursor = "";
-							inp.style.color = "";
-							inp.style.fontWeight = "";
-						}
+						inp.setAttribute("readonly", "readonly");
+						inp.setAttribute("disabled", "disabled");
+						inp.setAttribute("tabindex", "-1");
+						inp.style.backgroundColor = "#f1f5f9";
+						inp.style.cursor = "not-allowed";
+						inp.style.color = "#334155";
+						inp.style.fontWeight = "700";
 					});
 
 					if (acc.beneficiary_name && profBankBeneficiary) profBankBeneficiary.value = acc.beneficiary_name;
 					if (acc.bank_name && profBankName) profBankName.value = acc.bank_name;
 					if (acc.account_type && profBankAccountType) profBankAccountType.value = acc.account_type.toUpperCase();
 					if (acc.account_number && profBankAccountNumber) {
-						const rawAcc = acc.account_number;
-						profBankAccountNumber.value = isVerified
-							? (rawAcc.length > 4 ? `•••• •••• ${rawAcc.slice(-4)}` : rawAcc)
+						const rawAcc = String(acc.account_number);
+						profBankAccountNumber.value = rawAcc.length > 4
+							? `•••• •••• ${rawAcc.slice(-4)}`
 							: rawAcc;
 					}
 					if (acc.bank_ifsc && profBankIfsc) profBankIfsc.value = acc.bank_ifsc;
@@ -3744,6 +4000,21 @@ async function initOrganizerDashboard() {
 				headerBg: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
 				verifyBg: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)"
 			};
+			const introOk = await showHostActionIntroModal({
+				badge: "Cancel event",
+				title: "Cancel this event?",
+				headerBg: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+				confirmBg: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+				confirmLabel: "Send OTP to email",
+				bodyHtml: `
+					<p style="margin:0 0 0.75rem;">Cancelling removes this event from Home, Category, and Event Details. Tickets already issued will show as cancelled.</p>
+					<ul style="margin:0;padding-left:1.15rem;">
+						<li>A 6-digit OTP will be sent to your registered organizer email.</li>
+						<li>Enter that code to confirm you want to cancel.</li>
+						<li>This cannot be undone from the host dashboard.</li>
+					</ul>`
+			});
+			if (!introOk) return;
 			const confirmed = await showPublishAuthOtpModal(cancelOtpOpts);
 			if (!confirmed) return;
 			try {
@@ -4810,10 +5081,57 @@ async function initOrganizerDashboard() {
 		return /authentication required|not authenticated|could not validate credentials|unauthorized/i.test(msg || "");
 	}
 
+	function getHostMobile() {
+		const profMobile = document.getElementById("profMobile");
+		if (profMobile && profMobile.value.trim()) return profMobile.value.trim();
+		const acc = currentVerificationInfo && currentVerificationInfo.account;
+		return (acc && acc.contact_mobile) ? String(acc.contact_mobile).trim() : "";
+	}
+
+	function maskHostMobile(phone) {
+		const digits = String(phone || "").replace(/\D/g, "");
+		if (digits.length < 4) return phone || "";
+		return `${digits.slice(0, 2)}${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-2)}`;
+	}
+
+	function showHostActionIntroModal(options) {
+		const opts = Object.assign({
+			badge: "Confirm action",
+			title: "Please confirm",
+			bodyHtml: "",
+			confirmLabel: "Continue",
+			headerBg: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+			confirmBg: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)"
+		}, options || {});
+		return new Promise((resolve) => {
+			const modal = ensurePublishModal();
+			modal.innerHTML = `
+				<div style="background:#ffffff; border-radius:16px; max-width:520px; width:100%; box-shadow:0 25px 60px rgba(0,0,0,0.35); overflow:hidden;">
+					<div style="padding:1.5rem 1.75rem; background:${opts.headerBg}; color:#fff;">
+						<div style="font-size:0.72rem; font-weight:700; opacity:0.92; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:0.35rem;">${opts.badge}</div>
+						<h3 style="margin:0; font-size:1.25rem; font-weight:800;">${opts.title}</h3>
+					</div>
+					<div style="padding:1.5rem 1.75rem; color:#334155; font-size:0.95rem; line-height:1.55;">${opts.bodyHtml}</div>
+					<div style="display:flex; justify-content:flex-end; gap:0.65rem; padding:1rem 1.75rem 1.5rem; border-top:1px solid #e2e8f0; background:#f8fafc;">
+						<button id="hostIntroCancel" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#475569; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Close</button>
+						<button id="hostIntroContinue" type="button" style="background:${opts.confirmBg}; color:#fff; padding:0.55rem 1.25rem; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">${opts.confirmLabel}</button>
+					</div>
+				</div>`;
+			document.getElementById("hostIntroCancel").addEventListener("click", () => {
+				closePublishGateModal();
+				resolve(false);
+			});
+			document.getElementById("hostIntroContinue").addEventListener("click", () => {
+				closePublishGateModal();
+				resolve(true);
+			});
+		});
+	}
+
 	function showPublishAuthOtpModal(options) {
 		const opts = Object.assign({
 			badge: "Verify to Publish",
-			title: "Confirm your email",
+			title: "Confirm with OTP",
 			purpose: "authenticate and publish this event",
 			verifyLabel: "Verify & Publish",
 			headerBg: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
@@ -4821,9 +5139,11 @@ async function initOrganizerDashboard() {
 		}, options || {});
 		return new Promise(async (resolve) => {
 			const hostEmail = email || (window.JodAuth && window.JodAuth.getUser && window.JodAuth.getUser() && window.JodAuth.getUser().email) || "";
+			const hostMobile = getHostMobile();
 			const modal = ensurePublishModal();
 			let settled = false;
 			let verifying = false;
+			let otpChannel = hostMobile ? "email" : "email";
 			const finish = (ok) => {
 				if (settled) return;
 				settled = true;
@@ -4838,9 +5158,14 @@ async function initOrganizerDashboard() {
 					</div>
 					<div style="padding:1.5rem 1.75rem;">
 						<p style="margin:0 0 0.85rem; color:#334155; line-height:1.55; font-size:0.95rem;">
-							A 6-digit OTP has been sent to
-							<strong id="publishOtpEmail" style="color:#0f172a;"></strong>.
-							Enter the code below to <span id="publishOtpPurpose"></span>.
+							Choose where we should send a 6-digit OTP, then enter the code to <span id="publishOtpPurpose"></span>.
+						</p>
+						<div style="display:flex; gap:0.5rem; margin-bottom:0.9rem;">
+							<button type="button" id="otpChannelEmail" style="flex:1; border:1.5px solid #2563eb; background:#eff6ff; color:#1d4ed8; padding:0.5rem 0.6rem; border-radius:8px; font-weight:800; cursor:pointer;">Email</button>
+							<button type="button" id="otpChannelPhone" style="flex:1; border:1.5px solid #cbd5e1; background:#ffffff; color:#475569; padding:0.5rem 0.6rem; border-radius:8px; font-weight:800; cursor:pointer;">Mobile</button>
+						</div>
+						<p style="margin:0 0 0.75rem; color:#334155; font-size:0.9rem;">
+							Code will be sent to <strong id="publishOtpEmail" style="color:#0f172a;"></strong>.
 						</p>
 						<div id="publishOtpDevBanner" style="display:none; margin-bottom:0.85rem; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:8px; padding:0.65rem 0.8rem; font-size:0.82rem; font-weight:600;">
 							Dev OTP: <span id="publishOtpDevValue"></span>
@@ -4869,11 +5194,32 @@ async function initOrganizerDashboard() {
 			const titleEl = modal.querySelector("h3");
 			if (titleEl) titleEl.textContent = opts.title;
 			const emailEl = document.getElementById("publishOtpEmail");
-			if (emailEl) emailEl.textContent = hostEmail || "your registered email";
+			const btnEmail = document.getElementById("otpChannelEmail");
+			const btnPhone = document.getElementById("otpChannelPhone");
 			const purposeEl = document.getElementById("publishOtpPurpose");
 			if (purposeEl) purposeEl.textContent = opts.purpose;
 			const verifyBtn = document.getElementById("publishOtpVerify");
 			if (verifyBtn) verifyBtn.textContent = opts.verifyLabel;
+
+			function paintChannel() {
+				const emailActive = otpChannel === "email";
+				if (btnEmail) {
+					btnEmail.style.border = emailActive ? "1.5px solid #2563eb" : "1.5px solid #cbd5e1";
+					btnEmail.style.background = emailActive ? "#eff6ff" : "#ffffff";
+					btnEmail.style.color = emailActive ? "#1d4ed8" : "#475569";
+				}
+				if (btnPhone) {
+					btnPhone.style.border = !emailActive ? "1.5px solid #2563eb" : "1.5px solid #cbd5e1";
+					btnPhone.style.background = !emailActive ? "#eff6ff" : "#ffffff";
+					btnPhone.style.color = !emailActive ? "#1d4ed8" : "#475569";
+				}
+				if (emailEl) {
+					emailEl.textContent = emailActive
+						? (hostEmail || "your registered email")
+						: (hostMobile ? maskHostMobile(hostMobile) : "your registered mobile");
+				}
+			}
+			paintChannel();
 
 			const statusEl = document.getElementById("publishOtpStatus");
 			const fields = Array.from(modal.querySelectorAll(".publish-otp-field"));
@@ -4890,12 +5236,16 @@ async function initOrganizerDashboard() {
 					setStatus("No organizer email found. Please log in again.");
 					return;
 				}
+				if (otpChannel === "phone" && !hostMobile) {
+					setStatus("No mobile number on your organizer account. Add it in Host Settings, or verify by email.");
+					return;
+				}
 				setStatus("Sending OTP…", true);
 				try {
 					const res = await fetch(`${API_BASE}/send-otp`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ email: hostEmail })
+						body: JSON.stringify({ email: hostEmail, channel: otpChannel })
 					});
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(apiErrorMessage(data, "Failed to send OTP."));
@@ -4905,7 +5255,7 @@ async function initOrganizerDashboard() {
 						devVal.textContent = data.dev_otp;
 						banner.style.display = "block";
 					}
-					setStatus(`OTP sent to ${hostEmail}.`, true);
+					setStatus(data.message || `OTP sent to ${data.destination || hostEmail}.`, true);
 					if (fields[0]) fields[0].focus();
 				} catch (err) {
 					setStatus(err.message || "Failed to send OTP.");
@@ -4916,7 +5266,7 @@ async function initOrganizerDashboard() {
 				if (verifying || settled) return;
 				const code = readOtp();
 				if (code.length !== 6) {
-					setStatus("Enter the 6-digit OTP sent to your email.");
+					setStatus("Enter the 6-digit OTP we sent you.");
 					return;
 				}
 				verifying = true;
@@ -4929,10 +5279,10 @@ async function initOrganizerDashboard() {
 					});
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(apiErrorMessage(data, "Invalid OTP."));
-					if (!data.access_token) {
-						throw new Error("No login account found for this email. Please log in, then publish.");
+					if (data.access_token) storePublishAuthToken(data.access_token);
+					if (!data.verified && !data.access_token) {
+						throw new Error("Could not verify OTP. Please try again.");
 					}
-					storePublishAuthToken(data.access_token);
 					finish(true);
 				} catch (err) {
 					verifying = false;
@@ -4962,6 +5312,16 @@ async function initOrganizerDashboard() {
 			});
 			document.getElementById("publishOtpResend").addEventListener("click", sendPublishOtp);
 			document.getElementById("publishOtpVerify").addEventListener("click", verifyPublishOtp);
+			if (btnEmail) btnEmail.addEventListener("click", () => {
+				otpChannel = "email";
+				paintChannel();
+				sendPublishOtp();
+			});
+			if (btnPhone) btnPhone.addEventListener("click", () => {
+				otpChannel = "phone";
+				paintChannel();
+				sendPublishOtp();
+			});
 
 			await sendPublishOtp();
 		});
@@ -5133,10 +5493,12 @@ async function initOrganizerDashboard() {
 				}
 
 				try {
-					if (!hasPublishAuthToken()) {
-						await authenticateThenPublish();
-						return;
-					}
+					setWizardNavBusy(btnPublish, false);
+					setWizardNavBusy(btnTop, false);
+					const verified = await showPublishAuthOtpModal();
+					if (!verified) return;
+					setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
+					setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
 					await postPublishEvent();
 				} catch (err) {
 					const msg = err && err.message ? err.message : String(err || "");
@@ -5379,7 +5741,7 @@ async function initOrganizerDashboard() {
 			sections: [
 				{
 					heading: "Financial Calculation Standard",
-					content: "• <strong>Gross Revenue:</strong> Sum of all ticket tier transactions.<br/>• <strong>Platform Fee:</strong> 5% service fee.<br/>• <strong>Taxes/GST:</strong> 5% statutory tax deduction.<br/>• <strong>Net Payout:</strong> Transferred to verified bank account after reconciliation."
+					content: "• <strong>Gross Revenue:</strong> Sum of all ticket tier transactions.<br/>• <strong>Platform Fee:</strong> 5% service fee on each ticket sale.<br/>• <strong>Taxes/GST:</strong> 18% statutory tax on each ticket sale.<br/>• <strong>Net Payout:</strong> Transferred to verified bank account after reconciliation."
 				},
 				{
 					heading: "⚡ Registration Trend & Velocity",

@@ -131,6 +131,44 @@
 		.badge-confirmed { background: rgba(34,197,94,.12); color: #16a34a; }
 		.badge-upcoming { background: rgba(255,117,8,.12); color: var(--primary); }
 		.badge-completed { background: rgba(107,114,128,.12); color: #4b5563; }
+		.badge-cancelled { background: rgba(231,76,60,.15); color: #e74c3c; border: 1px solid #e74c3c; }
+
+		.order-action-btns {
+			display: flex;
+			flex-wrap: wrap;
+			gap: .5rem;
+			justify-content: flex-end;
+		}
+		.btn-cancel-order {
+			background: #fff;
+			border: 1.5px solid #dc2626;
+			color: #dc2626;
+			padding: .45rem .9rem;
+			border-radius: 8px;
+			font-size: .8rem;
+			font-weight: 700;
+			cursor: pointer;
+		}
+		.btn-cancel-order:hover { background: #fef2f2; }
+
+		.order-cancel-modal {
+			position: fixed;
+			inset: 0;
+			z-index: 10000;
+			background: rgba(15,23,42,.72);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 1.25rem;
+		}
+		.order-cancel-card {
+			background: #fff;
+			border-radius: 16px;
+			max-width: 520px;
+			width: 100%;
+			overflow: hidden;
+			box-shadow: 0 25px 60px rgba(0,0,0,.35);
+		}
 
 		.order-action {
 			display: flex;
@@ -162,7 +200,7 @@
 				<div class="container">
 					<div class="hero-content">
 						<h1>Your Orders & Bookings</h1>
-						<p>View your upcoming event tickets, registration status, and past event receipts.</p>
+						<p>View completed tickets, cancelled bookings, and your full order history.</p>
 					</div>
 				</div>
 			</section>
@@ -170,9 +208,9 @@
 			<section class="orders-section">
 				<div class="container">
 					<div class="orders-filter-bar">
-						<button class="filter-tab is-active" data-filter="all">All Orders</button>
-						<button class="filter-tab" data-filter="upcoming">Upcoming</button>
+						<button class="filter-tab is-active" data-filter="all">All</button>
 						<button class="filter-tab" data-filter="completed">Completed</button>
+						<button class="filter-tab" data-filter="cancelled">Cancelled</button>
 					</div>
 
 					<div class="orders-list" id="ordersListContainer">
@@ -187,7 +225,7 @@
 
 	<script src="js/include.js?v=14"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=22"></script>
+	<script src="js/auth.js?v=23"></script>
 	<script src="js/profile.js?v=5"></script>
 	<script src="js/location.js?v=12"></script>
 	<script src="js/script.js?v=22"></script>
@@ -200,6 +238,146 @@
 		}
 
 		let allBookingsData = [];
+		let activeOrdersFilter = "all";
+
+		function getApiBase() {
+			if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+				return window.JodHealth.getApiBaseUrl();
+			}
+			const host = (window.location.hostname && window.location.hostname !== "localhost")
+				? window.location.hostname : "127.0.0.1";
+			return `http://${host}:8001`;
+		}
+
+		function escapeHtml(str) {
+			return String(str || "")
+				.replace(/&/g, "&amp;")
+				.replace(/</g, "&lt;")
+				.replace(/>/g, "&gt;")
+				.replace(/"/g, "&quot;");
+		}
+
+		function resolveOrderImage(url) {
+			if (!url) return "images/hero-event.jpg";
+			if (/^(https?:|data:|blob:)/i.test(url)) return url;
+			if (url.startsWith("images/")) return url;
+			const cleaned = String(url).replace(/^\//, "");
+			if (
+				cleaned.startsWith("api/media") ||
+				cleaned.startsWith("uploads/") ||
+				cleaned.startsWith("api/") ||
+				cleaned.startsWith("media/")
+			) {
+				return `${getApiBase().replace(/\/$/, "")}/${cleaned}`;
+			}
+			return `${getApiBase().replace(/\/$/, "")}/${cleaned}`;
+		}
+
+		function isCancelledBooking(b) {
+			return (b.status || "").toUpperCase() === "CANCELLED" || (b.status || "").toUpperCase() === "CANCELED";
+		}
+
+		function isCheckedInBooking(b) {
+			return String(b.ticket_status || "").toUpperCase() === "USED";
+		}
+
+		function hasGeneratedTicket(b) {
+			const status = (b.status || "").toUpperCase();
+			if (status === "CANCELLED" || status === "CANCELED") return false;
+			if (b.ticket_id || b.qr_token) return true;
+			return ["CONFIRMED", "PAID", "COMPLETED", "SUCCESS"].includes(status);
+		}
+
+		function isCompletedBooking(b) {
+			if (isCancelledBooking(b)) return false;
+			return hasGeneratedTicket(b) || isCheckedInBooking(b);
+		}
+
+		function canShowCancel(b) {
+			return !isCancelledBooking(b);
+		}
+
+		function hoursUntilEvent(b) {
+			if (!b.event_start_date) return Infinity;
+			const start = new Date(b.event_start_date).getTime();
+			if (isNaN(start)) return Infinity;
+			return (start - Date.now()) / (1000 * 60 * 60);
+		}
+
+		function closeCancelBookingModal() {
+			const modal = document.getElementById("orderCancelModal");
+			if (modal) modal.remove();
+		}
+
+		function openCancelBookingModal(bookingId) {
+			const booking = allBookingsData.find((b) => String(b.booking_id) === String(bookingId));
+			if (!booking) return;
+			closeCancelBookingModal();
+
+			const hoursLeft = hoursUntilEvent(booking);
+			const used = isCheckedInBooking(booking);
+			const tooLate = hoursLeft < 24;
+			const title = booking.event_title || "this event";
+			let body = "";
+			let actions = `<button type="button" id="orderCancelKeep" style="background:#fff;border:1.5px solid #cbd5e1;color:#475569;padding:.55rem 1.15rem;border-radius:8px;font-weight:700;cursor:pointer;">Keep ticket</button>`;
+
+			if (used) {
+				body = `<p style="margin:0 0 .75rem;color:#334155;line-height:1.55;">This ticket for <strong>${escapeHtml(title)}</strong> is already checked in at the venue, so it cannot be cancelled or refunded.</p>`;
+			} else if (tooLate) {
+				body = `<p style="margin:0 0 .75rem;color:#334155;line-height:1.55;">Cancellation for <strong>${escapeHtml(title)}</strong> is only available up to 24 hours before showtime. The window for this booking has closed.</p>
+					<p style="margin:0;color:#64748b;font-size:.9rem;">For help, contact JOD Events support at <strong>support@jodevents.com</strong> or <strong>+91 1800-563-383</strong>.</p>`;
+			} else {
+				body = `
+					<p style="margin:0 0 .85rem;color:#334155;line-height:1.55;">You are about to cancel your ticket for <strong>${escapeHtml(title)}</strong>. Please read the cancellation process before you confirm:</p>
+					<ul style="margin:0 0 1rem;padding-left:1.15rem;color:#475569;font-size:.92rem;line-height:1.55;">
+						<li>Cancellation is allowed up to <strong>24 hours before showtime</strong>.</li>
+						<li>The QR code on this ticket will be invalidated and cannot be used for entry.</li>
+						<li>Refunds are processed to the original payment method, usually within 5–7 business days.</li>
+						<li>Convenience fees may be non-refundable as per the host cancellation policy.</li>
+					</ul>
+					<p style="margin:0;font-size:.85rem;color:#64748b;">By confirming, you agree to this cancellation process.</p>`;
+				actions += `<button type="button" id="orderCancelConfirm" style="background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);color:#fff;border:none;padding:.55rem 1.2rem;border-radius:8px;font-weight:700;cursor:pointer;">Confirm cancellation</button>`;
+			}
+
+			const modal = document.createElement("div");
+			modal.id = "orderCancelModal";
+			modal.className = "order-cancel-modal";
+			modal.innerHTML = `
+				<div class="order-cancel-card">
+					<div style="padding:1.35rem 1.6rem;background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);color:#fff;">
+						<div style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.92;margin-bottom:.3rem;">Cancellation process</div>
+						<h3 style="margin:0;font-size:1.2rem;font-weight:800;">Cancel this ticket?</h3>
+					</div>
+					<div style="padding:1.4rem 1.6rem;">${body}<p id="orderCancelStatus" style="min-height:1.1rem;margin:.85rem 0 0;font-size:.85rem;font-weight:600;color:#dc2626;"></p></div>
+					<div style="display:flex;justify-content:flex-end;gap:.65rem;padding:1rem 1.6rem 1.35rem;border-top:1px solid #e2e8f0;background:#f8fafc;">${actions}</div>
+				</div>`;
+			document.body.appendChild(modal);
+			document.getElementById("orderCancelKeep")?.addEventListener("click", closeCancelBookingModal);
+			modal.addEventListener("click", (e) => { if (e.target === modal) closeCancelBookingModal(); });
+			document.getElementById("orderCancelConfirm")?.addEventListener("click", async () => {
+				const statusEl = document.getElementById("orderCancelStatus");
+				const confirmBtn = document.getElementById("orderCancelConfirm");
+				if (confirmBtn) confirmBtn.disabled = true;
+				if (statusEl) statusEl.textContent = "Cancelling your ticket…";
+				try {
+					const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+					const res = await fetch(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}/cancel`, {
+						method: "POST",
+						headers: { Authorization: `Bearer ${token}` }
+					});
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) throw new Error(data.detail || "Could not cancel this ticket.");
+					const idx = allBookingsData.findIndex((b) => String(b.booking_id) === String(bookingId));
+					if (idx >= 0) allBookingsData[idx] = { ...allBookingsData[idx], ...data, status: "CANCELLED" };
+					saveLocalBookingsCache(allBookingsData);
+					closeCancelBookingModal();
+					renderOrders(activeOrdersFilter);
+				} catch (err) {
+					if (statusEl) statusEl.textContent = err.message || "Could not cancel this ticket.";
+					if (confirmBtn) confirmBtn.disabled = false;
+				}
+			});
+		}
 
 		function bookingsStorageKey() {
 			if (window.JodAuth && typeof window.JodAuth.bookingsCacheKey === "function") {
@@ -243,10 +421,8 @@
 			}
 
 			const filtered = allBookingsData.filter(b => {
-				const isCancelled = (b.status || "").toUpperCase() === "CANCELLED";
-				const isUpcoming = !isCancelled && (b.event_start_date ? new Date(b.event_start_date) > new Date() : true);
-				if (filter === "upcoming") return isUpcoming;
-				if (filter === "completed") return !isUpcoming || isCancelled;
+				if (filter === "completed") return isCompletedBooking(b);
+				if (filter === "cancelled") return isCancelledBooking(b);
 				return true;
 			});
 
@@ -257,54 +433,63 @@
 
 			let html = "";
 			filtered.forEach(b => {
-				const isCancelled = (b.status || "").toUpperCase() === "CANCELLED";
-				const isUpcoming = !isCancelled && (b.event_start_date ? new Date(b.event_start_date) > new Date() : true);
+				const cancelled = isCancelledBooking(b);
 
-				let statusBadge = `<span class="badge badge-upcoming">Upcoming</span>`;
-				if (isCancelled) {
-					statusBadge = `<span class="badge" style="background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid #e74c3c;">Cancelled</span>`;
-				} else if (String(b.ticket_status || "").toUpperCase() === "USED") {
+				let statusBadge = `<span class="badge badge-completed">Completed</span>`;
+				if (cancelled) {
+					statusBadge = `<span class="badge badge-cancelled">Cancelled</span>`;
+				} else if (isCheckedInBooking(b)) {
 					statusBadge = `<span class="badge" style="background:rgba(16,185,129,.15);color:#059669;border:1px solid #10b981;">Checked in</span>`;
-				} else if (!isUpcoming) {
-					statusBadge = `<span class="badge badge-completed">Completed</span>`;
 				}
 
 				const dateStr = b.event_start_date ? new Date(b.event_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Date TBA";
 				const shortId = (b.booking_id || "00000000").substring(0, 8).toUpperCase();
+				const imgSrc = resolveOrderImage(b.card_image || b.image_url);
+				const showCancel = canShowCancel(b);
 
 				html += `
-					<div class="order-card" data-status="${isCancelled ? 'cancelled' : (isUpcoming ? 'upcoming' : 'completed')}" style="cursor: pointer;" onclick="window.location.href='ticket-details.html?id=${b.booking_id}'">
+					<div class="order-card" data-status="${cancelled ? 'cancelled' : 'completed'}">
 						<div class="order-thumb">
-							<img src="${b.image_url || 'images/JOD Events Logo.png'}" alt="Event Ticket" style="object-fit:cover;padding:0;background:#fff;" />
+							<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(b.event_title || 'Event Ticket')}" onerror="this.onerror=null;this.src='images/hero-event.jpg'" />
 						</div>
-						<div class="order-details">
+						<div class="order-details" style="cursor:pointer;" onclick="window.location.href='ticket-details.html?id=${encodeURIComponent(b.booking_id)}'">
 							${statusBadge}
-							<h3>${b.event_title || 'Event Booking'}</h3>
+							<h3>${escapeHtml(b.event_title || 'Event Booking')}</h3>
 							<div class="order-meta">
-								<span>📅 ${dateStr}</span>
-								<span>📍 ${b.event_venue || 'Venue details in ticket'}</span>
-								<span>🎟️ ${b.ticket_type || 'Access Pass'} (x${b.quantity || 1})</span>
+								<span>📅 ${escapeHtml(dateStr)}</span>
+								<span>📍 ${escapeHtml(b.event_venue || 'Venue details in ticket')}</span>
+								<span>🎟️ ${escapeHtml(b.ticket_type || 'Access Pass')} (x${b.quantity || 1})</span>
 							</div>
 							<div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem;flex-wrap:wrap;">
 								<span class="order-id">Order ID: #JOD-${shortId}</span>
 							</div>
 						</div>
-						<div class="order-action" onclick="event.stopPropagation()">
+						<div class="order-action">
 							<div class="order-price">₹${Number(b.total_price || 0).toLocaleString('en-IN')}</div>
-							<a class="button button-sm button-primary" href="ticket-details.html?id=${b.booking_id}">View Ticket &amp; QR 🎟️</a>
+							<div class="order-action-btns">
+								<a class="button button-sm button-primary" href="ticket-details.html?id=${encodeURIComponent(b.booking_id)}">View Ticket &amp; QR 🎟️</a>
+								${showCancel ? `<button type="button" class="btn-cancel-order" data-cancel-id="${escapeHtml(b.booking_id)}">Cancel</button>` : ""}
+							</div>
 						</div>
 					</div>`;
 			});
 
 			container.innerHTML = html;
+			container.querySelectorAll("[data-cancel-id]").forEach((btn) => {
+				btn.addEventListener("click", (e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					openCancelBookingModal(btn.getAttribute("data-cancel-id"));
+				});
+			});
 		}
 
 		async function fetchUserOrders() {
-			allBookingsData = [];
-			renderOrders("all");
+			allBookingsData = getLocalBookingsCache();
+			renderOrders(activeOrdersFilter);
 
 			try {
-				const apiBase = (window.JodAuth && window.JodAuth.API_BASE) ? window.JodAuth.API_BASE : "http://127.0.0.1:8001";
+				const apiBase = getApiBase();
 				const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
 				if (!token) return;
 
@@ -317,7 +502,7 @@
 					if (Array.isArray(remoteData)) {
 						allBookingsData = remoteData.slice().sort((a, b) => new Date(b.booked_at || 0) - new Date(a.booked_at || 0));
 						saveLocalBookingsCache(allBookingsData);
-						renderOrders("all");
+						renderOrders(activeOrdersFilter);
 						if (window.JodInbox && typeof window.JodInbox.refresh === "function") {
 							window.JodInbox.refresh({ toastNew: true });
 						}
@@ -338,7 +523,8 @@
 				tab.addEventListener("click", () => {
 					document.querySelectorAll(".filter-tab").forEach(t => t.classList.remove("is-active"));
 					tab.classList.add("is-active");
-					renderOrders(tab.dataset.filter);
+					activeOrdersFilter = tab.dataset.filter;
+					renderOrders(activeOrdersFilter);
 				});
 			});
 		});

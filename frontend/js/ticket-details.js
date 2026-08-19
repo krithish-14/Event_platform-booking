@@ -216,7 +216,6 @@
 		const subtotalEl = document.getElementById("billSubtotal");
 		const gstEl = document.getElementById("billGst");
 		const totalEl = document.getElementById("billTotal");
-		const savingsEl = document.getElementById("ticketSavingsBadge");
 		const paymentIdEl = document.getElementById("billPaymentId");
 		const paymentModeEl = document.getElementById("billPaymentMode");
 
@@ -225,7 +224,6 @@
 		if (subtotalEl) subtotalEl.textContent = `Rs.${(totalPrice - gstAmount).toLocaleString("en-IN")}`;
 		if (gstEl) gstEl.textContent = `Rs.${gstAmount.toLocaleString("en-IN")}`;
 		if (totalEl) totalEl.textContent = `Rs.${totalPrice.toLocaleString("en-IN")}`;
-		if (savingsEl) savingsEl.textContent = `₹${gstAmount.toLocaleString("en-IN")} saved`;
 		if (paymentIdEl) paymentIdEl.textContent = data.payment_id || `PAY-JOD-${shortId}`;
 		if (paymentModeEl) paymentModeEl.textContent = data.payment_mode || "UPI / Credit Card";
 
@@ -237,11 +235,86 @@
 		if (recName) recName.textContent = data.receiver_name || data.user_name || "Guest Customer";
 		if (recEmail) recEmail.textContent = data.receiver_email || data.user_email || "customer@jodevents.com";
 		if (recPhone) recPhone.textContent = data.receiver_phone || "+91 98765 43210";
+
+		renderAgendaBack(data);
+		window.requestAnimationFrame(syncFlipHeight);
+	}
+
+	function escapeHtml(str) {
+		if (window.JodAgenda && typeof window.JodAgenda.escapeHtml === "function") {
+			return window.JodAgenda.escapeHtml(str);
+		}
+		return String(str || "")
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
+	function renderAgendaBack(data) {
+		const title = data.event_title || "Event Agenda";
+		const venue = data.event_venue || "";
+		const startLabel = formatDateFull(data.event_start_date);
+		const endLabel = formatDateFull(data.event_end_date);
+		const titleEl = document.getElementById("ticketAgendaTitle");
+		const metaEl = document.getElementById("ticketAgendaMeta");
+		if (titleEl) titleEl.textContent = title;
+		if (metaEl) metaEl.textContent = [startLabel, venue].filter(Boolean).join(" · ");
+		if (window.JodAgenda && typeof window.JodAgenda.renderRoadmap === "function") {
+			window.JodAgenda.renderRoadmap(document.getElementById("ticketAgendaRoadmap"), data.agenda, {
+				eventTitle: title,
+				startLabel,
+				endLabel,
+				venue
+			});
+		}
+	}
+
+	function syncFlipHeight() {
+		const front = document.getElementById("printableTicketArea");
+		const inner = document.getElementById("ticketFlipInner");
+		const back = document.getElementById("ticketAgendaCard");
+		if (!front || !inner) return;
+		const height = Math.max(front.offsetHeight || 0, 560);
+		inner.style.minHeight = `${height}px`;
+		if (back) back.style.minHeight = `${height}px`;
+	}
+
+	function bindTicketFlip() {
+		const scene = document.getElementById("ticketFlipScene");
+		const inner = document.getElementById("ticketFlipInner");
+		const hint = document.getElementById("ticketFlipHint");
+		if (!scene || !inner || scene.dataset.flipBound === "1") return;
+		scene.dataset.flipBound = "1";
+		scene.addEventListener("click", (event) => {
+			if (event.target.closest("a, button, input, textarea, select, label")) return;
+			inner.classList.toggle("is-flipped");
+			const flipped = inner.classList.contains("is-flipped");
+			if (hint) hint.textContent = flipped ? "Tap ticket to view front" : "Tap ticket to view agenda";
+		});
 	}
 
 	function max(a, b) { return a > b ? a : b; }
 
-	function printTicketCardOnly(bookingData) {
+	function buildPrintAgendaHtml(bookingData) {
+		const eventTitle = (bookingData && bookingData.event_title) || "Event Agenda";
+		const venue = (bookingData && bookingData.event_venue) || "";
+		const startLabel = formatDateFull(bookingData && bookingData.event_start_date);
+		const endLabel = (bookingData && bookingData.event_end_date) ? formatDateFull(bookingData.event_end_date) : "";
+		const meta = { eventTitle, startLabel, endLabel, venue };
+		if (window.JodAgenda && typeof window.JodAgenda.printDocumentHtml === "function") {
+			return window.JodAgenda.printDocumentHtml(bookingData && bookingData.agenda, meta);
+		}
+		return `<section class="ticket-print-agenda-page" style="max-width:640px;margin:24px auto 0;page-break-before:always;break-before:page;color:#111827;font-family:Outfit,Inter,system-ui,sans-serif;">
+			<p style="margin:0 0 6px;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#ff7508;">Event roadmap</p>
+			<h1 style="margin:0 0 6px;font-size:26px;">${escapeHtml(eventTitle)}</h1>
+			<p style="margin:0 0 12px;color:#6b7280;">${escapeHtml([startLabel, venue].filter(Boolean).join(" · "))}</p>
+			<p>Agenda details will be shared at the venue.</p>
+		</section>`;
+	}
+
+	function printTicketCardOnly(bookingData, options) {
+		const includeAgenda = Boolean(options && options.includeAgenda);
 		const source = document.getElementById("printableTicketArea");
 		if (!source) {
 			window.print();
@@ -253,7 +326,8 @@
 
 		const shortId = ((bookingData && bookingData.booking_id) || "ticket").substring(0, 8).toUpperCase();
 		const eventTitle = (bookingData && bookingData.event_title) || "JOD Ticket";
-		const printTitle = `JOD-Ticket-${shortId}`;
+		const printTitle = includeAgenda ? `JOD-Ticket-Agenda-${shortId}` : `JOD-Ticket-${shortId}`;
+		const agendaHtml = includeAgenda ? buildPrintAgendaHtml(bookingData) : "";
 
 		const iframe = document.createElement("iframe");
 		iframe.setAttribute("aria-hidden", "true");
@@ -272,30 +346,33 @@
 <head>
 	<meta charset="UTF-8" />
 	<title>${printTitle}</title>
-	<link rel="stylesheet" href="css/ticket-details.css?v=6" />
 	<style>
 		@page { size: A4 portrait; margin: 12mm; }
 		html, body {
 			margin: 0;
 			padding: 0;
-			background: #ffffff;
+			background: #ffffff !important;
+			color: #111827;
 			font-family: Outfit, Inter, system-ui, sans-serif;
 		}
-		body {
+		body { display: block; padding: 8px; }
+		.print-ticket-page {
 			display: flex;
 			justify-content: center;
-			padding: 8px;
+			${includeAgenda ? "page-break-after: always; break-after: page;" : ""}
 		}
 		#printableTicketArea, .mticket-card {
 			width: 100%;
 			max-width: 480px;
 			margin: 0 auto;
-			box-shadow: none !important;
 			background: #ffffff;
 			color: #0f172a;
 			border: 1px solid #d1d5db;
 			border-radius: 16px;
-			overflow: hidden;
+			overflow: visible;
+			height: auto !important;
+			min-height: 0 !important;
+			box-shadow: none !important;
 		}
 		.mticket-header-section, .mticket-seating-block, .mticket-qr-block,
 		.mticket-price-summary { padding: 1rem 1.1rem; }
@@ -307,13 +384,25 @@
 		.mticket-stub-divider { border-top: 1px dashed #cbd5e1; margin: 0.25rem 0; }
 		.mticket-item-row, .mticket-total-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; }
 		.mticket-watermark { display: none; }
+		.mticket-collapsible-content.collapsed { max-height: none !important; opacity: 1 !important; overflow: visible !important; }
+		.ticket-print-agenda-page, .ticket-print-agenda-page * {
+			visibility: visible !important;
+		}
 	</style>
 </head>
-<body></body>
+<body>
+	<div class="print-ticket-page"></div>
+</body>
 </html>`);
 		doc.close();
 
-		doc.body.appendChild(clone);
+		const ticketPage = doc.querySelector(".print-ticket-page");
+		if (ticketPage) ticketPage.appendChild(clone);
+		if (agendaHtml) {
+			const wrap = doc.createElement("div");
+			wrap.innerHTML = agendaHtml.trim();
+			if (wrap.firstElementChild) doc.body.appendChild(wrap.firstElementChild);
+		}
 		const prevTitle = document.title;
 		document.title = `${eventTitle} — ${printTitle}`;
 
@@ -359,6 +448,7 @@
 					collapsibleContent.classList.remove("collapsed");
 					if (toggleText) toggleText.textContent = "Tap to hide details ▲";
 				}
+				window.requestAnimationFrame(syncFlipHeight);
 			}
 		});
 
@@ -367,11 +457,11 @@
 		});
 
 		btnDownloadTicket?.addEventListener("click", () => {
-			printTicketCardOnly(bookingData);
+			printTicketCardOnly(bookingData, { includeAgenda: true });
 		});
 
 		btnDownloadInvoice?.addEventListener("click", () => {
-			printTicketCardOnly(bookingData);
+			printTicketCardOnly(bookingData, { includeAgenda: false });
 		});
 	}
 
@@ -389,6 +479,8 @@
 		}
 		renderTicketDOM(bookingData);
 		bindActions(bookingData);
+		bindTicketFlip();
+		window.requestAnimationFrame(syncFlipHeight);
 
 		if (bookingId && String(bookingData.ticket_status || "").toUpperCase() !== "USED") {
 			const pollCheckin = window.setInterval(async () => {
