@@ -27,7 +27,7 @@
 }
 
 body.event-details-page {
-    background: #ffffff !important;
+    background: var(--background) !important;
     color: var(--text-primary);
     font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     margin: 0;
@@ -45,7 +45,6 @@ body.category-theme-comedy {
     --theme-gradient: linear-gradient(135deg, #e11d48 0%, #9333ea 100%);
     --theme-glow: rgba(225, 29, 72, 0.15);
     --theme-btn-text: #ffffff;
-    background: #ffffff !important;
 }
 
 body.category-theme-comedy .info-box-card {
@@ -64,7 +63,6 @@ body.category-theme-corporate {
     --theme-gradient: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
     --theme-glow: rgba(2, 132, 199, 0.15);
     --theme-btn-text: #ffffff;
-    background: #ffffff !important;
 }
 
 body.category-theme-corporate .info-box-card {
@@ -84,7 +82,6 @@ body.category-theme-launch {
     --theme-gradient: linear-gradient(135deg, #059669 0%, #0d9488 100%);
     --theme-glow: rgba(5, 150, 105, 0.15);
     --theme-btn-text: #ffffff;
-    background: #ffffff !important;
 }
 
 body.category-theme-launch .info-box-card {
@@ -103,7 +100,6 @@ body.category-theme-wedding {
     --theme-gradient: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
     --theme-glow: rgba(217, 119, 6, 0.15);
     --theme-btn-text: #ffffff;
-    background: #ffffff !important;
 }
 
 body.category-theme-wedding .event-main-title {
@@ -127,7 +123,6 @@ body.category-theme-festival {
     --theme-gradient: linear-gradient(135deg, #dc2626 0%, #c026d3 100%);
     --theme-glow: rgba(220, 38, 38, 0.15);
     --theme-btn-text: #ffffff;
-    background: #ffffff !important;
 }
 
 body.category-theme-festival .info-box-card {
@@ -146,7 +141,6 @@ body.category-theme-workshop {
     --theme-gradient: linear-gradient(135deg, #db2777 0%, #e11d48 100%);
     --theme-glow: rgba(219, 39, 119, 0.15);
     --theme-btn-text: #ffffff;
-    background: #ffffff !important;
 }
 
 body.category-theme-workshop .info-box-card {
@@ -165,7 +159,7 @@ body.category-theme-workshop .performer-avatar {
     max-width: 1280px;
     margin: 0 auto;
     padding: calc(4.75rem + 1.5rem) 1.5rem 6rem;
-    background: #ffffff;
+    background: transparent;
 }
 
 /* ── Top Header / Breadcrumb & Title Bar ─────────────────────────────────────── */
@@ -1018,4 +1012,49 @@ body.category-theme-workshop .performer-avatar {
     .performer-avatar {
         height: 200px;
     }
+}
+
+html[data-theme="dark"] body.event-details-page {
+    --bg-dark: #0e0c0a;
+    --bg-card: #1c1814;
+    --bg-card-hover: #241f1a;
+    --border-glass: rgba(255, 138, 31, 0.22);
+    --text-primary: #f6f0e8;
+    --text-secondary: #d4cbbf;
+    --text-muted: #b8aea2;
+    --shadow-subtle: 0 8px 28px rgba(0, 0, 0, 0.45);
+    background: #0e0c0a !important;
+    color: #f6f0e8;
+}
+
+html[data-theme="dark"] .event-main-title,
+html[data-theme="dark"] .section-block-title {
+    color: #fff8f0;
+}
+
+html[data-theme="dark"] .event-meta-top,
+html[data-theme="dark"] .event-description-text {
+    color: #d4cbbf;
+}
+
+html[data-theme="dark"] .section-block,
+html[data-theme="dark"] .info-box-card,
+html[data-theme="dark"] .performer-card,
+html[data-theme="dark"] .tickets-section,
+html[data-theme="dark"] .ticket-type-option {
+    background: #1c1814;
+    border-color: rgba(255, 138, 31, 0.22);
+    color: #f6f0e8;
+}
+
+html[data-theme="dark"] .price-main-display,
+html[data-theme="dark"] .info-text-group p,
+html[data-theme="dark"] .ticket-name,
+html[data-theme="dark"] .venue-maps-link #infoVenue {
+    color: #fff8f0;
+}
+
+html[data-theme="dark"] .info-text-group h4,
+html[data-theme="dark"] .price-main-display span {
+    color: #FFA136;
 }

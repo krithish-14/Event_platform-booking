@@ -188,7 +188,7 @@
 	top: calc(100% + .75rem);
 	right: 0;
 	width: 230px;
-	background: #fff;
+	background: var(--card);
 	border-radius: 16px;
 	box-shadow: 0 8px 40px -8px rgba(38,35,31,.22), 0 2px 8px rgba(38,35,31,.06);
 	border: 1px solid rgba(38,35,31,.08);
@@ -320,7 +320,7 @@
 	pointer-events: auto;
 }
 .crop-modal-card {
-	background: #fff;
+	background: var(--card);
 	border-radius: 20px;
 	width: 100%;
 	max-width: 360px;

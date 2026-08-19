@@ -53,6 +53,7 @@
 	--shadow: 0 20px 60px -20px rgba(38, 35, 31, .35);
 	--glow: 0 10px 40px -12px rgba(255, 117, 8, .55);
 	--gold-shadow: 0 10px 40px -12px rgba(255, 161, 54, .5);
+	--header-bg: rgba(255, 254, 250, .92);
 }
 
 * {
@@ -62,6 +63,30 @@
 
 html {
 	scroll-behavior: smooth;
+	color-scheme: light;
+}
+
+html[data-theme="dark"] {
+	color-scheme: dark;
+	--background: #0e0c0a;
+	--foreground: #f6f0e8;
+	--ink: #fff8f0;
+	--cream: #1a1612;
+	--card: #1c1814;
+	--primary: #FF8A1F;
+	--light-orange: #FFA136;
+	--accent-orange: #FFB24D;
+	--soft-orange: #FFC266;
+	--brand-gradient: linear-gradient(90deg, #FF7508 0%, #FF8A1F 40%, #FFA136 100%);
+	--gold: #FFA136;
+	--muted: #b8aea2;
+	--border: rgba(255, 138, 31, 0.22);
+	--dark: #0a0908;
+	--dark-soft: #1a140e;
+	--shadow: 0 20px 60px -20px rgba(0, 0, 0, .75);
+	--glow: 0 10px 40px -12px rgba(255, 117, 8, .55);
+	--gold-shadow: 0 10px 40px -12px rgba(255, 161, 54, .45);
+	--header-bg: rgba(14, 12, 10, 0.96);
 }
 
 body {
@@ -307,7 +332,7 @@ body.sub-page.is-auth-ready[data-user="guest"] .announcement-bar {
 	left: 0;
 	right: 0;
 	z-index: 40;
-	background: rgba(255, 254, 250, .92);
+	background: var(--header-bg);
 	border-bottom: 1px solid rgba(229, 223, 213, .7);
 	backdrop-filter: blur(18px);
 	transition: top 0.3s ease, background .3s, border-color .3s, backdrop-filter .3s;
@@ -339,7 +364,7 @@ body.event-details-page .site-header {
 	display: flex;
 	align-items: center;
 	height: 2.75rem;
-	background: #fff;
+	background: var(--card);
 	border: 1px solid rgba(38, 35, 31, .1);
 	border-radius: 999px;
 	padding: 0 .875rem 0 2.5rem;
@@ -747,6 +772,36 @@ mark.search-highlight {
 	font-weight: 300;
 	letter-spacing: .08em;
 	text-transform: uppercase;
+}
+
+/* ── Theme toggle (logged-in header only) ──────────────────── */
+.theme-toggle {
+	width: 2.5rem;
+	height: 2.5rem;
+	padding: 0;
+	border-radius: 999px;
+	border: 1px solid rgba(38, 35, 31, .14);
+	background: var(--card);
+	color: var(--foreground);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	flex-shrink: 0;
+	transition: background .2s, border-color .2s, color .2s;
+}
+.theme-toggle:hover {
+	border-color: var(--primary);
+	color: var(--primary);
+	background: rgba(255, 117, 8, .08);
+}
+.theme-toggle svg {
+	width: 1.15rem;
+	height: 1.15rem;
+	display: block;
+}
+.theme-toggle[hidden] {
+	display: none !important;
 }
 
 /* ── Nav Auth Buttons ──────────────────────────────────────── */
@@ -2133,7 +2188,7 @@ h2 em {
 }
 
 .faq-item:hover {
-	background: #f9f6f0;
+	background: var(--cream);
 }
 
 .faq-item>span {
@@ -3908,4 +3963,109 @@ body.jod-loc-modal-open {
 @keyframes guestModalSlideUp {
 	from { opacity: 0; transform: translateY(24px) scale(.96); }
 	to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Dark theme surfaces (orange on warm black) ─────────────── */
+html[data-theme="dark"] body {
+	background: var(--background);
+	color: var(--foreground);
+}
+
+html[data-theme="dark"] .site-header {
+	background: rgba(14, 12, 10, 0.94);
+	border-bottom-color: rgba(255, 117, 8, 0.28);
+}
+
+html[data-theme="dark"] .site-header .brand img {
+	filter: brightness(1.18) drop-shadow(0 0 10px rgba(255, 117, 8, 0.35));
+}
+
+html[data-theme="dark"] .header-search,
+html[data-theme="dark"] .header-search:hover,
+html[data-theme="dark"] .header-search:focus-within {
+	background: #1a1612;
+	border-color: rgba(255, 138, 31, 0.4);
+}
+
+html[data-theme="dark"] .header-search input::placeholder {
+	color: rgba(246, 240, 232, 0.45);
+}
+
+html[data-theme="dark"] .header-search .search-icon {
+	fill: rgba(246, 240, 232, 0.45);
+}
+
+html[data-theme="dark"] .desktop-nav a,
+html[data-theme="dark"] .nav-inner {
+	color: var(--foreground);
+	background-image: none;
+	-webkit-background-clip: border-box;
+	background-clip: border-box;
+}
+
+html[data-theme="dark"] .desktop-nav > a:hover,
+html[data-theme="dark"] .desktop-nav > a.is-active {
+	color: var(--primary);
+	background: none;
+	background-image: none;
+	-webkit-background-clip: border-box;
+	background-clip: border-box;
+}
+
+html[data-theme="dark"] .site-footer,
+html[data-theme="dark"] .categories-section,
+html[data-theme="dark"] .faq-section,
+html[data-theme="dark"] section.section {
+	background: var(--background);
+	color: var(--foreground);
+}
+
+html[data-theme="dark"] .carousel-arrow,
+html[data-theme="dark"] .button-ghost,
+html[data-theme="dark"] .button-login {
+	background: #1c1814;
+	color: var(--foreground);
+	border-color: var(--border);
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select,
+html[data-theme="dark"] .form-input,
+html[data-theme="dark"] .setup-input {
+	background: #1a1612;
+	color: var(--foreground);
+	border-color: var(--border);
+}
+
+html[data-theme="dark"] .event-card,
+html[data-theme="dark"] .service-card,
+html[data-theme="dark"] .team-card,
+html[data-theme="dark"] .stat-item,
+html[data-theme="dark"] .profile-dropdown,
+html[data-theme="dark"] .search-suggestions,
+html[data-theme="dark"] .guest-auth-modal {
+	background: var(--card);
+	color: var(--foreground);
+	border-color: var(--border);
+}
+
+html[data-theme="dark"] .profile-dropdown-header {
+	background: linear-gradient(135deg, #24180f 0%, #1c1814 100%);
+	border-bottom-color: rgba(255, 138, 31, 0.18);
+}
+
+html[data-theme="dark"] .event-card-body h3,
+html[data-theme="dark"] .section-heading h2,
+html[data-theme="dark"] .section-heading p {
+	color: var(--foreground);
+}
+
+html[data-theme="dark"] .profile-dropdown a,
+html[data-theme="dark"] .profile-dropdown button {
+	color: var(--foreground);
+}
+
+html[data-theme="dark"] .bg-gradient-layer {
+	opacity: 0.35;
 }

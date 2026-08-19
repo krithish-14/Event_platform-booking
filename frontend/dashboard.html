@@ -1,13 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8" />
+		<script src="js/theme.js?v=3"></script>
+<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Your JOD Events dashboard – manage your profile, view upcoming bookings and explore events." />
 	<title>Dashboard | JOD Events</title>
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/style.css?v=20" />
 	<link rel="stylesheet" href="css/responsive.css?v=13" />
 	<style>
 		/* ── Dashboard Page ─────────────────────────────────────── */
@@ -109,7 +110,7 @@
 			gap: 1.25rem;
 		}
 		.stat-card {
-			background: #fff;
+			background: var(--card);
 			border-radius: 16px;
 			padding: 1.5rem;
 			border: 1px solid var(--border);
@@ -145,7 +146,7 @@
 			margin-top: 1.5rem;
 		}
 		.quick-card {
-			background: #fff;
+			background: var(--card);
 			border-radius: 14px;
 			padding: 1.375rem 1.25rem;
 			border: 1px solid var(--border);
@@ -248,7 +249,7 @@
 			display: flex;
 			gap: .9rem;
 			align-items: stretch;
-			background: #fff;
+			background: var(--card);
 			border: 1px solid var(--border);
 			border-radius: 14px;
 			overflow: hidden;
@@ -415,7 +416,7 @@
 			<section class="dashboard-section" style="padding-top:0;padding-bottom:4rem">
 				<div class="container">
 					<h2 class="section-title"><span></span>Your Recent Bookings</h2>
-					<div id="recentBookingsContainer" style="background:#fff;border-radius:16px;border:1px solid var(--border);overflow:hidden">
+					<div id="recentBookingsContainer" style="background:var(--card);border-radius:16px;border:1px solid var(--border);overflow:hidden">
 						<div class="empty-state">
 							<div class="empty-icon">🎟️</div>
 							<p>You haven't booked any events yet.<br>
@@ -429,15 +430,15 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=14"></script>
+	<script src="js/include.js?v=16"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=23"></script>
-	<script src="js/profile.js?v=5"></script>
+	<script src="js/auth.js?v=24"></script>
+	<script src="js/profile.js?v=6"></script>
 	<script src="js/wishlist.js?v=1"></script>
 	<script src="js/location.js?v=12"></script>
 	<script src="js/events-public.js?v=8"></script>
 	<script src="js/search.js?v=1"></script>
-	<script src="js/script.js?v=22"></script>
+	<script src="js/script.js?v=25"></script>
 	<script>
 		(function initDashboard() {
 			function avatarStorageKey() {

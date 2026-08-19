@@ -1,6 +1,12 @@
 (() => {
 	"use strict";
 
+	if (window.JodTheme && typeof window.JodTheme.sync === "function") {
+		window.JodTheme.sync();
+	} else if (window.JodTheme && typeof window.JodTheme.apply === "function") {
+		window.JodTheme.apply();
+	}
+
 	const pageName = window.location.pathname.split("/").pop() || "index.html";
 	const isHome = pageName === "index.html" || pageName === "";
 	const isAboutPage = pageName === "about.html";
@@ -101,18 +107,24 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=14"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=15"));
 	const footerEl = document.getElementById("footer");
 	if (footerEl) promises.push(loadComponent("footer", "components/footer.html"));
 
 	window.includesReady = Promise.all(promises).then(() => {
 		updateNavigation();
+		if (window.JodTheme && typeof window.JodTheme.sync === "function") {
+			window.JodTheme.sync();
+		}
 		if (window.JodSearch && typeof window.JodSearch.initSearch === "function") {
 			window.JodSearch.initSearch();
 		}
 		setTimeout(() => {
 			if (typeof window.updateNavAuth === "function") {
 				window.updateNavAuth();
+			}
+			if (window.JodTheme && typeof window.JodTheme.sync === "function") {
+				window.JodTheme.sync();
 			}
 			if (window.JodSearch && typeof window.JodSearch.initSearch === "function") {
 				window.JodSearch.initSearch();
