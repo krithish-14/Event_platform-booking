@@ -164,7 +164,7 @@ body.category-theme-workshop .performer-avatar {
 .event-details-container {
     max-width: 1280px;
     margin: 0 auto;
-    padding: 10.5rem 1.5rem 6rem;
+    padding: calc(4.75rem + 1.5rem) 1.5rem 6rem;
     background: #ffffff;
 }
 
@@ -958,7 +958,7 @@ body.category-theme-workshop .performer-avatar {
 /* ── Responsive Breakpoints ──────────────────────────────────────────────────── */
 @media (max-width: 992px) {
     .event-details-container {
-        padding-top: 9.5rem;
+        padding-top: calc(4.75rem + 1.25rem);
     }
 
     .event-details-grid {
@@ -984,7 +984,7 @@ body.category-theme-workshop .performer-avatar {
 
 @media (max-width: 600px) {
     .event-details-container {
-        padding-top: 8rem;
+        padding-top: calc(4.75rem + 1rem);
     }
 
     .event-main-title {

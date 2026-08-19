@@ -607,6 +607,40 @@
 	updateTimers();
 	window.setInterval(updateTimers, 1000);
 
+	function parseCssGapPx(track, fallbackPx) {
+		const style = getComputedStyle(track);
+		const raw = String(style.columnGap || style.gap || "").split(" ")[0];
+		const n = parseFloat(raw);
+		if (!Number.isFinite(n)) return fallbackPx;
+		if (/rem$/i.test(raw)) return n * 16;
+		if (/em$/i.test(raw)) {
+			const fs = parseFloat(getComputedStyle(track).fontSize);
+			return n * (Number.isFinite(fs) ? fs : 16);
+		}
+		return n;
+	}
+
+	function trackStepSize(track, fallbackGap) {
+		const first = track.children[0];
+		if (!first) return 0;
+		return first.getBoundingClientRect().width + parseCssGapPx(track, fallbackGap);
+	}
+
+	function maxCarouselOffset(viewport, track) {
+		const slides = track.children;
+		if (!slides.length) return 0;
+		const first = slides[0].getBoundingClientRect();
+		const last = slides[slides.length - 1].getBoundingClientRect();
+		const contentW = last.right - first.left;
+		return Math.max(0, contentW - viewport.clientWidth);
+	}
+
+	function slidesPerViewport(viewport, track, fallbackGap) {
+		const step = trackStepSize(track, fallbackGap);
+		if (step <= 0) return 1;
+		return Math.max(1, Math.round(viewport.clientWidth / step));
+	}
+
 	function initCarousel(carousel) {
 		const viewport = carousel.querySelector("[data-carousel-viewport]");
 		const track = carousel.querySelector("[data-carousel-track]");
@@ -614,32 +648,18 @@
 		const nextBtn = carousel.querySelector("[data-carousel-next]");
 		if (!viewport || !track || !prevBtn || !nextBtn) return;
 
-		let index = 0;
-
-		function slidesPerView() {
-			const w = window.innerWidth;
-			if (w <= 800) return 1;
-			if (w <= 1100) return 2;
-			return 4;
-		}
+		let index = Number(carousel.dataset.carouselIndex || 0);
 
 		function maxIndex() {
 			const slides = track.children.length;
-			const perView = slidesPerView();
+			const perView = slidesPerViewport(viewport, track, 24);
 			return Math.max(0, slides - perView);
 		}
 
-		function stepSize() {
-			const first = track.children[0];
-			if (!first) return 0;
-			const style = getComputedStyle(track);
-			const gap = parseFloat(style.columnGap || style.gap || "1.5rem".replace("rem", "")) * 16 || 24;
-			return first.getBoundingClientRect().width + gap;
-		}
-
 		function update() {
-			index = Math.min(index, maxIndex());
-			const offset = index * stepSize();
+			index = Math.min(Math.max(0, index), maxIndex());
+			carousel.dataset.carouselIndex = String(index);
+			const offset = Math.min(index * trackStepSize(track, 24), maxCarouselOffset(viewport, track));
 			track.style.transform = `translateX(${-offset}px)`;
 			const max = maxIndex();
 			prevBtn.disabled = index <= 0;
@@ -651,13 +671,16 @@
 			update();
 		}
 
-		prevBtn.addEventListener("click", () => step(-1));
-		nextBtn.addEventListener("click", () => step(1));
-		let resizeTimer = null;
-		window.addEventListener("resize", () => {
-			clearTimeout(resizeTimer);
-			resizeTimer = setTimeout(update, 120);
-		});
+		if (carousel.dataset.carouselBound !== "1") {
+			carousel.dataset.carouselBound = "1";
+			prevBtn.addEventListener("click", () => step(-1));
+			nextBtn.addEventListener("click", () => step(1));
+			let resizeTimer = null;
+			window.addEventListener("resize", () => {
+				clearTimeout(resizeTimer);
+				resizeTimer = setTimeout(update, 120);
+			});
+		}
 		update();
 	}
 
@@ -679,33 +702,18 @@
 		const nextBtn = carousel.querySelector("[data-category-next]");
 		if (!viewport || !track || !prevBtn || !nextBtn) return;
 
-		let index = 0;
-
-		function slidesPerView() {
-			const w = window.innerWidth;
-			if (w <= 520) return 1;
-			if (w <= 800) return 2;
-			if (w <= 1100) return 3;
-			return 4;
-		}
+		let index = Number(carousel.dataset.carouselIndex || 0);
 
 		function maxIndex() {
 			const slides = track.children.length;
-			const perView = slidesPerView();
+			const perView = slidesPerViewport(viewport, track, 20);
 			return Math.max(0, slides - perView);
 		}
 
-		function stepSize() {
-			const first = track.children[0];
-			if (!first) return 0;
-			const style = getComputedStyle(track);
-			const gap = parseFloat(style.columnGap || style.gap || "1.25rem".replace("rem", "")) * 16 || 20;
-			return first.getBoundingClientRect().width + gap;
-		}
-
 		function update() {
-			index = Math.min(index, maxIndex());
-			const offset = index * stepSize();
+			index = Math.min(Math.max(0, index), maxIndex());
+			carousel.dataset.carouselIndex = String(index);
+			const offset = Math.min(index * trackStepSize(track, 20), maxCarouselOffset(viewport, track));
 			track.style.transform = `translateX(${-offset}px)`;
 			const max = maxIndex();
 			prevBtn.disabled = index <= 0;
@@ -717,13 +725,16 @@
 			update();
 		}
 
-		prevBtn.addEventListener("click", () => step(-1));
-		nextBtn.addEventListener("click", () => step(1));
-		let resizeTimer = null;
-		window.addEventListener("resize", () => {
-			clearTimeout(resizeTimer);
-			resizeTimer = setTimeout(update, 120);
-		});
+		if (carousel.dataset.carouselBound !== "1") {
+			carousel.dataset.carouselBound = "1";
+			prevBtn.addEventListener("click", () => step(-1));
+			nextBtn.addEventListener("click", () => step(1));
+			let resizeTimer = null;
+			window.addEventListener("resize", () => {
+				clearTimeout(resizeTimer);
+				resizeTimer = setTimeout(update, 120);
+			});
+		}
 		update();
 	}
 
