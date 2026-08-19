@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from Models.stored_file import StoredFile
 
 
-PRIVATE_PURPOSES = {"pan_card", "cancelled_cheque"}
+PRIVATE_PURPOSES = {"pan_card", "cancelled_cheque", "payment_screenshot"}
 MAX_STORE_BYTES = 5 * 1024 * 1024
 
 
@@ -74,7 +74,7 @@ def store_bytes(
     if len(data) > MAX_STORE_BYTES:
         raise ValueError("File is too large to store.")
 
-    is_private = kind == "kyc" or (purpose or "") in PRIVATE_PURPOSES
+    is_private = kind in {"kyc", "payment_proof"} or (purpose or "") in PRIVATE_PURPOSES
     stored = StoredFile(
         owner_customer_id=owner_customer_id,
         owner_email=(owner_email or "").strip().lower() or None,

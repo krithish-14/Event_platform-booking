@@ -21,6 +21,8 @@ from APIs.media import router as media_router
 from APIs.support import router as support_router
 from APIs.notifications import router as notifications_router
 from APIs.volunteers import router as volunteers_router
+from APIs.admin import router as admin_router
+from APIs.payments import router as payments_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
@@ -49,6 +51,17 @@ async def lifespan(app: FastAPI):
                 safe_print(f"  [OK] Moved {moved} upload file(s) into encrypted database storage.")
         except Exception as migrate_exc:
             safe_print(f"  [WARN] Could not migrate disk uploads into the database: {migrate_exc}")
+        try:
+            from Models.base import get_session_factory
+            from Services.admin_seed import seed_admin_user
+            session_factory = get_session_factory()
+            seed_db = session_factory()
+            try:
+                seed_admin_user(seed_db)
+            finally:
+                seed_db.close()
+        except Exception as seed_exc:
+            safe_print(f"  [WARN] Could not seed admin user: {seed_exc}")
     except Exception as exc:
         safe_print(f"  [WARN] Could not connect to PostgreSQL: {exc}")
         safe_print("  [WARN] Auth/Events endpoints requiring the DB will 500 until Postgres is running.")
@@ -108,6 +121,8 @@ app.include_router(media_router)
 app.include_router(support_router, prefix="/api/support", tags=["Support"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(volunteers_router, prefix="/api/volunteers", tags=["Volunteers"])
+app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
+app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
 
 
 

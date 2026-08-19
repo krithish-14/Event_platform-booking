@@ -1000,6 +1000,40 @@ canvas#trendChartCanvas {
 	margin-bottom: 1.25rem;
 }
 
+.ticket-tier-row {
+	display: flex;
+	flex-direction: column;
+	gap: 0.7rem;
+	margin-bottom: 1rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px dashed #e2e8f0;
+}
+
+.ticket-tier-row:last-child {
+	border-bottom: 0;
+	padding-bottom: 0;
+}
+
+.ticket-tier-main,
+.ticket-tier-offer {
+	margin-bottom: 0;
+}
+
+.ticket-offer-hint {
+	margin: 0;
+	font-size: 0.78rem;
+	color: #64748b;
+	line-height: 1.4;
+}
+
+html[data-theme="dark"] .ticket-tier-row {
+	border-bottom-color: rgba(255, 138, 31, 0.18);
+}
+
+html[data-theme="dark"] .ticket-offer-hint {
+	color: #b8aea2;
+}
+
 .setup-form-group {
 	display: flex;
 	flex-direction: column;

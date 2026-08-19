@@ -353,40 +353,8 @@ function renderEventDOM(event) {
 
     renderEventGallery(event, EP);
     renderEventSponsors(event, EP, escape);
-
-    if (event.ticket_types && Array.isArray(event.ticket_types) && event.ticket_types.length > 0) {
-        const tList = document.getElementById('ticketsList');
-        if (tList) {
-            tList.innerHTML = event.ticket_types.map((t, idx) => `
-                <div class="ticket-type-option ${idx === 0 ? 'selected' : ''}" onclick="selectTicketOption(this, ${t.price}, '${(t.name || '').replace(/'/g, "\\'")}')">
-                    <div>
-                        <div class="ticket-name">${t.name}</div>
-                        <div class="ticket-status">${t.availability || 'Available'}</div>
-                    </div>
-                    <div class="ticket-price">₹${t.price}</div>
-                </div>
-            `).join('');
-            const first = event.ticket_types[0];
-            if (first) {
-                currentSelectedTicketType = first.name || currentSelectedTicketType;
-                currentSelectedPrice = Number(first.price);
-            }
-            setStartingPriceDisplay(lowestTicketPrice(event));
-        }
-    } else {
-        const tList = document.getElementById('ticketsList');
-        if (tList) {
-            tList.innerHTML = `
-                <div class="ticket-type-option selected" onclick="selectTicketOption(this, ${startingPrice}, 'General Admission')">
-                    <div>
-                        <div class="ticket-name">General Admission</div>
-                        <div class="ticket-status">Available</div>
-                    </div>
-                    <div class="ticket-price">${startingPrice <= 0 ? 'Free' : '₹' + startingPrice}</div>
-                </div>
-            `;
-        }
-    }
+    paintTicketTypes(event);
+    bindTicketPruneListener();
 }
 
 function collectGalleryUrls(event, EP) {
@@ -528,6 +496,94 @@ function closeGalleryLightbox() {
     document.body.style.overflow = '';
 }
 
+function liveTickets(event) {
+    const EP = window.JodEventsPublic;
+    if (EP && typeof EP.visibleTicketTypes === "function") {
+        return EP.visibleTicketTypes(event);
+    }
+    return (event && Array.isArray(event.ticket_types)) ? event.ticket_types : [];
+}
+
+function setBuyTicketEnabled(enabled, label) {
+    document.querySelectorAll(".btn-book-now").forEach((btn) => {
+        if (btn.classList.contains("btn-view-ticket")) return;
+        btn.disabled = !enabled;
+        btn.style.opacity = enabled ? "" : "0.55";
+        btn.style.cursor = enabled ? "" : "not-allowed";
+        if (label) btn.textContent = label;
+    });
+}
+
+function paintTicketTypes(event) {
+    const tList = document.getElementById("ticketsList");
+    if (!tList) return;
+    const EP = window.JodEventsPublic;
+    const escape = (EP && typeof EP.escapeHtml === "function")
+        ? EP.escapeHtml
+        : (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const ended = EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(event) === "ended";
+    if (ended) {
+        tList.innerHTML = '<p class="ticket-unavailable">This event has ended.</p>';
+        setBuyTicketEnabled(false, "Event ended");
+        setStartingPriceDisplay(0);
+        return;
+    }
+    const types = liveTickets(event);
+    if (!types.length) {
+        const hadTimed = Array.isArray(event.ticket_types) && event.ticket_types.length > 0;
+        tList.innerHTML = `<p class="ticket-unavailable">${hadTimed ? "This ticket offer is not on sale right now." : "Tickets will be announced soon."}</p>`;
+        setBuyTicketEnabled(false, hadTimed ? "Offer closed" : "Unavailable");
+        return;
+    }
+    setBuyTicketEnabled(true, "Buy Ticket");
+    tList.innerHTML = types.map((t, idx) => {
+        const start = EP && EP.ticketSaleStart ? EP.ticketSaleStart(t) : (t.sales_start || "");
+        const end = EP && EP.ticketSaleEnd ? EP.ticketSaleEnd(t) : (t.sales_end || "");
+        const timed = Boolean(start || end);
+        const name = escape(t.name || "Ticket");
+        const price = Number(t.price) || 0;
+        return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}">
+            <div>
+                ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${escape(start)}" data-ticket-end="${escape(end)}"></div>` : ""}
+                <div class="ticket-name">${name}</div>
+                <div class="ticket-status">${escape(t.availability || (timed ? "Limited-time offer" : "Available"))}</div>
+            </div>
+            <div class="ticket-price">${price <= 0 ? "Free" : "₹" + Number(price).toLocaleString("en-IN")}</div>
+        </div>`;
+    }).join("");
+    tList.querySelectorAll("[data-ticket-option]").forEach((opt) => {
+        opt.addEventListener("click", () => selectTicketOption(opt, Number(opt.dataset.price), opt.dataset.name));
+    });
+    const first = types[0];
+    currentSelectedTicketType = first.name || "General Admission";
+    currentSelectedPrice = Number(first.price) || 0;
+    setStartingPriceDisplay(lowestTicketPrice(event));
+    if (EP && typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
+}
+
+let ticketPruneBound = false;
+function bindTicketPruneListener() {
+    if (ticketPruneBound) return;
+    ticketPruneBound = true;
+    window.addEventListener("jod:tickets-pruned", () => {
+        if (currentEventData) syncTicketAvailability(currentEventData);
+    });
+}
+
+function syncTicketAvailability(event) {
+    const tList = document.getElementById("ticketsList");
+    if (!tList) return;
+    const remaining = tList.querySelectorAll("[data-ticket-option]");
+    if (!remaining.length) {
+        paintTicketTypes(event);
+        return;
+    }
+    if (!tList.querySelector(".ticket-type-option.selected") && remaining[0]) {
+        remaining[0].click();
+    }
+    setStartingPriceDisplay(lowestTicketPrice(event));
+}
+
 function selectTicketOption(element, price, ticketName) {
     const options = document.querySelectorAll('.ticket-type-option');
     options.forEach(opt => opt.classList.remove('selected'));
@@ -545,7 +601,7 @@ function selectTicketOption(element, price, ticketName) {
 }
 
 function lowestTicketPrice(event) {
-    const types = event && Array.isArray(event.ticket_types) ? event.ticket_types : [];
+    const types = liveTickets(event);
     const prices = types
         .map((t) => Number(t && t.price))
         .filter((n) => Number.isFinite(n));
@@ -748,6 +804,18 @@ async function triggerBookingModal() {
     if (!eventId || !currentEventData) {
         showToast("This event is currently unavailable.");
         return;
+    }
+    const EP = window.JodEventsPublic;
+    if (EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(currentEventData) === "ended") {
+        showToast("This event has ended.");
+        return;
+    }
+    if (EP && typeof EP.visibleTicketTypes === "function") {
+        const live = EP.visibleTicketTypes(currentEventData);
+        if (!live.length && Array.isArray(currentEventData.ticket_types) && currentEventData.ticket_types.length) {
+            showToast("This ticket offer is not on sale right now.");
+            return;
+        }
     }
 
     const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")

@@ -118,15 +118,75 @@
 		return "live";
 	}
 
+	function ticketSaleStart(ticket) {
+		if (!ticket || typeof ticket !== "object") return "";
+		return ticket.sales_start || ticket.offer_start || ticket.sale_start || "";
+	}
+
+	function ticketSaleEnd(ticket) {
+		if (!ticket || typeof ticket !== "object") return "";
+		return ticket.sales_end || ticket.offer_end || ticket.sale_end || "";
+	}
+
+	function ticketOfferPhase(ticket) {
+		const startMs = parseEventMs(ticketSaleStart(ticket));
+		const endMs = parseEventMs(ticketSaleEnd(ticket));
+		const now = Date.now();
+		if (!startMs && !endMs) return "always";
+		if (startMs && now < startMs) return "upcoming";
+		if (endMs && now >= endMs) return "ended";
+		return "live";
+	}
+
+	function isTicketOnSale(ticket) {
+		const phase = ticketOfferPhase(ticket);
+		return phase === "always" || phase === "live";
+	}
+
+	function visibleTicketTypes(event) {
+		const types = event && Array.isArray(event.ticket_types) ? event.ticket_types : [];
+		return types.filter(isTicketOnSale);
+	}
+
+	function isEventCurrentlyVisible(event) {
+		if (!event) return false;
+		if (getEventPhase(event) === "ended") return false;
+		const types = Array.isArray(event.ticket_types) ? event.ticket_types : [];
+		if (!types.length) return true;
+		return types.some(isTicketOnSale);
+	}
+
+	function liveEventAttr(event) {
+		const payload = {
+			start_date: event && event.start_date || "",
+			end_date: event && event.end_date || "",
+			ticket_types: (event && Array.isArray(event.ticket_types) ? event.ticket_types : []).map((t) => ({
+				sales_start: ticketSaleStart(t),
+				sales_end: ticketSaleEnd(t)
+			}))
+		};
+		return encodeURIComponent(JSON.stringify(payload));
+	}
+
+	function cardCountdownIso(event) {
+		if (!event) return "";
+		const phase = getEventPhase(event);
+		if (phase === "upcoming") return event.start_date || "";
+		if (phase === "live") return event.end_date || event.start_date || "";
+		return event.end_date || event.start_date || "";
+	}
+
 	function pickFeaturedEvent(events) {
 		if (!events || !events.length) return null;
+		const visible = events.filter(isEventCurrentlyVisible);
+		if (!visible.length) return null;
 		const now = Date.now();
-		const upcoming = events.filter((ev) => {
+		const upcoming = visible.filter((ev) => {
 			const ms = parseEventMs(ev.start_date);
 			return ms && ms >= now;
 		});
 		if (upcoming.length) return upcoming[0];
-		return events[0];
+		return visible[0];
 	}
 
 	async function fetchPublishedEvents(params) {
@@ -136,10 +196,7 @@
 		if (!res.ok) throw new Error("Unable to load events.");
 		const data = await res.json();
 		const list = Array.isArray(data) ? data : [];
-		if (typeof console !== "undefined" && console.debug) {
-			console.debug("[PUBLIC EVENTS] fetched", list.length, "events");
-		}
-		return list;
+		return list.filter(isEventCurrentlyVisible);
 	}
 
 	async function fetchPublishedEventById(eventId) {
@@ -176,11 +233,13 @@
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
 		const category = escapeHtml(event.category || "Event");
 		const dateStr = formatDateIST(event.start_date);
-		const countdownIso = event.start_date || "";
+		const countdownIso = cardCountdownIso(event);
+		const countdownEnd = event.end_date || "";
 		const delay = delayClass || "";
 
 		return `
 			<article class="event-card carousel-slide reveal ${delay}" data-event-id="${id}"
+				data-live-event="${liveEventAttr(event)}"
 				data-lat="${event.latitude || ""}" data-lon="${event.longitude || ""}"
 				style="cursor:pointer;"
 				onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : (window.location.href='${detailsUrl}', false));">
@@ -188,7 +247,7 @@
 					<img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
 					<span class="card-category">${category}</span>
 					${wishlistHeartButton(id)}
-					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}">&#10024; --d : --h : --m</span>` : ""}
+					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}" data-card-countdown-end="${countdownEnd}">&#10024; --d : --h : --m</span>` : ""}
 				</div>
 				<div class="event-card-body">
 					<h3>${title}</h3>
@@ -215,11 +274,15 @@
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
 		const category = escapeHtml(event.category || "Event");
 		const dateStr = formatDateIST(event.start_date);
-		const countdownIso = event.start_date || "";
-		const priceDisplay = formatPrice(event.price) + (Number(event.price) > 0 ? " onwards" : "");
+		const countdownIso = cardCountdownIso(event);
+		const countdownEnd = event.end_date || "";
+		const liveTypes = visibleTicketTypes(event);
+		const priceSource = liveTypes.length ? Math.min(...liveTypes.map((t) => Number(t.price) || 0)) : event.price;
+		const priceDisplay = formatPrice(priceSource) + (Number(priceSource) > 0 ? " onwards" : "");
 
 		return `
 			<article class="event-card cat-home-card" data-event-id="${id}"
+				data-live-event="${liveEventAttr(event)}"
 				data-lat="${event.latitude || ""}" data-lon="${event.longitude || ""}"
 				style="cursor:pointer;"
 				onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : (window.location.href='${detailsUrl}', false));">
@@ -227,7 +290,7 @@
 					<img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
 					<span class="card-category">${category}</span>
 					${wishlistHeartButton(id)}
-					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}">&#10024; --d : --h : --m</span>` : ""}
+					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}" data-card-countdown-end="${countdownEnd}">&#10024; --d : --h : --m</span>` : ""}
 				</div>
 				<div class="event-card-body">
 					<h3>${title}</h3>
@@ -373,8 +436,25 @@
 		el.textContent = `${parts.days}d ${pad(parts.hours)}h ${pad(parts.minutes)}m ${pad(parts.seconds)}s`;
 	}
 
-	function updateCardCountdownElement(el, startIso) {
+	function updateCardCountdownElement(el, startIso, endIso) {
 		if (!el || !startIso) return;
+		const phase = getEventPhase({ start_date: startIso, end_date: endIso || el.dataset.cardCountdownEnd || "" });
+		if (phase === "ended") {
+			el.textContent = "Ended";
+			return;
+		}
+		if (phase === "live") {
+			const endMs = parseEventMs(endIso || el.dataset.cardCountdownEnd || "");
+			if (endMs) {
+				const parts = getCountdownParts(endMs);
+				el.textContent = parts.expired
+					? "Ended"
+					: `Live ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m`;
+			} else {
+				el.textContent = "✨ Live Now";
+			}
+			return;
+		}
 		const startMs = parseEventMs(startIso);
 		const parts = getCountdownParts(startMs);
 		if (parts.expired) {
@@ -384,6 +464,53 @@
 		el.textContent = `✨ ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m`;
 	}
 
+	function pruneExpiredPublicEvents() {
+		let removed = 0;
+		document.querySelectorAll("[data-live-event]").forEach((card) => {
+			const raw = card.getAttribute("data-live-event");
+			if (!raw) return;
+			let payload = null;
+			try {
+				payload = JSON.parse(decodeURIComponent(raw));
+			} catch (_) {
+				return;
+			}
+			if (!isEventCurrentlyVisible(payload)) {
+				card.remove();
+				removed += 1;
+			}
+		});
+		if (removed) {
+			try {
+				global.dispatchEvent(new CustomEvent("jod:public-events-pruned"));
+			} catch (_) {}
+		}
+		return removed;
+	}
+
+	function updateTicketCountdownElement(el) {
+		if (!el) return;
+		const option = el.closest("[data-ticket-option]");
+		const start = el.dataset.ticketStart || (option && option.dataset.salesStart) || "";
+		const end = el.dataset.ticketEnd || (option && option.dataset.salesEnd) || "";
+		const phase = ticketOfferPhase({ sales_start: start, sales_end: end });
+		if (phase === "ended" || phase === "upcoming") {
+			if (option) option.remove();
+			try {
+				global.dispatchEvent(new CustomEvent("jod:tickets-pruned"));
+			} catch (_) {}
+			return;
+		}
+		if (phase === "always") {
+			el.hidden = true;
+			return;
+		}
+		el.hidden = false;
+		const endMs = parseEventMs(end);
+		const parts = getCountdownParts(endMs);
+		el.textContent = `Offer ends in ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m : ${pad(parts.seconds)}s`;
+	}
+
 	function startCountdownTicker() {
 		function tick() {
 			document.querySelectorAll("[data-countdown]").forEach((el) => {
@@ -391,13 +518,28 @@
 				updateCountdownElement(el, el.dataset.countdown, el.dataset.countdownEnd);
 			});
 			document.querySelectorAll("[data-card-countdown]").forEach((el) => {
-				updateCardCountdownElement(el, el.dataset.cardCountdown);
+				updateCardCountdownElement(el, el.dataset.cardCountdown, el.dataset.cardCountdownEnd);
 			});
 			document.querySelectorAll("[data-summary-countdown]").forEach((el) => {
 				const iso = el.getAttribute("data-summary-countdown") || "";
 				if (!iso || iso.indexOf("-") < 0) return;
 				updateSummaryCountdown(el, iso, el.dataset.countdownEnd || "");
 			});
+			document.querySelectorAll("[data-ticket-countdown]").forEach((el) => {
+				updateTicketCountdownElement(el);
+			});
+			pruneExpiredPublicEvents();
+			if (global.__jodFeaturedEvent && !isEventCurrentlyVisible(global.__jodFeaturedEvent)) {
+				const key = String(global.__jodFeaturedEvent.id || "featured");
+				if (global.__jodFeaturedExpiredNotified !== key) {
+					global.__jodFeaturedExpiredNotified = key;
+					try {
+						global.dispatchEvent(new CustomEvent("jod:featured-expired"));
+					} catch (_) {}
+				}
+			} else {
+				global.__jodFeaturedExpiredNotified = "";
+			}
 		}
 		tick();
 		if (!global._jodCountdownInterval) {
@@ -551,6 +693,12 @@
 		parseEventMs,
 		getCountdownParts,
 		getEventPhase,
+		ticketSaleStart,
+		ticketSaleEnd,
+		ticketOfferPhase,
+		isTicketOnSale,
+		visibleTicketTypes,
+		isEventCurrentlyVisible,
 		fetchPublishedEvents,
 		fetchPublishedEventById,
 		pickFeaturedEvent,

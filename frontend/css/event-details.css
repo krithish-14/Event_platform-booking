@@ -726,9 +726,27 @@ body.category-theme-workshop .performer-avatar {
     color: #0f172a;
 }
 
-.ticket-status {
-    font-size: 0.75rem;
-    color: var(--theme-accent);
+.ticket-offer-countdown {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #c2410c;
+    margin-bottom: 0.28rem;
+    letter-spacing: 0.01em;
+}
+
+.ticket-unavailable {
+    color: #64748b;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0;
+}
+
+html[data-theme="dark"] .ticket-offer-countdown {
+    color: #fdba74;
+}
+
+html[data-theme="dark"] .ticket-unavailable {
+    color: #b8aea2;
 }
 
 .ticket-price {

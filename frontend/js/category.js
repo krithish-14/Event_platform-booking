@@ -127,6 +127,10 @@
 		const tagsContainer = document.getElementById("activeTagsContainer");
 
 		if (!grid) return;
+		if (!events) events = [];
+		if (EP && typeof EP.isEventCurrentlyVisible === "function") {
+			events = events.filter(EP.isEventCurrentlyVisible);
+		}
 
 		if (countEl) {
 			countEl.textContent = `Showing ${events.length} ${events.length === 1 ? "Event" : "Events"}`;
@@ -276,6 +280,15 @@
 		initCategoryHeader();
 		bindFilterEvents();
 		updateAndRender();
+		window.addEventListener("jod:public-events-pruned", () => {
+			const grid = document.getElementById("categoryEventsGrid");
+			const emptyState = document.getElementById("catEmptyState");
+			const countEl = document.getElementById("resultsCount");
+			if (!grid) return;
+			const left = grid.querySelectorAll(".event-card").length;
+			if (countEl) countEl.textContent = `Showing ${left} ${left === 1 ? "Event" : "Events"}`;
+			if (!left && emptyState) emptyState.hidden = false;
+		});
 	});
 
 })();

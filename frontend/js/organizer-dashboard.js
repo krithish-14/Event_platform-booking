@@ -265,17 +265,48 @@ async function initOrganizerDashboard() {
 		return value.split("T")[1];
 	}
 
+	function isoToDatetimeLocal(value) {
+		if (!value) return "";
+		return String(value).slice(0, 16);
+	}
+
+	function attrEscape(value) {
+		return String(value ?? "")
+			.replace(/&/g, "&amp;")
+			.replace(/"/g, "&quot;")
+			.replace(/</g, "&lt;");
+	}
+
+	function clearTicketTierRow(row) {
+		if (!row) return;
+		const type = row.querySelector(".ticket-type-input");
+		const price = row.querySelector(".ticket-price-input");
+		const qty = row.querySelector(".ticket-qty-input");
+		const start = row.querySelector(".ticket-offer-start-input");
+		const end = row.querySelector(".ticket-offer-end-input");
+		if (type) type.value = "";
+		if (price) price.value = "";
+		if (qty) qty.value = "";
+		if (start) start.value = "";
+		if (end) end.value = "";
+	}
+
 	function collectTicketsJson() {
 		const rows = document.querySelectorAll(".ticket-tier-row");
 		const out = [];
 		rows.forEach((row) => {
 			const name = row.querySelector(".ticket-type-input")?.value?.trim();
 			if (!name) return;
-			out.push({
+			const item = {
 				name,
 				price: Number(row.querySelector(".ticket-price-input")?.value || 0),
 				qty: Number(row.querySelector(".ticket-qty-input")?.value || 0)
-			});
+			};
+			const offerStart = toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-start-input")?.value || "");
+			const offerEnd = toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-end-input")?.value || "");
+			if (offerStart) item.sales_start = offerStart;
+			if (offerEnd) item.sales_end = offerEnd;
+			out.push(item);
 		});
 		return out;
 	}
@@ -3483,36 +3514,47 @@ async function initOrganizerDashboard() {
 	const ticketTiersRows = document.getElementById("ticketTiersRows");
 	const btnAddTicketTier = document.getElementById("btnAddTicketTier");
 
-	function createTicketTierRowHtml(type = "", price = "", qty = "") {
+	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "") {
 		const div = document.createElement("div");
-		div.className = "setup-grid-3 ticket-tier-row";
-		div.style.alignItems = "flex-end";
-		div.style.marginBottom = "0.8rem";
+		div.className = "ticket-tier-row";
 		div.innerHTML = `
-			<div class="setup-form-group">
-				<label>Ticket Type / Name <span style="color: #ef4444;">*</span></label>
-				<div class="input-icon-wrap">
-					<span class="input-icon">&#127915;</span>
-					<input type="text" class="setup-input ticket-type-input" placeholder="e.g. VIP Pass, Early Bird, General" required value="${type}" />
-				</div>
-			</div>
-			<div class="setup-form-group">
-				<label>Ticket Price (₹) <span style="color: #ef4444;">*</span></label>
-				<div class="input-icon-wrap">
-					<span class="input-icon">&#8377;</span>
-					<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="${price}" />
-				</div>
-			</div>
-			<div class="setup-form-group">
-				<label>Capacity <span style="color: #ef4444;">*</span></label>
-				<div style="display: flex; gap: 0.5rem;">
-					<div class="input-icon-wrap" style="flex: 1;">
-						<span class="input-icon">&#128101;</span>
-						<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 100" min="1" required value="${qty}" />
+			<div class="setup-grid-3 ticket-tier-main">
+				<div class="setup-form-group">
+					<label>Ticket Type / Name <span style="color: #ef4444;">*</span></label>
+					<div class="input-icon-wrap">
+						<span class="input-icon">&#127915;</span>
+						<input type="text" class="setup-input ticket-type-input" placeholder="e.g. VIP Pass, Early Bird, General" required value="${attrEscape(type)}" />
 					</div>
-					<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+				</div>
+				<div class="setup-form-group">
+					<label>Ticket Price (₹) <span style="color: #ef4444;">*</span></label>
+					<div class="input-icon-wrap">
+						<span class="input-icon">&#8377;</span>
+						<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="${attrEscape(price)}" />
+					</div>
+				</div>
+				<div class="setup-form-group">
+					<label>Capacity <span style="color: #ef4444;">*</span></label>
+					<div style="display: flex; gap: 0.5rem;">
+						<div class="input-icon-wrap" style="flex: 1;">
+							<span class="input-icon">&#128101;</span>
+							<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 100" min="1" required value="${attrEscape(qty)}" />
+						</div>
+						<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+					</div>
 				</div>
 			</div>
+			<div class="setup-grid-2 ticket-tier-offer">
+				<div class="setup-form-group">
+					<label>Offer starts</label>
+					<input type="datetime-local" class="setup-input ticket-offer-start-input" value="${attrEscape(offerStart)}" />
+				</div>
+				<div class="setup-form-group">
+					<label>Offer ends</label>
+					<input type="datetime-local" class="setup-input ticket-offer-end-input" value="${attrEscape(offerEnd)}" />
+				</div>
+			</div>
+			<p class="ticket-offer-hint">Leave blank to keep this ticket on sale for the whole event. Set dates for a same-day or limited-time offer.</p>
 		`;
 
 		const removeBtn = div.querySelector(".btn-remove-ticket");
@@ -3520,9 +3562,7 @@ async function initOrganizerDashboard() {
 			if (ticketTiersRows.children.length > 1) {
 				div.remove();
 			} else {
-				div.querySelector(".ticket-type-input").value = "";
-				div.querySelector(".ticket-price-input").value = "";
-				div.querySelector(".ticket-qty-input").value = "";
+				clearTicketTierRow(div);
 			}
 		});
 
@@ -3543,9 +3583,7 @@ async function initOrganizerDashboard() {
 				if (ticketTiersRows.children.length > 1) {
 					row.remove();
 				} else {
-					row.querySelector(".ticket-type-input").value = "";
-					row.querySelector(".ticket-price-input").value = "";
-					row.querySelector(".ticket-qty-input").value = "";
+					clearTicketTierRow(row);
 				}
 			});
 		}
@@ -3668,7 +3706,9 @@ async function initOrganizerDashboard() {
 				ticketTiersRows.appendChild(createTicketTierRowHtml(
 					t.name || t.ticket_name || t.type || "",
 					t.price != null ? t.price : "",
-					t.qty != null ? t.qty : (t.quantity != null ? t.quantity : "")
+					t.qty != null ? t.qty : (t.quantity != null ? t.quantity : ""),
+					isoToDatetimeLocal(t.sales_start || t.offer_start || t.sale_start || ""),
+					isoToDatetimeLocal(t.sales_end || t.offer_end || t.sale_end || "")
 				));
 			});
 		}

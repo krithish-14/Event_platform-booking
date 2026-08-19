@@ -505,8 +505,42 @@ html[data-theme="dark"] .crop-modal-card {
 /* ── Ticket / payment leftover light panels ────────────────── */
 html[data-theme="dark"] body.ticket-page .site-header + *,
 html[data-theme="dark"] .payment-card,
-html[data-theme="dark"] .bill-card {
-	color: #f6f0e8;
+html[data-theme="dark"] .bill-card,
+html[data-theme="dark"] .qr-pay-card,
+html[data-theme="dark"] .proof-card {
+	background: #1c1814 !important;
+	background-color: #1c1814 !important;
+	color: #f6f0e8 !important;
+	border-color: rgba(255, 138, 31, 0.28) !important;
+}
+
+html[data-theme="dark"] .bill-card h2,
+html[data-theme="dark"] .qr-pay-card h2,
+html[data-theme="dark"] .qr-pay-card p,
+html[data-theme="dark"] .bill-card .row > span:first-child,
+html[data-theme="dark"] .proof-card label {
+	color: #b8aea2 !important;
+}
+
+html[data-theme="dark"] .bill-card .row {
+	border-bottom-color: rgba(255, 248, 240, 0.1) !important;
+}
+
+html[data-theme="dark"] .bill-card .row > span:last-child {
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .bill-card .row.is-total > span:last-child {
+	color: #60a5fa !important;
+}
+
+html[data-theme="dark"] .proof-card input[type="text"],
+html[data-theme="dark"] .proof-card input[type="email"],
+html[data-theme="dark"] .proof-card input[type="tel"],
+html[data-theme="dark"] .proof-card input[type="file"] {
+	background: #0e0c0a !important;
+	color: #f6f0e8 !important;
+	border-color: rgba(255, 138, 31, 0.35) !important;
 }
 
 html[data-theme="dark"] .mticket-card {

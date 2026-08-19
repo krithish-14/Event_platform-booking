@@ -28,6 +28,7 @@ from Models.user_signups import UserSignup
 from Models.user_logins import UserLogin
 from Models.wishlist import WishlistItem
 from Models.stored_file import StoredFile
+from Models.payment_proof import PaymentProof
 from Models.support_ticket import SupportTicket
 from Models.notification import EventAnnouncement
 
@@ -65,6 +66,7 @@ __all__ = [
     "UserLogin",
     "WishlistItem",
     "StoredFile",
+    "PaymentProof",
     "SupportTicket",
     "EventAnnouncement",
 ]

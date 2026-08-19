@@ -300,8 +300,17 @@ window.JodAuth = (() => {
 		}
 	}
 
+	function isAdminUser(user) {
+		const source = user || getUser() || {};
+		if (source.is_admin) return true;
+		return String(source.email || "").trim().toLowerCase() === "admin@gmail.com";
+	}
+
 	async function resolvePostAuthDestination(preferredUrl) {
 		const preferred = preferredUrl || "index.html";
+		if (isAdminUser(getUser())) {
+			return "admin-portal.html";
+		}
 		if (!isHostFlowUrl(preferred)) {
 			return preferred;
 		}

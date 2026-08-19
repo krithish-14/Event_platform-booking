@@ -8,7 +8,7 @@
 		<title>Organizer Event Dashboard - JOD Events</title>
 		<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 		<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=20" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=21" />
 		<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -438,25 +438,35 @@
 
 							<div id="ticketTiersContainer" style="margin-bottom: 1.25rem;">
 								<div id="ticketTiersRows">
-									<!-- Default Row 1 -->
-									<div class="setup-grid-3 ticket-tier-row" style="align-items: flex-end; margin-bottom: 0.8rem;">
-										<div class="setup-form-group">
-											<label>Ticket Type / Name <span style="color: #ef4444;">*</span></label>
-											<input type="text" class="setup-input ticket-type-input" placeholder="e.g. General Admission, VIP Pass" required value="General Pass" style="padding-left: 0.9rem;" />
-										</div>
-
-										<div class="setup-form-group">
-											<label>Ticket Price (₹) <span style="color: #ef4444;">*</span></label>
-											<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="499" style="padding-left: 0.9rem;" />
-										</div>
-
-										<div class="setup-form-group">
-											<label>Capacity <span style="color: #ef4444;">*</span></label>
-											<div style="display: flex; gap: 0.5rem;">
-												<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 500" min="1" required value="500" style="flex: 1; padding-left: 0.9rem;" />
-												<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+									<div class="ticket-tier-row">
+										<div class="setup-grid-3 ticket-tier-main">
+											<div class="setup-form-group">
+												<label>Ticket Type / Name <span style="color: #ef4444;">*</span></label>
+												<input type="text" class="setup-input ticket-type-input" placeholder="e.g. General Admission, VIP Pass" required value="General Pass" style="padding-left: 0.9rem;" />
+											</div>
+											<div class="setup-form-group">
+												<label>Ticket Price (₹) <span style="color: #ef4444;">*</span></label>
+												<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="499" style="padding-left: 0.9rem;" />
+											</div>
+											<div class="setup-form-group">
+												<label>Capacity <span style="color: #ef4444;">*</span></label>
+												<div style="display: flex; gap: 0.5rem;">
+													<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 500" min="1" required value="500" style="flex: 1; padding-left: 0.9rem;" />
+													<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+												</div>
 											</div>
 										</div>
+										<div class="setup-grid-2 ticket-tier-offer">
+											<div class="setup-form-group">
+												<label>Offer starts</label>
+												<input type="datetime-local" class="setup-input ticket-offer-start-input" style="padding-left: 0.9rem;" />
+											</div>
+											<div class="setup-form-group">
+												<label>Offer ends</label>
+												<input type="datetime-local" class="setup-input ticket-offer-end-input" style="padding-left: 0.9rem;" />
+											</div>
+										</div>
+										<p class="ticket-offer-hint">Leave blank to keep this ticket on sale for the whole event. Set dates for a same-day or limited-time offer.</p>
 									</div>
 								</div>
 
@@ -1925,7 +1935,7 @@
 		<script src="js/profile.js?v=6"></script>
 		<script src="js/script.js?v=25"></script>
 		<script src="js/form-builder.js?v=20260816_v6"></script>
-		<script src="js/organizer-dashboard.js?v=20260819_v31"></script>
+		<script src="js/organizer-dashboard.js?v=20260819_v32"></script>
 	</body>
 </html>
 

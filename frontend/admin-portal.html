@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<script src="js/theme.js?v=4"></script>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="description" content="Admin portal to generate QR tickets from registration forms." />
+		<title>Admin QR Portal - JOD Events</title>
+		<link rel="icon" type="image/png" href="images/JOD Logo.png" />
+		<link rel="stylesheet" href="css/style.css?v=20" />
+		<link rel="stylesheet" href="css/admin-portal.css?v=3" />
+	</head>
+	<body class="admin-portal-body">
+		<header class="admin-topbar">
+			<div class="admin-brand">
+				<img src="images/JOD Logo.png" alt="" />
+				<div>
+					<strong>JOD Events</strong>
+					<span>Admin QR portal</span>
+				</div>
+			</div>
+			<div class="admin-topbar-right">
+				<span id="adminUserLabel">Admin</span>
+				<a class="admin-link" href="index.html">Website</a>
+				<button type="button" class="admin-logout" id="adminLogout">Log out</button>
+			</div>
+		</header>
+
+		<main class="admin-main">
+			<section class="admin-hero">
+				<div>
+					<h1>Admin QR portal</h1>
+					<p id="adminSectionHint">People who submitted the event host registration form.</p>
+				</div>
+				<div class="admin-stats">
+					<div class="admin-stat"><strong id="statHost">0</strong><span>Host forms</span></div>
+					<div class="admin-stat"><strong id="statPay">0</strong><span>Payments</span></div>
+					<div class="admin-stat"><strong id="statPending">0</strong><span>Need QR</span></div>
+					<div class="admin-stat"><strong id="statReady">0</strong><span>QR sent</span></div>
+				</div>
+			</section>
+
+			<section class="admin-toolbar">
+				<label class="admin-section-label" for="adminSection">
+					<span>Section</span>
+					<select id="adminSection">
+						<option value="host">Host form</option>
+						<option value="payment">Payment forms</option>
+					</select>
+				</label>
+				<input type="search" id="adminSearch" placeholder="Search name, email, phone, or event" />
+				<button type="button" class="admin-refresh" id="adminRefresh">Refresh</button>
+			</section>
+
+			<section class="admin-block">
+				<div class="admin-block-head">
+					<div>
+						<h2 id="adminSectionTitle">Host form</h2>
+						<p id="adminSectionCopy">Registered details from the event host form.</p>
+					</div>
+					<span class="admin-block-count" id="sectionCount">0</span>
+				</div>
+				<div class="admin-table-card">
+					<div id="adminEmpty" class="admin-empty" hidden>No host form registrations yet.</div>
+					<div class="admin-table-wrap" id="adminTableWrap">
+						<table class="admin-table">
+							<thead>
+								<tr>
+									<th>Attendee</th>
+									<th>Event</th>
+									<th id="ticketCol">Ticket</th>
+									<th>Submitted</th>
+									<th>Status</th>
+									<th>Action</th>
+								</tr>
+							</thead>
+							<tbody id="adminTableBody"></tbody>
+						</table>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div class="admin-modal" id="answersModal" hidden>
+			<div class="admin-modal-card">
+				<div class="admin-modal-head">
+					<h2>Form answers</h2>
+					<button type="button" id="closeAnswersModal">&times;</button>
+				</div>
+				<div id="answersBody" class="admin-answers"></div>
+			</div>
+		</div>
+
+		<div class="admin-modal" id="qrModal" hidden>
+			<div class="admin-modal-card">
+				<div class="admin-modal-head">
+					<h2>QR ticket generated</h2>
+					<button type="button" id="closeQrModal">&times;</button>
+				</div>
+				<div id="qrBody"></div>
+			</div>
+		</div>
+
+		<script src="js/health.js?v=1"></script>
+		<script src="js/auth.js?v=26"></script>
+		<script src="js/admin-portal.js?v=7"></script>
+	</body>
+</html>

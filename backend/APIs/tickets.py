@@ -304,6 +304,25 @@ def checkin_ticket_entry(
             }
 
 
+@router.get("/public/{qr_token}")
+def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
+    """Open a ticket from the emailed / WhatsApp QR link without signing in."""
+    from APIs.bookings import _serialize_booking
+
+    ticket = _lookup_ticket(db, qr_token)
+    if not ticket or not ticket.booking:
+        raise HTTPException(status_code=404, detail="Ticket not found.")
+    booking = (
+        db.query(Booking)
+        .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
+        .filter(Booking.booking_id == ticket.booking_id)
+        .first()
+    )
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    return _serialize_booking(booking, db=db)
+
+
 # ── Additional Query Endpoints ────────────────────────────────────────────────
 def _assert_ticket_owner(ticket: Ticket, current_user: User) -> None:
     if str(ticket.customer_id) != str(current_user.customer_id):

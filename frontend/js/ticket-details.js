@@ -62,8 +62,21 @@
 	}
 
 	async function loadBookingData(bookingId) {
-		if (!bookingId) return null;
 		const apiBase = getApiBase();
+		const qrToken = getQueryParam("token") || getQueryParam("qr");
+		if (qrToken) {
+			try {
+				const res = await fetch(`${apiBase}/api/tickets/public/${encodeURIComponent(qrToken)}`, { cache: "no-store" });
+				if (res.ok) {
+					const data = await res.json();
+					saveLocalBookingCache(data);
+					return data;
+				}
+				if (res.status === 404) return { _error: "notfound" };
+			} catch (_) {}
+			return { _error: "unavailable" };
+		}
+		if (!bookingId) return null;
 		const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
 
 		if (!token) return { _error: "signin" };
