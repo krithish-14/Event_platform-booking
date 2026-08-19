@@ -2,6 +2,7 @@
 Booking routes — ticket bookings & event host tracking.
 """
 
+import json
 from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
@@ -193,6 +194,10 @@ class BookingResponse(BaseModel):
     booked_at: datetime
     card_image: Optional[str] = None
     image_url: Optional[str] = None
+    agenda: Optional[Any] = None
+    event_end_date: Optional[datetime] = None
+    language: Optional[str] = None
+    event_format: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -215,6 +220,42 @@ def _booking_event_images(b: Booking, db: Session = None):
             pass
     ticket_image = card_image or hero_image
     return ticket_image, card_image, hero_image
+
+
+def _booking_event_agenda(event_id, db: Session = None) -> list:
+    if not event_id or db is None:
+        return []
+    try:
+        from Models.event_management import EventManagement
+        host = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
+        if not host:
+            try:
+                host = db.query(EventManagement).filter(EventManagement.event_id == str(event_id)).first()
+            except Exception:
+                host = None
+        raw = getattr(host, "agenda_json", None) if host else None
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except Exception:
+                return []
+        if not isinstance(raw, list):
+            return []
+        out = []
+        for row in raw:
+            if not isinstance(row, dict):
+                continue
+            title = str(row.get("title") or row.get("session") or row.get("name") or "").strip()
+            if not title:
+                continue
+            out.append({
+                "time": str(row.get("time") or row.get("slot") or "").strip(),
+                "title": title,
+                "speaker": str(row.get("speaker") or row.get("host") or "").strip(),
+            })
+        return out
+    except Exception:
+        return []
 
 
 def _ensure_tickets_exist(b: Booking, db: Session = None) -> List[Ticket]:
@@ -317,6 +358,10 @@ def _serialize_booking(b: Booking, db: Session = None) -> dict:
         "booked_at": b.booked_at,
         "card_image": card_image or ticket_image,
         "image_url": ticket_image or hero_image,
+        "agenda": _booking_event_agenda(b.event_id, db),
+        "event_end_date": b.event.end_date if b.event else None,
+        "language": getattr(b.event, "language", None) if b.event else None,
+        "event_format": getattr(b.event, "event_format", None) if b.event else None,
     }
 
 

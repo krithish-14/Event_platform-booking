@@ -11,7 +11,7 @@
 	const EP = window.JodEventsPublic;
 	if (!EP) return;
 
-	const HERO_ROTATE_MS = 10000;
+	const HERO_ROTATE_MS = 15000;
 	let heroTimer = null;
 	let heroIndex = 0;
 	let heroEvents = [];

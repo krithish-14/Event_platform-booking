@@ -110,6 +110,7 @@ class EventResponse(BaseModel):
     ticket_types: Optional[Any] = None
     terms: Optional[str] = None
     policies: Optional[Any] = None
+    agenda: Optional[Any] = None
     is_published: bool
     is_cancelled: bool
     customer_id: Optional[str] = None
@@ -294,6 +295,41 @@ def _host_policies_for_event(db: Session, event_id) -> Optional[dict]:
     return _normalize_policies(getattr(host, "policies_json", None))
 
 
+def _host_agenda_for_event(db: Session, event_id) -> list:
+    from Models.event_management import EventManagement
+    host = None
+    for cand in _design_lookup_candidates(event_id):
+        try:
+            host = db.query(EventManagement).filter(EventManagement.event_id == cand).first()
+        except Exception:
+            host = None
+        if host:
+            break
+    if not host:
+        return []
+    raw = getattr(host, "agenda_json", None)
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return []
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        title = str(row.get("title") or row.get("session") or row.get("name") or "").strip()
+        if not title:
+            continue
+        out.append({
+            "time": str(row.get("time") or row.get("slot") or "").strip(),
+            "title": title,
+            "speaker": str(row.get("speaker") or row.get("host") or "").strip(),
+        })
+    return out
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 def _event_to_response(
     event: Event,
@@ -301,6 +337,7 @@ def _event_to_response(
     policies: Optional[dict] = None,
     gallery_images: Optional[Any] = None,
     sponsors: Optional[Any] = None,
+    agenda: Optional[Any] = None,
 ) -> EventResponse:
     terms = event.terms
     if not terms and policies:
@@ -339,6 +376,7 @@ def _event_to_response(
         ticket_types=_parse_json_field(event.ticket_types),
         terms=terms,
         policies=policies or None,
+        agenda=agenda or [],
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
         customer_id=getattr(event, "customer_id", None) or "CUST-SYSTEM",
@@ -431,6 +469,7 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
         policies=policies,
         gallery_images=gallery_images,
         sponsors=sponsors,
+        agenda=_host_agenda_for_event(db, event.id),
     )
 
 
@@ -486,6 +525,7 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
         policies=policies,
         gallery_images=gallery_images,
         sponsors=sponsors,
+        agenda=_host_agenda_for_event(db, event.id),
     )
 
 

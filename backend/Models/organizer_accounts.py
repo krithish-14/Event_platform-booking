@@ -41,6 +41,8 @@ class OrganizerAccount(Base):
     gstin_number          = Column(Text, nullable=True)
     pan_card_url          = Column(String(500), nullable=True)
     cancelled_cheque_url  = Column(String(500), nullable=True)
+    # Step 3 of onboarding: digital signature on the partner agreement
+    accepted_agreement    = Column(Boolean, nullable=True)
     customer_id           = Column(String(50), ForeignKey("users.customer_id"), nullable=True, index=True)
     host_id               = Column(String(50), nullable=True)
 

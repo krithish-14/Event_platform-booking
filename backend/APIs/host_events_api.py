@@ -747,29 +747,28 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
     total_sales = round(sum(float(b.total_price or 0) for b in active_bookings), 2)
 
     unique_emails = set()
-    for row in submissions:
-        if row.user_email:
-            unique_emails.add(row.user_email.lower().strip())
     for booking in active_bookings:
         email = (booking.receiver_email or "").lower().strip()
         if email:
             unique_emails.add(email)
-    for reg in event_regs:
-        email = (reg.attendee_email or "").lower().strip()
-        if email:
-            unique_emails.add(email)
 
-    total_registrations = len(submissions) if submissions else 0
+    total_registrations = len(active_bookings) if active_bookings else 0
     if total_registrations == 0:
-        total_registrations = len(event_regs) if event_regs else len(active_bookings)
+        total_registrations = len(active_tickets)
+    paid_subs_count = len(paid_subs)
     if total_registrations == 0:
-        total_registrations = len(unique_emails)
+        total_registrations = paid_subs_count
 
     pending_registrations = max(0, int(total_registrations or 0) - int(sold or 0))
 
     used_emails = set()
     attendees = []
+    seen_ticket_keys = set()
     for ticket in active_tickets:
+        key = str(ticket.ticket_id or "")
+        if not key or key in seen_ticket_keys:
+            continue
+        seen_ticket_keys.add(key)
         booking = ticket.booking
         email = ((booking.receiver_email if booking else "") or "").lower().strip()
         name = (booking.receiver_name if booking else None) or "Guest"
@@ -778,7 +777,7 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
             used_emails.add(email)
         attendees.append({
             "ticket_id": str(ticket.ticket_id),
-            "booking_id": str(ticket.booking_id),
+            "booking_id": str(ticket.booking_id) if ticket.booking_id else None,
             "attendee_name": name,
             "attendee_email": (booking.receiver_email if booking else "") or "",
             "ticket_type": ticket.ticket_type or "Standard Access",
@@ -789,20 +788,22 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         })
 
     extra_checkins = 0
-    listed_emails = {(item.get("attendee_email") or "").lower().strip() for item in attendees}
+    listed_emails = {(item.get("attendee_email") or "").lower().strip() for item in attendees if item.get("attendee_email")}
+    listed_ticket_ids = {str(item.get("ticket_id") or "") for item in attendees if item.get("ticket_id")}
     for row in checkin_rows:
         email = (row.attendee_email or "").lower().strip()
         status_ok = (row.status or "checked_in").lower() in ("checked_in", "checked-in", "used", "")
         if not status_ok:
             continue
-        if email and email in used_emails:
-            continue
-        if not email and used_tickets:
-            continue
         extra_checkins += 1
-        if email:
-            used_emails.add(email)
         if email and email in listed_emails:
+            for item in attendees:
+                if (item.get("attendee_email") or "").lower().strip() == email:
+                    item["status"] = "checked_in"
+                    item["checked_in_at"] = item.get("checked_in_at") or (row.created_at.isoformat() if row.created_at else None)
+                    item["volunteer_name"] = item.get("volunteer_name") or row.created_by
+                    item["scanned_by"] = item.get("scanned_by") or row.created_by
+                    break
             continue
         attendees.append({
             "ticket_id": None,
@@ -818,38 +819,39 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         if email:
             listed_emails.add(email)
 
-    for row in submissions:
-        email = (row.user_email or "").lower().strip()
-        if email and email in listed_emails:
+    for vc in volunteer_checkins:
+        tid = str(vc.ticket_id or "")
+        vname = vc.volunteer.volunteer_name if vc.volunteer else None
+        matched = False
+        if tid:
+            for item in attendees:
+                if str(item.get("ticket_id") or "") == tid:
+                    item["status"] = "checked_in"
+                    item["checked_in_at"] = item.get("checked_in_at") or (
+                        vc.created_at.isoformat() if vc.created_at else None
+                    )
+                    item["volunteer_name"] = item.get("volunteer_name") or vname
+                    item["scanned_by"] = item.get("scanned_by") or vname
+                    matched = True
+                    break
+        if matched:
             continue
-        answers = row.answers_json if isinstance(row.answers_json, dict) else {}
-        name = (
-            answers.get("Full Name")
-            or answers.get("full_name")
-            or answers.get("Name")
-            or (row.user_email.split("@")[0] if row.user_email else "Attendee")
-        )
-        checked = bool(email and email in used_emails)
+        extra_checkins += 1
         attendees.append({
-            "ticket_id": None,
-            "booking_id": str(row.booking_id) if row.booking_id else None,
-            "attendee_name": name,
-            "attendee_email": row.user_email or "",
-            "ticket_type": row.ticket_type or "",
-            "status": "checked_in" if checked else "yet_to_checkin",
-            "checked_in_at": None,
-            "scanned_by": None,
-            "volunteer_name": None,
+            "ticket_id": tid or None,
+            "booking_id": None,
+            "attendee_name": vc.attendee_name or "Attendee",
+            "attendee_email": "",
+            "ticket_type": "",
+            "status": "checked_in",
+            "checked_in_at": vc.created_at.isoformat() if vc.created_at else None,
+            "scanned_by": vname,
+            "volunteer_name": vname,
         })
-        if email:
-            listed_emails.add(email)
+        if tid:
+            listed_ticket_ids.add(tid)
 
-    checked_in = len(used_tickets) + extra_checkins
-    if checked_in == 0 and checkin_rows:
-        checked_in = sum(
-            1 for row in checkin_rows
-            if (row.status or "checked_in").lower() in ("checked_in", "checked-in", "used", "")
-        )
+    checked_in = len([a for a in attendees if a.get("status") == "checked_in"])
     if sold and checked_in > sold:
         checked_in = sold
 
@@ -892,6 +894,7 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         "yet_to_checkin": yet_to_checkin,
         "attendees_count": sold,
         "attendees": attendees,
+        "checked_in_attendees": [a for a in attendees if a.get("status") == "checked_in"],
         "registration_trend": registration_trend,
     }
 
@@ -2648,6 +2651,83 @@ def _audience_top_cities(db: Session, event_mgt: EventManagement) -> List[Dict[s
     return rows
 
 
+HOST_PLATFORM_FEE_PCT = 5
+HOST_GST_FEE_PCT = 18
+
+
+def _active_bookings_for_event(db: Session, event_mgt: EventManagement) -> list:
+    """Paid/confirmed bookings for an event, excluding cancelled and refunded."""
+    from Models.booking import Booking
+
+    public_ids = _event_public_ids(db, event_mgt)
+    booking_clauses = []
+    for eid in public_ids:
+        booking_clauses.extend(_guid_equals_clauses(Booking.event_id, eid))
+    if not booking_clauses:
+        return []
+    try:
+        rows = db.query(Booking).filter(or_(*booking_clauses)).all()
+    except Exception:
+        db.rollback()
+        return []
+    seen = set()
+    active = []
+    for booking in rows:
+        key = str(booking.booking_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        if (booking.status or "").upper() in _CANCELLED_STATUSES:
+            continue
+        active.append(booking)
+    return active
+
+
+def _gst_for_booking(booking) -> float:
+    """GST is 18% of that booking's ticket total."""
+    return round(float(booking.total_price or 0.0) * HOST_GST_FEE_PCT / 100, 2)
+
+
+def _host_ticket_fee_breakdown(bookings: list) -> Dict[str, Any]:
+    """Platform 5% and GST 18% applied per booking/ticket sale, then summed."""
+    by_type: Dict[str, Dict[str, Any]] = {}
+    platform_total = 0.0
+    gst_total = 0.0
+    gross_total = 0.0
+    for booking in bookings:
+        gross = round(float(booking.total_price or 0.0), 2)
+        qty = max(1, int(booking.quantity or 1))
+        gst = _gst_for_booking(booking)
+        platform = round(gross * HOST_PLATFORM_FEE_PCT / 100, 2)
+        net = round(gross - platform - gst, 2)
+        gross_total += gross
+        platform_total += platform
+        gst_total += gst
+        ticket_type = (booking.ticket_type or "Standard Access").strip() or "Standard Access"
+        row = by_type.setdefault(ticket_type, {
+            "ticket_type": ticket_type,
+            "quantity": 0,
+            "gross": 0.0,
+            "platform_fee": 0.0,
+            "gst_fee": 0.0,
+            "net": 0.0,
+        })
+        row["quantity"] += qty
+        row["gross"] = round(row["gross"] + gross, 2)
+        row["platform_fee"] = round(row["platform_fee"] + platform, 2)
+        row["gst_fee"] = round(row["gst_fee"] + gst, 2)
+        row["net"] = round(row["net"] + net, 2)
+    return {
+        "gross": round(gross_total, 2),
+        "platform_fee": round(platform_total, 2),
+        "gst_fee": round(gst_total, 2),
+        "net": round(gross_total - platform_total - gst_total, 2),
+        "ticket_fee_rows": list(by_type.values()),
+        "platform_fee_pct": HOST_PLATFORM_FEE_PCT,
+        "gst_fee_pct": HOST_GST_FEE_PCT,
+    }
+
+
 # ── Reports Endpoint ───────────────────────────────────────────────────────
 @router.get("/reports")
 def get_reports_summary(
@@ -2665,8 +2745,8 @@ def get_reports_summary(
             "platform_fee": 0,
             "gst_fee": 0,
             "net_earnings": 0,
-            "platform_fee_pct": 5,
-            "gst_fee_pct": 5,
+            "platform_fee_pct": HOST_PLATFORM_FEE_PCT,
+            "gst_fee_pct": HOST_GST_FEE_PCT,
             "attendance_rate": 0,
             "conversion_rate": 0,
             "registrations_count": 0,
@@ -2676,6 +2756,7 @@ def get_reports_summary(
             "communications_count": 0,
             "exhibitors_count": 0,
             "top_cities": [],
+            "ticket_fee_rows": [],
         }
 
     tickets = db.query(EventRegistrationTicket).filter(
@@ -2695,12 +2776,16 @@ def get_reports_summary(
     sold = live["tickets_sold"] or 0
     checked = live["checked_in"] or 0
     capacity = live["ticket_capacity"] or sum(ticket.quantity or 0 for ticket in tickets)
-    gross_revenue = round(float(live["total_sales"] or 0), 2)
-    platform_fee_pct = 5
-    gst_fee_pct = 5
-    platform_fee = round(gross_revenue * platform_fee_pct / 100, 2)
-    gst_fee = round(gross_revenue * gst_fee_pct / 100, 2)
-    net_earnings = round(gross_revenue - platform_fee - gst_fee, 2)
+    fees = _host_ticket_fee_breakdown(_active_bookings_for_event(db, event))
+    gross_revenue = fees["gross"] if fees["ticket_fee_rows"] else round(float(live["total_sales"] or 0), 2)
+    if fees["ticket_fee_rows"]:
+        platform_fee = fees["platform_fee"]
+        gst_fee = fees["gst_fee"]
+        net_earnings = fees["net"]
+    else:
+        platform_fee = round(gross_revenue * HOST_PLATFORM_FEE_PCT / 100, 2)
+        gst_fee = round(gross_revenue * HOST_GST_FEE_PCT / 100, 2)
+        net_earnings = round(gross_revenue - platform_fee - gst_fee, 2)
     attendance_rate = round((checked / sold * 100) if sold else 0.0, 1)
     conversion_rate = round((sold / max(capacity, 1) * 100), 1)
 
@@ -2710,8 +2795,8 @@ def get_reports_summary(
         "platform_fee": platform_fee,
         "gst_fee": gst_fee,
         "net_earnings": net_earnings,
-        "platform_fee_pct": platform_fee_pct,
-        "gst_fee_pct": gst_fee_pct,
+        "platform_fee_pct": HOST_PLATFORM_FEE_PCT,
+        "gst_fee_pct": HOST_GST_FEE_PCT,
         "attendance_rate": attendance_rate,
         "conversion_rate": conversion_rate,
         "registrations_count": live["total_registrations"],
@@ -2721,6 +2806,7 @@ def get_reports_summary(
         "communications_count": len(communications),
         "exhibitors_count": len(exhibitors),
         "top_cities": _audience_top_cities(db, event),
+        "ticket_fee_rows": fees["ticket_fee_rows"],
     }
 
 

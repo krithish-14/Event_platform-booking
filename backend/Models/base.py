@@ -432,6 +432,7 @@ def _migrate_tables(engine=None):
                 ("host_id", "VARCHAR(50)"),
                 ("customer_id", "VARCHAR(50)"),
                 ("status", "VARCHAR(50)"),
+                ("accepted_agreement", "BOOLEAN"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in org_migrations:

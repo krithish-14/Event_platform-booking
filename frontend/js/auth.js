@@ -249,13 +249,28 @@ window.JodAuth = (() => {
 		);
 	}
 
+	// A host reaches the dashboard only after all three setup steps: general
+	// information + bank, KYC documents, and the signed agreement.
+	function isHostSetupComplete(acc, meta) {
+		if (meta && typeof meta.setup_complete === "boolean") return meta.setup_complete;
+		if (!acc) return false;
+		const documents = Boolean(
+			String(acc.pan_number || "").trim() &&
+			String(acc.pan_card_url || "").trim() &&
+			String(acc.cancelled_cheque_url || "").trim()
+		);
+		const status = String(acc.status || "").toLowerCase().trim();
+		const signed = Boolean(acc.accepted_agreement) || status === "submitted" || status === "verified";
+		return hasHostPayoutBank(acc) && documents && signed;
+	}
+
 	function isHostFlowUrl(url) {
 		const u = String(url || "").toLowerCase();
 		if (u.includes("volunteer-")) return false;
 		return u.includes("account-setup") || u.includes("host-your-event") || u.includes("organizer-dashboard");
 	}
 
-	async function fetchOrganizerAccount() {
+	async function fetchOrganizerAccount(options = {}) {
 		const token = getToken();
 		const user = getUser();
 		const email = user && user.email;
@@ -266,6 +281,7 @@ window.JodAuth = (() => {
 			});
 			if (!res.ok) return null;
 			const data = await res.json();
+			if (options.withMeta) return data;
 			return data.account || null;
 		} catch (_) {
 			return null;
@@ -277,8 +293,8 @@ window.JodAuth = (() => {
 		if (!isHostFlowUrl(preferred)) {
 			return preferred;
 		}
-		const acc = await fetchOrganizerAccount();
-		if (hasHostPayoutBank(acc)) {
+		const data = await fetchOrganizerAccount({ withMeta: true });
+		if (isHostSetupComplete(data && data.account, data)) {
 			return "organizer-dashboard.html";
 		}
 		return "account-setup.html";
@@ -1446,6 +1462,7 @@ window.JodAuth = (() => {
 		fetchAuth,
 		navigateToHostFlow,
 		hasHostPayoutBank,
+		isHostSetupComplete,
 		resolvePostAuthDestination,
 		getRedirectTarget,
 		validateSession,

@@ -270,8 +270,6 @@ function renderEventDOM(event) {
     const descEl = document.getElementById('eventDescription');
     if (descEl) descEl.textContent = event.description || 'Event details will be shared by the host.';
 
-    renderEventPolicies(event, EP);
-
     const scheduleEl = document.getElementById('infoSchedule');
     if (scheduleEl && EP) {
         scheduleEl.textContent = EP.formatDateTimeIST(event.start_date);
@@ -530,65 +528,6 @@ function closeGalleryLightbox() {
     document.body.style.overflow = '';
 }
 
-function renderEventPolicies(event, EP) {
-    const section = document.getElementById('policiesSection');
-    const container = document.getElementById('eventPolicies');
-    if (!section || !container) return;
-
-    const labels = [
-        ['event_policy', 'Event Policy'],
-        ['cancellation_policy', 'Cancellation Policy'],
-        ['refund_policy', 'Refund Policy'],
-        ['terms_and_conditions', 'Terms & Conditions'],
-        ['privacy_policy', 'Privacy Policy'],
-        ['age_policy', 'Age / Entry Policy']
-    ];
-    const escape = (EP && typeof EP.escapeHtml === 'function')
-        ? EP.escapeHtml
-        : (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-    const blocks = [];
-    const policies = event && event.policies && typeof event.policies === 'object' && !Array.isArray(event.policies)
-        ? event.policies
-        : null;
-
-    if (policies) {
-        labels.forEach(([key, label]) => {
-            const val = String(policies[key] || '').trim();
-            if (val) blocks.push({ label, val });
-        });
-    }
-
-    if (!blocks.length && event && event.terms) {
-        const chunks = String(event.terms).split(/\n\s*\n/).map((c) => c.trim()).filter(Boolean);
-        chunks.forEach((chunk) => {
-            const nl = chunk.indexOf('\n');
-            if (nl > 0 && chunk.slice(0, nl).trim().endsWith(':')) {
-                blocks.push({
-                    label: chunk.slice(0, nl).trim().replace(/:$/, ''),
-                    val: chunk.slice(nl + 1).trim()
-                });
-            } else {
-                blocks.push({ label: 'Event Policy', val: chunk });
-            }
-        });
-    }
-
-    if (!blocks.length) {
-        section.style.display = 'none';
-        container.innerHTML = '';
-        return;
-    }
-
-    section.style.display = '';
-    container.innerHTML = blocks.map((b) => `
-        <div class="policy-block">
-            <h3 class="policy-block-title">${escape(b.label)}</h3>
-            <p class="policy-block-body">${escape(b.val)}</p>
-        </div>
-    `).join('');
-}
-
 function selectTicketOption(element, price, ticketName) {
     const options = document.querySelectorAll('.ticket-type-option');
     options.forEach(opt => opt.classList.remove('selected'));
@@ -741,15 +680,65 @@ async function fetchRegistrationStatus(eventId) {
 
 function setBookNowLabels(label) {
     document.querySelectorAll(".btn-book-now").forEach((btn) => {
+        if (btn.classList.contains("btn-view-ticket")) return;
         btn.textContent = label;
+    });
+}
+
+function setPostPurchaseLinks(bookingId) {
+    const ticketHref = bookingId
+        ? `ticket-details.html?id=${encodeURIComponent(bookingId)}`
+        : "orders.html";
+    const agendaHref = bookingId
+        ? `agenda.html?id=${encodeURIComponent(bookingId)}`
+        : "orders.html";
+    document.querySelectorAll(".post-purchase-actions [data-action='view-ticket']").forEach((el) => {
+        el.setAttribute("href", ticketHref);
+    });
+    document.querySelectorAll(".post-purchase-actions [data-action='view-agenda']").forEach((el) => {
+        el.setAttribute("href", agendaHref);
+    });
+}
+
+function showPostPurchaseActions(bookingId) {
+    setPostPurchaseLinks(bookingId);
+    document.querySelectorAll(".btn-book-now").forEach((btn) => {
+        if (btn.classList.contains("btn-view-ticket")) return;
+        btn.hidden = true;
+        btn.style.display = "none";
+    });
+    document.querySelectorAll(".post-purchase-actions").forEach((el) => {
+        el.hidden = false;
+    });
+    document.querySelectorAll(".bar-price-group p").forEach((el) => {
+        el.dataset.defaultLabel = el.dataset.defaultLabel || el.textContent;
+        el.textContent = "Your ticket";
+    });
+}
+
+function hidePostPurchaseActions() {
+    document.querySelectorAll(".btn-book-now").forEach((btn) => {
+        if (btn.classList.contains("btn-view-ticket")) return;
+        btn.hidden = false;
+        btn.style.display = "";
+    });
+    document.querySelectorAll(".post-purchase-actions").forEach((el) => {
+        el.hidden = true;
+    });
+    document.querySelectorAll(".bar-price-group p").forEach((el) => {
+        el.textContent = el.dataset.defaultLabel || "Starts from";
     });
 }
 
 async function applyBookingCtaState(eventId) {
     const status = await fetchRegistrationStatus(eventId);
-    if (status.state === "ticket") setBookNowLabels("View Ticket 🎟️");
-    else if (status.state === "payment_pending") setBookNowLabels("Complete Payment");
-    else setBookNowLabels("Book Now 🎟️");
+    if (status.state === "ticket") {
+        showPostPurchaseActions(status.booking_id);
+    } else {
+        hidePostPurchaseActions();
+        if (status.state === "payment_pending") setBookNowLabels("Complete Payment");
+        else setBookNowLabels("Book Now 🎟️");
+    }
     return status;
 }
 
