@@ -8,8 +8,8 @@
 	<title>Staff Ticket Scanner — JOD Events</title>
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=20" />
-	<link rel="stylesheet" href="css/responsive.css?v=14" />
+	<link rel="stylesheet" href="css/style.css?v=23" />
+	<link rel="stylesheet" href="css/responsive.css?v=24" />
 	<style>
 		:root {
 			--scanner-bg: #0d0f12;
@@ -322,6 +322,19 @@
 		.badge-mini-valid { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
 		.badge-mini-used { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
 		.badge-mini-invalid { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+		@media (max-width: 1024px) {
+			.result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		}
+		@media (max-width: 768px) {
+			.result-header { flex-direction: column; align-items: flex-start; gap: 0.65rem; }
+			.result-grid { grid-template-columns: 1fr; }
+			.btn-reset-scan, .scanner-actions button, .scanner-actions a {
+				width: 100%;
+				min-height: 44px;
+			}
+			video, canvas { max-width: 100%; height: auto; }
+		}
 	</style>
 </head>
 <body class="scanner-body">
@@ -424,11 +437,11 @@
 
 	<!-- jsQR Engine Library for Camera Processing -->
 	<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-	<script src="js/include.js?v=16"></script>
+	<script src="js/include.js?v=19"></script>
 	<script src="js/health.js?v=1"></script>
 	<script src="js/auth.js?v=24"></script>
 	<script src="js/profile.js?v=6"></script>
-	<script src="js/script.js?v=25"></script>
+	<script src="js/script.js?v=28"></script>
 	<script src="js/scanner.js?v=1"></script>
 </body>
 </html>

@@ -8,8 +8,8 @@
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
 	<script src="js/theme.js?v=3"></script>
-	<link rel="stylesheet" href="css/style.css?v=20" />
-	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<link rel="stylesheet" href="css/style.css?v=23" />
+	<link rel="stylesheet" href="css/responsive.css?v=24" />
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<style>
 		.page-hero {
@@ -83,7 +83,7 @@
 			box-shadow: 0 4px 14px rgba(255,117,8,.25);
 		}
 
-		@media (max-width: 600px) {
+		@media (max-width: 768px) {
 			.settings-nav {
 				flex-direction: column;
 				align-items: stretch;
@@ -91,6 +91,7 @@
 			.snav-item {
 				width: 100%;
 				justify-content: flex-start;
+				min-height: 44px;
 			}
 		}
 
@@ -149,8 +150,9 @@
 			grid-template-columns: 1fr 1fr;
 			gap: 1.25rem;
 		}
-		@media (max-width: 600px) {
+		@media (max-width: 768px) {
 			.form-grid { grid-template-columns: 1fr; }
+			.form-input, .form-group select, .form-group textarea { min-height: 44px; font-size: 16px; }
 		}
 
 		.form-group {
@@ -442,7 +444,7 @@
 			transform: rotate(-45deg);
 			box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
 		}
-		@media (max-width: 700px) {
+		@media (max-width: 768px) {
 			#settingsAvatar.settings-avatar,
 			.settings-avatar {
 				width: 8.5rem !important;
@@ -644,13 +646,13 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=16"></script>
+	<script src="js/include.js?v=19"></script>
 	<script src="js/health.js?v=1"></script>
 	<script src="js/auth.js?v=24"></script>
 	<script src="js/profile.js?v=6"></script>
 	<script src="js/location.js?v=12"></script>
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-	<script src="js/script.js?v=25"></script>
+	<script src="js/script.js?v=28"></script>
 	<script>
 		// Auth check
 		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {

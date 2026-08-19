@@ -270,6 +270,24 @@
 
 		clearAllBtn?.addEventListener("click", resetAll);
 		resetFiltersBtn?.addEventListener("click", resetAll);
+
+		const filterToggle = document.getElementById("catFilterToggle");
+		const sidebar = document.getElementById("catSidebar");
+		filterToggle?.addEventListener("click", () => {
+			const open = sidebar?.classList.toggle("is-open");
+			filterToggle.setAttribute("aria-expanded", String(Boolean(open)));
+			filterToggle.textContent = open ? "Hide filters" : "Filters";
+		});
+
+		document.querySelectorAll(".filter-group-header").forEach((header) => {
+			header.addEventListener("click", (event) => {
+				if (event.target.closest(".btn-clear-group")) return;
+				if (window.innerWidth > 1024) return;
+				header.parentElement?.classList.toggle("is-expanded");
+			});
+		});
+		const firstGroup = document.querySelector(".filter-group");
+		if (firstGroup) firstGroup.classList.add("is-expanded");
 	}
 
 	document.addEventListener("DOMContentLoaded", () => {

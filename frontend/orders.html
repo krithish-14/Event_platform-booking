@@ -8,8 +8,8 @@
 	<title>Your Orders | JOD Events</title>
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=20" />
-	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<link rel="stylesheet" href="css/style.css?v=23" />
+	<link rel="stylesheet" href="css/responsive.css?v=24" />
 	<style>
 		/* ── Orders Page ─────────────────────────────────────── */
 		.page-hero {
@@ -85,10 +85,14 @@
 			transform: translateY(-2px);
 			box-shadow: 0 8px 24px rgba(38,35,31,.08);
 		}
-		@media (max-width: 680px) {
+		@media (max-width: 768px) {
 			.order-card {
 				grid-template-columns: 1fr;
 				gap: 1rem;
+			}
+			.order-thumb {
+				width: 100%;
+				height: 140px;
 			}
 		}
 
@@ -181,8 +185,9 @@
 			align-items: flex-end;
 			gap: .75rem;
 		}
-		@media (max-width: 680px) {
-			.order-action { align-items: flex-start; }
+		@media (max-width: 768px) {
+			.order-action { align-items: stretch; width: 100%; }
+			.order-action .button { width: 100%; min-height: 44px; justify-content: center; }
 		}
 		.order-price {
 			font-size: 1.25rem;
@@ -228,12 +233,12 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=16"></script>
+	<script src="js/include.js?v=19"></script>
 	<script src="js/health.js?v=1"></script>
 	<script src="js/auth.js?v=24"></script>
 	<script src="js/profile.js?v=6"></script>
 	<script src="js/location.js?v=12"></script>
-	<script src="js/script.js?v=25"></script>
+	<script src="js/script.js?v=28"></script>
 	<script>
 		// Auth check & filter tabs logic
 		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {

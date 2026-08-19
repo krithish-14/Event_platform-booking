@@ -319,6 +319,26 @@
 			font-weight: 700;
 		}
 
+		@media (max-width: 1024px) {
+			body { padding: 1.5rem 1rem; }
+			#pageContainer { max-width: 100%; }
+		}
+
+		@media (max-width: 768px) {
+			body { padding: 1rem 0.75rem; }
+			.form-card-body { padding: 1.35rem 1rem; }
+			.form-title { font-size: 1.35rem; }
+			.form-input, .form-textarea, .form-select, .submit-btn, .success-btn {
+				min-height: 44px;
+				font-size: 16px;
+			}
+			.option-label { min-height: 44px; }
+			.success-btn { width: 100%; min-width: 0; }
+			.policy-modal { padding: 0.75rem; }
+			.policy-modal-card { max-height: min(92vh, 720px); }
+			.policy-modal-header, .policy-modal-body { padding-left: 1rem; padding-right: 1rem; }
+		}
+
 		@media (max-width: 640px) {
 			body { padding: 1rem 0.5rem; }
 			.form-card-body { padding: 1.5rem 1.25rem; }
@@ -1108,9 +1128,9 @@
 			fetchPublishedForm();
 		})();
 	</script>
-	<script src="js/include.js?v=16"></script>
+	<script src="js/include.js?v=19"></script>
 	<script src="js/auth.js?v=24"></script>
 	<script src="js/profile.js?v=6"></script>
-	<script src="js/script.js?v=25"></script>
+	<script src="js/script.js?v=28"></script>
 </body>
 </html>

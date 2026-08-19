@@ -405,7 +405,7 @@
 			if (desktopGroup && !desktopGroup.querySelector("#nav-login-btn")) {
 				desktopGroup.innerHTML = `
 					<a class="button button-sm button-login" href="login.html" id="nav-login-btn">Login</a>
-					<a class="button button-sm button-primary" href="signup.html" id="nav-signup-btn">Sign Up &#8599;</a>`;
+					<a class="button button-sm button-primary" href="signup.html" id="nav-signup-btn">Sign Up<span class="signup-arrow"> &#8599;</span></a>`;
 			}
 			if (mobileGroup && !mobileGroup.querySelector('a[href="login.html"]')) {
 				mobileGroup.innerHTML = `
@@ -520,16 +520,37 @@
 
 	const menuToggle = document.querySelector("[data-menu-toggle]");
 	const mobileNav = document.querySelector("[data-mobile-nav]");
-	menuToggle?.addEventListener("click", () => {
-		const open = menuToggle.classList.toggle("is-open");
+	const navOverlay = document.querySelector("[data-nav-overlay]");
+
+	function setMobileNav(open) {
+		menuToggle?.classList.toggle("is-open", open);
 		mobileNav?.classList.toggle("is-open", open);
-		menuToggle.setAttribute("aria-expanded", String(open));
+		navOverlay?.classList.toggle("is-open", open);
+		if (navOverlay) navOverlay.hidden = false;
+		menuToggle?.setAttribute("aria-expanded", String(open));
+		document.body.classList.toggle("nav-open", open);
+	}
+
+	menuToggle?.addEventListener("click", (event) => {
+		event.stopPropagation();
+		setMobileNav(!menuToggle.classList.contains("is-open"));
 	});
-	mobileNav?.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
-		menuToggle?.classList.remove("is-open");
-		mobileNav.classList.remove("is-open");
-		menuToggle?.setAttribute("aria-expanded", "false");
-	}));
+	navOverlay?.addEventListener("click", (event) => {
+		if (event.target !== navOverlay) return;
+		setMobileNav(false);
+	});
+	mobileNav?.addEventListener("click", (event) => {
+		event.stopPropagation();
+		const link = event.target.closest("a");
+		if (!link || !mobileNav.contains(link)) return;
+		window.setTimeout(() => setMobileNav(false), 180);
+	});
+	window.addEventListener("resize", () => {
+		if (window.innerWidth > 1024) setMobileNav(false);
+	});
+	document.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") setMobileNav(false);
+	});
 
 	document.querySelectorAll(".faq-item").forEach((item) => item.addEventListener("click", () => {
 		const wasOpen = item.classList.contains("is-open");
@@ -644,6 +665,32 @@
 		return Math.max(1, Math.round(viewport.clientWidth / step));
 	}
 
+	function bindSwipe(el, onSwipeLeft, onSwipeRight) {
+		if (!el) return;
+		let startX = null;
+		let startY = null;
+		el.addEventListener("pointerdown", (event) => {
+			if (event.pointerType === "mouse" && event.button !== 0) return;
+			startX = event.clientX;
+			startY = event.clientY;
+			try { el.setPointerCapture(event.pointerId); } catch (_) {}
+		});
+		el.addEventListener("pointerup", (event) => {
+			if (startX == null) return;
+			const dx = event.clientX - startX;
+			const dy = event.clientY - startY;
+			startX = null;
+			startY = null;
+			if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+			if (dx < 0) onSwipeLeft();
+			else onSwipeRight();
+		});
+		el.addEventListener("pointercancel", () => {
+			startX = null;
+			startY = null;
+		});
+	}
+
 	function initCarousel(carousel) {
 		const viewport = carousel.querySelector("[data-carousel-viewport]");
 		const track = carousel.querySelector("[data-carousel-track]");
@@ -678,6 +725,7 @@
 			carousel.dataset.carouselBound = "1";
 			prevBtn.addEventListener("click", () => step(-1));
 			nextBtn.addEventListener("click", () => step(1));
+			bindSwipe(viewport, () => step(1), () => step(-1));
 			let resizeTimer = null;
 			window.addEventListener("resize", () => {
 				clearTimeout(resizeTimer);
@@ -732,6 +780,7 @@
 			carousel.dataset.carouselBound = "1";
 			prevBtn.addEventListener("click", () => step(-1));
 			nextBtn.addEventListener("click", () => step(1));
+			bindSwipe(viewport, () => step(1), () => step(-1));
 			let resizeTimer = null;
 			window.addEventListener("resize", () => {
 				clearTimeout(resizeTimer);

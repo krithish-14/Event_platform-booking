@@ -568,3 +568,22 @@
 	border-bottom: 1px solid rgba(229,223,213,.7) !important;
 	backdrop-filter: blur(18px) !important;
 }
+
+@media (max-width: 1024px) {
+	.auth-form-box {
+		max-width: 28rem;
+		margin: 0 auto;
+	}
+}
+
+@media (max-width: 768px) {
+	.form-input,
+	.btn-auth-submit {
+		min-height: 44px;
+		font-size: 16px;
+	}
+
+	.auth-form-header h1 {
+		font-size: 1.45rem;
+	}
+}

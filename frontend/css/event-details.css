@@ -976,6 +976,41 @@ body.category-theme-workshop .performer-avatar {
     }
 }
 
+@media (max-width: 768px) {
+    .event-title-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.85rem;
+    }
+
+    .event-main-title {
+        font-size: 1.45rem;
+        line-height: 1.25;
+    }
+
+    .event-meta-top {
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        font-size: 0.85rem;
+    }
+
+    .performers-grid,
+    .highlights-grid,
+    .event-gallery-row {
+        grid-template-columns: 1fr;
+    }
+
+    .sticky-bottom-bar .button,
+    .booking-cta .button {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .ticket-type-option {
+        min-height: 48px;
+    }
+}
+
 @media (max-width: 600px) {
     .event-details-container {
         padding-top: calc(4.75rem + 1rem);
@@ -1005,8 +1040,8 @@ body.category-theme-workshop .performer-avatar {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .performer-card {
-        width: calc(50% - 0.75rem);
+	.performer-card {
+        width: 100%;
     }
 
     .performer-avatar {

@@ -387,3 +387,53 @@ html, body.vol-body {
 	0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
 	50%       { box-shadow: 0 0 0 12px rgba(16,185,129,0); }
 }
+
+@media (max-width: 1024px) {
+	.vol-shell {
+		max-width: 100%;
+		padding: 0 1.15rem 2rem;
+	}
+
+	.vol-btn,
+	.vol-ghost {
+		min-height: 44px;
+	}
+}
+
+@media (max-width: 768px) {
+	.vol-shell {
+		padding: 0 0.85rem 1.75rem;
+		max-width: 100%;
+	}
+
+	.vol-card {
+		padding: 1rem;
+	}
+
+	.vol-top {
+		flex-wrap: wrap;
+	}
+
+	.vol-actions,
+	.vol-top-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.vol-actions a,
+	.vol-actions button,
+	.vol-ghost,
+	.vol-btn {
+		min-height: 44px;
+		flex: 1 1 8rem;
+	}
+
+	video,
+	canvas,
+	.vol-scan-frame {
+		max-width: 100%;
+		height: auto;
+	}
+}
+

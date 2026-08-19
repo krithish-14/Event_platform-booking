@@ -8,8 +8,8 @@
 	<title>Help & Support | JOD Events</title>
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=20" />
-	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<link rel="stylesheet" href="css/style.css?v=23" />
+	<link rel="stylesheet" href="css/responsive.css?v=24" />
 	<style>
 		.page-hero {
 			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 58%, #3d2a14 100%);
@@ -416,13 +416,14 @@
 		.lookup-row input { flex: 1; padding: .7rem .9rem; border-radius: 10px; border: 1px solid var(--border); font-size: .88rem; }
 		.no-match { display: none; padding: .75rem; color: var(--muted); font-size: .88rem; }
 
-		@media (max-width: 980px) {
+		@media (max-width: 1024px) {
 			.help-topics { grid-template-columns: 1fr 1fr; margin-top: 1.5rem; }
 			.help-grid, .ticket-layout { grid-template-columns: 1fr; }
 		}
-		@media (max-width: 640px) {
+		@media (max-width: 768px) {
 			.help-topics, .ticket-form-grid { grid-template-columns: 1fr; }
 			.lookup-row { flex-direction: column; }
+			.help-search-wrap input, .help-chip { min-height: 44px; }
 		}
 	</style>
 </head>
@@ -652,11 +653,11 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=16"></script>
+	<script src="js/include.js?v=19"></script>
 	<script src="js/health.js?v=1"></script>
 	<script src="js/auth.js?v=24"></script>
 	<script src="js/profile.js?v=6"></script>
-	<script src="js/script.js?v=25"></script>
+	<script src="js/script.js?v=28"></script>
 	<script>
 		const LS_TICKETS = "jod_help_tickets";
 		const LS_EMAIL = "jod_help_ticket_email";

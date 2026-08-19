@@ -496,6 +496,47 @@
 	color: #fff;
 }
 
+@media (max-width: 1024px) {
+	.ticket-main-section {
+		padding: 1.5rem 0 3rem;
+	}
+}
+
+@media (max-width: 768px) {
+	.ticket-main-section {
+		padding: 1.15rem 0 2.5rem;
+	}
+
+	.mticket-header-section {
+		gap: 0.75rem;
+	}
+
+	.mticket-event-details {
+		padding-right: 0;
+		min-width: 0;
+	}
+
+	.mticket-event-details h1 {
+		font-size: 1.05rem;
+	}
+
+	.mticket-qr-frame,
+	.mticket-qr-frame img {
+		max-width: 100%;
+		height: auto;
+	}
+
+	.ticket-actions-bar {
+		flex-direction: column;
+		max-width: none;
+	}
+
+	.btn-action {
+		width: 100%;
+		min-height: 44px;
+	}
+}
+
 /* ── Print & PDF Formatting — ticket card only ────────────────────────────── */
 @media print {
 	@page {

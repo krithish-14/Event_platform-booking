@@ -192,6 +192,37 @@
 	color: #6b7280;
 }
 
+@media (max-width: 1024px) {
+	.agenda-main {
+		padding: 1.5rem 0 3rem;
+	}
+}
+
+@media (max-width: 768px) {
+	.agenda-main {
+		padding: 1.15rem 0 2.5rem;
+	}
+
+	.agenda-page-card {
+		padding: 1.25rem 1rem 1.5rem;
+		border-radius: 1rem;
+	}
+
+	.agenda-page-card h1 {
+		font-size: 1.35rem;
+	}
+
+	.agenda-page-actions {
+		flex-direction: column;
+	}
+
+	.agenda-page-actions .button {
+		width: 100%;
+		min-width: 0;
+		min-height: 44px;
+	}
+}
+
 @media print {
 	.agenda-page {
 		background: #ffffff;

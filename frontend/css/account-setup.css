@@ -330,11 +330,23 @@
 }
 
 /* Responsive queries */
+@media (max-width: 1024px) {
+	.setup-grid-3 {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+
 @media (max-width: 768px) {
 	.setup-grid-2, .setup-grid-3 {
 		grid-template-columns: 1fr;
 	}
 	.setup-wizard-steps {
 		font-size: 0.8rem;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.setup-input, .setup-select, .setup-textarea, .btn-setup-primary {
+		min-height: 44px;
+		font-size: 16px;
 	}
 }

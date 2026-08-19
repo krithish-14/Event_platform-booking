@@ -8,8 +8,8 @@
 	<title>Dashboard | JOD Events</title>
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=20" />
-	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<link rel="stylesheet" href="css/style.css?v=23" />
+	<link rel="stylesheet" href="css/responsive.css?v=24" />
 	<style>
 		/* ── Dashboard Page ─────────────────────────────────────── */
 		.dashboard-hero {
@@ -289,6 +289,18 @@
 			font-weight: 700;
 			color: var(--primary);
 		}
+
+		@media (max-width: 1024px) {
+			.dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		}
+		@media (max-width: 768px) {
+			.dashboard-section { padding: 1.75rem 0; }
+			.dashboard-grid,
+			.dash-event-list { grid-template-columns: 1fr; }
+			.dash-event-card { flex-direction: column; }
+			.dash-event-card img { width: 100%; height: 160px; min-height: 0; }
+			.stat-card, .quick-card { min-height: 44px; }
+		}
 	</style>
 </head>
 <body class="sub-page">
@@ -430,7 +442,7 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=16"></script>
+	<script src="js/include.js?v=19"></script>
 	<script src="js/health.js?v=1"></script>
 	<script src="js/auth.js?v=24"></script>
 	<script src="js/profile.js?v=6"></script>
@@ -438,7 +450,7 @@
 	<script src="js/location.js?v=12"></script>
 	<script src="js/events-public.js?v=8"></script>
 	<script src="js/search.js?v=1"></script>
-	<script src="js/script.js?v=25"></script>
+	<script src="js/script.js?v=28"></script>
 	<script>
 		(function initDashboard() {
 			function avatarStorageKey() {
