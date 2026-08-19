@@ -1360,13 +1360,13 @@ async function initOrganizerDashboard() {
 				: `<span style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:700;">Yet to check-in</span>`;
 			return `<tr style="border-bottom:1px solid #f1f5f9;">
 				<td style="padding:0.85rem 1.2rem;">
-					<div style="font-weight:700;color:#0f172a;">${escapeVolunteerHtml(row.attendee_name || "Guest")}</div>
-					<div style="font-size:0.78rem;color:#94a3b8;">${escapeVolunteerHtml(row.attendee_email || "")}</div>
+					<div class="dash-ink" style="font-weight:700;">${escapeVolunteerHtml(row.attendee_name || "Guest")}</div>
+					<div class="dash-muted-text" style="font-size:0.78rem;">${escapeVolunteerHtml(row.attendee_email || "")}</div>
 				</td>
-				<td style="padding:0.85rem 1.2rem;color:#475569;">${escapeVolunteerHtml(row.ticket_type || "Ticket")}</td>
+				<td class="dash-muted-text" style="padding:0.85rem 1.2rem;">${escapeVolunteerHtml(row.ticket_type || "Ticket")}</td>
 				<td style="padding:0.85rem 1.2rem;">${badge}</td>
-				<td style="padding:0.85rem 1.2rem;color:#64748b;">${when}</td>
-				<td style="padding:0.85rem 1.2rem;color:#475569;font-weight:600;">${escapeVolunteerHtml(volunteer)}</td>
+				<td class="dash-muted-text" style="padding:0.85rem 1.2rem;">${when}</td>
+				<td class="dash-ink" style="padding:0.85rem 1.2rem;font-weight:600;">${escapeVolunteerHtml(volunteer)}</td>
 			</tr>`;
 		}).join("");
 	}
@@ -1515,9 +1515,9 @@ async function initOrganizerDashboard() {
 				} else {
 					submissionsTableBody.innerHTML = regList.map(r => `
 						<tr style="border-bottom: 1px solid #f1f5f9;">
-							<td style="padding: 0.85rem 1.2rem; font-weight: 700; color: #0f172a;">${r.registration_number || r.registration_id || 'REG-001'}</td>
-							<td style="padding: 0.85rem 1.2rem; color: #475569;">${r.attendee_name || 'Attendee'} <br/><span style="font-size: 0.78rem; color: #94a3b8;">${r.attendee_email || ''}</span></td>
-							<td style="padding: 0.85rem 1.2rem; color: #64748b;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Just now'}</td>
+							<td class="dash-ink" style="padding: 0.85rem 1.2rem; font-weight: 700;">${r.registration_number || r.registration_id || 'REG-001'}</td>
+							<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${r.attendee_name || 'Attendee'} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${r.attendee_email || ''}</span></td>
+							<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Just now'}</td>
 							<td style="padding: 0.85rem 1.2rem;">
 								<span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
 									${r.status || 'Confirmed'}
@@ -1598,12 +1598,12 @@ async function initOrganizerDashboard() {
 							.replace(/</g, "&lt;")
 							.replace(/>/g, "&gt;")
 							.replace(/"/g, "&quot;");
-						return `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:0.75rem 0.85rem;">
-							<div style="display:flex;justify-content:space-between;gap:0.75rem;font-size:0.86rem;font-weight:800;color:#0f172a;margin-bottom:0.35rem;">
+						return `<div class="dash-surface" style="border:1px solid #e2e8f0;border-radius:10px;padding:0.75rem 0.85rem;">
+							<div class="dash-ink" style="display:flex;justify-content:space-between;gap:0.75rem;font-size:0.86rem;font-weight:800;margin-bottom:0.35rem;">
 								<span>${typeName}</span>
 								<span>${qty} ticket${qty === 1 ? "" : "s"} · ${formatInr(row.gross)}</span>
 							</div>
-							<div style="font-size:0.78rem;color:#64748b;line-height:1.45;">
+							<div class="dash-muted-text" style="font-size:0.78rem;line-height:1.45;">
 								Platform ${platformPct}%: ${formatInr(-platAmt, true)} · GST ${gstPct}%: ${formatInr(-gstAmt, true)} · Net ${formatInr(row.net)}
 							</div>
 						</div>`;
@@ -1621,10 +1621,10 @@ async function initOrganizerDashboard() {
 						const isLast = index === cities.length - 1;
 						const isOther = /other locations|location not shared/i.test(row.city || "");
 						const wrapStyle = isLast
-							? "display:flex;justify-content:space-between;padding-top:0.4rem;font-size:0.9rem;font-weight:700;color:#475569;"
-							: "display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9;padding-bottom:0.5rem;color:#475569;";
-						const countStyle = isOther ? "" : "font-weight:700;color:#0f172a;";
-						return `<div style="${wrapStyle}"><span>${row.city || "Unknown"}</span><span style="${countStyle}">${Number(row.count || 0).toLocaleString("en-IN")} (${Number(row.percent || 0)}%)</span></div>`;
+							? "display:flex;justify-content:space-between;padding-top:0.4rem;font-size:0.9rem;font-weight:700;"
+							: "display:flex;justify-content:space-between;border-bottom:1px solid #f1f5f9;padding-bottom:0.5rem;";
+						const countClass = isOther ? "dash-muted-text" : "dash-ink";
+						return `<div class="dash-muted-text" style="${wrapStyle}"><span>${row.city || "Unknown"}</span><span class="${countClass}" style="${isOther ? "" : "font-weight:700;"}">${Number(row.count || 0).toLocaleString("en-IN")} (${Number(row.percent || 0)}%)</span></div>`;
 					}).join("");
 				}
 			}
@@ -1688,10 +1688,10 @@ async function initOrganizerDashboard() {
 					`;
 				} else {
 					commHistoryContainer.innerHTML = communications.map(c => `
-						<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+						<div class="dash-surface" style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
 							<div>
-								<div style="font-weight: 700; color: #0f172a; font-size: 0.95rem;">${escapeVolunteerHtml(c.subject || 'Broadcast Message')}</div>
-								<div style="font-size: 0.82rem; color: #64748b; margin-top: 0.2rem;">Channel: ${escapeVolunteerHtml(c.channel || 'Email')} | Audience: ${escapeVolunteerHtml(commAudienceLabel(c.audience))}</div>
+								<div class="dash-ink" style="font-weight: 700; font-size: 0.95rem;">${escapeVolunteerHtml(c.subject || 'Broadcast Message')}</div>
+								<div class="dash-muted-text" style="font-size: 0.82rem; margin-top: 0.2rem;">Channel: ${escapeVolunteerHtml(c.channel || 'Email')} | Audience: ${escapeVolunteerHtml(commAudienceLabel(c.audience))}</div>
 							</div>
 							<span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">Sent</span>
 						</div>
@@ -1756,9 +1756,9 @@ async function initOrganizerDashboard() {
 
 		tableBody.innerHTML = list.map(ex => `
 			<tr style="border-bottom: 1px solid #f1f5f9;">
-				<td style="padding: 0.85rem 1.2rem; font-weight: 700; color: #0f172a;">${ex.company_name}</td>
-				<td style="padding: 0.85rem 1.2rem; color: #475569;">${ex.category}</td>
-				<td style="padding: 0.85rem 1.2rem; color: #475569;">${ex.contact_name} <br/><span style="font-size: 0.78rem; color: #94a3b8;">${ex.contact_email}</span></td>
+				<td class="dash-ink" style="padding: 0.85rem 1.2rem; font-weight: 700;">${ex.company_name}</td>
+				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${ex.category}</td>
+				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${ex.contact_name} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${ex.contact_email}</span></td>
 				<td style="padding: 0.85rem 1.2rem;">
 					<span style="background: ${ex.status === 'confirmed' ? '#f0fdf4' : '#fffbe6'}; border: 1px solid ${ex.status === 'confirmed' ? '#bbf7d0' : '#ffe58f'}; color: ${ex.status === 'confirmed' ? '#166534' : '#873800'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
 						${ex.status === 'confirmed' ? 'Confirmed' : 'Pending Approval'}
@@ -1880,9 +1880,9 @@ async function initOrganizerDashboard() {
 
 		gatesTableBody.innerHTML = gates.map(g => `
 			<tr style="border-bottom: 1px solid #f1f5f9;">
-				<td style="padding: 0.75rem 1rem; font-weight: 700; color: #0f172a;">${g.gate_name}</td>
-				<td style="padding: 0.75rem 1rem; color: #475569;">${g.gate_code || '—'}</td>
-				<td style="padding: 0.75rem 1rem; color: #64748b;">${g.gate_description || '—'}</td>
+				<td class="dash-ink" style="padding: 0.75rem 1rem; font-weight: 700;">${g.gate_name}</td>
+				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${g.gate_code || '—'}</td>
+				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${g.gate_description || '—'}</td>
 				<td style="padding: 0.75rem 1rem;">
 					<span style="background: ${g.status === 'Active' ? '#f0fdf4' : '#fee2e2'}; border: 1px solid ${g.status === 'Active' ? '#bbf7d0' : '#fecaca'}; color: ${g.status === 'Active' ? '#166534' : '#991b1b'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer;" class="btn-toggle-gate-status" data-id="${g.gate_id}" data-status="${g.status}">
 						${g.status}
@@ -2109,10 +2109,10 @@ async function initOrganizerDashboard() {
 			}
 			return `
 			<tr style="border-bottom: 1px solid #f1f5f9;">
-				<td style="padding: 0.8rem 1rem; font-weight: 700; color: #0f172a;">${escapeVolunteerHtml(row.name)}</td>
-				<td style="padding: 0.8rem 1rem; color: #475569;">${escapeVolunteerHtml(row.email)}</td>
-				<td style="padding: 0.8rem 1rem; color: #475569;">${escapeVolunteerHtml(gateLabel)}</td>
-				<td style="padding: 0.8rem 1rem; color: #475569;">${roleLabel}</td>
+				<td class="dash-ink" style="padding: 0.8rem 1rem; font-weight: 700;">${escapeVolunteerHtml(row.name)}</td>
+				<td class="dash-muted-text" style="padding: 0.8rem 1rem;">${escapeVolunteerHtml(row.email)}</td>
+				<td class="dash-muted-text" style="padding: 0.8rem 1rem;">${escapeVolunteerHtml(gateLabel)}</td>
+				<td class="dash-muted-text" style="padding: 0.8rem 1rem;">${roleLabel}</td>
 				<td style="padding: 0.8rem 1rem;"><span style="background: ${st.bg}; border: 1px solid ${st.border}; color: ${st.color}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">${st.label}</span></td>
 				<td style="padding: 0.8rem 1rem; text-align: right;">${actions.join("") || "—"}</td>
 			</tr>`;

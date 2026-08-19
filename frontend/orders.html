@@ -1,13 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8" />
+		<script src="js/theme.js?v=3"></script>
+<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Manage your event bookings, tickets, and order history on JOD Events." />
 	<title>Your Orders | JOD Events</title>
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/style.css?v=20" />
 	<link rel="stylesheet" href="css/responsive.css?v=13" />
 	<style>
 		/* ── Orders Page ─────────────────────────────────────── */
@@ -68,7 +69,7 @@
 		}
 
 		.order-card {
-			background: #fff;
+			background: var(--card);
 			border-radius: 16px;
 			border: 1px solid var(--border);
 			padding: 1.5rem;
@@ -139,8 +140,12 @@
 			gap: .5rem;
 			justify-content: flex-end;
 		}
+		.empty-panel {
+			background: var(--card);
+			color: var(--muted);
+		}
 		.btn-cancel-order {
-			background: #fff;
+			background: var(--card);
 			border: 1.5px solid #dc2626;
 			color: #dc2626;
 			padding: .45rem .9rem;
@@ -162,7 +167,7 @@
 			padding: 1.25rem;
 		}
 		.order-cancel-card {
-			background: #fff;
+			background: var(--card);
 			border-radius: 16px;
 			max-width: 520px;
 			width: 100%;
@@ -223,12 +228,12 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=14"></script>
+	<script src="js/include.js?v=16"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=23"></script>
-	<script src="js/profile.js?v=5"></script>
+	<script src="js/auth.js?v=24"></script>
+	<script src="js/profile.js?v=6"></script>
 	<script src="js/location.js?v=12"></script>
-	<script src="js/script.js?v=22"></script>
+	<script src="js/script.js?v=25"></script>
 	<script>
 		// Auth check & filter tabs logic
 		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
@@ -319,7 +324,7 @@
 			const tooLate = hoursLeft < 24;
 			const title = booking.event_title || "this event";
 			let body = "";
-			let actions = `<button type="button" id="orderCancelKeep" style="background:#fff;border:1.5px solid #cbd5e1;color:#475569;padding:.55rem 1.15rem;border-radius:8px;font-weight:700;cursor:pointer;">Keep ticket</button>`;
+			let actions = `<button type="button" id="orderCancelKeep" class="empty-panel" style="border:1.5px solid var(--border);color:var(--muted);padding:.55rem 1.15rem;border-radius:8px;font-weight:700;cursor:pointer;">Keep ticket</button>`;
 
 			if (used) {
 				body = `<p style="margin:0 0 .75rem;color:#334155;line-height:1.55;">This ticket for <strong>${escapeHtml(title)}</strong> is already checked in at the venue, so it cannot be cancelled or refunded.</p>`;
@@ -411,7 +416,7 @@
 
 			if (!allBookingsData || allBookingsData.length === 0) {
 				container.innerHTML = `
-					<div style="background:#fff;border-radius:16px;border:1px solid var(--border);padding:3.5rem 1.5rem;text-align:center;color:var(--muted)">
+					<div class="empty-panel" style="border-radius:16px;border:1px solid var(--border);padding:3.5rem 1.5rem;text-align:center;color:var(--muted)">
 						<div style="font-size:3rem;margin-bottom:1rem;">🎟️</div>
 						<h3 style="font-size:1.15rem;color:var(--foreground);margin:0 0 .5rem;">No Event Bookings Found</h3>
 						<p style="font-size:.9rem;margin:0 0 1.25rem;">You haven't purchased any tickets yet. Explore upcoming events and book your seats!</p>
@@ -427,7 +432,7 @@
 			});
 
 			if (filtered.length === 0) {
-				container.innerHTML = `<div style="background:#fff;border-radius:16px;border:1px solid var(--border);padding:2.5rem;text-align:center;color:var(--muted)">No ${filter} bookings found.</div>`;
+				container.innerHTML = `<div class="empty-panel" style="border-radius:16px;border:1px solid var(--border);padding:2.5rem;text-align:center;color:var(--muted)">No ${filter} bookings found.</div>`;
 				return;
 			}
 

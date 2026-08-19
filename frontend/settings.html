@@ -7,7 +7,8 @@
 	<title>Settings | JOD Events</title>
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=13" />
+	<script src="js/theme.js?v=3"></script>
+	<link rel="stylesheet" href="css/style.css?v=20" />
 	<link rel="stylesheet" href="css/responsive.css?v=13" />
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<style>
@@ -44,7 +45,7 @@
 		}
 
 		.settings-nav {
-			background: #fff;
+			background: var(--card);
 			border-radius: 16px;
 			border: 1px solid var(--border);
 			padding: .625rem;
@@ -94,7 +95,7 @@
 		}
 
 		.settings-card {
-			background: #fff;
+			background: var(--card);
 			border-radius: 16px;
 			border: 1px solid var(--border);
 			padding: 2rem;
@@ -168,6 +169,8 @@
 			border: 1px solid var(--border);
 			font-size: .925rem;
 			outline: none;
+			background: var(--background);
+			color: var(--foreground);
 			transition: border-color .2s, box-shadow .2s;
 		}
 		.form-input:focus {
@@ -188,8 +191,8 @@
 
 		/* Password Constraints & Strength Meter */
 		.pw-rules-card {
-			background: #fafaf9;
-			border: 1px solid #e7e5e4;
+			background: var(--cream);
+			border: 1px solid var(--border);
 			border-radius: 12px;
 			padding: .875rem 1rem;
 			margin-top: .625rem;
@@ -414,12 +417,12 @@
 			padding: .55rem .85rem;
 			font-size: .78rem;
 			line-height: 1.4;
-			color: #64748b;
-			background: #fff;
-			border-top: 1px solid #e2e8f0;
+			color: var(--muted);
+			background: var(--card);
+			border-top: 1px solid var(--border);
 		}
 		.venue-map-hint.is-address {
-			color: #0f172a;
+			color: var(--foreground);
 			font-weight: 600;
 		}
 		.venue-pin-wrap {
@@ -508,7 +511,7 @@
 										</div>
 										<div class="form-group">
 											<label for="setUsername">Username</label>
-											<input type="text" id="setUsername" class="form-input" placeholder="Username" readonly style="background:#f9fafb;" />
+											<input type="text" id="setUsername" class="form-input" placeholder="Username" readonly style="background:var(--cream);" />
 										</div>
 										<div class="form-group">
 											<label for="setEmail">Email Address</label>
@@ -641,13 +644,13 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=14"></script>
+	<script src="js/include.js?v=16"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=23"></script>
-	<script src="js/profile.js?v=5"></script>
+	<script src="js/auth.js?v=24"></script>
+	<script src="js/profile.js?v=6"></script>
 	<script src="js/location.js?v=12"></script>
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-	<script src="js/script.js?v=22"></script>
+	<script src="js/script.js?v=25"></script>
 	<script>
 		// Auth check
 		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {

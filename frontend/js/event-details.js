@@ -736,8 +736,7 @@ async function applyBookingCtaState(eventId) {
         showPostPurchaseActions(status.booking_id);
     } else {
         hidePostPurchaseActions();
-        if (status.state === "payment_pending") setBookNowLabels("Complete Payment");
-        else setBookNowLabels("Book Now 🎟️");
+        setBookNowLabels("Buy Ticket");
     }
     return status;
 }

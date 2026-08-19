@@ -1,13 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8" />
+		<script src="js/theme.js?v=3"></script>
+<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Get help with bookings, tickets, payments, and hosting on JOD Events. Search FAQs or raise a support ticket." />
 	<title>Help & Support | JOD Events</title>
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=13" />
+	<link rel="stylesheet" href="css/style.css?v=20" />
 	<link rel="stylesheet" href="css/responsive.css?v=13" />
 	<style>
 		.page-hero {
@@ -126,7 +127,7 @@
 			z-index: 2;
 		}
 		.help-topic {
-			background: #fff;
+			background: var(--card);
 			border: 1px solid var(--border);
 			border-radius: 18px;
 			padding: 1.2rem 1.15rem 1.15rem;
@@ -187,7 +188,7 @@
 
 		.help-faq { display: flex; flex-direction: column; gap: .8rem; }
 		.help-faq-item {
-			background: #fff;
+			background: var(--card);
 			border-radius: 16px;
 			border: 1px solid var(--border);
 			overflow: hidden;
@@ -240,7 +241,7 @@
 		.help-faq-a a { color: var(--primary); font-weight: 600; }
 
 		.support-card, .ticket-panel, .lookup-card {
-			background: #fff;
+			background: var(--card);
 			border-radius: 20px;
 			border: 1px solid var(--border);
 			padding: 1.5rem 1.45rem;
@@ -319,7 +320,7 @@
 			font-size: .925rem;
 			font-family: inherit;
 			outline: none;
-			background: #fff;
+			background: var(--card);
 			transition: border-color .2s, box-shadow .2s;
 		}
 		.help-field textarea { min-height: 140px; resize: vertical; }
@@ -331,7 +332,7 @@
 		.priority-pills { display: flex; gap: .5rem; flex-wrap: wrap; }
 		.priority-pill {
 			border: 1px solid var(--border);
-			background: #fff;
+			background: var(--card);
 			border-radius: 999px;
 			padding: .42rem .85rem;
 			font-size: .8rem;
@@ -372,7 +373,7 @@
 			border: 1px solid var(--border);
 			border-radius: 14px;
 			padding: .95rem 1rem;
-			background: #fffefa;
+			background: var(--card);
 		}
 		.ticket-card-top {
 			display: flex;
@@ -651,11 +652,11 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=14"></script>
+	<script src="js/include.js?v=16"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=23"></script>
-	<script src="js/profile.js?v=5"></script>
-	<script src="js/script.js?v=22"></script>
+	<script src="js/auth.js?v=24"></script>
+	<script src="js/profile.js?v=6"></script>
+	<script src="js/script.js?v=25"></script>
 	<script>
 		const LS_TICKETS = "jod_help_tickets";
 		const LS_EMAIL = "jod_help_ticket_email";

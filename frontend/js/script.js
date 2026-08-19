@@ -305,6 +305,9 @@
 					sessionStorage.removeItem(key);
 				});
 			} catch (_) {}
+			if (window.JodTheme && typeof window.JodTheme.sync === "function") {
+				window.JodTheme.sync();
+			}
 		}
 	};
 
@@ -374,7 +377,7 @@
 						<div class="auth-user-block" style="display:flex;align-items:center;gap:.75rem;">
 							<div class="user-avatar" title="${displayName}" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;letter-spacing:.02em;box-shadow:0 2px 8px rgba(255,117,8,0.3);">${initials}</div>
 							<div style="line-height:1.2;">
-								<div style="font-size:.85rem;font-weight:700;color:#ffffff;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}</div>
+								<div style="font-size:.85rem;font-weight:700;color:var(--foreground);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}</div>
 								<button id="nav-logout-btn" type="button" style="background:none;border:0;padding:0;color:#ff7508;font-weight:600;font-size:.78rem;cursor:pointer;">Logout</button>
 							</div>
 						</div>`;
@@ -388,7 +391,7 @@
 							<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem;">
 								<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${initials}</div>
 								<div style="line-height:1.15;">
-									<div style="font-weight:600;color:#ffffff;">${displayName}</div>
+									<div style="font-weight:600;color:var(--foreground);">${displayName}</div>
 									<div style="font-size:.75rem;color:#94a3b8;">${user.email || ""}</div>
 								</div>
 							</div>

@@ -148,6 +148,14 @@ window.JodAuth = (() => {
 		} catch (_) { }
 	}
 
+	function syncThemeAfterAuth() {
+		try {
+			if (window.JodTheme && typeof window.JodTheme.sync === "function") {
+				window.JodTheme.sync();
+			}
+		} catch (_) {}
+	}
+
 	function userHasSavedLocation(user) {
 		if (!user || typeof user !== "object") return false;
 		return Boolean(
@@ -205,7 +213,10 @@ window.JodAuth = (() => {
 
 	function persistAuthSession(token, user) {
 		clearAuth();
-		if (!token || !user) return;
+		if (!token || !user) {
+			syncThemeAfterAuth();
+			return;
+		}
 		try {
 			localStorage.setItem("jod_access_token", token);
 			sessionStorage.setItem("jod_access_token", token);
@@ -218,6 +229,7 @@ window.JodAuth = (() => {
 				if (!existing) writeScopedCache("jod_profile_avatar", avatar, user);
 			}
 		} catch (_) {}
+		syncThemeAfterAuth();
 	}
 
 	function getRedirectTarget() {
@@ -319,6 +331,7 @@ window.JodAuth = (() => {
 				return user;
 			} else if (res.status === 401 || res.status === 403) {
 				clearAuth();
+				syncThemeAfterAuth();
 				return null;
 			}
 		} catch (_) {}
@@ -334,6 +347,7 @@ window.JodAuth = (() => {
 			}).catch(() => { });
 		} finally {
 			clearAuth();
+			syncThemeAfterAuth();
 		}
 	}
 
@@ -344,6 +358,7 @@ window.JodAuth = (() => {
 		const res = await fetch(url, Object.assign({}, options, { headers }));
 		if (res.status === 401) {
 			clearAuth();
+			syncThemeAfterAuth();
 		}
 		return res;
 	}
