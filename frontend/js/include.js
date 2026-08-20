@@ -107,7 +107,7 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=15"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=18"));
 	const footerEl = document.getElementById("footer");
 	if (footerEl) promises.push(loadComponent("footer", "components/footer.html"));
 

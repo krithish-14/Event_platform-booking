@@ -487,6 +487,7 @@ def _migrate_tables(engine=None):
             existing_cols = {c["name"] for c in inspector.get_columns("event_design")}
             design_migrations = [
                 ("card_image", "VARCHAR(500)"),
+                ("performers_title", "VARCHAR(200)"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in design_migrations:
@@ -514,6 +515,20 @@ def _migrate_tables(engine=None):
                         print("  [DB MIGRATION] Added column event_volunteers.gate_id", flush=True)
                     except Exception as e:
                         print(f"  [DB MIGRATION WARN] Could not add column event_volunteers.gate_id: {e}", flush=True)
+                conn.commit()
+
+        if "email_otps" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("email_otps")}
+            with engine.connect() as conn:
+                if "purpose" not in existing_cols:
+                    try:
+                        if is_pg:
+                            conn.execute(text("ALTER TABLE email_otps ADD COLUMN IF NOT EXISTS purpose VARCHAR(50);"))
+                        else:
+                            conn.execute(text("ALTER TABLE email_otps ADD COLUMN purpose VARCHAR(50);"))
+                        print("  [DB MIGRATION] Added column email_otps.purpose", flush=True)
+                    except Exception as e:
+                        print(f"  [DB MIGRATION WARN] Could not add column email_otps.purpose: {e}", flush=True)
                 conn.commit()
     except Exception as exc:
         print(f"  [WARN] Auto-migration check: {exc}", flush=True)

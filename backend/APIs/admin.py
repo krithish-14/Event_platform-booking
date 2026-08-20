@@ -19,7 +19,7 @@ from Models.booking import Booking
 from Models.event import Event
 from Models.form_submissions import FormSubmission
 from Models.payment_proof import PaymentProof
-from Models.ticket import Ticket, generate_qr_token
+from Models.ticket import Ticket, unique_qr_token
 from Models.user import User
 from Services.auth_service import get_password_hash
 from Services.email import send_email
@@ -29,6 +29,7 @@ from APIs.bookings import (
     _active_booking_for_event,
     _event_id_matches,
     _mark_form_submission_paid,
+    _same_event_id,
     _serialize_booking,
     _ticket_from_answers,
 )
@@ -47,7 +48,12 @@ PHONE_KEYS = (
 
 
 def _public_app_url() -> str:
-    return (os.getenv("PUBLIC_APP_URL") or "http://127.0.0.1:5500").rstrip("/")
+    return (
+        os.getenv("PUBLIC_APP_URL")
+        or os.getenv("FRONTEND_URL")
+        or os.getenv("PUBLIC_FRONTEND_URL")
+        or "http://127.0.0.1:5500"
+    ).rstrip("/")
 
 
 def qr_image_url(token: str) -> str:
@@ -145,6 +151,57 @@ def _ensure_attendee_user(db: Session, email: str, name: str, customer_id: Optio
     return user
 
 
+def _reload_booking(db: Session, booking_id) -> Optional[Booking]:
+    if not booking_id:
+        return None
+    return (
+        db.query(Booking)
+        .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
+        .filter(Booking.booking_id == booking_id)
+        .first()
+    )
+
+
+def _mint_unique_tickets(db: Session, booking: Booking, qty: int, ticket_type: str) -> list:
+    existing = db.query(Ticket).filter(Ticket.booking_id == booking.booking_id).all()
+    needed = max(1, int(qty or 1)) - len(existing)
+    used = [t.qr_token for t in existing]
+    created = []
+    for _ in range(max(0, needed)):
+        token = unique_qr_token(db, extra_used=used)
+        used.append(token)
+        ticket = Ticket(
+            booking_id=booking.booking_id,
+            event_id=booking.event_id,
+            customer_id=booking.customer_id,
+            ticket_type=ticket_type or booking.ticket_type or "Standard Access",
+            qr_token=token,
+            ticket_status="VALID",
+        )
+        db.add(ticket)
+        created.append(ticket)
+    if created:
+        db.commit()
+    return db.query(Ticket).filter(Ticket.booking_id == booking.booking_id).order_by(Ticket.created_at.asc()).all()
+
+
+def _matching_payment(db: Session, email: str, event_id) -> Optional[PaymentProof]:
+    email_clean = (email or "").strip().lower()
+    if not email_clean:
+        return None
+    rows = (
+        db.query(PaymentProof)
+        .filter(func.lower(PaymentProof.attendee_email) == email_clean)
+        .order_by(PaymentProof.created_at.desc())
+        .all()
+    )
+    for row in rows:
+        if event_id and row.event_id and not _same_event_id(row.event_id, event_id):
+            continue
+        return row
+    return None
+
+
 def _serialize_submission(db: Session, row: FormSubmission) -> dict:
     answers = row.answers_json if isinstance(row.answers_json, dict) else {}
     ticket_type, price = _ticket_from_answers(answers)
@@ -210,75 +267,13 @@ def _issue_tickets(db: Session, row: FormSubmission) -> Booking:
     if not event:
         raise HTTPException(status_code=400, detail="This registration is not linked to a published event.")
 
-    answers = row.answers_json if isinstance(row.answers_json, dict) else {}
-    name = _answer_value(answers, NAME_KEYS) or email.split("@")[0]
-    phone = _answer_value(answers, PHONE_KEYS)
-    ticket_type, price = _ticket_from_answers(answers)
-    if not ticket_type:
-        ticket_type = row.ticket_type or "General Admission"
-    if price is None:
-        price = row.ticket_price if row.ticket_price is not None else float(event.price or 0)
-
-    user = _ensure_attendee_user(db, email, name, row.customer_id)
-    existing = _active_booking_for_event(db, user, event.id)
-    if existing:
-        tickets = existing.tickets or []
-        if not tickets:
-            t = Ticket(
-                booking_id=existing.booking_id,
-                event_id=event.id,
-                customer_id=user.customer_id,
-                ticket_type=existing.ticket_type or ticket_type,
-                qr_token=generate_qr_token(),
-                ticket_status="VALID",
-            )
-            db.add(t)
-            db.commit()
-            db.refresh(existing)
-        _mark_form_submission_paid(db, event.id, user, booking_id=existing.booking_id)
-        return (
-            db.query(Booking)
-            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-            .filter(Booking.booking_id == existing.booking_id)
-            .first()
+    proof = _matching_payment(db, email, event.id)
+    if not proof:
+        raise HTTPException(
+            status_code=400,
+            detail="This attendee has not submitted a payment form yet. Open Payment forms, verify the UPI details, then click Generate QR.",
         )
-
-    qty = 1
-    total = float(price or 0)
-    booking = Booking(
-        customer_id=user.customer_id,
-        event_id=event.id,
-        ticket_type=ticket_type or "Standard Access",
-        quantity=qty,
-        total_price=total,
-        status="CONFIRMED",
-        payment_id=f"PAY-ADMIN-{secrets.token_hex(4).upper()}",
-        payment_mode="Admin QR",
-        gst_amount=round(total * 0.18, 2),
-        receiver_name=name,
-        receiver_email=email,
-        receiver_phone=phone or None,
-    )
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
-
-    db.add(Ticket(
-        booking_id=booking.booking_id,
-        event_id=event.id,
-        customer_id=user.customer_id,
-        ticket_type=booking.ticket_type,
-        qr_token=generate_qr_token(),
-        ticket_status="VALID",
-    ))
-    db.commit()
-    _mark_form_submission_paid(db, event.id, user, booking_id=booking.booking_id)
-    return (
-        db.query(Booking)
-        .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-        .filter(Booking.booking_id == booking.booking_id)
-        .first()
-    )
+    return _issue_tickets_from_payment(db, proof)
 
 
 def _screenshot_url(file_id) -> Optional[str]:
@@ -359,95 +354,100 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
     phone = (row.attendee_phone or "").strip()
     ticket_type = row.ticket_type or "General Admission"
     price = float(row.amount if row.amount is not None else (event.price or 0))
-    user = _ensure_attendee_user(db, email, name, row.customer_id)
-    existing = _active_booking_for_event(db, user, event.id)
-    if existing:
-        tickets = existing.tickets or []
-        if not tickets:
-            db.add(Ticket(
-                booking_id=existing.booking_id,
-                event_id=event.id,
-                customer_id=user.customer_id,
-                ticket_type=existing.ticket_type or ticket_type,
-                qr_token=generate_qr_token(),
-                ticket_status="VALID",
-            ))
-            db.commit()
-            db.refresh(existing)
-        row.booking_id = existing.booking_id
-        row.status = "qr_ready"
-        db.commit()
-        return (
-            db.query(Booking)
-            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-            .filter(Booking.booking_id == existing.booking_id)
-            .first()
-        )
-
     qty = max(1, int(row.quantity or 1))
-    booking = Booking(
-        customer_id=user.customer_id,
-        event_id=event.id,
-        ticket_type=ticket_type or "Standard Access",
-        quantity=qty,
-        total_price=price,
-        status="CONFIRMED",
-        payment_id=row.transaction_id or f"PAY-ADMIN-{secrets.token_hex(4).upper()}",
-        payment_mode="UPI",
-        gst_amount=round(price * 0.18, 2),
-        receiver_name=name,
-        receiver_email=email,
-        receiver_phone=phone or None,
-    )
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
-    db.add(Ticket(
-        booking_id=booking.booking_id,
-        event_id=event.id,
-        customer_id=user.customer_id,
-        ticket_type=booking.ticket_type,
-        qr_token=generate_qr_token(),
-        ticket_status="VALID",
-    ))
+    user = _ensure_attendee_user(db, email, name, row.customer_id)
+
+    booking = _reload_booking(db, row.booking_id)
+    if not booking:
+        booking = _active_booking_for_event(db, user, event.id)
+
+    if not booking:
+        booking = Booking(
+            customer_id=user.customer_id,
+            event_id=event.id,
+            ticket_type=ticket_type or "Standard Access",
+            quantity=qty,
+            total_price=price,
+            status="CONFIRMED",
+            payment_id=row.transaction_id or f"PAY-ADMIN-{secrets.token_hex(4).upper()}",
+            payment_mode="UPI",
+            gst_amount=round(price * 0.18, 2),
+            receiver_name=name,
+            receiver_email=email,
+            receiver_phone=phone or None,
+        )
+        db.add(booking)
+        db.commit()
+        db.refresh(booking)
+    else:
+        if phone and not (booking.receiver_phone or "").strip():
+            booking.receiver_phone = phone
+        if name and not (booking.receiver_name or "").strip():
+            booking.receiver_name = name
+        if email and not (booking.receiver_email or "").strip():
+            booking.receiver_email = email
+        if qty > int(booking.quantity or 1):
+            booking.quantity = qty
+        db.commit()
+
+    _mint_unique_tickets(db, booking, qty, booking.ticket_type or ticket_type)
     row.booking_id = booking.booking_id
     row.status = "qr_ready"
     db.commit()
-    return (
-        db.query(Booking)
-        .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-        .filter(Booking.booking_id == booking.booking_id)
-        .first()
-    )
+    try:
+        _mark_form_submission_paid(db, event.id, user, booking_id=booking.booking_id)
+    except Exception:
+        pass
+    issued = _reload_booking(db, booking.booking_id)
+    if not issued or not (issued.tickets or []):
+        raise HTTPException(status_code=500, detail="Could not create a unique QR ticket.")
+    return issued
 
 
 def _deliver_ticket(booking: Booking, phone: str) -> dict:
-    ticket = (booking.tickets or [None])[0]
-    token = ticket.qr_token if ticket else ""
+    tickets = [t for t in (booking.tickets or []) if (t.qr_token or "").strip()]
+    if not tickets:
+        raise HTTPException(status_code=500, detail="No unique QR ticket was issued for this attendee.")
+    ticket = tickets[0]
+    token = ticket.qr_token
     event_title = booking.event.title if booking.event else "your event"
     ticket_link = public_ticket_url(token)
     image = qr_image_url(token)
     attendee = booking.receiver_name or "there"
     email_addr = booking.receiver_email or ""
+    extra_links = ""
+    extra_text = ""
+    if len(tickets) > 1:
+        extra_text = "\n".join(
+            f"Ticket {idx}: {public_ticket_url(t.qr_token)} (token {t.qr_token})"
+            for idx, t in enumerate(tickets, start=1)
+        )
+        extra_links = "<ol>" + "".join(
+            f'<li><a href="{public_ticket_url(t.qr_token)}">{t.qr_token}</a></li>'
+            for t in tickets
+        ) + "</ol>"
 
     text_body = (
         f"Hi {attendee},\n\n"
         f"Your JOD Events ticket for {event_title} is ready.\n"
         f"Ticket type: {booking.ticket_type or 'General Admission'}\n"
-        f"Open your e-ticket: {ticket_link}\n\n"
+        f"Open your e-ticket: {ticket_link}\n"
+        f"{extra_text + chr(10) if extra_text else ''}"
         f"Show the QR code at the gate. Token: {token}\n"
+        "This QR is unique to you. Do not share it."
     )
     html_body = f"""
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#201d19;">
       <h2 style="color:#FF7508;">Your ticket is ready</h2>
       <p>Hi {attendee},</p>
-      <p>Your QR ticket for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) is ready.</p>
+      <p>Your unique QR ticket for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) is ready. This code belongs only to you.</p>
       <p style="text-align:center;margin:24px 0;">
         <img src="{image}" alt="Ticket QR" width="220" height="220" style="border:8px solid #fff8f0;border-radius:12px;" />
       </p>
       <p style="text-align:center;">
         <a href="{ticket_link}" style="background:#FF7508;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;">View ticket on website</a>
       </p>
+      {extra_links}
       <p style="font-size:13px;color:#64748b;">Gate token: {token}</p>
     </div>
     """
@@ -460,9 +460,12 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
 
     wa_text = (
         f"Hi {attendee}, your JOD Events ticket for {event_title} is ready.\n"
+        f"This QR is unique to you.\n"
         f"View on website: {ticket_link}\n"
         f"QR: {image}"
     )
+    if extra_text:
+        wa_text = f"{wa_text}\n{extra_text}"
     wa_sent, wa_channel, wa_link = send_whatsapp(phone, wa_text, image_url=image)
 
     return {
@@ -470,6 +473,7 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
         "ticket_url": ticket_link,
         "qr_image_url": image,
         "qr_token": token,
+        "ticket_count": len(tickets),
         "email_sent": bool(email_sent),
         "email_to": email_addr,
         "whatsapp_sent": bool(wa_sent),
@@ -519,10 +523,11 @@ def list_form_submissions(
             or needle in str(item.get("bank_name") or "").lower()
             or needle in str(item.get("transaction_id") or "").lower()
         ]
-    ready = sum(1 for item in items if item.get("has_qr"))
+    pay_items = [item for item in items if item.get("kind") == "payment"]
+    ready = sum(1 for item in pay_items if item.get("has_qr"))
     return {
-        "total": len(items),
-        "pending_qr": len(items) - ready,
+        "total": len(pay_items),
+        "pending_qr": max(0, len(pay_items) - ready),
         "qr_ready": ready,
         "submissions": items,
     }

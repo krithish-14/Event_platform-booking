@@ -469,33 +469,6 @@ window.JodAuth = (() => {
 
 		initTogglePw(loginForm.querySelector("#toggleLoginPw"), loginForm.querySelector("#loginPassword"));
 
-		const forgotLink = loginForm.querySelector(".forgot-link");
-		if (forgotLink) {
-			forgotLink.addEventListener("click", async (e) => {
-				e.preventDefault();
-				const email = prompt("Enter your account email address to reset password:");
-				if (!email) return;
-				const newPassword = prompt("Enter your new password (min. 8 characters, with letters & numbers):");
-				if (!newPassword) return;
-
-				try {
-					const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ email: email.trim(), new_password: newPassword }),
-					});
-					const data = await res.json();
-					if (res.ok) {
-						showAlert(alertEl, "success", data.message || "Password updated successfully! You can now log in.");
-					} else {
-						showAlert(alertEl, "error", data.detail || "Could not reset password.");
-					}
-				} catch (_) {
-					showAlert(alertEl, "error", "Network error while resetting password.");
-				}
-			});
-		}
-
 		async function doLogin() {
 			clearErrors(loginForm);
 			hideAlert(alertEl);
@@ -602,6 +575,264 @@ window.JodAuth = (() => {
 		loginForm.querySelector("#loginIdentifier").addEventListener("keydown", (e) => {
 			if (e.key === "Enter") { e.preventDefault(); doLogin(); }
 		});
+	}
+
+	/* ── Forgot password (email → OTP → new password) ─────── */
+	const forgotRoot = document.getElementById("forgotPasswordRoot");
+	if (forgotRoot) {
+		const alertEl = forgotRoot.querySelector(".form-alert");
+		const stepEmail = document.getElementById("fpStepEmail");
+		const stepOtp = document.getElementById("fpStepOtp");
+		const stepPassword = document.getElementById("fpStepPassword");
+		const stepDone = document.getElementById("fpStepDone");
+		const emailForm = document.getElementById("fpEmailForm");
+		const otpForm = document.getElementById("fpOtpForm");
+		const passwordForm = document.getElementById("fpPasswordForm");
+		const emailInput = document.getElementById("fpEmail");
+		const sentEmailDisplay = document.getElementById("fpSentEmail");
+		const otpFields = Array.from(forgotRoot.querySelectorAll(".otp-field"));
+		const btnSend = document.getElementById("fpSendBtn");
+		const btnVerify = document.getElementById("fpVerifyBtn");
+		const btnSave = document.getElementById("fpSaveBtn");
+		const btnResend = document.getElementById("fpResendBtn");
+		const btnEditEmail = document.getElementById("fpEditEmail");
+		const timerEl = document.getElementById("fpTimer");
+		const devBanner = document.getElementById("fpDevOtpBanner");
+		const devValue = document.getElementById("fpDevOtpValue");
+		const newPw = document.getElementById("fpNewPassword");
+		const confirmPw = document.getElementById("fpConfirmPassword");
+
+		let currentEmail = "";
+		let verifiedOtp = "";
+		let resendTimer = null;
+		let countdownSecs = 60;
+
+		function showFpStep(step) {
+			[stepEmail, stepOtp, stepPassword, stepDone].forEach((el) => {
+				if (el) el.classList.toggle("is-active", el === step);
+			});
+		}
+
+		function startCountdown() {
+			if (!btnResend || !timerEl) return;
+			btnResend.disabled = true;
+			countdownSecs = 60;
+			timerEl.style.display = "inline";
+			timerEl.textContent = `(${countdownSecs}s)`;
+			if (resendTimer) clearInterval(resendTimer);
+			resendTimer = setInterval(() => {
+				countdownSecs -= 1;
+				timerEl.textContent = `(${countdownSecs}s)`;
+				if (countdownSecs <= 0) {
+					clearInterval(resendTimer);
+					btnResend.disabled = false;
+					timerEl.style.display = "none";
+				}
+			}, 1000);
+		}
+
+		function otpValue() {
+			return otpFields.map((f) => (f.value || "").trim()).join("");
+		}
+
+		function clearOtp() {
+			otpFields.forEach((f) => { f.value = ""; });
+		}
+
+		function passwordError(pw) {
+			if (!pw) return "New password is required.";
+			if (pw.length < 8) return "Password must be at least 8 characters.";
+			if (!/[A-Za-z]/.test(pw)) return "Password must contain at least one letter.";
+			if (!/[0-9]/.test(pw)) return "Password must contain at least one digit.";
+			return "";
+		}
+
+		async function sendResetOtp() {
+			hideAlert(alertEl);
+			const email = (emailInput && emailInput.value ? emailInput.value : currentEmail).trim().toLowerCase();
+			if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+				if (emailInput) setError(emailInput, "Enter a valid email address.");
+				showAlert(alertEl, "error", "Enter the email address on your JOD Events account.");
+				return;
+			}
+			if (emailInput) setError(emailInput, "");
+			currentEmail = email;
+			if (btnSend) setLoading(btnSend, true);
+			try {
+				const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ email }),
+				});
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok) {
+					showAlert(alertEl, "error", data.detail || "Could not send a verification code.");
+					return;
+				}
+				if (sentEmailDisplay) sentEmailDisplay.textContent = email;
+				if (data.dev_otp && devBanner && devValue) {
+					devBanner.style.display = "block";
+					devValue.textContent = data.dev_otp;
+				} else if (devBanner) {
+					devBanner.style.display = "none";
+				}
+				clearOtp();
+				verifiedOtp = "";
+				showFpStep(stepOtp);
+				showAlert(alertEl, "success", data.message || `6-digit code sent to ${email}.`);
+				startCountdown();
+				if (otpFields[0]) otpFields[0].focus();
+			} catch (_) {
+				showAlert(alertEl, "error", "Network error while sending the verification code.");
+			} finally {
+				if (btnSend) setLoading(btnSend, false);
+			}
+		}
+
+		if (emailForm) {
+			emailForm.addEventListener("submit", (e) => {
+				e.preventDefault();
+				sendResetOtp();
+			});
+		}
+		if (btnSend) btnSend.addEventListener("click", sendResetOtp);
+		if (btnResend) {
+			btnResend.addEventListener("click", () => {
+				if (btnResend.disabled) return;
+				sendResetOtp();
+			});
+		}
+		if (btnEditEmail) {
+			btnEditEmail.addEventListener("click", () => {
+				showFpStep(stepEmail);
+				if (devBanner) devBanner.style.display = "none";
+				hideAlert(alertEl);
+			});
+		}
+
+		otpFields.forEach((field, index) => {
+			field.addEventListener("input", (e) => {
+				const val = String(e.target.value || "").replace(/\D/g, "").slice(0, 1);
+				e.target.value = val;
+				if (val && index < otpFields.length - 1) otpFields[index + 1].focus();
+				if (otpValue().length === 6 && otpForm) {
+					otpForm.dispatchEvent(new Event("submit"));
+				}
+			});
+			field.addEventListener("keydown", (e) => {
+				if (e.key === "Backspace" && !field.value && index > 0) {
+					otpFields[index - 1].focus();
+				}
+			});
+			field.addEventListener("paste", (e) => {
+				e.preventDefault();
+				const pasted = ((e.clipboardData || window.clipboardData).getData("text") || "").replace(/\D/g, "").slice(0, 6);
+				pasted.split("").forEach((char, i) => {
+					if (otpFields[i]) otpFields[i].value = char;
+				});
+				if (pasted.length === 6 && otpForm) otpForm.dispatchEvent(new Event("submit"));
+			});
+		});
+
+		if (otpForm) {
+			otpForm.addEventListener("submit", async (e) => {
+				e.preventDefault();
+				hideAlert(alertEl);
+				const otp_code = otpValue();
+				if (otp_code.length !== 6) {
+					showAlert(alertEl, "error", "Enter all 6 digits of the verification code.");
+					return;
+				}
+				if (btnVerify) setLoading(btnVerify, true);
+				try {
+					const res = await fetch(`${API_BASE}/api/auth/verify-reset-otp`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ email: currentEmail, otp_code }),
+					});
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						showAlert(alertEl, "error", data.detail || "Invalid verification code.");
+						return;
+					}
+					verifiedOtp = otp_code;
+					if (devBanner) devBanner.style.display = "none";
+					showFpStep(stepPassword);
+					showAlert(alertEl, "success", data.message || "Code verified. Set your new password.");
+					if (newPw) newPw.focus();
+				} catch (_) {
+					showAlert(alertEl, "error", "Network error while verifying the code.");
+				} finally {
+					if (btnVerify) setLoading(btnVerify, false);
+				}
+			});
+		}
+
+		initTogglePw(document.getElementById("toggleFpNewPw"), newPw);
+		initTogglePw(document.getElementById("toggleFpConfirmPw"), confirmPw);
+		initPasswordStrength(newPw, forgotRoot.querySelector(".pw-strength-bar"), forgotRoot.querySelector(".pw-strength-label"));
+
+		if (passwordForm) {
+			passwordForm.addEventListener("submit", async (e) => {
+				e.preventDefault();
+				hideAlert(alertEl);
+				if (newPw) setError(newPw, "");
+				if (confirmPw) setError(confirmPw, "");
+				const password = newPw ? newPw.value : "";
+				const confirm = confirmPw ? confirmPw.value : "";
+				const pwErr = passwordError(password);
+				let valid = true;
+				if (pwErr) {
+					if (newPw) setError(newPw, pwErr);
+					valid = false;
+				}
+				if (!confirm) {
+					if (confirmPw) setError(confirmPw, "Please confirm your new password.");
+					valid = false;
+				} else if (password !== confirm) {
+					if (confirmPw) setError(confirmPw, "Passwords do not match.");
+					valid = false;
+				}
+				if (!verifiedOtp) {
+					showAlert(alertEl, "error", "Verify the email code before setting a new password.");
+					showFpStep(stepOtp);
+					return;
+				}
+				if (!valid) return;
+				if (btnSave) setLoading(btnSave, true);
+				try {
+					const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							email: currentEmail,
+							otp_code: verifiedOtp,
+							new_password: password,
+						}),
+					});
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						showAlert(alertEl, "error", data.detail || "Could not update password.");
+						return;
+					}
+					showFpStep(stepDone);
+					hideAlert(alertEl);
+				} catch (_) {
+					showAlert(alertEl, "error", "Network error while updating the password.");
+				} finally {
+					if (btnSave) setLoading(btnSave, false);
+				}
+			});
+		}
+		if (btnSave && passwordForm) {
+			btnSave.addEventListener("click", () => {
+				passwordForm.dispatchEvent(new Event("submit"));
+			});
+		}
+
+		const params = new URLSearchParams(window.location.search);
+		const prefill = params.get("email");
+		if (prefill && emailInput) emailInput.value = prefill;
 	}
 
 	/* ── Sign Up form ──────────────────────────────────────── */

@@ -192,6 +192,21 @@
 	color: #6b7280;
 }
 
+@media (max-width: 800px) {
+	.agenda-main {
+		padding: calc(4.75rem + 1rem) 0 2.5rem;
+	}
+
+	.agenda-page-card {
+		padding: 1.35rem 1.1rem 1.6rem;
+		border-radius: 1.15rem;
+	}
+
+	.agenda-page-card h1 {
+		font-size: 1.35rem;
+	}
+}
+
 @media print {
 	.agenda-page {
 		background: #ffffff;

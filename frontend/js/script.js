@@ -386,19 +386,8 @@
 				}
 
 				if (mobileGroup) {
-					mobileGroup.innerHTML = `
-						<div style="padding:1rem .5rem .5rem;">
-							<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem;">
-								<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${initials}</div>
-								<div style="line-height:1.15;">
-									<div style="font-weight:600;color:var(--foreground);">${displayName}</div>
-									<div style="font-size:.75rem;color:#94a3b8;">${user.email || ""}</div>
-								</div>
-							</div>
-							<button class="button button-login" id="mobile-logout-btn" type="button" style="width:100%;background:#fef2e6;color:#ff7508;border:1px solid #ffcd9a;">Logout</button>
-						</div>`;
-					const btn = mobileGroup.querySelector("#mobile-logout-btn");
-					if (btn) btn.addEventListener("click", onLogoutClick);
+					mobileGroup.hidden = true;
+					mobileGroup.innerHTML = "";
 				}
 			}
 		} else {
@@ -408,9 +397,12 @@
 					<a class="button button-sm button-primary" href="signup.html" id="nav-signup-btn">Sign Up &#8599;</a>`;
 			}
 			if (mobileGroup && !mobileGroup.querySelector('a[href="login.html"]')) {
+				mobileGroup.hidden = false;
 				mobileGroup.innerHTML = `
 					<a class="button button-login" href="login.html">Login</a>
 					<a class="button button-primary" href="signup.html">Sign Up</a>`;
+			} else if (mobileGroup) {
+				mobileGroup.hidden = false;
 			}
 		}
 	}

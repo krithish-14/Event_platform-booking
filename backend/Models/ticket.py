@@ -16,6 +16,22 @@ def generate_qr_token():
     return f"JOD-TKT-{secrets.token_hex(16).upper()}"
 
 
+def unique_qr_token(db=None, extra_used=None) -> str:
+    """Return a QR token that is not already stored (or pending in extra_used)."""
+    used = {str(token) for token in (extra_used or []) if token}
+    for _ in range(16):
+        token = generate_qr_token()
+        if token in used:
+            continue
+        if db is not None:
+            exists = db.query(Ticket).filter(Ticket.qr_token == token).first()
+            if exists:
+                continue
+        used.add(token)
+        return token
+    return generate_qr_token()
+
+
 class Ticket(Base):
     __tablename__ = "tickets"
 

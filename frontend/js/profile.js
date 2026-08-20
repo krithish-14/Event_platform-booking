@@ -300,6 +300,35 @@
 }
 .pd-item.pd-logout .pd-icon { opacity: .75; }
 
+@media (max-width: 800px) {
+	.nav-auth:has(.profile-wrap) {
+		display: flex !important;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 0;
+	}
+	.nav-auth .profile-wrap {
+		display: flex !important;
+		position: relative;
+		gap: 0;
+	}
+	.nav-auth .profile-meta-wrap,
+	.nav-auth .profile-name-text,
+	.nav-auth .profile-chevron {
+		display: none !important;
+	}
+	.nav-auth .profile-avatar {
+		width: 2.1rem;
+		height: 2.1rem;
+		font-size: .7rem;
+	}
+	.nav-auth .profile-dropdown {
+		right: 0;
+		width: min(16.5rem, calc(100vw - 1.25rem));
+		z-index: 10050;
+	}
+}
+
 /* ── Crop Modal Overlay ─────────────────────────────────────── */
 .crop-modal-overlay {
 	position: fixed;
@@ -726,57 +755,13 @@
 
 	/* ── Render Mobile Auth Group ────────────────────────────── */
 	function renderMobileAuthGroup(mobileGroup) {
-		const user = getUser();
-		if (!user || !isLoggedIn()) return;
-
-		const displayName = user.full_name || user.username || "Account";
-		const initials = getInitials(user);
-		const savedPhoto = getSavedAvatar();
-		const avatarHtml = savedPhoto
-			? `<img src="${savedPhoto}" alt="Profile picture" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`
-			: initials;
-
-		mobileGroup.innerHTML = `
-			<div class="mobile-user-profile" style="padding:1rem .5rem .5rem;">
-				<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;">
-					<div class="profile-avatar-shell">
-						<div class="profile-avatar" style="width:42px;height:42px;border-radius:50%;background:var(--brand-gradient);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0;">${avatarHtml}</div>
-						<span class="profile-notif-badge" aria-label="Unread notifications"></span>
-					</div>
-					<div style="line-height:1.2;min-width:0;">
-						<div style="font-weight:700;color:var(--foreground);font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(displayName)}</div>
-						<div style="font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(user.email || "")}</div>
-					</div>
-				</div>
-				<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem;">
-					<a href="dashboard.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Dashboard</a>
-					<a href="orders.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Your Orders</a>
-					<a href="wishlist.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Wishlist</a>
-					<a href="settings.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Settings</a>
-					<a href="notifications.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Notifications</a>
-					<a href="help.html" class="button button-sm button-ghost" style="font-size:.8rem;justify-content:center;">Help & Support</a>
-				</div>
-				<button class="button button-sm button-login" id="mobile-profile-logout-btn" type="button" style="width:100%;background:#fef2e6;color:#ff7508;border:1px solid #ffcd9a;font-size:.85rem;font-weight:600;">Log Out</button>
-			</div>`;
-
-		const btn = mobileGroup.querySelector("#mobile-profile-logout-btn");
-		if (btn) {
-			btn.addEventListener("click", async () => {
-				if (window.JodAuth && typeof window.JodAuth.logout === "function") {
-					await window.JodAuth.logout();
-				} else {
-					try {
-						localStorage.removeItem("jod_access_token");
-						sessionStorage.removeItem("jod_access_token");
-						localStorage.removeItem("jod_user");
-						sessionStorage.removeItem("jod_user");
-					} catch (_) {}
-				}
-				window.location.href = "index.html";
-			});
+		if (!mobileGroup) return;
+		if (!isLoggedIn()) {
+			mobileGroup.hidden = false;
+			return;
 		}
-
-		syncProfileBadge();
+		mobileGroup.innerHTML = "";
+		mobileGroup.hidden = true;
 	}
 
 	/* ── Build Dropdown HTML ──────────────────────────────────── */

@@ -23,6 +23,10 @@
 	gap: 0.7rem;
 }
 
+.admin-mobile-back {
+	display: none;
+}
+
 .admin-brand img {
 	width: 36px;
 	height: 36px;
@@ -370,12 +374,31 @@
 .warn { color: #c2410c; font-weight: 800; }
 
 @media (max-width: 800px) {
-	.admin-hero,
-	.admin-stats {
+	.admin-hero {
 		flex-direction: column;
+		align-items: stretch;
+		gap: 0.85rem;
+	}
+	.admin-stats {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		width: 100%;
+	}
+	.admin-stat {
+		min-width: 0;
 	}
 	.admin-topbar {
 		flex-wrap: wrap;
 		gap: 0.6rem;
+		padding: 0.75rem 1rem;
+	}
+	.admin-toolbar {
+		flex-wrap: wrap;
+	}
+	.admin-mobile-back {
+		display: inline-flex;
+	}
+	.admin-brand > img {
+		display: none;
 	}
 }

@@ -289,6 +289,14 @@ async function initOrganizerDashboard() {
 		if (qty) qty.value = "";
 		if (start) start.value = "";
 		if (end) end.value = "";
+		row.dataset.paymentQrUrl = "";
+		const qrInput = row.querySelector(".ticket-qr-input");
+		const qrPreview = row.querySelector(".ticket-qr-preview");
+		if (qrInput) qrInput.value = "";
+		if (qrPreview) {
+			qrPreview.removeAttribute("src");
+			qrPreview.hidden = true;
+		}
 	}
 
 	function collectTicketsJson() {
@@ -306,6 +314,8 @@ async function initOrganizerDashboard() {
 			const offerEnd = toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-end-input")?.value || "");
 			if (offerStart) item.sales_start = offerStart;
 			if (offerEnd) item.sales_end = offerEnd;
+			const qrUrl = (row.dataset.paymentQrUrl || "").trim();
+			if (qrUrl) item.payment_qr_url = qrUrl;
 			out.push(item);
 		});
 		return out;
@@ -470,6 +480,54 @@ async function initOrganizerDashboard() {
 			});
 		});
 		return out;
+	}
+
+	function collectPerformersTitle() {
+		const select = document.getElementById("performersTitleSelect");
+		const custom = document.getElementById("performersTitleCustom");
+		if (!select) return "";
+		if (select.value === "__other__") {
+			return (custom && custom.value.trim()) || "";
+		}
+		return String(select.value || "").trim();
+	}
+
+	function syncPerformersTitleCustomVisibility() {
+		const select = document.getElementById("performersTitleSelect");
+		const custom = document.getElementById("performersTitleCustom");
+		if (!select || !custom) return;
+		const isOther = select.value === "__other__";
+		custom.hidden = !isOther;
+		if (isOther) custom.focus();
+	}
+
+	function applyPerformersTitle(title) {
+		const select = document.getElementById("performersTitleSelect");
+		const custom = document.getElementById("performersTitleCustom");
+		if (!select) return;
+		const value = String(title || "").trim();
+		if (!value) {
+			select.value = "";
+			if (custom) {
+				custom.value = "";
+				custom.hidden = true;
+			}
+			return;
+		}
+		const match = Array.from(select.options).find((opt) => opt.value === value);
+		if (match && value !== "__other__") {
+			select.value = value;
+			if (custom) {
+				custom.value = "";
+				custom.hidden = true;
+			}
+			return;
+		}
+		select.value = "__other__";
+		if (custom) {
+			custom.value = value;
+			custom.hidden = false;
+		}
 	}
 
 	function collectPoliciesJson() {
@@ -1523,44 +1581,17 @@ async function initOrganizerDashboard() {
 			const completion = total > 0 ? `${Math.round((confirmed / total) * 100)}%` : "0%";
 			const avgTime = total > 0 ? `${Math.max(1, Math.round(total / 2))}m` : "0m";
 
+			if (typeof window.loadFormSubmissionsData === "function") {
+				window.loadFormSubmissionsData();
+				return;
+			}
+
 			const totalSubmissionsEl = document.getElementById("kpiTotalSubmissions");
 			if (totalSubmissionsEl) totalSubmissionsEl.textContent = total.toLocaleString("en-IN");
 			const completionRateEl = document.getElementById("kpiCompletionRate");
 			if (completionRateEl) completionRateEl.textContent = completion;
 			const avgTimeEl = document.getElementById("kpiAvgTime");
 			if (avgTimeEl) avgTimeEl.textContent = avgTime;
-
-			const submissionsTableBody = document.getElementById("submissionsTableBody");
-			if (submissionsTableBody) {
-				const regList = data.registrations || [];
-				if (regList.length === 0) {
-					submissionsTableBody.innerHTML = `
-						<tr>
-							<td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8;">
-								<div style="font-size: 1.5rem; margin-bottom: 0.4rem;">📝</div>
-								<div style="font-weight: 700; color: #475569;">No Registrations Yet</div>
-								<div style="font-size: 0.82rem; margin-top: 0.2rem;">Attendee registrations and submissions will appear here once attendees register.</div>
-							</td>
-						</tr>
-					`;
-				} else {
-					submissionsTableBody.innerHTML = regList.map(r => `
-						<tr style="border-bottom: 1px solid #f1f5f9;">
-							<td class="dash-ink" style="padding: 0.85rem 1.2rem; font-weight: 700;">${r.registration_number || r.registration_id || 'REG-001'}</td>
-							<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${r.attendee_name || 'Attendee'} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${r.attendee_email || ''}</span></td>
-							<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Just now'}</td>
-							<td style="padding: 0.85rem 1.2rem;">
-								<span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
-									${r.status || 'Confirmed'}
-								</span>
-							</td>
-							<td style="padding: 0.85rem 1.2rem; text-align: right;">
-								<button type="button" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">View</button>
-							</td>
-						</tr>
-					`).join('');
-				}
-			}
 		} catch (err) {
 			console.warn("Could not load registration module data:", err);
 		}
@@ -1614,32 +1645,8 @@ async function initOrganizerDashboard() {
 
 			const ticketRowsEl = document.getElementById("repTicketFeeRows");
 			if (ticketRowsEl) {
-				const ticketRows = Array.isArray(data.ticket_fee_rows) ? data.ticket_fee_rows : [];
-				if (!ticketRows.length) {
-					ticketRowsEl.style.display = "none";
-					ticketRowsEl.innerHTML = "";
-				} else {
-					ticketRowsEl.style.display = "flex";
-					ticketRowsEl.innerHTML = ticketRows.map((row) => {
-						const qty = Number(row.quantity || 0);
-						const gstAmt = Number(row.gst_fee || 0);
-						const platAmt = Number(row.platform_fee || 0);
-						const typeName = String(row.ticket_type || "Ticket")
-							.replace(/&/g, "&amp;")
-							.replace(/</g, "&lt;")
-							.replace(/>/g, "&gt;")
-							.replace(/"/g, "&quot;");
-						return `<div class="dash-surface" style="border:1px solid #e2e8f0;border-radius:10px;padding:0.75rem 0.85rem;">
-							<div class="dash-ink" style="display:flex;justify-content:space-between;gap:0.75rem;font-size:0.86rem;font-weight:800;margin-bottom:0.35rem;">
-								<span>${typeName}</span>
-								<span>${qty} ticket${qty === 1 ? "" : "s"} · ${formatInr(row.gross)}</span>
-							</div>
-							<div class="dash-muted-text" style="font-size:0.78rem;line-height:1.45;">
-								Platform ${platformPct}%: ${formatInr(-platAmt, true)} · GST ${gstPct}%: ${formatInr(-gstAmt, true)} · Net ${formatInr(row.net)}
-							</div>
-						</div>`;
-					}).join("");
-				}
+				ticketRowsEl.style.display = "none";
+				ticketRowsEl.innerHTML = "";
 			}
 
 			const citiesEl = document.getElementById("repTopCities");
@@ -2893,6 +2900,7 @@ async function initOrganizerDashboard() {
 			gallery_images: galleryImageUrls.length ? galleryImageUrls : undefined,
 			sponsor_details: collectSponsorDetails(),
 			speaker_details: collectSpeakerDetails(),
+			performers_title: collectPerformersTitle(),
 			about_event: descEl ? descEl.value : undefined
 		};
 
@@ -3514,7 +3522,7 @@ async function initOrganizerDashboard() {
 	const ticketTiersRows = document.getElementById("ticketTiersRows");
 	const btnAddTicketTier = document.getElementById("btnAddTicketTier");
 
-	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "") {
+	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "", paymentQrUrl = "") {
 		const div = document.createElement("div");
 		div.className = "ticket-tier-row";
 		div.innerHTML = `
@@ -3555,6 +3563,14 @@ async function initOrganizerDashboard() {
 				</div>
 			</div>
 			<p class="ticket-offer-hint">Leave blank to keep this ticket on sale for the whole event. Set dates for a same-day or limited-time offer.</p>
+			<div class="ticket-qr-upload">
+				<label>Payment QR code</label>
+				<p class="ticket-offer-hint">Upload the UPI QR for this ticket. The payment form shows this QR when an attendee chooses this ticket.</p>
+				<div class="ticket-qr-row">
+					<input type="file" class="setup-input ticket-qr-input" accept="image/png,image/jpeg,image/jpg,image/webp" />
+					<img class="ticket-qr-preview" alt="Payment QR preview" hidden />
+				</div>
+			</div>
 		`;
 
 		const removeBtn = div.querySelector(".btn-remove-ticket");
@@ -3565,8 +3581,44 @@ async function initOrganizerDashboard() {
 				clearTicketTierRow(div);
 			}
 		});
-
+		bindTicketPaymentQr(div, paymentQrUrl);
 		return div;
+	}
+
+	function showTicketQrPreview(row, url) {
+		const preview = row.querySelector(".ticket-qr-preview");
+		if (!preview) return;
+		if (!url) {
+			preview.removeAttribute("src");
+			preview.hidden = true;
+			return;
+		}
+		preview.src = resolveUploadUrl(url);
+		preview.hidden = false;
+	}
+
+	function bindTicketPaymentQr(row, existingUrl) {
+		if (!row || row.dataset.qrBound === "1") return;
+		row.dataset.qrBound = "1";
+		const input = row.querySelector(".ticket-qr-input");
+		if (existingUrl) {
+			row.dataset.paymentQrUrl = existingUrl;
+			showTicketQrPreview(row, existingUrl);
+		}
+		if (!input) return;
+		input.addEventListener("change", async () => {
+			const file = input.files && input.files[0];
+			if (!file) return;
+			try {
+				const url = await uploadDesignAsset(file, "payment_qr");
+				row.dataset.paymentQrUrl = url || "";
+				showTicketQrPreview(row, url);
+				if (typeof triggerManageAutoSave === "function") triggerManageAutoSave();
+			} catch (err) {
+				input.value = "";
+				showNotification(err.message || "Could not upload the payment QR.");
+			}
+		});
 	}
 
 	if (btnAddTicketTier) {
@@ -3587,6 +3639,7 @@ async function initOrganizerDashboard() {
 				}
 			});
 		}
+		ticketTiersRows.querySelectorAll(".ticket-tier-row").forEach((row) => bindTicketPaymentQr(row));
 	}
 
 	// Dynamic Agenda Session Rows Adder
@@ -3708,7 +3761,8 @@ async function initOrganizerDashboard() {
 					t.price != null ? t.price : "",
 					t.qty != null ? t.qty : (t.quantity != null ? t.quantity : ""),
 					isoToDatetimeLocal(t.sales_start || t.offer_start || t.sale_start || ""),
-					isoToDatetimeLocal(t.sales_end || t.offer_end || t.sale_end || "")
+					isoToDatetimeLocal(t.sales_end || t.offer_end || t.sale_end || ""),
+					t.payment_qr_url || t.qr_url || t.payment_qr || ""
 				));
 			});
 		}
@@ -4222,12 +4276,6 @@ async function initOrganizerDashboard() {
 	function createSponsorRowHtml(name = "", tier = "Title Sponsor", logoUrl = "") {
 		const div = document.createElement("div");
 		div.className = "setup-grid-3 sponsor-row";
-		div.style.alignItems = "start";
-		div.style.marginBottom = "0.9rem";
-		div.style.background = "#f8fafc";
-		div.style.border = "1px solid #e2e8f0";
-		div.style.padding = "1rem";
-		div.style.borderRadius = "10px";
 		if (logoUrl) div.dataset.logoUrl = logoUrl;
 		const safeName = String(name).replace(/"/g, "&quot;");
 		div.innerHTML = `
@@ -4325,12 +4373,6 @@ async function initOrganizerDashboard() {
 	function createArtistRowHtml(name = "", role = "", photoUrl = "") {
 		const div = document.createElement("div");
 		div.className = "setup-grid-3 artist-row";
-		div.style.alignItems = "start";
-		div.style.marginBottom = "0.9rem";
-		div.style.background = "#f8fafc";
-		div.style.border = "1px solid #e2e8f0";
-		div.style.padding = "1rem";
-		div.style.borderRadius = "10px";
 		if (photoUrl) div.dataset.photoUrl = photoUrl;
 		const safeName = String(name).replace(/"/g, "&quot;");
 		const safeRole = String(role).replace(/"/g, "&quot;");
@@ -4416,6 +4458,19 @@ async function initOrganizerDashboard() {
 		if (!artistsRows.children.length) {
 			artistsRows.appendChild(createArtistRowHtml());
 		}
+	}
+
+	const performersTitleSelect = document.getElementById("performersTitleSelect");
+	const performersTitleCustom = document.getElementById("performersTitleCustom");
+	if (performersTitleSelect) {
+		performersTitleSelect.addEventListener("change", () => {
+			syncPerformersTitleCustomVisibility();
+			if (performersTitleSelect.value !== "__other__") triggerLiveAutoSave();
+		});
+	}
+	if (performersTitleCustom) {
+		performersTitleCustom.addEventListener("input", triggerLiveAutoSave);
+		performersTitleCustom.addEventListener("change", triggerLiveAutoSave);
 	}
 
 	// Dynamic Event Gallery Photos
@@ -4547,10 +4602,12 @@ async function initOrganizerDashboard() {
 				d.gallery_images.forEach((url) => addThumbnail(url));
 			}
 			populateDesignRows(d.sponsor_details || [], d.speaker_details || []);
+			applyPerformersTitle(d.performers_title || "");
 			pendingHostDesignData = null;
 		}
 		applyPendingHostDesign();
 	} else if (pendingHostDesignData) {
+		applyPerformersTitle(pendingHostDesignData.performers_title || "");
 		populateDesignRows(
 			pendingHostDesignData.sponsor_details || [],
 			pendingHostDesignData.speaker_details || []

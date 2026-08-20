@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let currentSelectedPrice = 0;
 let currentSelectedTicketType = "General Admission";
+let currentSelectedPaymentQr = "";
 let currentEventData = null;
 let galleryImages = [];
 let galleryIndex = 0;
@@ -235,7 +236,10 @@ function renderEventDOM(event) {
     document.title = `${event.title || 'Event Details'} — JOD Events`;
 
     const perfTitleEl = document.getElementById('performersTitle');
-    if (perfTitleEl) perfTitleEl.textContent = themeConfig.performersTitle;
+    if (perfTitleEl) {
+        const customTitle = String(event.performers_title || '').trim();
+        perfTitleEl.textContent = customTitle || themeConfig.performersTitle;
+    }
 
     const titleEl = document.getElementById('eventTitle');
     if (titleEl) titleEl.textContent = event.title || 'Event';
@@ -542,7 +546,8 @@ function paintTicketTypes(event) {
         const timed = Boolean(start || end);
         const name = escape(t.name || "Ticket");
         const price = Number(t.price) || 0;
-        return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}">
+        const qrUrl = escape(t.payment_qr_url || t.qr_url || t.payment_qr || "");
+        return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}">
             <div>
                 ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${escape(start)}" data-ticket-end="${escape(end)}"></div>` : ""}
                 <div class="ticket-name">${name}</div>
@@ -557,6 +562,7 @@ function paintTicketTypes(event) {
     const first = types[0];
     currentSelectedTicketType = first.name || "General Admission";
     currentSelectedPrice = Number(first.price) || 0;
+    currentSelectedPaymentQr = first.payment_qr_url || first.qr_url || first.payment_qr || "";
     setStartingPriceDisplay(lowestTicketPrice(event));
     if (EP && typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
 }
@@ -590,6 +596,7 @@ function selectTicketOption(element, price, ticketName) {
     element.classList.add('selected');
 
     currentSelectedPrice = price;
+    currentSelectedPaymentQr = (element && element.dataset && element.dataset.paymentQr) || "";
     if (ticketName) {
         currentSelectedTicketType = ticketName;
     } else {
@@ -858,6 +865,17 @@ async function triggerBookingModal() {
 
     const pendingTicket = status.ticket_type || ticketType;
     const pendingPrice = (status.price != null && status.price !== "") ? status.price : price;
+    const selectedOpt = document.querySelector(".ticket-type-option.selected");
+    const types = (currentEventData && Array.isArray(currentEventData.ticket_types)) ? currentEventData.ticket_types : [];
+    const ticketKey = String(pendingTicket || "").replace(/\+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+    const matchedTicket = types.find((item) => {
+        const name = String((item && (item.name || item.ticket_name || item.type)) || "").replace(/\+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+        return name && name === ticketKey;
+    });
+    const pendingQr = (matchedTicket && (matchedTicket.payment_qr_url || matchedTicket.qr_url || matchedTicket.payment_qr))
+        || (selectedOpt && selectedOpt.dataset && selectedOpt.dataset.paymentQr)
+        || currentSelectedPaymentQr
+        || "";
     try {
         sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify({
             eventId: eventId,
@@ -865,7 +883,8 @@ async function triggerBookingModal() {
             venue: status.venue || (currentEventData && (currentEventData.venue || currentEventData.location)) || "",
             ticket: pendingTicket,
             price: String(pendingPrice),
-            quantity: 1
+            quantity: 1,
+            paymentQrUrl: pendingQr
         }));
     } catch (_) {}
 
@@ -873,7 +892,7 @@ async function triggerBookingModal() {
     regUrl.searchParams.set("eventId", eventId);
     regUrl.searchParams.set("ticket", pendingTicket);
     regUrl.searchParams.set("price", String(pendingPrice));
-    regUrl.searchParams.set("v", "19");
+    regUrl.searchParams.set("v", "20");
     if (status.state === "payment_pending") {
         regUrl.searchParams.set("resume", "payment");
     }

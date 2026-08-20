@@ -29,6 +29,7 @@ class EventDesign(Base):
     sponsor_details = Column(JSONType, nullable=True)
     social_links    = Column(JSONType, nullable=True)
     custom_sections = Column(JSONType, nullable=True)
+    performers_title = Column(String(200), nullable=True)
     created_at      = Column(DateTime, default=datetime.utcnow, nullable=True)
     updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 

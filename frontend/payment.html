@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-		<script src="js/theme.js?v=4"></script>
+		<script src="js/theme.js?v=6"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Cache-Control" content="no-store" />
@@ -90,14 +90,27 @@
 		}
 		.pay-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 		.back {
-			display: block;
-			text-align: center;
-			margin-top: 0.9rem;
-			color: #64748b;
-			font-size: 0.85rem;
-			font-weight: 600;
-			text-decoration: none;
+			display: none;
 		}
+		.header-back-btn {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 0.35rem;
+			height: 2.4rem;
+			padding: 0 0.9rem 0 0.65rem;
+			margin-bottom: 1rem;
+			border: 1px solid #e2e8f0;
+			background: #ffffff;
+			color: #0f172a;
+			border-radius: 999px;
+			font-size: 0.875rem;
+			font-weight: 700;
+			font-family: inherit;
+			text-decoration: none;
+			width: fit-content;
+		}
+		.header-back-btn svg { width: 1.05rem; height: 1.05rem; display: block; }
 		.err { color: #b91c1c; font-size: 0.85rem; margin-top: 0.75rem; min-height: 1.1em; }
 		.ok { color: #166534; font-size: 0.9rem; margin-top: 0.75rem; font-weight: 700; }
 		#payFormPanel { display: none; margin-top: 1.2rem; }
@@ -265,10 +278,21 @@
 		html[data-theme="dark"] .pay-modal-card p { color: #d4cbbf !important; }
 		html[data-theme="dark"] .pay-modal-card .wait-note { color: #86efac !important; }
 		html[data-theme="dark"] .pay-modal-timer { color: #b8aea2 !important; }
+
+		@media (max-width: 520px) {
+			body { padding: 1rem 0.85rem 1.5rem; align-items: flex-start; }
+			h1 { font-size: 1.22rem; }
+			.wrap { max-width: 100%; }
+			.pay-modal { padding: 0.85rem; }
+		}
 	</style>
 </head>
 <body>
 	<div class="wrap">
+		<a class="header-back-btn" id="payBack" href="index.html" data-header-back>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+			<span>Back</span>
+		</a>
 		<h1>Ticket bill</h1>
 		<p class="sub">Complete payment to finish your registration.</p>
 		<div class="bill-card">
@@ -284,8 +308,8 @@
 		<div id="payFormPanel">
 			<div class="qr-pay-card">
 				<h2>Pay with this QR</h2>
-				<p>Scan the QR code, complete UPI payment, then fill the details below.</p>
-				<img src="images/jod-upi-payment-qr.png" alt="JOD Events UPI payment QR" />
+				<p id="payQrCaption">Scan the QR code, complete UPI payment, then fill the details below.</p>
+				<img id="payQrImage" src="images/jod-upi-payment-qr.png" alt="Payment QR" />
 			</div>
 			<form class="proof-card" id="payProofForm">
 				<h2 style="font-size:0.95rem;margin-bottom:0.2rem;">Payment details</h2>
@@ -307,7 +331,6 @@
 			</form>
 		</div>
 		<p class="err" id="payError"></p>
-		<a class="back" id="payBack" href="index.html">Back to event</a>
 	</div>
 	<div class="pay-modal" id="paySuccessModal" role="dialog" aria-modal="true" aria-labelledby="paySuccessTitle">
 		<div class="pay-modal-card">
@@ -333,11 +356,54 @@
 				try { return decodeURIComponent(value); } catch (_) { return value; }
 			}
 
+			function normalizeTicketKey(raw) {
+				return prettyTicket(raw).replace(/\s+/g, " ").toLowerCase();
+			}
+
+			function ticketQrFromTypes(types, ticketName) {
+				if (!Array.isArray(types)) return "";
+				const key = normalizeTicketKey(ticketName);
+				const match = types.find((item) => {
+					const name = item && (item.name || item.ticket_name || item.type || "");
+					return normalizeTicketKey(name) === key;
+				});
+				if (!match) return "";
+				return String(match.payment_qr_url || match.qr_url || match.payment_qr || "").trim();
+			}
+
+			function resolveMediaUrl(url) {
+				const raw = String(url || "").trim();
+				if (!raw) return "";
+				if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+				if (raw.startsWith("/")) return apiBase + raw;
+				return raw;
+			}
+
+			function applyPaymentQr(url, ticketName) {
+				const img = document.getElementById("payQrImage");
+				const caption = document.getElementById("payQrCaption");
+				const resolved = resolveMediaUrl(url) || DEFAULT_PAY_QR;
+				if (img) {
+					img.onerror = function () {
+						if (img.getAttribute("src") === DEFAULT_PAY_QR) return;
+						img.src = DEFAULT_PAY_QR;
+					};
+					img.src = resolved;
+					img.alt = ticketName ? ("Payment QR for " + ticketName) : "Payment QR";
+				}
+				if (caption) {
+					caption.textContent = ticketName
+						? ("Scan this QR to pay for " + ticketName + ", then fill the details below.")
+						: "Scan the QR code, complete UPI payment, then fill the details below.";
+				}
+			}
+
 			const eventId = params.get("eventId") || saved.eventId || "";
 			const ticket = prettyTicket(params.get("ticket") || saved.ticket || "General Admission");
 			const price = Number(params.get("price") || saved.price || 0);
 			const qty = Number(saved.quantity || 1) || 1;
 			const apiBase = ((window.JodAuth && window.JodAuth.API_BASE) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || "http://127.0.0.1:8001").replace(/\/$/, "");
+			const DEFAULT_PAY_QR = "images/jod-upi-payment-qr.png";
 
 			const eventEl = document.getElementById("payEvent");
 			const venueRow = document.getElementById("venueRow");
@@ -366,6 +432,7 @@
 				venueRow.hidden = false;
 			}
 			if (eventId && backEl) backEl.href = "event-details.html?id=" + encodeURIComponent(eventId);
+			applyPaymentQr(saved.paymentQrUrl, ticket);
 
 			function getToken() {
 				let token = "";
@@ -447,8 +514,10 @@
 						venueEl.textContent = venue;
 						venueRow.hidden = false;
 					}
+					applyPaymentQr(ticketQrFromTypes(data.ticket_types, ticket) || saved.paymentQrUrl, ticket);
 				} catch (_) {
 					if (eventEl && !eventEl.textContent) eventEl.textContent = saved.eventTitle || "Event";
+					applyPaymentQr(saved.paymentQrUrl, ticket);
 				}
 			}
 

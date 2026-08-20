@@ -88,6 +88,7 @@
 			});
 			if (res.ok) {
 				const data = await res.json();
+				if (!data.qr_token) return { _error: "pending" };
 				saveLocalBookingCache(data);
 				return data;
 			}
@@ -104,6 +105,7 @@
 			signin: "Please sign in to view this ticket.",
 			forbidden: "This ticket belongs to another account.",
 			notfound: "This ticket could not be found.",
+			pending: "Your QR ticket is not ready yet. After JOD Events admin verifies your payment and clicks Generate QR, the unique ticket will appear here, in email, and on WhatsApp.",
 			unavailable: "This ticket is not available."
 		};
 		const area = document.getElementById("printableTicketArea");
@@ -214,8 +216,14 @@
 		const qrToken = data.qr_token || "";
 
 		if (bookingIdText) bookingIdText.textContent = `BOOKING ID: ${bookingIdDisplay}`;
-		if (qrImg && qrToken) {
-			qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrToken)}`;
+		if (qrImg) {
+			if (qrToken) {
+				qrImg.alt = "Unique entry QR code";
+				qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrToken)}`;
+			} else {
+				qrImg.removeAttribute("src");
+				qrImg.alt = "QR ticket not issued yet. Admin will generate it after payment verification.";
+			}
 		}
 
 		// Bill & Pricing Summary

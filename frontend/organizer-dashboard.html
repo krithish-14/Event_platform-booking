@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="en">
 	<head>
-			<script src="js/theme.js?v=4"></script>
+			<script src="js/theme.js?v=6"></script>
 <meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta name="description" content="Manage your event tickets, registrations, speakers, exhibitors, and sales stats on the JOD Events Organizer Dashboard." />
 		<title>Organizer Event Dashboard - JOD Events</title>
 		<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 		<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=21" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=25" />
 		<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -20,6 +20,10 @@
 		<!-- ── Top Dark Navigation Bar ─────────────────────────────────────────── -->
 		<header class="dash-topbar">
 			<div class="topbar-left">
+				<button type="button" class="header-back-btn header-back-btn--on-dark dash-mobile-back" data-header-back data-back-fallback="index.html" aria-label="Go back">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+					<span>Back</span>
+				</button>
 				<div class="brand-logo-icon">J</div>
 				<div class="event-title-wrap">
 					<h1 class="event-title" id="dashEventTitle">My Events Dashboard</h1>
@@ -467,6 +471,14 @@
 											</div>
 										</div>
 										<p class="ticket-offer-hint">Leave blank to keep this ticket on sale for the whole event. Set dates for a same-day or limited-time offer.</p>
+										<div class="ticket-qr-upload">
+											<label>Payment QR code</label>
+											<p class="ticket-offer-hint">Upload the UPI QR for this ticket. The payment form shows this QR when an attendee chooses this ticket.</p>
+											<div class="ticket-qr-row">
+												<input type="file" class="setup-input ticket-qr-input" accept="image/png,image/jpeg,image/jpg,image/webp" />
+												<img class="ticket-qr-preview" alt="Payment QR preview" hidden />
+											</div>
+										</div>
 									</div>
 								</div>
 
@@ -566,7 +578,7 @@
 										Open Form Studio &rarr;
 									</button>
 								</div>
-								<div id="manageWizardQuestionsPreview" style="display: flex; flex-direction: column; gap: 0.6rem; background: #ffffff; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+								<div id="manageWizardQuestionsPreview" class="builder-panel-card" style="display: flex; flex-direction: column; gap: 0.6rem; background: #ffffff; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
 									<!-- Quick preview of active questions -->
 								</div>
 							</div>
@@ -844,10 +856,24 @@
 
 
 							<!-- SECTION 3: HEADLINER ARTISTS & SPEAKERS -->
-							<div class="form-section-divider">
-								3. Headliner Artists &amp; Speakers
+							<div class="form-section-divider section-title-editor">
+								<span class="section-title-num">3.</span>
+								<select id="performersTitleSelect" class="setup-select section-title-select" aria-label="Lineup section title">
+									<option value="">Use category default</option>
+									<option value="Headliner Artists &amp; Speakers">Headliner Artists &amp; Speakers</option>
+									<option value="Artists &amp; Speakers">Artists &amp; Speakers</option>
+									<option value="Artists">Artists</option>
+									<option value="Speakers">Speakers</option>
+									<option value="Athletes &amp; Headliners">Athletes &amp; Headliners</option>
+									<option value="Hosts">Hosts</option>
+									<option value="Exhibitors &amp; Speakers">Exhibitors &amp; Speakers</option>
+									<option value="Keynote Speakers">Keynote Speakers</option>
+									<option value="Workshop Instructors">Workshop Instructors</option>
+									<option value="__other__">Other…</option>
+								</select>
 							</div>
-							<p style="margin:-0.35rem 0 0.9rem; font-size:0.78rem; color:#64748b;">Photo / headshot: JPG, JPEG, PNG, or WEBP. Maximum size 5MB.</p>
+							<input type="text" id="performersTitleCustom" class="setup-input section-title-custom" maxlength="80" placeholder="Type a custom title for this section" hidden />
+							<p class="ticket-offer-hint" style="margin:-0.15rem 0 0.9rem;">This title appears on the public event page. Choose a preset, or Other to type your own. Photo / headshot: JPG, JPEG, PNG, or WEBP. Maximum size 5MB.</p>
 
 							<div id="artistsContainer" style="margin-bottom: 2rem;">
 								<div id="artistsRows"></div>
@@ -924,7 +950,7 @@
 						<div id="subViewBuilder" style="display: block;">
 							
 							<!-- Action Toolbar -->
-							<div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.8rem 1.2rem; border-radius: 10px; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap;">
+							<div class="builder-toolbar" style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.8rem 1.2rem; border-radius: 10px; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap;">
 								<div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
 									<span id="formStatusBadge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; padding: 0.2rem 0.7rem; border-radius: 12px; font-size: 0.78rem; font-weight: 700;">Draft (Unpublished)</span>
 									<span id="formVersionBadge" style="font-size: 0.82rem; color: #64748b; font-weight: 600;">Version: 1</span>
@@ -954,7 +980,7 @@
 								<div style="display: flex; flex-direction: column; gap: 1.5rem;">
 
 									<!-- Form Header Card -->
-									<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem;">
+									<div class="builder-panel-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem;">
 										<h4 style="font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 0.8rem;">Form Header &amp; Intro</h4>
 										
 										<div class="setup-form-group" style="margin-bottom: 1rem;">
@@ -969,7 +995,7 @@
 									</div>
 
 									<!-- Theme Customizer Accordion Card -->
-									<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem;">
+									<div class="builder-panel-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem;">
 										<h4 style="font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 0.8rem;">Theme &amp; Page Background Customizer</h4>
 										
 										<!-- Grid Row 1: Primary Accent, Page Bg Color, Card Bg Color -->
@@ -1045,7 +1071,7 @@
 									</div>
 
 									<!-- Questions List Container Card -->
-									<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; margin-top: 1rem;">
+									<div class="builder-panel-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; margin-top: 1rem;">
 										<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.8rem;">
 											<h4 style="font-size: 1rem; font-weight: 700; color: #0f172a;">Form Questions (<span id="questionCountLabel">0</span>)</h4>
 											
@@ -1147,6 +1173,8 @@
 								<label for="submissionsStatusFilter" style="font-size:0.78rem; color:#475569; font-weight:700;">Status</label>
 								<select id="submissionsStatusFilter" class="setup-select" style="width: 100%; padding-left: 0.9rem;">
 									<option value="all">All Statuses</option>
+									<option value="paid">Paid</option>
+									<option value="payment_pending">Payment pending</option>
 									<option value="completed">Completed</option>
 									<option value="pending">Pending</option>
 									<option value="draft">Draft</option>
@@ -1154,11 +1182,11 @@
 							</div>
 							<div style="display: flex; flex-direction: column; gap: 0.45rem;">
 								<label for="submissionsFromDate" style="font-size:0.78rem; color:#475569; font-weight:700;">From Date</label>
-								<input type="date" id="submissionsFromDate" class="setup-input" style="padding-left: 0.9rem; width: 100%;" />
+								<input type="date" id="submissionsFromDate" class="setup-input" autocomplete="off" style="padding-left: 0.9rem; width: 100%;" />
 							</div>
 							<div style="display: flex; flex-direction: column; gap: 0.45rem;">
 								<label for="submissionsToDate" style="font-size:0.78rem; color:#475569; font-weight:700;">To Date</label>
-								<input type="date" id="submissionsToDate" class="setup-input" style="padding-left: 0.9rem; width: 100%;" />
+								<input type="date" id="submissionsToDate" class="setup-input" autocomplete="off" style="padding-left: 0.9rem; width: 100%;" />
 							</div>
 						</div>
 						<div style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -1174,13 +1202,15 @@
 							</div>
 
 							<!-- Submissions Table -->
-							<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-								<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+							<div class="builder-panel-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: auto;">
+								<table id="submissionsDataTable" style="width: 100%; min-width: 920px; border-collapse: collapse; font-size: 0.88rem;">
 									<thead>
-										<tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #475569; font-weight: 700;">
+										<tr id="submissionsTableHead" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; color: #475569; font-weight: 700;">
 											<th style="padding: 0.85rem 1.2rem;">ID</th>
-											<th style="padding: 0.85rem 1.2rem;">Attendee Email</th>
-											<th style="padding: 0.85rem 1.2rem;">Submission Time</th>
+											<th style="padding: 0.85rem 1.2rem;">Name</th>
+											<th style="padding: 0.85rem 1.2rem;">Email</th>
+											<th style="padding: 0.85rem 1.2rem;">Ticket</th>
+											<th style="padding: 0.85rem 1.2rem;">Submitted</th>
 											<th style="padding: 0.85rem 1.2rem;">Status</th>
 											<th style="padding: 0.85rem 1.2rem; text-align: right;">Action</th>
 										</tr>
@@ -1930,12 +1960,12 @@
 			</div>
 		</div>
 
-		<script src="js/include.js?v=16"></script>
+		<script src="js/include.js?v=18"></script>
 		<script src="js/auth.js?v=24"></script>
-		<script src="js/profile.js?v=6"></script>
-		<script src="js/script.js?v=25"></script>
-		<script src="js/form-builder.js?v=20260816_v6"></script>
-		<script src="js/organizer-dashboard.js?v=20260819_v32"></script>
+		<script src="js/profile.js?v=8"></script>
+		<script src="js/script.js?v=26"></script>
+		<script src="js/form-builder.js?v=20260820_v9"></script>
+		<script src="js/organizer-dashboard.js?v=20260819_v35"></script>
 	</body>
 </html>
 

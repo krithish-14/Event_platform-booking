@@ -15,15 +15,21 @@
 </div>
 <header class="site-header" data-header>
 	<div class="container nav-inner">
-		<a class="brand" href="index.html" aria-label="JOD Events home">
-			<img src="images/JOD Events Logo.png" alt="JOD Events" />
-		</a>
+		<div class="header-leading">
+			<a class="brand" href="index.html" aria-label="JOD Events home">
+				<img src="images/JOD Events Logo.png" alt="JOD Events" />
+			</a>
+			<button type="button" class="header-back-btn" data-header-back aria-label="Go back">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+				<span>Back</span>
+			</button>
+		</div>
 		<div class="header-search" role="search">
 			<svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
 				<path
 					d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
 			</svg>
-			<input type="text" id="headerSearchInput" placeholder="Search events, categories, venues…" aria-label="Search events" autocomplete="off" />
+			<input type="text" id="headerSearchInput" placeholder="Search events…" aria-label="Search events" autocomplete="off" />
 			<button type="button" class="search-clear" id="headerSearchClear" aria-label="Clear search">&times;</button>
 		</div>
 		<nav class="desktop-nav" aria-label="Primary navigation">
@@ -43,14 +49,7 @@
 			<span></span><span></span>
 		</button>
 	</div>
-	<nav class="mobile-nav" aria-label="Mobile navigation" data-mobile-nav>
-		<div class="mobile-header-search" role="search">
-			<svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
-				<path
-					d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-			</svg>
-			<input type="text" placeholder="Search events, categories…" aria-label="Search events" />
-		</div>
+		<nav class="mobile-nav" aria-label="Mobile navigation" data-mobile-nav>
 		<a href="index.html">Home</a>
 		<a href="about.html">About</a>
 		<a href="category.html">Category</a>

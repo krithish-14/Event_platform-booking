@@ -3,6 +3,7 @@ FastAPI Router for Dynamic Registration Form Builder & Attendee Submissions.
 """
 import io
 import csv
+import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -315,8 +316,16 @@ def submit_attendee_response(
 	customer_id = getattr(current_user, "customer_id", None) if current_user else None
 	form_id = payload.form_id or 1
 	answers = dict(payload.answers_json or {})
-	ticket_type = payload.ticket_type
+	ticket_type = (payload.ticket_type or "").strip() or None
 	ticket_price = payload.ticket_price
+	if not ticket_type:
+		ticket_type = str(
+			answers.get("_ticket_type")
+			or answers.get("ticket_type")
+			or answers.get("Ticket Type")
+			or answers.get("Ticket")
+			or ""
+		).strip() or None
 	if ticket_type:
 		answers["_ticket_type"] = ticket_type
 	if ticket_price is not None:
@@ -392,43 +401,405 @@ def submit_attendee_response(
 	}
 
 
+INTERNAL_ANSWER_KEYS = {
+	"_ticket_type",
+	"_ticket_price",
+	"ticket_type",
+	"ticket_price",
+}
+
+
+def _pretty_answer(value: Any) -> str:
+	if value is None:
+		return ""
+	if isinstance(value, list):
+		return ", ".join(str(item).strip() for item in value if str(item).strip())
+	if isinstance(value, dict):
+		return ", ".join(f"{k}: {v}" for k, v in value.items() if str(v).strip())
+	return str(value).strip()
+
+
+def _answers_dict(row: FormSubmission) -> dict:
+	raw = row.answers_json
+	if isinstance(raw, str):
+		try:
+			import json
+			raw = json.loads(raw)
+		except Exception:
+			raw = {}
+	return raw if isinstance(raw, dict) else {}
+
+
+def _pick_answer(answers: dict, *needles: str) -> str:
+	for key, val in answers.items():
+		label = re.sub(r"\s+", " ", str(key or "")).strip().lower()
+		if any(n in label for n in needles):
+			text = _pretty_answer(val)
+			if text:
+				return text
+	return ""
+
+
+GENERIC_TICKET_LABELS = {
+	"general admission",
+	"general pass",
+	"general",
+	"ga",
+	"standard access",
+	"standard access pass",
+	"standard",
+	"access pass",
+	"ticket",
+}
+
+
+def _is_generic_ticket(value: str) -> bool:
+	label = re.sub(r"\s+", " ", str(value or "")).strip().lower()
+	return (not label) or label in GENERIC_TICKET_LABELS
+
+
+def _ticket_candidates_from_answers(answers: dict) -> List[str]:
+	found: List[str] = []
+	seen = set()
+
+	def add(raw: Any) -> None:
+		text = _pretty_answer(raw)
+		if not text:
+			return
+		key = text.lower()
+		if key in seen:
+			return
+		seen.add(key)
+		found.append(text)
+
+	for key in ("_ticket_type", "ticket_type", "Ticket Type", "Ticket", "Pass Type", "Pass"):
+		direct = answers.get(key)
+		if direct is not None:
+			add(direct)
+			continue
+		match = next((k for k in answers.keys() if str(k).strip().lower() == key.lower()), None)
+		if match:
+			add(answers.get(match))
+
+	for key, val in answers.items():
+		label = re.sub(r"\s+", " ", str(key or "")).strip().lower()
+		if any(skip in label for skip in ("price", "qty", "quantity", "amount", "passport", "password")):
+			continue
+		if "ticket" in label or re.search(r"\bpass(es)?\b", label):
+			add(val)
+	return found
+
+
+def _lookup_related_ticket_data(db: Session, row: FormSubmission) -> tuple:
+	found: List[str] = []
+	prices: List[float] = []
+	try:
+		from APIs.bookings import _same_event_id
+		from Models.booking import Booking
+		from Models.payment_proof import PaymentProof
+		from Models.ticket import Ticket
+	except Exception:
+		return found, prices
+
+	def add_price(raw: Any) -> None:
+		try:
+			if raw is None or str(raw).strip() == "":
+				return
+			prices.append(float(raw))
+		except (TypeError, ValueError):
+			pass
+
+	email = (row.user_email or "").lower().strip()
+	customer_id = str(row.customer_id or "").strip()
+	event_id = row.event_id
+
+	if row.booking_id:
+		try:
+			booking = db.query(Booking).filter(Booking.booking_id == row.booking_id).first()
+		except Exception:
+			booking = None
+		if booking:
+			found.append(booking.ticket_type)
+			add_price(booking.total_price)
+			try:
+				for ticket in db.query(Ticket).filter(Ticket.booking_id == booking.booking_id).all():
+					found.append(ticket.ticket_type)
+			except Exception:
+				pass
+
+	if email:
+		try:
+			proofs = (
+				db.query(PaymentProof)
+				.filter(func.lower(PaymentProof.attendee_email) == email)
+				.order_by(PaymentProof.created_at.desc())
+				.all()
+			)
+			for proof in proofs:
+				if event_id and proof.event_id and not _same_event_id(proof.event_id, event_id):
+					continue
+				found.append(proof.ticket_type)
+				add_price(proof.amount)
+		except Exception:
+			pass
+
+		try:
+			owner_filters = [func.lower(Booking.receiver_email) == email]
+			if customer_id:
+				owner_filters.append(Booking.customer_id == customer_id)
+			bookings = (
+				db.query(Booking)
+				.filter(or_(*owner_filters))
+				.order_by(Booking.booked_at.desc())
+				.all()
+			)
+			for booking in bookings:
+				if event_id and booking.event_id and not _same_event_id(booking.event_id, event_id):
+					continue
+				found.append(booking.ticket_type)
+				add_price(booking.total_price)
+				try:
+					for ticket in db.query(Ticket).filter(Ticket.booking_id == booking.booking_id).all():
+						found.append(ticket.ticket_type)
+				except Exception:
+					pass
+		except Exception:
+			pass
+	return found, prices
+
+
+def _ticket_names_by_unique_price(event) -> dict:
+	raw = getattr(event, "tickets_json", None) if event is not None else None
+	if isinstance(raw, str):
+		try:
+			import json
+			raw = json.loads(raw)
+		except Exception:
+			raw = []
+	if not isinstance(raw, list):
+		return {}
+	grouped = {}
+	for item in raw:
+		if not isinstance(item, dict):
+			continue
+		name = str(item.get("name") or item.get("ticket_name") or item.get("type") or "").strip()
+		if not name or _is_generic_ticket(name):
+			continue
+		try:
+			price = float(item.get("price") or item.get("ticket_price") or 0)
+		except (TypeError, ValueError):
+			continue
+		key = round(price, 2)
+		grouped.setdefault(key, set()).add(name)
+	return {price: next(iter(names)) for price, names in grouped.items() if len(names) == 1}
+
+
+def _pick_best_ticket(candidates: List[Any]) -> str:
+	cleaned = [str(item or "").strip() for item in candidates if str(item or "").strip()]
+	for item in cleaned:
+		if not _is_generic_ticket(item):
+			return item
+	return cleaned[0] if cleaned else ""
+
+
+def _submission_ticket(
+	db: Optional[Session],
+	row: FormSubmission,
+	answers: dict,
+	cache: Optional[dict] = None,
+	event=None,
+) -> str:
+	candidates = _ticket_candidates_from_answers(answers)
+	if row.ticket_type:
+		candidates.append(row.ticket_type)
+	related_prices: List[float] = []
+	if db is not None:
+		cache = cache if cache is not None else {}
+		key = (
+			(row.user_email or "").lower().strip(),
+			str(row.event_id or ""),
+			str(row.booking_id or ""),
+			str(row.id or ""),
+		)
+		if key not in cache:
+			cache[key] = _lookup_related_ticket_data(db, row)
+		related_names, related_prices = cache[key]
+		candidates.extend(related_names)
+	best = _pick_best_ticket(candidates)
+	if best and not _is_generic_ticket(best):
+		return best
+
+	price_map = _ticket_names_by_unique_price(event)
+	if price_map:
+		price_candidates = []
+		if row.ticket_price is not None:
+			price_candidates.append(row.ticket_price)
+		ans_price = answers.get("_ticket_price") or answers.get("ticket_price")
+		if ans_price is not None:
+			price_candidates.append(ans_price)
+		price_candidates.extend(related_prices)
+		for raw in price_candidates:
+			try:
+				mapped = price_map.get(round(float(raw), 2))
+			except (TypeError, ValueError):
+				mapped = None
+			if mapped:
+				return mapped
+	return best
+
+
+def _question_columns(db: Session, event, submissions: list) -> List[str]:
+	titles: List[str] = []
+	seen = set()
+
+	def add_title(raw: Any) -> None:
+		title = str(raw or "").strip()
+		if not title or title.startswith("_"):
+			return
+		key = title.lower()
+		if key in seen or key in INTERNAL_ANSWER_KEYS:
+			return
+		seen.add(key)
+		titles.append(title)
+
+	if event is not None:
+		try:
+			reg_form = (
+				db.query(EventRegistrationForm)
+				.filter(EventRegistrationForm.event_id == event.event_id)
+				.first()
+			)
+		except Exception:
+			reg_form = None
+		questions = []
+		if reg_form:
+			if isinstance(reg_form.questions_json, list):
+				questions = reg_form.questions_json
+			elif isinstance(reg_form.form_json, dict):
+				questions = reg_form.form_json.get("questions") or []
+			elif isinstance(reg_form.form_json, list):
+				questions = reg_form.form_json
+		for item in questions:
+			if isinstance(item, dict):
+				add_title(item.get("title") or item.get("label") or item.get("name") or item.get("id"))
+			elif item:
+				add_title(item)
+
+		organizer_email = (getattr(event, "organizer_email", None) or "").lower().strip()
+		if organizer_email:
+			form_def = (
+				db.query(FormDefinition)
+				.filter(func.lower(FormDefinition.organizer_email) == organizer_email)
+				.order_by(FormDefinition.id.desc())
+				.first()
+			)
+			schema = form_def.schema_json if form_def else None
+			if isinstance(schema, list):
+				for item in schema:
+					if isinstance(item, dict):
+						add_title(item.get("title") or item.get("label") or item.get("id"))
+
+	for row in submissions:
+		answers = _answers_dict(row)
+		for key in answers.keys():
+			add_title(key)
+	return titles
+
+
+def _extend_columns_from_items(columns: List[str], items: list) -> List[str]:
+	seen = {str(col).strip().lower() for col in columns}
+	extra: List[str] = []
+	for item in items:
+		for key in (item.get("answer_values") or {}):
+			title = str(key or "").strip()
+			if not title or title.lower() in seen:
+				continue
+			seen.add(title.lower())
+			extra.append(title)
+	return list(columns) + extra
+
+
+def _serialize_submission(
+	row: FormSubmission,
+	columns: List[str],
+	db: Optional[Session] = None,
+	ticket_cache: Optional[dict] = None,
+	event=None,
+) -> dict:
+	answers = _answers_dict(row)
+	answer_values = {}
+	for title in columns:
+		direct = answers.get(title)
+		if direct is None:
+			match_key = next(
+				(k for k in answers.keys() if str(k).strip().lower() == title.strip().lower()),
+				None,
+			)
+			direct = answers.get(match_key) if match_key else ""
+		answer_values[title] = _pretty_answer(direct)
+	for key, val in answers.items():
+		title = str(key or "").strip()
+		if not title or title.startswith("_") or title.lower() in INTERNAL_ANSWER_KEYS:
+			continue
+		if not any(title.lower() == col.lower() for col in columns):
+			answer_values[title] = _pretty_answer(val)
+	submitted = row.submission_time
+	ticket_type = _submission_ticket(db, row, answers, ticket_cache, event)
+	return {
+		"id": row.id,
+		"user_email": row.user_email or "",
+		"attendee_name": _pick_answer(answers, "full name", "attendee name", "your name") or "",
+		"phone": _pick_answer(answers, "phone", "mobile", "whatsapp"),
+		"ticket_type": ticket_type or row.ticket_type or "",
+		"submitted_at": submitted.strftime("%b %d, %Y %I:%M %p") if submitted else "",
+		"submitted_at_iso": submitted.isoformat() if submitted else "",
+		"status": row.status or "submitted",
+		"answers": {k: v for k, v in answers.items() if not str(k).startswith("_")},
+		"answer_values": answer_values,
+	}
+
+
+def _host_event_for_submissions(db: Session, email: str, event_id: Optional[str], current_user):
+	from APIs.host_events_api import resolve_or_create_event
+
+	event, _, _ = resolve_or_create_event(
+		db, email, event_id, current_user, create_if_missing=False
+	)
+	return event
+
+
 @router.get("/submissions")
 def get_form_submissions(
 	email: Optional[str] = Query(None, description="Organizer email address"),
+	event_id: Optional[str] = Query(None),
 	db: Session = Depends(get_db),
 	current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-	"""Fetch submissions table and analytics metrics for organizer."""
+	"""Fetch completed registration forms for the organizer's current event."""
 	if not current_user:
 		raise HTTPException(status_code=401, detail="Authentication required.")
-	email_clean = current_user.email.lower().strip()
+	email_clean = (email or current_user.email or "").lower().strip()
+	event = _host_event_for_submissions(db, email_clean, event_id, current_user)
+	from APIs.host_events_api import _form_submissions_for_event
 
-	form = db.query(FormDefinition).filter(
-		FormDefinition.organizer_email == email_clean
-	).order_by(FormDefinition.id.desc()).first()
-
-	form_id = form.id if form else 1
-
-	submissions = db.query(FormSubmission).filter(
-		FormSubmission.form_id == form_id
-	).order_by(FormSubmission.submission_time.desc()).all()
-
-	items = []
-	for s in submissions:
-		items.append({
-			"id": s.id,
-			"user_email": s.user_email,
-			"submitted_at": s.submission_time.strftime("%b %d, %Y %I:%M %p"),
-			"status": s.status,
-			"answers": s.answers_json
-		})
-
+	submissions = _form_submissions_for_event(db, event) if event else []
+	submissions = sorted(
+		submissions,
+		key=lambda row: row.submission_time or datetime.min,
+		reverse=True,
+	)
+	columns = _question_columns(db, event, submissions)
+	ticket_cache = {}
+	items = [_serialize_submission(row, columns, db, ticket_cache, event) for row in submissions]
+	columns = _extend_columns_from_items(columns, items)
 	total_count = len(items)
+	paid_count = sum(1 for item in items if str(item.get("status") or "").lower() in ("paid", "completed", "confirmed"))
 
 	return {
+		"columns": columns,
 		"analytics": {
 			"total_registrations": total_count,
-			"completion_rate": "100%" if total_count else "0%",
+			"completion_rate": f"{round((paid_count / total_count) * 100)}%" if total_count else "0%",
 			"abandonment_rate": "0%",
 			"avg_completion_time": "—"
 		},
@@ -439,38 +810,54 @@ def get_form_submissions(
 @router.get("/export-csv")
 def export_submissions_csv(
 	email: Optional[str] = Query(None, description="Organizer email address"),
+	event_id: Optional[str] = Query(None),
 	db: Session = Depends(get_db),
-	current_user: User = Depends(get_current_user_optional),
+	current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-	"""Export form submissions as downloadable CSV file."""
+	"""Export one registration per row, with form questions as readable columns."""
 	if not current_user:
 		raise HTTPException(status_code=401, detail="Authentication required.")
-	email_clean = current_user.email.lower().strip()
-	form = db.query(FormDefinition).filter(
-		FormDefinition.organizer_email == email_clean
-	).order_by(FormDefinition.id.desc()).first()
+	email_clean = (email or current_user.email or "").lower().strip()
+	event = _host_event_for_submissions(db, email_clean, event_id, current_user)
+	from APIs.host_events_api import _form_submissions_for_event
 
-	form_id = form.id if form else 1
-
-	submissions = db.query(FormSubmission).filter(
-		FormSubmission.form_id == form_id
-	).order_by(FormSubmission.submission_time.desc()).all()
+	submissions = _form_submissions_for_event(db, event) if event else []
+	submissions = sorted(
+		submissions,
+		key=lambda row: row.submission_time or datetime.min,
+		reverse=True,
+	)
+	columns = _question_columns(db, event, submissions)
+	ticket_cache = {}
+	items = [_serialize_submission(row, columns, db, ticket_cache, event) for row in submissions]
+	columns = _extend_columns_from_items(columns, items)
 
 	output = io.StringIO()
 	writer = csv.writer(output)
+	header = [
+		"Submission ID",
+		"Submitted At",
+		"Status",
+		"Attendee Name",
+		"Attendee Email",
+		"Phone",
+		"Ticket Type",
+	] + columns
+	writer.writerow(header)
+	for item in items:
+		writer.writerow([
+			item["id"],
+			item["submitted_at"],
+			item["status"],
+			item["attendee_name"],
+			item["user_email"],
+			item["phone"],
+			item["ticket_type"],
+		] + [item["answer_values"].get(col, "") for col in columns])
 
-	# CSV Header
-	writer.writerow(["Submission ID", "Attendee Email", "Submitted At", "Status", "Form Answers JSON"])
-
-	if submissions:
-		for s in submissions:
-			writer.writerow([s.id, s.user_email, s.submission_time.isoformat(), s.status, str(s.answers_json)])
-
-	csv_content = output.getvalue()
 	filename = f"event_registrations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-
 	return Response(
-		content=csv_content,
-		media_type="text/csv",
-		headers={"Content-Disposition": f"attachment; filename={filename}"}
+		content="\ufeff" + output.getvalue(),
+		media_type="text/csv; charset=utf-8",
+		headers={"Content-Disposition": f'attachment; filename="{filename}"'}
 	)

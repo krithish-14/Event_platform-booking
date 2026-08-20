@@ -6,6 +6,7 @@ API endpoints for Host Event Creation Workflow — Live Auto-Save & UPSERT for:
 """
 
 import os
+import re
 import uuid
 import uuid as uuid_mod
 from datetime import datetime, date, timedelta, timezone
@@ -1186,6 +1187,7 @@ class SaveEventDesignRequest(BaseModel):
     sponsor_details: Optional[List[Dict[str, Any]]] = None
     social_links: Optional[Dict[str, Any]] = None
     custom_sections: Optional[List[Dict[str, Any]]] = None
+    performers_title: Optional[str] = None
 
 
 class SaveRegistrationFormRequest(BaseModel):
@@ -1570,6 +1572,9 @@ def save_event_design(
     if payload.sponsor_details is not None: design.sponsor_details = payload.sponsor_details
     if payload.social_links is not None: design.social_links = payload.social_links
     if payload.custom_sections is not None: design.custom_sections = payload.custom_sections
+    if payload.performers_title is not None:
+        cleaned_title = str(payload.performers_title).strip()
+        design.performers_title = cleaned_title or None
     design.updated_at = datetime.utcnow()
 
     db.commit()
@@ -1596,6 +1601,7 @@ def save_event_design(
             "speaker_details": design.speaker_details,
             "sponsor_details": design.sponsor_details,
             "gallery_images": design.gallery_images,
+            "performers_title": design.performers_title,
             "updated_at": design.updated_at.isoformat() if design.updated_at else None
         }
     }
@@ -1615,7 +1621,7 @@ async def upload_design_asset(
     if current_user and current_user.email.lower() != email_clean:
         raise HTTPException(status_code=403, detail="You can only upload assets for your own account.")
 
-    allowed_types = {"banner", "card_image", "sponsor_logo", "artist_photo", "gallery", "logo"}
+    allowed_types = {"banner", "card_image", "sponsor_logo", "artist_photo", "gallery", "logo", "payment_qr"}
     if asset_type not in allowed_types:
         raise HTTPException(status_code=400, detail=f"Invalid asset_type. Allowed: {', '.join(sorted(allowed_types))}")
 
@@ -1794,6 +1800,7 @@ def get_current_host_event(
             "speaker_details": design.speaker_details if design else [],
             "sponsor_details": design.sponsor_details if design else [],
             "gallery_images": design.gallery_images if design else [],
+            "performers_title": design.performers_title if design else None,
         } if design else None,
         "registration_form": {
             "form_id": str(reg_form.form_id) if reg_form else None,
@@ -2296,23 +2303,32 @@ def get_event_attendance(
 
 
 # ── Communication Endpoints ────────────────────────────────────────────────
+def _norm_ticket_key(label: Optional[str]) -> str:
+    text = re.sub(r"[+/_]+", " ", str(label or ""))
+    text = re.sub(r"\s+", " ", text).strip().lower()
+    text = text.replace("women's", "women").replace("womens", "women")
+    return text
+
+
+def _add_ticket_count(counts: Dict[str, Dict[str, Any]], label: Optional[str], qty: int = 1) -> None:
+    display = str(label or "").strip() or "General Admission"
+    key = _norm_ticket_key(display) or "general admission"
+    qty = max(1, int(qty or 1))
+    if key not in counts:
+        counts[key] = {"label": display, "count": 0, "key": key}
+    counts[key]["count"] += qty
+
+
 def _ticket_holder_counts(db: Session, event_mgt: EventManagement) -> Tuple[Dict[str, Dict[str, Any]], int]:
-    """Group sold ticket holders by ticket type — active tickets/bookings only."""
+    """Group holders by ticket type, including expired timed offers that already sold."""
+    counts: Dict[str, Dict[str, Any]] = {}
     tickets = _tickets_for_event(db, event_mgt)
     active_tickets = [
         t for t in tickets
         if (t.ticket_status or "").upper() not in _CANCELLED_STATUSES
     ]
-    counts: Dict[str, Dict[str, Any]] = {}
     for ticket in active_tickets:
-        label = (ticket.ticket_type or "Standard Access").strip() or "Standard Access"
-        key = label.lower()
-        if key not in counts:
-            counts[key] = {"label": label, "count": 0}
-        counts[key]["count"] += 1
-
-    if active_tickets:
-        return counts, len(active_tickets)
+        _add_ticket_count(counts, ticket.ticket_type, 1)
 
     from Models.booking import Booking
 
@@ -2331,14 +2347,31 @@ def _ticket_holder_counts(db: Session, event_mgt: EventManagement) -> Tuple[Dict
             b for b in booking_rows
             if (b.status or "").upper() not in _CANCELLED_STATUSES
         ]
-    for booking in active_bookings:
-        label = (booking.ticket_type or "Standard Access").strip() or "Standard Access"
-        key = label.lower()
-        qty = max(1, int(booking.quantity or 1))
-        if key not in counts:
-            counts[key] = {"label": label, "count": 0}
-        counts[key]["count"] += qty
-    total = sum(max(1, int(b.quantity or 1)) for b in active_bookings)
+    if not active_tickets:
+        for booking in active_bookings:
+            _add_ticket_count(counts, booking.ticket_type, booking.quantity or 1)
+
+    if not counts:
+        try:
+            submissions = _form_submissions_for_event(db, event_mgt)
+        except Exception:
+            db.rollback()
+            submissions = []
+        for row in submissions:
+            answers = row.answers_json if isinstance(row.answers_json, dict) else {}
+            label = (
+                row.ticket_type
+                or answers.get("_ticket_type")
+                or answers.get("ticket_type")
+                or "General Admission"
+            )
+            _add_ticket_count(counts, label, 1)
+
+    total = sum(int(info.get("count") or 0) for info in counts.values())
+    if not total and active_tickets:
+        total = len(active_tickets)
+    if not total and active_bookings:
+        total = sum(max(1, int(b.quantity or 1)) for b in active_bookings)
     return counts, total
 
 
@@ -2346,89 +2379,65 @@ def _count_for_ticket_label(counts: Dict[str, Dict[str, Any]], *labels: Optional
     for label in labels:
         if not label:
             continue
-        entry = counts.get(label.strip().lower())
+        entry = counts.get(_norm_ticket_key(label))
         if entry:
             return int(entry.get("count") or 0)
     return 0
 
 
 def _communication_audience_options(db: Session, event_mgt: EventManagement) -> List[Dict[str, Any]]:
-    """Build communicate-tab audience choices from configured ticket tiers and live sales."""
+    """Audience list from people who already hold tickets, even if that offer later expired."""
     import json
 
     counts, total_sold = _ticket_holder_counts(db, event_mgt)
     catalog: List[Dict[str, Any]] = []
-    seen_values = set()
+    seen_keys = set()
 
-    reg_tickets = (
-        db.query(EventRegistrationTicket)
-        .filter(
-            EventRegistrationTicket.event_id == event_mgt.event_id,
-            EventRegistrationTicket.deleted_at.is_(None),
-        )
-        .order_by(EventRegistrationTicket.created_at.asc())
-        .all()
-    )
-    for ticket in reg_tickets:
-        label = (ticket.ticket_name or ticket.ticket_type or "Ticket").strip()
-        value = f"ticket:{ticket.id}"
-        if value in seen_values:
-            continue
-        seen_values.add(value)
-        holder_count = _count_for_ticket_label(counts, ticket.ticket_name, ticket.ticket_type, label)
+    def append_option(label: str, count: int) -> None:
+        key = _norm_ticket_key(label)
+        if not key or key in seen_keys:
+            if key in seen_keys and count:
+                for opt in catalog:
+                    if opt.get("key") == key:
+                        opt["count"] = max(int(opt.get("count") or 0), int(count or 0))
+                        break
+            return
+        seen_keys.add(key)
+        slug = re.sub(r"[^a-z0-9]+", "_", key).strip("_") or "ticket"
         catalog.append({
-            "value": value,
+            "value": f"ticket_type:{slug}",
             "label": label,
-            "count": holder_count,
-            "ticket_id": str(ticket.id),
-            "ticket_type": ticket.ticket_type or label,
+            "count": int(count or 0),
+            "ticket_type": label,
+            "key": key,
         })
 
-    if not catalog:
-        raw_tickets = event_mgt.tickets_json
-        if isinstance(raw_tickets, str):
-            try:
-                raw_tickets = json.loads(raw_tickets)
-            except Exception:
-                raw_tickets = []
-        if isinstance(raw_tickets, list):
-            for idx, item in enumerate(raw_tickets):
-                if not isinstance(item, dict):
-                    continue
-                label = (item.get("name") or item.get("ticket_name") or item.get("type") or "").strip()
-                if not label:
-                    continue
-                value = f"ticket_type:{label.lower().replace(' ', '_')}"
-                if value in seen_values:
-                    continue
-                seen_values.add(value)
-                catalog.append({
-                    "value": value,
-                    "label": label,
-                    "count": _count_for_ticket_label(counts, label),
-                    "ticket_type": label,
-                })
-
-    if not catalog:
-        for key, info in counts.items():
-            value = f"ticket_type:{key.replace(' ', '_')}"
-            if value in seen_values:
+    raw_tickets = event_mgt.tickets_json
+    if isinstance(raw_tickets, str):
+        try:
+            raw_tickets = json.loads(raw_tickets)
+        except Exception:
+            raw_tickets = []
+    if isinstance(raw_tickets, list):
+        for item in raw_tickets:
+            if not isinstance(item, dict):
                 continue
-            seen_values.add(value)
-            catalog.append({
-                "value": value,
-                "label": info["label"],
-                "count": int(info.get("count") or 0),
-                "ticket_type": info["label"],
-            })
+            label = (item.get("name") or item.get("ticket_name") or item.get("type") or "").strip()
+            if not label:
+                continue
+            append_option(label, _count_for_ticket_label(counts, label))
 
+    for info in counts.values():
+        append_option(info.get("label") or "Ticket", int(info.get("count") or 0))
+
+    catalog.sort(key=lambda opt: (-int(opt.get("count") or 0), str(opt.get("label") or "").lower()))
     total = total_sold if total_sold else sum(int(opt.get("count") or 0) for opt in catalog)
     options = [{
         "value": "all_tickets",
         "label": "All Ticket Holders",
         "count": total,
     }]
-    options.extend(catalog)
+    options.extend([{k: v for k, v in opt.items() if k != "key"} for opt in catalog])
     return options
 
 

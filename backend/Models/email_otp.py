@@ -17,7 +17,8 @@ class EmailOTP(Base):
     otp_code    = Column(String(6), nullable=False)
     expires_at  = Column(DateTime, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=True)
+    purpose     = Column(String(50), default="organizer", nullable=True)
     created_at  = Column(DateTime, default=datetime.utcnow, nullable=True)
 
     def __repr__(self):
-        return f"<EmailOTP(id={self.id}, email={self.email})>"
+        return f"<EmailOTP(id={self.id}, email={self.email}, purpose={self.purpose})>"

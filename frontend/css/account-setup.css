@@ -331,10 +331,44 @@
 
 /* Responsive queries */
 @media (max-width: 768px) {
-	.setup-grid-2, .setup-grid-3 {
+	.setup-wrapper {
+		padding: 5.75rem 0.85rem 2.5rem;
+	}
+
+	.setup-header-container h1 {
+		font-size: 1.55rem;
+	}
+
+	.setup-wizard-steps {
+		gap: 0.45rem;
+		font-size: 0.72rem;
+	}
+
+	.wizard-step {
+		padding: 0.55rem 0.25rem;
+		font-size: 0.72rem;
+	}
+
+	.setup-card-container {
+		border-radius: 12px;
+	}
+
+	.setup-grid-2 {
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
+	}
+
+	.setup-grid-3 {
 		grid-template-columns: 1fr;
 	}
-	.setup-wizard-steps {
-		font-size: 0.8rem;
+}
+
+@media (max-width: 520px) {
+	.setup-grid-2 {
+		grid-template-columns: 1fr;
+	}
+
+	.wizard-step {
+		text-align: center;
 	}
 }

@@ -5,7 +5,7 @@ Authentication routes — register and login.
 import os
 import re
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
@@ -16,11 +16,13 @@ import httpx
 
 from Models.base import get_db
 from Models.user import User
+from Models.email_otp import EmailOTP
 from Services.auth_service import (
     get_password_hash,
     verify_password,
     create_access_token,
 )
+from Services.email import send_email
 from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES
 from Authentication.dependencies import get_current_user
 import random
@@ -553,9 +555,27 @@ def logout():
     return {"message": "Logged out successfully."}
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyResetOtpRequest(BaseModel):
+    email: EmailStr
+    otp_code: str
+
+
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
+    otp_code: str
     new_password: str
+
+    @field_validator("otp_code")
+    @classmethod
+    def validate_otp(cls, v: str) -> str:
+        code = (v or "").strip()
+        if not re.fullmatch(r"\d{6}", code):
+            raise ValueError("Enter the 6-digit verification code sent to your email.")
+        return code
 
     @field_validator("new_password")
     @classmethod
@@ -571,15 +591,124 @@ class ResetPasswordRequest(BaseModel):
         return v
 
 
-@router.post("/reset-password")
-def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """Reset user password across active DB and secondary SQLite DB."""
+def _password_reset_otp(db: Session, email: str, code: str, verified_only: bool = False):
+    query = db.query(EmailOTP).filter(
+        EmailOTP.email == email,
+        EmailOTP.otp_code == code.strip(),
+        EmailOTP.purpose == "password_reset",
+    )
+    if verified_only:
+        query = query.filter(EmailOTP.is_verified == True)
+    else:
+        query = query.filter(EmailOTP.is_verified == False)
+    return query.order_by(EmailOTP.created_at.desc()).first()
+
+
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Send a 6-digit OTP to the registered email so the user can reset their password."""
     email_clean = payload.email.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this email address.")
 
+    otp_code = f"{random.randint(100000, 999999)}"
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    db.query(EmailOTP).filter(
+        EmailOTP.email == email_clean,
+        EmailOTP.purpose == "password_reset",
+    ).delete(synchronize_session=False)
+
+    otp_record = EmailOTP(
+        email=email_clean,
+        otp_code=otp_code,
+        expires_at=expires_at,
+        is_verified=False,
+        purpose="password_reset",
+    )
+    db.add(otp_record)
+    db.commit()
+
+    subject = "Your JOD Events password reset code"
+    text_body = (
+        f"Your JOD Events password reset code is {otp_code}. "
+        "It expires in 10 minutes. If you did not request this, you can ignore this email."
+    )
+    html_body = (
+        f"<p>Your JOD Events password reset code is <strong>{otp_code}</strong>.</p>"
+        "<p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>"
+    )
+    emailed = send_email(email_clean, subject, text_body, html_body)
+    print(f"  [PASSWORD RESET] OTP generated for {email_clean} smtp={emailed}", flush=True)
+
+    result = {
+        "message": f"6-digit verification code sent to {email_clean}.",
+        "email": email_clean,
+        "email_delivered": emailed,
+    }
+    if not emailed:
+        result["dev_otp"] = otp_code
+        result["message"] = (
+            f"6-digit verification code generated for {email_clean}. "
+            "Email delivery is not configured on this server, so use the on-screen code."
+        )
+    return result
+
+
+@router.post("/verify-reset-otp")
+def verify_reset_otp(payload: VerifyResetOtpRequest, db: Session = Depends(get_db)):
+    """Confirm the password-reset OTP before showing the new-password fields."""
+    email_clean = payload.email.strip().lower()
+    code = (payload.otp_code or "").strip()
+    if not re.fullmatch(r"\d{6}", code):
+        raise HTTPException(status_code=400, detail="Enter the 6-digit verification code sent to your email.")
+
+    otp_record = _password_reset_otp(db, email_clean, code, verified_only=False)
+    if not otp_record:
+        verified = _password_reset_otp(db, email_clean, code, verified_only=True)
+        if verified:
+            if datetime.utcnow() > verified.expires_at:
+                raise HTTPException(status_code=400, detail="OTP code has expired. Please request a new verification code.")
+            return {"message": "Email verified. You can now set a new password.", "email": email_clean}
+        raise HTTPException(status_code=400, detail="Invalid OTP verification code. Please check and try again.")
+
+    if datetime.utcnow() > otp_record.expires_at:
+        raise HTTPException(status_code=400, detail="OTP code has expired. Please request a new verification code.")
+
+    otp_record.is_verified = True
+    db.commit()
+    return {"message": "Email verified. You can now set a new password.", "email": email_clean}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset user password after a verified OTP, across active DB and secondary SQLite DB."""
+    email_clean = payload.email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == email_clean).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email address.")
+
+    otp_record = _password_reset_otp(db, email_clean, payload.otp_code, verified_only=True)
+    if not otp_record:
+        pending = _password_reset_otp(db, email_clean, payload.otp_code, verified_only=False)
+        if pending and datetime.utcnow() <= pending.expires_at:
+            pending.is_verified = True
+            otp_record = pending
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Verify the 6-digit email code before setting a new password.",
+            )
+
+    if datetime.utcnow() > otp_record.expires_at:
+        raise HTTPException(status_code=400, detail="OTP code has expired. Please request a new verification code.")
+
     user.hashed_password = get_password_hash(payload.new_password)
+    db.query(EmailOTP).filter(
+        EmailOTP.email == email_clean,
+        EmailOTP.purpose == "password_reset",
+    ).delete(synchronize_session=False)
     db.commit()
 
     # Sync to backup SQLite database if present

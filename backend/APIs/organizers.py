@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import or_
 
 from Models import get_db, EmailOTP, OrganizerAccount, User, HostRegistrationLog
 from Authentication.dependencies import get_current_user, get_current_user_optional
@@ -48,6 +49,14 @@ def to_public_verification_status(internal_status: Optional[str]) -> str:
 
 def is_organizer_verified(internal_status: Optional[str]) -> bool:
     return to_public_verification_status(internal_status) == "VERIFIED"
+
+
+def _organizer_otp_purpose():
+    return or_(
+        EmailOTP.purpose.is_(None),
+        EmailOTP.purpose == "",
+        EmailOTP.purpose == "organizer",
+    )
 
 
 def has_payout_bank(acc: Optional[OrganizerAccount]) -> bool:
@@ -172,14 +181,16 @@ def send_otp(payload: SendOTPRequest, db: Session = Depends(get_db)):
 
     db.query(EmailOTP).filter(
         EmailOTP.email == email,
-        EmailOTP.is_verified == False
-    ).delete()
+        EmailOTP.is_verified == False,
+        _organizer_otp_purpose(),
+    ).delete(synchronize_session=False)
 
     otp_record = EmailOTP(
         email=email,
         otp_code=otp_code,
         expires_at=expires_at,
-        is_verified=False
+        is_verified=False,
+        purpose="organizer",
     )
     db.add(otp_record)
     db.commit()
@@ -240,7 +251,8 @@ def verify_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
     otp_record = db.query(EmailOTP).filter(
         EmailOTP.email == email,
         EmailOTP.otp_code == code,
-        EmailOTP.is_verified == False
+        EmailOTP.is_verified == False,
+        _organizer_otp_purpose(),
     ).order_by(EmailOTP.created_at.desc()).first()
 
     if not otp_record:
@@ -326,7 +338,8 @@ def save_account_setup(
     if not current_user:
         verified_otp = db.query(EmailOTP).filter(
             EmailOTP.email == email,
-            EmailOTP.is_verified == True
+            EmailOTP.is_verified == True,
+            _organizer_otp_purpose(),
         ).first()
 
         if not verified_otp:

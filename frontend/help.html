@@ -1,15 +1,15 @@
 <!doctype html>
 <html lang="en">
 <head>
-		<script src="js/theme.js?v=3"></script>
+		<script src="js/theme.js?v=6"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Get help with bookings, tickets, payments, and hosting on JOD Events. Search FAQs or raise a support ticket." />
 	<title>Help & Support | JOD Events</title>
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=20" />
-	<link rel="stylesheet" href="css/responsive.css?v=13" />
+	<link rel="stylesheet" href="css/style.css?v=21" />
+	<link rel="stylesheet" href="css/responsive.css?v=20" />
 	<style>
 		.page-hero {
 			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 58%, #3d2a14 100%);
@@ -421,8 +421,10 @@
 			.help-grid, .ticket-layout { grid-template-columns: 1fr; }
 		}
 		@media (max-width: 640px) {
-			.help-topics, .ticket-form-grid { grid-template-columns: 1fr; }
+			.help-topics { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+			.ticket-form-grid { grid-template-columns: 1fr; }
 			.lookup-row { flex-direction: column; }
+			.page-hero { padding: calc(4.75rem + 1.1rem) 0 1.6rem; }
 		}
 	</style>
 </head>
@@ -652,11 +654,11 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=16"></script>
+	<script src="js/include.js?v=18"></script>
 	<script src="js/health.js?v=1"></script>
 	<script src="js/auth.js?v=24"></script>
-	<script src="js/profile.js?v=6"></script>
-	<script src="js/script.js?v=25"></script>
+	<script src="js/profile.js?v=8"></script>
+	<script src="js/script.js?v=26"></script>
 	<script>
 		const LS_TICKETS = "jod_help_tickets";
 		const LS_EMAIL = "jod_help_ticket_email";

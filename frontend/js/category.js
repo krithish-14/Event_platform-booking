@@ -94,6 +94,43 @@
 				chip.classList.remove("active");
 			}
 		});
+		syncDropdownLabel(container);
+	}
+
+	function syncDropdownLabel(listEl) {
+		if (!listEl) return;
+		const dropdown = listEl.closest("[data-filter-dropdown]");
+		const label = dropdown && dropdown.querySelector(".filter-dropdown-current");
+		const active = listEl.querySelector(".filter-chip.active");
+		if (label && active) label.textContent = active.textContent.trim();
+	}
+
+	function closeFilterDropdowns(except) {
+		document.querySelectorAll("[data-filter-dropdown].is-open").forEach((dd) => {
+			if (except && dd === except) return;
+			dd.classList.remove("is-open");
+			const btn = dd.querySelector(".filter-dropdown-btn");
+			if (btn) btn.setAttribute("aria-expanded", "false");
+		});
+	}
+
+	function bindFilterDropdowns() {
+		document.querySelectorAll("[data-filter-dropdown]").forEach((dd) => {
+			const btn = dd.querySelector(".filter-dropdown-btn");
+			if (!btn) return;
+			btn.addEventListener("click", (e) => {
+				e.stopPropagation();
+				const willOpen = !dd.classList.contains("is-open");
+				closeFilterDropdowns(willOpen ? dd : null);
+				dd.classList.toggle("is-open", willOpen);
+				btn.setAttribute("aria-expanded", String(willOpen));
+			});
+			dd.addEventListener("click", (e) => e.stopPropagation());
+		});
+		document.addEventListener("click", () => closeFilterDropdowns());
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape") closeFilterDropdowns();
+		});
 	}
 
 	async function fetchEventsFromBackend() {
@@ -228,9 +265,12 @@
 					container.querySelectorAll(".filter-chip").forEach((c) => c.classList.remove("active"));
 					chip.classList.add("active");
 					filterState[stateKey] = chip.dataset[stateKey] || "all";
+					syncDropdownLabel(container);
+					closeFilterDropdowns();
 					updateAndRender();
 				});
 			});
+			syncDropdownLabel(container);
 		};
 
 		wireChipGroup("filterCategoriesList", "category");
@@ -278,6 +318,7 @@
 
 	document.addEventListener("DOMContentLoaded", () => {
 		initCategoryHeader();
+		bindFilterDropdowns();
 		bindFilterEvents();
 		updateAndRender();
 		window.addEventListener("jod:public-events-pruned", () => {

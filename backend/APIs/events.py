@@ -111,6 +111,7 @@ class EventResponse(BaseModel):
     terms: Optional[str] = None
     policies: Optional[Any] = None
     agenda: Optional[Any] = None
+    performers_title: Optional[str] = None
     is_published: bool
     is_cancelled: bool
     customer_id: Optional[str] = None
@@ -275,10 +276,13 @@ def _host_design_for_event(db: Session, event_id) -> tuple:
                 design = None
 
     if not design:
-        return [], []
+        return [], [], None
+    title = getattr(design, "performers_title", None)
+    performers_title = str(title).strip() if title and str(title).strip() else None
     return (
         _normalize_gallery_images(design.gallery_images),
         _normalize_sponsors(design.sponsor_details),
+        performers_title,
     )
 
 
@@ -338,6 +342,7 @@ def _event_to_response(
     gallery_images: Optional[Any] = None,
     sponsors: Optional[Any] = None,
     agenda: Optional[Any] = None,
+    performers_title: Optional[str] = None,
 ) -> EventResponse:
     terms = event.terms
     if not terms and policies:
@@ -377,6 +382,7 @@ def _event_to_response(
         terms=terms,
         policies=policies or None,
         agenda=agenda or [],
+        performers_title=(str(performers_title).strip() if performers_title else None),
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
         customer_id=getattr(event, "customer_id", None) or "CUST-SYSTEM",
@@ -450,7 +456,7 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     print(f"[EVENT DETAILS] event_id={event_id} title={event.title!r} published={event.is_published}", flush=True)
     policies = _host_policies_for_event(db, event.id)
-    gallery_images, sponsors = _host_design_for_event(db, event.id)
+    gallery_images, sponsors, performers_title = _host_design_for_event(db, event.id)
     if not gallery_images:
         gallery_images = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
     if not sponsors:
@@ -470,6 +476,7 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
         gallery_images=gallery_images,
         sponsors=sponsors,
         agenda=_host_agenda_for_event(db, event.id),
+        performers_title=performers_title,
     )
 
 
@@ -515,7 +522,7 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
     if not event:
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     policies = _host_policies_for_event(db, event.id)
-    gallery_images, sponsors = _host_design_for_event(db, event.id)
+    gallery_images, sponsors, performers_title = _host_design_for_event(db, event.id)
     if not gallery_images:
         gallery_images = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
     if not sponsors:
@@ -526,6 +533,7 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
         gallery_images=gallery_images,
         sponsors=sponsors,
         agenda=_host_agenda_for_event(db, event.id),
+        performers_title=performers_title,
     )
 
 
