@@ -2361,6 +2361,26 @@ h2 em {
 	font-size: .875rem;
 }
 
+.footer-explore {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .65rem 1.1rem;
+	margin-top: 1rem;
+}
+
+.footer-explore a {
+	color: var(--muted);
+	font-size: .8125rem;
+	font-weight: 600;
+}
+
+.footer-explore a:hover {
+	background: var(--brand-gradient);
+	background-clip: text;
+	-webkit-background-clip: text;
+	color: transparent;
+}
+
 .footer-grid h3 {
 	margin: 0;
 	font-size: 1rem;

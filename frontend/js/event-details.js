@@ -563,7 +563,7 @@ function paintTicketTypes(event) {
     currentSelectedTicketType = first.name || "General Admission";
     currentSelectedPrice = Number(first.price) || 0;
     currentSelectedPaymentQr = first.payment_qr_url || first.qr_url || first.payment_qr || "";
-    setStartingPriceDisplay(lowestTicketPrice(event));
+    updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
     if (EP && typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
 }
 
@@ -586,8 +586,12 @@ function syncTicketAvailability(event) {
     }
     if (!tList.querySelector(".ticket-type-option.selected") && remaining[0]) {
         remaining[0].click();
+        return;
     }
-    setStartingPriceDisplay(lowestTicketPrice(event));
+    const selected = tList.querySelector(".ticket-type-option.selected");
+    if (selected) {
+        updateSelectedPriceUI(Number(selected.dataset.price) || 0, selected.dataset.name);
+    }
 }
 
 function selectTicketOption(element, price, ticketName) {
@@ -605,6 +609,7 @@ function selectTicketOption(element, price, ticketName) {
             currentSelectedTicketType = nameEl.textContent.trim();
         }
     }
+    updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
 }
 
 function lowestTicketPrice(event) {
@@ -626,6 +631,16 @@ function setStartingPriceDisplay(price) {
     if (displayPrice) displayPrice.textContent = formatTicketPrice(price);
     const mobilePrice = document.getElementById('mobileStickyPrice');
     if (mobilePrice) mobilePrice.textContent = formatTicketPrice(price);
+}
+
+function updateSelectedPriceUI(price, ticketName) {
+    setStartingPriceDisplay(price);
+    const label = String(ticketName || "").trim();
+    document.querySelectorAll(".bar-price-group p").forEach((el) => {
+        if (el.textContent === "Your ticket") return;
+        el.dataset.defaultLabel = el.dataset.defaultLabel || el.textContent || "Starts from";
+        el.textContent = label || "Selected";
+    });
 }
 
 function copyEventShareLink() {
@@ -886,7 +901,7 @@ async function triggerBookingModal() {
             quantity: 1,
             paymentQrUrl: pendingQr
         }));
-    } catch (_) {}
+            } catch (_) {}
 
     const regUrl = new URL("published-form.html", window.location.href);
     regUrl.searchParams.set("eventId", eventId);

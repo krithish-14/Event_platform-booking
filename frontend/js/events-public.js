@@ -364,7 +364,11 @@
 		}
 		if (heroCta) {
 			heroCta.href = url;
-			heroCta.onclick = null;
+			heroCta.onclick = function (evt) {
+				return window.handleGuestOrNavigate
+					? window.handleGuestOrNavigate(evt, url, "event")
+					: true;
+			};
 		}
 		if (featuredImg) {
 			featuredImg.src = img;
@@ -372,7 +376,11 @@
 		}
 		if (featuredLink) {
 			featuredLink.href = url;
-			featuredLink.onclick = null;
+			featuredLink.onclick = function (evt) {
+				return window.handleGuestOrNavigate
+					? window.handleGuestOrNavigate(evt, url, "event")
+					: true;
+			};
 		}
 	}
 

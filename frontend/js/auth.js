@@ -1485,12 +1485,17 @@ window.JodAuth = (() => {
 		}
 	}
 
+	function currentPageName() {
+		return (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+	}
+
 	function openGuestAuthModal(optionsOrUrl) {
 		const modal = ensureGuestModal();
 		let targetUrl = "index.html";
 		let title = "Sign Up to Book Tickets";
 		let desc = "Please sign up or log in to access this feature.";
 		let badge = "ACCOUNT REQUIRED";
+		let primaryAction = "signup";
 
 		if (typeof optionsOrUrl === "string") {
 			targetUrl = optionsOrUrl;
@@ -1511,6 +1516,9 @@ window.JodAuth = (() => {
 			title = optionsOrUrl.title || title;
 			desc = optionsOrUrl.message || optionsOrUrl.desc || "Please sign up or log in to access this feature.";
 			if (optionsOrUrl.badge) badge = optionsOrUrl.badge;
+			if (optionsOrUrl.primaryAction === "login" || optionsOrUrl.primaryAction === "signup") {
+				primaryAction = optionsOrUrl.primaryAction;
+			}
 		}
 
 		// Save redirect URL in sessionStorage
@@ -1524,23 +1532,49 @@ window.JodAuth = (() => {
 		const descEl = modal.querySelector("#guestAuthModalDesc");
 		const badgeEl = modal.querySelector("#guestAuthModalBadge");
 		const signupBtn = modal.querySelector("#guestAuthSignupBtn");
-		const loginLink = modal.querySelector("#guestAuthLoginLink");
+		const switchEl = modal.querySelector(".guest-auth-modal-switch");
 
 		if (titleEl) titleEl.textContent = title;
 		if (descEl) descEl.textContent = desc;
 		if (badgeEl) badgeEl.textContent = badge;
 
 		const redirectParam = targetUrl ? `?redirect=${encodeURIComponent(targetUrl)}` : "";
-		if (signupBtn) {
-			signupBtn.href = `signup.html${redirectParam}`;
-			signupBtn.innerHTML = `Sign Up <span aria-hidden="true">&rarr;</span>`;
+		if (primaryAction === "login") {
+			if (signupBtn) {
+				signupBtn.href = `login.html${redirectParam}`;
+				signupBtn.innerHTML = `Log In <span aria-hidden="true">&rarr;</span>`;
+			}
+			if (switchEl) {
+				switchEl.innerHTML = `New here? <a href="signup.html${redirectParam}" id="guestAuthLoginLink">Sign Up</a>`;
+			}
+		} else {
+			if (signupBtn) {
+				signupBtn.href = `signup.html${redirectParam}`;
+				signupBtn.innerHTML = `Sign Up <span aria-hidden="true">&rarr;</span>`;
+			}
+			if (switchEl) {
+				switchEl.innerHTML = `Already have an account? <a href="login.html${redirectParam}" id="guestAuthLoginLink">Log In</a>`;
+			}
 		}
-		if (loginLink) loginLink.href = `login.html${redirectParam}`;
 
 		modal.hidden = false;
 		if (document.body) {
 			document.body.classList.add("guest-modal-open");
 		}
+	}
+
+	function promptGuestForEventDetails(targetUrl) {
+		const page = currentPageName();
+		const preferLogin = page === "index.html" || page === "";
+		openGuestAuthModal({
+			title: preferLogin ? "Log In to View This Event" : "Sign Up to View Event Details",
+			message: preferLogin
+				? "Please log in or create an account to explore this event."
+				: "Create an account or log in to see full event details and book tickets.",
+			targetUrl: targetUrl || "event-details.html",
+			badge: "ACCOUNT REQUIRED",
+			primaryAction: preferLogin ? "login" : "signup"
+		});
 	}
 
 	if (typeof document !== "undefined") {
@@ -1557,13 +1591,12 @@ window.JodAuth = (() => {
 	// Global Click Interception for Guest Users
 	if (typeof document !== "undefined") {
 		document.addEventListener("click", (e) => {
-			const page = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+			const page = currentPageName();
 			if (page === "login.html" || page === "signup.html") return;
-
-			// If user is already logged in, let normal interactions proceed
 			if (isLoggedIn()) return;
+			if (e.target.closest("#guestAuthModal, .modal-close, [data-modal-close], #navAuth")) return;
+			if (e.target.closest(".wishlist-heart-btn, .carousel-arrow, .menu-toggle")) return;
 
-			// 1. "Host Your Event" links & buttons
 			const hostLink = e.target.closest("a[href*='host-your-event'], a[href*='account-setup'], [data-host-flow]");
 			if (hostLink) {
 				e.preventDefault();
@@ -1578,10 +1611,30 @@ window.JodAuth = (() => {
 				return;
 			}
 
-			// 2. Booking only — event details are public for attendees, guests, and other hosts
+			const onHomeOrCategory = page === "index.html" || page === "" || page === "category.html";
+			if (onHomeOrCategory) {
+				const eventLink = e.target.closest("a[href*='event-details.html'], a[href*='makeup-boutique'], .hero a.button-gold, .hero-featured-image a");
+				if (eventLink) {
+					e.preventDefault();
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+					const href = eventLink.getAttribute("href") || "";
+					promptGuestForEventDetails((href && href !== "#") ? href : "event-details.html");
+					return;
+				}
+				const eventCard = e.target.closest("article.event-card");
+				if (eventCard) {
+					e.preventDefault();
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+					const link = eventCard.querySelector("a.card-link, a[href*='event-details']");
+					promptGuestForEventDetails(link ? link.getAttribute("href") : "event-details.html");
+					return;
+				}
+			}
+
 			const bookTarget = e.target.closest(".btn-book-now");
 			if (bookTarget) {
-				if (e.target.closest("#guestAuthModal, .modal-close, [data-modal-close], #navAuth")) return;
 				e.preventDefault();
 				e.stopPropagation();
 				e.stopImmediatePropagation();
@@ -1639,7 +1692,7 @@ window.JodAuth = (() => {
 				badge: "HOST YOUR EVENT"
 			});
 		} else {
-			window.location.href = targetUrl || "event-details.html";
+			promptGuestForEventDetails(targetUrl || "event-details.html");
 		}
 		return false;
 	}
