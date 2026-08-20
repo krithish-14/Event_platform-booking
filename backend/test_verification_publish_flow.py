@@ -12,6 +12,7 @@ Tests:
 """
 
 import json
+import os
 import sys
 import uuid
 import urllib.request
@@ -152,6 +153,27 @@ def auth_headers(tok):
     return {"Authorization": f"Bearer {tok}"} if tok else {}
 
 
+def make_admin_token():
+    """Create a unique admin user in the live DB without using production credentials."""
+    email = f"secadmin_{uuid.uuid4().hex[:8]}@testjod.com"
+    signup(email)
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+    from Models.base import get_session_factory
+    from Models.user import User
+    from sqlalchemy import func
+    db = get_session_factory()()
+    try:
+        user = db.query(User).filter(func.lower(User.email) == email.lower()).first()
+        if not user:
+            return None
+        user.is_admin = True
+        db.commit()
+    finally:
+        db.close()
+    return login(email)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 print("=" * 70)
 print("SCENARIO 1: New organizer → NOT_SUBMITTED verification status")
@@ -232,6 +254,7 @@ print()
 print("=" * 70)
 print("SCENARIO 4/5: VERIFIED organizer → status correct + publish succeeds")
 print("=" * 70)
+event4_id = None
 email4 = f"scenario4_{uuid.uuid4().hex[:8]}@testjod.com"
 signup(email4)
 tok4 = login(email4)
@@ -251,12 +274,19 @@ req("POST", "/api/organizers/account-setup", {
     "contact_mobile": "9999999999",
     "is_final_submit": True
 }, headers=auth_headers(tok4))
+admin_tok = make_admin_token()
+print(f"  admin token for verify/reject: {'OK' if admin_tok else 'MISSING'}")
 # Force VERIFIED status via resubmit-verification admin override
 s, d = req("POST", "/api/organizers/resubmit-verification", {
     "email": email4,
     "new_status": "verified"
-}, headers=auth_headers(tok4))
+}, headers=auth_headers(admin_tok))
 print(f"  force-status verified: HTTP {s}")
+self_verify_s, _ = req("POST", "/api/organizers/resubmit-verification", {
+    "email": email4,
+    "new_status": "verified"
+}, headers=auth_headers(tok4))
+assert_status("S4 organizer self-verify blocked", self_verify_s, 403)
 # Re-fetch status → VERIFIED
 s, d = req("GET", "/api/organizers/verification-status", headers=auth_headers(tok4), query={"email": email4})
 assert_status("S4 verification-status HTTP", s, 200)
@@ -286,6 +316,9 @@ if isinstance(d, dict):
     assert_eq("S5 can_publish_events == True (from response)", ver_info.get("can_publish_events"), True)
     eid = d.get("event_id")
     print(f"  event_id={eid}")
+    event4_id = eid
+else:
+    event4_id = None
 print()
 
 
@@ -311,12 +344,12 @@ req("POST", "/api/organizers/account-setup", {
     "contact_mobile": "8888888888",
     "is_final_submit": True
 }, headers=auth_headers(tok6))
-# Force REJECTED with reason
+# Force REJECTED with reason — admin only
 s, d = req("POST", "/api/organizers/resubmit-verification", {
     "email": email6,
     "new_status": "rejected",
     "rejection_reason": "PAN card image is blurry. Please upload a clear scan."
-}, headers=auth_headers(tok6))
+}, headers=auth_headers(admin_tok))
 print(f"  force-status rejected: HTTP {s}")
 # Check status → REJECTED + reason present
 s, d = req("GET", "/api/organizers/verification-status", headers=auth_headers(tok6), query={"email": email6})
@@ -413,15 +446,15 @@ assert_status("S8A anonymous publish → HTTP 401", s, 401)
 msg8a = d.get("detail", "") if isinstance(d, dict) else str(d)
 print(f"  anon rejection: {str(msg8a)[:120]}")
 
-# Case B: organizer with token but different email (owner mismatch)
+# Case B: organizer with token cannot modify another host's event by ID
 email8b = f"scenario8b_{uuid.uuid4().hex[:8]}@testjod.com"
 signup(email8b)
 tok8b = login(email8b)
-# Try publishing for email4 (different user)
 s, d = req("POST", "/api/host-events/manage", {
-    "organizer_email": email4,  # Not the same as token user
+    "event_id": event4_id,
+    "organizer_email": email4,
     "event_title": "Cross-owner hack",
-    "event_status": "published"
+    "event_status": "draft"
 }, headers=auth_headers(tok8b))
 assert_status("S8B cross-owner publish → HTTP 403", s, 403)
 msg8b = d.get("detail", "") if isinstance(d, dict) else str(d)
@@ -483,6 +516,32 @@ if isinstance(d, dict):
         else:
             FAIL += 1
             print(f"  ❌ FAIL  GET event: has_organizer_id={has_org2}, customer_id={cid2!r}")
+print()
+
+
+print("=" * 70)
+print("SCENARIO 9: Anonymous access to critical endpoints is denied")
+print("=" * 70)
+s, d = req("GET", "/api/organizers/verification-status", query={"email": email4})
+assert_status("S9A anonymous verification-status → 401", s, 401)
+if isinstance(d, dict):
+    acc = d.get("account") or {}
+    leaked = any(acc.get(k) for k in ("account_number", "pan_number", "pan_card_url", "bank_ifsc"))
+    assert_eq("S9A no sensitive account payload", leaked, False)
+
+s, d = req("POST", "/api/organizers/resubmit-verification", {
+    "email": email4,
+    "new_status": "verified"
+})
+assert_status("S9B anonymous resubmit-verification → 401", s, 401)
+
+s, d = req("GET", "/api/host-events/registrations/attendees", query={"email": email4})
+assert_status("S9C anonymous host attendees → 401", s, 401)
+
+s, d = req("POST", "/api/auth/google", {
+    "id_token": "eyJhbGciOiJub25lIn0.eyJlbWFpbCI6ImF0dGFja2VyQGV4YW1wbGUuY29tIn0."
+})
+assert_status("S9D unsigned Google JWT → 400", s, 400)
 print()
 
 

@@ -981,3 +981,119 @@ html[data-theme="dark"] body.dashboard-body .section-title-select {
 	border-color: rgba(255, 138, 31, 0.32) !important;
 	font-weight: 800;
 }
+
+/* ── Admin QR portal (light table + inherited cream text was unreadable) ── */
+html[data-theme="dark"] body.admin-portal-body {
+	background: #0e0c0a !important;
+	color: #f6f0e8 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-hero h1,
+html[data-theme="dark"] body.admin-portal-body .admin-block-head h2,
+html[data-theme="dark"] body.admin-portal-body .admin-modal-head h2 {
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-hero p,
+html[data-theme="dark"] body.admin-portal-body .admin-block-head p {
+	color: #cbbfb0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-stat,
+html[data-theme="dark"] body.admin-portal-body .admin-block-count,
+html[data-theme="dark"] body.admin-portal-body .admin-table-card,
+html[data-theme="dark"] body.admin-portal-body .admin-modal-card {
+	background: #1c1814 !important;
+	border-color: rgba(255, 138, 31, 0.22) !important;
+	color: #f6f0e8 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-stat strong,
+html[data-theme="dark"] body.admin-portal-body .admin-block-count {
+	color: #FF8A1F !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-stat span {
+	color: #cbbfb0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-section-label span {
+	color: #FFB24D !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-section-label select,
+html[data-theme="dark"] body.admin-portal-body .admin-toolbar input {
+	background: #1a1612 !important;
+	color: #f6f0e8 !important;
+	border-color: rgba(255, 138, 31, 0.32) !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-toolbar input::placeholder {
+	color: rgba(246, 240, 232, 0.45) !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-table th {
+	background: #241c16 !important;
+	color: #FFB24D !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-table td,
+html[data-theme="dark"] body.admin-portal-body .admin-name,
+html[data-theme="dark"] body.admin-portal-body .admin-event-title,
+html[data-theme="dark"] body.admin-portal-body .admin-ticket-title,
+html[data-theme="dark"] body.admin-portal-body .admin-submitted {
+	color: #fff8f0 !important;
+	border-top-color: rgba(255, 138, 31, 0.14);
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-muted,
+html[data-theme="dark"] body.admin-portal-body .admin-empty {
+	color: #cbbfb0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-badge.pending {
+	background: rgba(255, 117, 8, 0.18) !important;
+	color: #fdba74 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-badge.ready {
+	background: rgba(22, 101, 52, 0.32) !important;
+	color: #86efac !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-btn.ghost {
+	background: transparent !important;
+	color: #FFA136 !important;
+	border-color: rgba(255, 161, 54, 0.5) !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-modal-head button {
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-answers dt {
+	color: #FFB24D !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-answers dd,
+html[data-theme="dark"] body.admin-portal-body .delivery-item {
+	color: #f6f0e8 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .delivery-item {
+	border-color: rgba(255, 138, 31, 0.22) !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .ok {
+	color: #86efac !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .warn {
+	color: #fdba74 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-theme-toggle {
+	background: #1a1612 !important;
+	color: #fff8f0 !important;
+	border-color: rgba(255, 138, 31, 0.4) !important;
+}

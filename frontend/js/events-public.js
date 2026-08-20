@@ -27,13 +27,18 @@
 
 	function resolveImage(url) {
 		if (!url) return PLACEHOLDER_IMAGE;
-		if (url.startsWith("http://") || url.startsWith("https://")) return url;
-		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
-			const base = getApiBase().replace(/\/$/, "");
-			return `${base}/${url.replace(/^\//, "")}`;
+		const trimmed = String(url).trim();
+		const lower = trimmed.toLowerCase();
+		if (lower.startsWith("javascript:") || lower.startsWith("vbscript:") || lower.startsWith("data:")) {
+			return PLACEHOLDER_IMAGE;
 		}
-		if (url.startsWith("/") || url.startsWith("images/")) return url;
-		return url;
+		if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+		if (trimmed.startsWith("/api/media") || trimmed.startsWith("/uploads/") || trimmed.startsWith("uploads/")) {
+			const base = getApiBase().replace(/\/$/, "");
+			return `${base}/${trimmed.replace(/^\//, "")}`;
+		}
+		if (trimmed.startsWith("/") || trimmed.startsWith("images/")) return trimmed;
+		return trimmed;
 	}
 
 	function formatPrice(price) {

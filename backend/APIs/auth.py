@@ -6,7 +6,7 @@ import os
 import re
 import secrets
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -23,12 +23,70 @@ from Services.auth_service import (
     create_access_token,
 )
 from Services.email import send_email
-from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES
+from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES, AUTH_COOKIE_NAME
 from Authentication.dependencies import get_current_user
+from Services.runtime_env import is_production, resolve_google_redirect, smtp_configured
 import random
 from Models import UserSignup as UserSignupLog, UserLogin as UserLoginLog
 
 router = APIRouter()
+
+_GOOGLE_VERIFY_FAIL = "Failed to verify Google token with authentication server."
+_GOOGLE_PLACEHOLDER_CLIENT_ID = "your-google-client-id.apps.googleusercontent.com"
+
+
+def _google_client_id() -> str:
+    return (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
+
+
+def _google_email_verified(value) -> bool:
+    if value is True:
+        return True
+    if isinstance(value, str) and value.strip().lower() in ("true", "1", "yes"):
+        return True
+    return False
+
+
+async def _verify_google_id_token(token: str) -> dict:
+    """Verify an ID token with Google and require aud + email_verified. Fail closed."""
+    token = (token or "").strip()
+    client_id = _google_client_id()
+    if not token or not client_id or client_id == _GOOGLE_PLACEHOLDER_CLIENT_ID:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"id_token": token},
+            )
+    except Exception:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    try:
+        info = resp.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    if not isinstance(info, dict):
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    aud = str(info.get("aud") or info.get("audience") or "").strip()
+    email = str(info.get("email") or "").strip().lower()
+    if aud != client_id or not email or not _google_email_verified(info.get("email_verified")):
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    info["email"] = email
+    return info
+
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=is_production(),
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
 
 
 def _email_taken(db: Session, email_clean: str) -> bool:
@@ -173,7 +231,7 @@ def _serialize_user(user) -> dict:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
+def register(payload: UserRegisterRequest, response: Response, db: Session = Depends(get_db)):
     """Register a new user, store credentials in the database, and return an access token."""
     email_clean = payload.email.strip().lower()
     username_clean = payload.username.strip()
@@ -204,34 +262,6 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Username already taken.")
         raise HTTPException(status_code=400, detail="Email already registered. Please login instead.")
 
-    # Sync to backup SQLite database if present so user accounts remain available in all environments
-    try:
-        import sqlite3
-        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        sqlite_path = os.path.join(project_backend, "jod_events.db")
-        s_conn = sqlite3.connect(sqlite_path)
-        s_cur = s_conn.cursor()
-        s_cur.execute("""
-            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, avatar_url, bio, city, location_pin, is_active, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
-            ON CONFLICT(email) DO NOTHING
-        """, (
-            str(user.id),
-            str(user.customer_id),
-            user.email,
-            user.username,
-            user.full_name,
-            user.hashed_password,
-            user.avatar_url,
-            user.bio,
-            user.city,
-            user.location_pin
-        ))
-        s_conn.commit()
-        s_conn.close()
-    except Exception:
-        pass
-
     # Record User Signup Audit Log in user_signups table
     try:
         signup_log = UserSignupLog(
@@ -256,11 +286,12 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
+    _set_auth_cookie(response, token)
     return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(response: Response, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login with username/email + password against stored credentials. Returns a JWT token."""
     identifier = form.username.strip().lower()
     user = db.query(User).filter(
@@ -307,6 +338,7 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
         },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
+    _set_auth_cookie(response, token)
     return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
 
 
@@ -326,6 +358,10 @@ def google_auth_url():
     """Generates the Google OAuth 2.0 Authorization URL for browser popup / redirect login."""
     client_id = os.getenv("GOOGLE_CLIENT_ID", "")
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5500/login.html")
+    try:
+        redirect_uri = resolve_google_redirect(redirect_uri)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Google OAuth is not configured on the server.")
     if not client_id or client_id == "your-google-client-id.apps.googleusercontent.com":
         raise HTTPException(status_code=400, detail="Google OAuth is not configured on the server.")
 
@@ -335,16 +371,18 @@ def google_auth_url():
 
 
 @router.post("/google", response_model=GoogleTokenResponse)
-async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
+async def google_auth(payload: GoogleAuthRequest, response: Response, db: Session = Depends(get_db)):
     """Authenticate or register a user using Google OAuth 2.0 ID Token / Credential or Authorization Code."""
-    google_user_info = None
     token = (payload.credential or payload.id_token or "").strip()
 
-    # 1. If an authorization code was provided, exchange it for tokens with Google
+    # 1. If an authorization code was provided, exchange it for an ID token with Google
     if payload.code and not token:
-        client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        client_id = _google_client_id()
         client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
-        redirect_uri = payload.redirect_uri or os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5500/login.html")
+        try:
+            redirect_uri = resolve_google_redirect(payload.redirect_uri)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Google OAuth redirect is not allowed.")
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 token_resp = await client.post(
@@ -357,48 +395,22 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
                         "grant_type": "authorization_code",
                     },
                 )
-                if token_resp.status_code == 200:
-                    token_data = token_resp.json()
-                    token = token_data.get("id_token") or token_data.get("access_token") or ""
         except Exception:
-            pass
+            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+        if token_resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+        try:
+            token_data = token_resp.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+        token = (token_data.get("id_token") or "").strip()
+        if not token:
+            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
 
-    if not token and not payload.code:
+    if not token:
         raise HTTPException(status_code=400, detail="Google credential, id_token, or code is required.")
 
-    # 2. Verify token with Google's tokeninfo API
-    if token:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    "https://oauth2.googleapis.com/tokeninfo",
-                    params={"id_token": token}
-                )
-                if resp.status_code == 200:
-                    google_user_info = resp.json()
-        except Exception:
-            google_user_info = None
-
-        # Fallback decoding for JWT structured tokens
-        if (not google_user_info or "email" not in google_user_info) and token.count(".") == 2:
-            try:
-                import base64
-                import json
-                parts = token.split(".")
-                payload_segment = parts[1]
-                padded = payload_segment + "=" * (-len(payload_segment) % 4)
-                decoded_bytes = base64.b64decode(padded)
-                decoded_json = json.loads(decoded_bytes.decode("utf-8"))
-                if "email" in decoded_json:
-                    google_user_info = decoded_json
-            except Exception:
-                pass
-
-    if not google_user_info or "email" not in google_user_info:
-        raise HTTPException(
-            status_code=400,
-            detail="Failed to verify Google token with authentication server."
-        )
+    google_user_info = await _verify_google_id_token(token)
 
     email = google_user_info["email"].strip().lower()
     full_name = google_user_info.get("name") or google_user_info.get("given_name")
@@ -406,26 +418,6 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
 
     # 3. Lookup existing user: If they exist, log them in (Secure account linking).
     existing_user = db.query(User).filter(func.lower(func.trim(User.email)) == email).first()
-
-    # Also check secondary SQLite backup DB if present
-    if not existing_user:
-        try:
-            import sqlite3
-            project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            sqlite_path = os.path.join(project_backend, "jod_events.db")
-            if os.path.exists(sqlite_path):
-                s_conn = sqlite3.connect(sqlite_path)
-                s_cur = s_conn.cursor()
-                # Query the existing user by email
-                s_cur.execute("SELECT id FROM users WHERE lower(trim(email)) = ?", (email,))
-                row = s_cur.fetchone()
-                s_conn.close()
-                if row:
-                    # If they exist in SQLite but not Postgres, we ideally should sync them to Postgres.
-                    # For simplicity, we just won't throw an error, we will recreate them in Postgres if missing.
-                    pass
-        except Exception:
-            pass
 
     if existing_user:
         user = existing_user
@@ -490,23 +482,6 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
             print(f"Failed to record UserSignupLog: {e}")
             pass
 
-        # Sync to backup SQLite database
-        try:
-            import sqlite3
-            project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            sqlite_path = os.path.join(project_backend, "jod_events.db")
-            s_conn = sqlite3.connect(sqlite_path)
-            s_cur = s_conn.cursor()
-            s_cur.execute("""
-                INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin)
-                VALUES (?, ?, ?, ?, ?, ?, 1, 0)
-                ON CONFLICT(email) DO NOTHING
-            """, (str(user.id), str(user.customer_id), user.email, user.username, user.full_name, user.hashed_password))
-            s_conn.commit()
-            s_conn.close()
-        except Exception:
-            pass
-
     # Record User Login Audit Log
     try:
         login_log = UserLoginLog(
@@ -532,6 +507,7 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
 
     location_required = not bool(user.city)
 
+    _set_auth_cookie(response, token_str)
     return {
         "access_token": token_str,
         "token_type": "bearer",
@@ -550,8 +526,9 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/logout")
-def logout():
-    """Logout endpoint (client-side token removal is sufficient for JWT)."""
+def logout(response: Response):
+    """Clear the httpOnly auth cookie. Clients also drop localStorage tokens."""
+    response.delete_cookie(AUTH_COOKIE_NAME, path="/")
     return {"message": "Logged out successfully."}
 
 
@@ -608,9 +585,16 @@ def _password_reset_otp(db: Session, email: str, code: str, verified_only: bool 
 def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
     """Send a 6-digit OTP to the registered email so the user can reset their password."""
     email_clean = payload.email.strip().lower()
+    generic = "If an account exists for that email, a 6-digit verification code has been sent."
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
     if not user:
-        raise HTTPException(status_code=404, detail="No account found with this email address.")
+        return {"message": generic, "email": email_clean}
+
+    if not smtp_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Email delivery is not configured on this server. You can still log in with your password.",
+        )
 
     otp_code = f"{random.randint(100000, 999999)}"
     expires_at = datetime.utcnow() + timedelta(minutes=10)
@@ -640,20 +624,12 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
         "<p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>"
     )
     emailed = send_email(email_clean, subject, text_body, html_body)
-    print(f"  [PASSWORD RESET] OTP generated for {email_clean} smtp={emailed}", flush=True)
-
-    result = {
-        "message": f"6-digit verification code sent to {email_clean}.",
-        "email": email_clean,
-        "email_delivered": emailed,
-    }
     if not emailed:
-        result["dev_otp"] = otp_code
-        result["message"] = (
-            f"6-digit verification code generated for {email_clean}. "
-            "Email delivery is not configured on this server, so use the on-screen code."
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not send the verification email. Try again later.",
         )
-    return result
+    return {"message": generic, "email": email_clean}
 
 
 @router.post("/verify-reset-otp")
@@ -710,18 +686,4 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         EmailOTP.purpose == "password_reset",
     ).delete(synchronize_session=False)
     db.commit()
-
-    # Sync to backup SQLite database if present
-    try:
-        import sqlite3
-        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        sqlite_path = os.path.join(project_backend, "jod_events.db")
-        s_conn = sqlite3.connect(sqlite_path)
-        s_cur = s_conn.cursor()
-        s_cur.execute("UPDATE users SET hashed_password = ? WHERE lower(email) = ?", (user.hashed_password, email_clean))
-        s_conn.commit()
-        s_conn.close()
-    except Exception:
-        pass
-
     return {"message": "Password reset successfully. You can now log in with your new password."}

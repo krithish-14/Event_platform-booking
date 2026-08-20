@@ -302,8 +302,7 @@ window.JodAuth = (() => {
 
 	function isAdminUser(user) {
 		const source = user || getUser() || {};
-		if (source.is_admin) return true;
-		return String(source.email || "").trim().toLowerCase() === "admin@gmail.com";
+		return Boolean(source.is_admin);
 	}
 
 	async function resolvePostAuthDestination(preferredUrl) {
@@ -352,6 +351,7 @@ window.JodAuth = (() => {
 		try {
 			await fetch(`${API_BASE}/api/auth/logout`, {
 				method: "POST",
+				credentials: "include",
 				headers: token ? { "Authorization": `Bearer ${token}` } : {},
 			}).catch(() => { });
 		} finally {
@@ -364,7 +364,7 @@ window.JodAuth = (() => {
 		const token = getToken();
 		const headers = Object.assign({}, options.headers || {});
 		if (token) headers["Authorization"] = `Bearer ${token}`;
-		const res = await fetch(url, Object.assign({}, options, { headers }));
+		const res = await fetch(url, Object.assign({}, options, { headers, credentials: "include" }));
 		if (res.status === 401) {
 			clearAuth();
 			syncThemeAfterAuth();
@@ -491,6 +491,7 @@ window.JodAuth = (() => {
 				const res = await fetch(`${API_BASE}/api/auth/login`, {
 					method: "POST",
 					headers: { "Content-Type": "application/x-www-form-urlencoded" },
+					credentials: "include",
 					body,
 				});
 
@@ -670,12 +671,7 @@ window.JodAuth = (() => {
 					return;
 				}
 				if (sentEmailDisplay) sentEmailDisplay.textContent = email;
-				if (data.dev_otp && devBanner && devValue) {
-					devBanner.style.display = "block";
-					devValue.textContent = data.dev_otp;
-				} else if (devBanner) {
-					devBanner.style.display = "none";
-				}
+				if (devBanner) devBanner.style.display = "none";
 				clearOtp();
 				verifiedOtp = "";
 				showFpStep(stepOtp);
@@ -1077,6 +1073,7 @@ window.JodAuth = (() => {
 				const res = await fetch(`${API_BASE}/api/auth/register`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json", "Accept": "application/json" },
+					credentials: "include",
 					body: JSON.stringify(payload),
 				});
 
@@ -1183,6 +1180,7 @@ window.JodAuth = (() => {
 			const res = await fetch(`${API_BASE}/api/auth/google`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
+				credentials: "include",
 				body: JSON.stringify(payload),
 			});
 

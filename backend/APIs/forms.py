@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
 from Models import get_db, FormDefinition, FormSubmission, EventRegistrationForm
-from Authentication.dependencies import get_current_user_optional
+from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.user import User
 
 router = APIRouter(prefix="/api/forms", tags=["Dynamic Form Builder"])
@@ -41,10 +41,10 @@ class SubmissionRequest(BaseModel):
 def save_form_draft(
     payload: FormSaveRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
 	"""Save or update draft registration form schema."""
-	email = (current_user.email if current_user and current_user.email else payload.organizer_email).lower().strip()
+	email = current_user.email.lower().strip()
 
 	form = db.query(FormDefinition).filter(
 		FormDefinition.organizer_email == email
@@ -85,9 +85,15 @@ def save_form_draft(
 
 
 @router.get("/get-form")
-def get_form_definition(email: str = Query(..., description="Organizer email address"), db: Session = Depends(get_db)):
-	"""Fetch form definition & draft schema."""
-	email_clean = email.lower().strip()
+def get_form_definition(
+    email: str = Query(..., description="Organizer email address"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+	"""Fetch form definition & draft schema for the logged-in organizer."""
+	email_clean = current_user.email.lower().strip()
+	if email and email.lower().strip() != email_clean:
+		raise HTTPException(status_code=403, detail="You can only load your own registration form.")
 	form = db.query(FormDefinition).filter(
 		FormDefinition.organizer_email == email_clean
 	).order_by(FormDefinition.id.desc()).first()
@@ -160,9 +166,10 @@ def get_form_definition(email: str = Query(..., description="Organizer email add
 def get_form_by_id(
 	form_id: int = Query(..., description="Form ID integer"),
 	mode: Optional[str] = Query(None, description="View mode, e.g. readOnly"),
-	db: Session = Depends(get_db)
+	db: Session = Depends(get_db),
+	current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-	"""Fetch a published or host preview form definition by its integer ID."""
+	"""Fetch a published form, or a host-only unpublished preview."""
 	form = db.query(FormDefinition).filter(
 		FormDefinition.id == form_id
 	).first()
@@ -170,8 +177,11 @@ def get_form_by_id(
 	if not form:
 		raise HTTPException(status_code=404, detail="Form not found.")
 
-	if not form.is_published and mode != "readOnly":
-		raise HTTPException(status_code=404, detail="This form has not been published yet.")
+	if not form.is_published:
+		owner_email = (form.organizer_email or "").lower().strip()
+		user_email = (current_user.email or "").lower().strip() if current_user else ""
+		if mode != "readOnly" or not user_email or user_email != owner_email:
+			raise HTTPException(status_code=404, detail="This form has not been published yet.")
 
 	return {
 		"exists": True,
@@ -208,11 +218,6 @@ def get_form_by_event(
 		FormDefinition.event_id == event_id,
 		FormDefinition.is_published == True,
 	).order_by(FormDefinition.version.desc()).first()
-
-	if not form:
-		form = db.query(FormDefinition).filter(
-			FormDefinition.event_id == event_id,
-		).order_by(FormDefinition.version.desc()).first()
 
 	if form:
 		return {
@@ -261,10 +266,10 @@ def get_form_by_event(
 def publish_form(
 	payload: FormSaveRequest,
 	db: Session = Depends(get_db),
-	current_user: Optional[User] = Depends(get_current_user_optional),
+	current_user: User = Depends(get_current_user),
 ):
 	"""Publish current registration form version for attendees."""
-	email = (current_user.email if current_user and current_user.email else payload.organizer_email).lower().strip()
+	email = current_user.email.lower().strip()
 
 	form = db.query(FormDefinition).filter(
 		FormDefinition.organizer_email == email

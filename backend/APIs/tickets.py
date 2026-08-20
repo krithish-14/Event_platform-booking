@@ -10,9 +10,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, cast, String, func
 
-from Authentication.dependencies import get_current_user, get_current_user_optional
+from Authentication.dependencies import get_current_user
 from Models.base import get_db
 from Models.booking import Booking
 from Models.event import Event
@@ -64,48 +63,21 @@ def _extract_token(payload: TokenVerificationRequest | TokenCheckinRequest) -> s
     return tok
 
 
-def _normalize_scan_code(value: Optional[str]) -> str:
-    return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
-
-
 def _lookup_ticket(db: Session, token_str: str, event_id: Optional[str] = None) -> Optional[Ticket]:
     raw = (token_str or "").strip()
     if not raw:
         return None
-    ticket = (
+    query = (
         db.query(Ticket)
         .options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
         .filter(Ticket.qr_token == raw)
-        .first()
     )
-    if ticket:
-        return ticket
-
-    needle = _normalize_scan_code(raw)
-    query = db.query(Ticket).options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
     if event_id:
         try:
             query = query.filter(Ticket.event_id == UUID(str(event_id)))
         except Exception:
             query = query.filter(Ticket.event_id == event_id)
-    if needle and len(needle) >= 6:
-        matches = query.filter(Ticket.qr_token.ilike(f"%{raw}%")).all()
-        if matches:
-            return matches[0]
-        compact = needle.lower()
-        bid_txt = func.replace(func.lower(cast(Ticket.booking_id, String)), "-", "")
-        tid_txt = func.replace(func.lower(cast(Ticket.ticket_id, String)), "-", "")
-        try:
-            prefix = query.filter(or_(
-                bid_txt.like(compact + "%"),
-                tid_txt.like(compact + "%"),
-            )).first()
-        except Exception:
-            db.rollback()
-            prefix = None
-        if prefix:
-            return prefix
-    return None
+    return query.first()
 
 
 def _serialize_ticket_success(t: Ticket, message: str = "Ticket is valid for entry.") -> dict:
@@ -146,6 +118,7 @@ def _serialize_ticket_success(t: Ticket, message: str = "Ticket is valid for ent
 def verify_ticket_token(
     payload: TokenVerificationRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Validate QR token format and entry status.
@@ -218,7 +191,7 @@ def verify_ticket_token(
 def checkin_ticket_entry(
     payload: TokenCheckinRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Atomically verify and check in a ticket at venue gate.
@@ -230,10 +203,7 @@ def checkin_ticket_entry(
 
     staff_name = payload.scanned_by
     if not staff_name:
-        if current_user:
-            staff_name = current_user.full_name or current_user.username
-        else:
-            staff_name = "Gate Scanner Staff"
+        staff_name = current_user.full_name or current_user.username or "Gate Scanner Staff"
 
     now_utc = datetime.utcnow()
 

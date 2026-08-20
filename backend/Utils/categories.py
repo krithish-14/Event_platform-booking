@@ -50,3 +50,15 @@ def is_allowed_image_bytes(contents: bytes, content_type: str = "") -> bool:
     if contents[:4] == b"RIFF" and contents[8:12] == b"WEBP":
         return True
     return False
+
+
+def is_allowed_kyc_bytes(contents: bytes, filename: str = "", content_type: str = "") -> bool:
+    """PAN/cheque uploads: JPEG/PNG/WEBP magic bytes, or a PDF starting with %PDF."""
+    import os
+    if not contents:
+        return False
+    ext = os.path.splitext(filename or "")[1].lower()
+    mime = (content_type or "").split(";")[0].strip().lower()
+    if ext == ".pdf" or mime == "application/pdf":
+        return contents.startswith(b"%PDF")
+    return is_allowed_image_bytes(contents, content_type)

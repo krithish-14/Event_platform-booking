@@ -1,5 +1,6 @@
 """
-Lightweight email helper. Uses SMTP when configured; always logs a fallback copy.
+Lightweight email helper. Uses SMTP when configured.
+Never logs message bodies or one-time codes.
 """
 
 import os
@@ -7,6 +8,8 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
+
+from Services.runtime_env import smtp_configured
 
 
 def _safe_print(msg: str) -> None:
@@ -17,17 +20,15 @@ def _safe_print(msg: str) -> None:
 
 
 def send_email(to_email: str, subject: str, text_body: str, html_body: Optional[str] = None) -> bool:
-    """Send email via SMTP if SMTP_HOST is set. Always logs the message. Returns True if SMTP succeeded."""
+    """Send email via SMTP if SMTP_HOST is set. Returns True if SMTP succeeded."""
     to_email = (to_email or "").strip()
     if not to_email:
         return False
-    _safe_print(f"[EMAIL] to={to_email} subject={subject}")
-    _safe_print(text_body)
-
-    host = (os.getenv("SMTP_HOST") or "").strip()
-    if not host:
+    if not smtp_configured():
+        _safe_print("[EMAIL] skipped: SMTP_HOST is not configured")
         return False
 
+    host = (os.getenv("SMTP_HOST") or "").strip()
     port = int(os.getenv("SMTP_PORT") or "587")
     user = (os.getenv("SMTP_USER") or "").strip()
     password = os.getenv("SMTP_PASSWORD") or ""
@@ -49,8 +50,8 @@ def send_email(to_email: str, subject: str, text_body: str, html_body: Optional[
             if user:
                 smtp.login(user, password)
             smtp.sendmail(from_addr, [to_email], msg.as_string())
-        _safe_print(f"[EMAIL] SMTP delivered to {to_email}")
+        _safe_print("[EMAIL] delivered")
         return True
-    except Exception as exc:
-        _safe_print(f"[EMAIL] SMTP failed for {to_email}: {exc}")
+    except Exception:
+        _safe_print("[EMAIL] SMTP delivery failed")
         return False

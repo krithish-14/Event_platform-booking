@@ -208,9 +208,11 @@ window.JodSearch = (() => {
           const highlightedTitle = highlightMatch(this.escapeHtml(ev.title), query);
           const highlightedVenue = highlightMatch(this.escapeHtml(ev.venue || ev.location || ""), query);
 
+          const safeId = encodeURIComponent(ev.id);
+          const thumb = this.escapeHtml(ev.image_url || "images/JOD Events Logo.png");
           html += `
-            <a href="event-details.html?id=${ev.id}" class="search-suggestion-item" data-type="event" data-id="${ev.id}">
-              <img class="suggestion-thumb" src="${ev.image_url || 'images/JOD Events Logo.png'}" alt="" />
+            <a href="event-details.html?id=${safeId}" class="search-suggestion-item" data-type="event" data-id="${this.escapeHtml(ev.id)}">
+              <img class="suggestion-thumb" src="${thumb}" alt="" />
               <div class="suggestion-info">
                 <div class="suggestion-title">${highlightedTitle}</div>
                 <div class="suggestion-sub">

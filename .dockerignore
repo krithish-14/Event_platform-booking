@@ -1,0 +1,12 @@
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+**/__pycache__/
+**/.venv/
+**/venv/
+**/*.db
+**/uploads/
+.git
+.cursor
+node_modules

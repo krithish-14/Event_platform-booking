@@ -21,6 +21,25 @@
 		return window.JOD_API_BASE_OVERRIDE || `http://${host}:8001`;
 	}
 
+	function escHtml(value) {
+		if (typeof window.escHtml === "function") return window.escHtml(value);
+		return String(value == null ? "" : value)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
+	function requireScannerLogin() {
+		const authToken = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+		if (!authToken || authToken === "null" || authToken === "undefined") {
+			alert("Please sign in to use the ticket scanner.");
+			window.location.href = "login.html?redirect=" + encodeURIComponent("scanner.html");
+			return false;
+		}
+		return true;
+	}
+
 	function playAudioBeep(type) {
 		try {
 			const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -136,6 +155,7 @@
 			const res = await fetch(endpoint, {
 				method: "POST",
 				headers: headers,
+				credentials: "include",
 				body: JSON.stringify({
 					qr_token: tokenStr,
 					scanned_by: staffName
@@ -227,12 +247,12 @@
 		const itemHtml = `
 			<div class="history-item">
 				<div>
-					<div style="font-weight: 700; color: #fff;">${res.event || 'Ticket Scan'} &bull; ${res.customer_name || 'Guest'}</div>
-					<div style="font-size: 0.75rem; color: #9ca3af; font-family: monospace; margin-top: 0.15rem;">${tokenStr}</div>
+					<div style="font-weight: 700; color: #fff;">${escHtml(res.event || "Ticket Scan")} &bull; ${escHtml(res.customer_name || "Guest")}</div>
+					<div style="font-size: 0.75rem; color: #9ca3af; font-family: monospace; margin-top: 0.15rem;">${escHtml(tokenStr)}</div>
 				</div>
 				<div style="text-align: right;">
-					<span class="badge-mini ${badgeClass}">${badgeLabel}</span>
-					<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.2rem;">${timeStr}</div>
+					<span class="badge-mini ${badgeClass}">${escHtml(badgeLabel)}</span>
+					<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.2rem;">${escHtml(timeStr)}</div>
 				</div>
 			</div>`;
 
@@ -298,6 +318,7 @@
 	}
 
 	document.addEventListener("DOMContentLoaded", () => {
+		if (!requireScannerLogin()) return;
 		bindUIEvents();
 		// Auto-start camera if available
 		startCamera();

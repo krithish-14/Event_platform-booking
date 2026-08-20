@@ -246,14 +246,25 @@
 	padding: 0.95rem 1rem;
 	border-top: 1px solid #f1e8da;
 	vertical-align: top;
+	color: #201d19;
 }
 
-.admin-name {
+.admin-name,
+.admin-event-title,
+.admin-ticket-title,
+.admin-submitted {
+	color: #201d19;
 	font-weight: 800;
 }
 
+.admin-event-title,
+.admin-ticket-title,
+.admin-submitted {
+	font-weight: 600;
+}
+
 .admin-muted {
-	color: #7a7168;
+	color: #5c534a;
 	font-size: 0.8rem;
 	margin-top: 0.15rem;
 }
@@ -401,4 +412,49 @@
 	.admin-brand > img {
 		display: none;
 	}
+}
+
+.admin-theme-toggle {
+	width: 2.35rem;
+	height: 2.35rem;
+	background: rgba(255, 248, 240, 0.08);
+	color: #fff8f0;
+	border: 1px solid rgba(255, 161, 54, 0.45);
+}
+
+.admin-theme-toggle:hover {
+	color: #FFA136;
+	border-color: #FFA136;
+	background: rgba(255, 117, 8, 0.18);
+}
+
+/* Light mode: keep table text dark even if a parent theme color leaks in */
+html[data-theme="light"] .admin-portal-body,
+html:not([data-theme="dark"]) .admin-portal-body {
+	background: #f6f1e8;
+	color: #201d19;
+}
+
+html[data-theme="light"] .admin-table td,
+html:not([data-theme="dark"]) .admin-table td,
+html[data-theme="light"] .admin-name,
+html:not([data-theme="dark"]) .admin-name,
+html[data-theme="light"] .admin-event-title,
+html:not([data-theme="dark"]) .admin-event-title,
+html[data-theme="light"] .admin-ticket-title,
+html:not([data-theme="dark"]) .admin-ticket-title,
+html[data-theme="light"] .admin-submitted,
+html:not([data-theme="dark"]) .admin-submitted {
+	color: #201d19;
+}
+
+html[data-theme="light"] .admin-muted,
+html:not([data-theme="dark"]) .admin-muted,
+html[data-theme="light"] .admin-empty,
+html:not([data-theme="dark"]) .admin-empty,
+html[data-theme="light"] .admin-hero p,
+html:not([data-theme="dark"]) .admin-hero p,
+html[data-theme="light"] .admin-block-head p,
+html:not([data-theme="dark"]) .admin-block-head p {
+	color: #5c534a;
 }

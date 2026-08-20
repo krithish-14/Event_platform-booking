@@ -828,11 +828,18 @@
 			async function fetchPublishedForm() {
 				try {
 					let res;
+					const token = (window.JodAuth && window.JodAuth.getToken && window.JodAuth.getToken())
+						|| localStorage.getItem("jod_access_token")
+						|| sessionStorage.getItem("jod_access_token");
+					const headers = {};
+					if (token && token !== "null" && token !== "undefined") {
+						headers["Authorization"] = `Bearer ${token}`;
+					}
 					if (eventId) {
-						res = await fetch(`${API_BASE}/get-form-by-event?event_id=${encodeURIComponent(eventId)}`);
+						res = await fetch(`${API_BASE}/get-form-by-event?event_id=${encodeURIComponent(eventId)}`, { headers, credentials: "include" });
 					} else {
 						const modeQuery = isHostReadOnly ? "&mode=readOnly" : "";
-						res = await fetch(`${API_BASE}/get-form-by-id?form_id=${encodeURIComponent(formId)}${modeQuery}`);
+						res = await fetch(`${API_BASE}/get-form-by-id?form_id=${encodeURIComponent(formId)}${modeQuery}`, { headers, credentials: "include" });
 					}
 					if (!res.ok) {
 						const errJson = await res.json().catch(() => ({}));

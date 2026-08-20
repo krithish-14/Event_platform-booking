@@ -26,10 +26,11 @@ MAX_STORE_BYTES = 5 * 1024 * 1024
 
 
 def _fernet() -> Fernet:
-    raw = (
-        os.getenv("FILE_ENCRYPTION_KEY")
-        or os.getenv("SECRET_KEY")
-        or "jod-dev-file-encryption-key"
+    from Services.runtime_env import require_strong_secret
+
+    raw = require_strong_secret(
+        os.getenv("FILE_ENCRYPTION_KEY") or os.getenv("SECRET_KEY"),
+        "FILE_ENCRYPTION_KEY",
     )
     digest = hashlib.sha256(raw.encode("utf-8")).digest()
     return Fernet(base64.urlsafe_b64encode(digest))

@@ -1,11 +1,14 @@
 import os
 import sys
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-load_dotenv()
+from Services.runtime_env import cors_origins, docs_enabled, is_production
+
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+load_dotenv(os.path.join(_BACKEND_DIR, ".env"))
 
 from APIs.auth import router as auth_router
 from APIs.events import router as events_router
@@ -41,61 +44,59 @@ def safe_print(msg: str) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    create_tables()
+    safe_print("  [OK] Database tables ready.")
     try:
-        create_tables()
-        safe_print("  [OK] Database tables ready.")
-        try:
-            from Services.file_storage import migrate_disk_uploads
-            moved = migrate_disk_uploads()
-            if moved:
-                safe_print(f"  [OK] Moved {moved} upload file(s) into encrypted database storage.")
-        except Exception as migrate_exc:
-            safe_print(f"  [WARN] Could not migrate disk uploads into the database: {migrate_exc}")
-        try:
-            from Models.base import get_session_factory
-            from Services.admin_seed import seed_admin_user
-            session_factory = get_session_factory()
-            seed_db = session_factory()
-            try:
-                seed_admin_user(seed_db)
-            finally:
-                seed_db.close()
-        except Exception as seed_exc:
-            safe_print(f"  [WARN] Could not seed admin user: {seed_exc}")
-    except Exception as exc:
-        safe_print(f"  [WARN] Could not connect to PostgreSQL: {exc}")
-        safe_print("  [WARN] Auth/Events endpoints requiring the DB will 500 until Postgres is running.")
-        safe_print("  [WARN] Create DB user with:  CREATE USER jod_user WITH PASSWORD 'jod_password'; CREATE DATABASE jod_events OWNER jod_user;")
+        from Services.file_storage import migrate_disk_uploads
+        moved = migrate_disk_uploads()
+        if moved:
+            safe_print(f"  [OK] Moved {moved} upload file(s) into encrypted database storage.")
+    except Exception as migrate_exc:
+        safe_print(f"  [WARN] Could not migrate disk uploads into the database: {migrate_exc}")
+    from Models.base import get_session_factory
+    from Services.admin_seed import seed_admin_user
+    session_factory = get_session_factory()
+    seed_db = session_factory()
+    try:
+        seed_admin_user(seed_db)
+    finally:
+        seed_db.close()
     yield
 
 
+_docs = "/docs" if docs_enabled() else None
 app = FastAPI(
     title="JOD Events API",
     description="REST API for the JOD Events platform — manage events, users, and registrations.",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=_docs,
+    redoc_url="/redoc" if _docs else None,
+    openapi_url="/openapi.json" if _docs else None,
     lifespan=lifespan,
 )
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
-origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
-if not origins:
-    origins = ["*"]
-
+origins = cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if "*" not in origins else ["*"],
-    allow_credentials=True if "*" not in origins else False,
-    allow_origin_regex=r"https?://.*" if "*" in origins else None,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if is_production():
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # ── Templates ─────────────────────────────────────────────────
 from fastapi.templating import Jinja2Templates
-from fastapi.requests import Request
 from fastapi.responses import HTMLResponse
 
 frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))

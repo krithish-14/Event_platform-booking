@@ -35,7 +35,7 @@ from Models import (
     EventVolunteer,
 )
 from APIs.organizers import to_public_verification_status, is_organizer_verified
-from Authentication.dependencies import get_current_user_optional
+from Authentication.dependencies import get_current_user
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
 from Utils.categories import (
     normalize_category,
@@ -54,10 +54,13 @@ ORGANIZER_VERIFICATION_REQUIRED = os.getenv("ORGANIZER_VERIFICATION_REQUIRED", "
 
 
 def _bound_email(email: Optional[str], current_user: Optional[User] = None) -> str:
-    """Always prefer the authenticated user's email over a client-supplied value."""
-    if current_user and getattr(current_user, "email", None):
-        return current_user.email.lower().strip()
-    return (email or "").lower().strip()
+    """Bind host actions to the authenticated JWT principal. Client emails are ignored."""
+    if not current_user or not getattr(current_user, "email", None):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+    return current_user.email.lower().strip()
 
 ACTIVE_EVENT_BLOCK_MESSAGE = (
     "You already have an active event. You can create and publish a new event "
@@ -122,6 +125,38 @@ def _event_owned(
         if current_user.customer_id and event.customer_id == current_user.customer_id:
             return True
     return False
+
+
+def _reject_foreign_event(
+    event: Optional[EventManagement],
+    email_clean: str,
+    customer_id: Optional[str],
+    host_id: Optional[str],
+    current_user: Optional[User],
+) -> Optional[EventManagement]:
+    if event is None:
+        return None
+    if not _event_owned(event, email_clean, customer_id, host_id, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this event.",
+        )
+    return event
+
+
+def _require_owned_event(db: Session, event_id, current_user: User) -> EventManagement:
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    event = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    email_clean = (current_user.email or "").lower().strip()
+    if not _event_owned(event, email_clean, current_user.customer_id, None, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this event.",
+        )
+    return event
 
 
 def _lookup_event_by_id(db: Session, event_id: Optional[str]) -> Optional[EventManagement]:
@@ -1319,7 +1354,7 @@ class SaveCheckinRequest(BaseModel):
 def save_manage_event(
     payload: SaveManageEventRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """UPSERT endpoint for Manage Event step with VERIFIED-only publish gate."""
     customer_id, host_id = resolve_host_identifiers(db, payload.organizer_email, current_user)
@@ -1531,7 +1566,7 @@ def save_manage_event(
 def save_event_design(
     payload: SaveEventDesignRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """UPSERT endpoint for Event Design step."""
     customer_id, host_id = resolve_host_identifiers(db, payload.organizer_email, current_user)
@@ -1613,7 +1648,7 @@ async def upload_design_asset(
     asset_type: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Upload banner, sponsor logo, artist photo, or gallery image for event design."""
     email_clean = _bound_email(email, current_user)
@@ -1662,7 +1697,7 @@ async def upload_design_asset(
 def save_registration_form(
     payload: SaveRegistrationFormRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """UPSERT endpoint for Registration Form Builder step."""
     customer_id, host_id = resolve_host_identifiers(db, payload.organizer_email, current_user)
@@ -1729,7 +1764,7 @@ def save_registration_form(
 def get_current_host_event(
     email: str = Query(..., description="Organizer email address"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Retrieve full event data across all 3 steps for the host."""
     email_clean = _bound_email(email, current_user)
@@ -1818,7 +1853,7 @@ def get_registration_module_data(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Return registration settings, ticket inventory, attendee registrations, and summary counts."""
     event, customer_id, host_id = resolve_or_create_event(
@@ -1925,7 +1960,7 @@ def get_registration_module_data(
 def save_registration_settings(
     payload: SaveRegistrationSettingsRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update registration settings for an event."""
     event, customer_id, host_id = resolve_or_create_event(db, payload.organizer_email, payload.event_id, current_user)
@@ -1977,7 +2012,7 @@ def save_registration_settings(
 def save_registration_ticket(
     payload: SaveRegistrationTicketRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update a registration ticket for an event."""
     event, customer_id, host_id = resolve_or_create_event(db, payload.organizer_email, payload.event_id, current_user)
@@ -2025,13 +2060,18 @@ def save_registration_ticket(
 
 
 @router.delete("/registrations/tickets/{ticket_id}")
-def delete_registration_ticket(ticket_id: str, db: Session = Depends(get_db)):
-    """Soft-delete a registration ticket."""
+def delete_registration_ticket(
+    ticket_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete a registration ticket owned by the authenticated host."""
     try:
         ticket_uuid = uuid.UUID(ticket_id)
         ticket = db.query(EventRegistrationTicket).filter(EventRegistrationTicket.id == ticket_uuid).first()
         if not ticket:
             raise HTTPException(status_code=404, detail="Ticket not found")
+        _require_owned_event(db, ticket.event_id, current_user)
         ticket.deleted_at = datetime.utcnow()
         ticket.status = "inactive"
         db.commit()
@@ -2045,7 +2085,7 @@ def get_registration_attendees(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Retrieve attendee registration records."""
     event, _, _ = resolve_or_create_event(db, email, event_id, current_user, create_if_missing=False)
@@ -2074,7 +2114,7 @@ def get_registration_attendees(
 def save_registration_attendee(
     payload: SaveRegistrationRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update an attendee registration record."""
     event, customer_id, host_id = resolve_or_create_event(db, payload.organizer_email, payload.event_id, current_user)
@@ -2124,7 +2164,7 @@ def save_registration_attendee(
 def save_registration_checkin(
     payload: SaveCheckinRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Validate a ticket QR/code or attendee email and record a live check-in."""
     event, customer_id, host_id = resolve_or_create_event(
@@ -2275,7 +2315,7 @@ def get_event_attendance(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Checked-in vs yet-to-check-in attendees for the host sidebar Attendance tab."""
     event, customer_id, host_id = resolve_or_create_event(
@@ -2446,7 +2486,7 @@ def get_communications(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Return saved communications and ticket-based audience options for the organizer's event."""
     event, _, _ = resolve_or_create_event(db, email, event_id, current_user, create_if_missing=False)
@@ -2480,7 +2520,7 @@ def get_communications(
 def save_communication(
     payload: SaveCommunicationRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update a communication message."""
     event, customer_id, host_id = resolve_or_create_event(db, payload.organizer_email, payload.event_id, current_user)
@@ -2743,7 +2783,7 @@ def get_reports_summary(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Return financial and engagement metrics for the reports tab."""
     event, _, _ = resolve_or_create_event(db, email, event_id, current_user, create_if_missing=False)
@@ -2825,7 +2865,7 @@ def get_dashboard_summary(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None, description="Optional specific event ID"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Returns dynamic KPI metrics, counts, and stats for the selected event."""
     email_clean = _bound_email(email, current_user)
@@ -2838,6 +2878,7 @@ def get_dashboard_summary(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
 
     if not event:
         event = db.query(EventManagement).filter(
@@ -2940,7 +2981,7 @@ def get_exhibitors(
     email: str = Query(..., description="Organizer email"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Retrieve all exhibitors for an event."""
     email_clean = _bound_email(email, current_user)
@@ -2953,6 +2994,7 @@ def get_exhibitors(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
 
     if not event:
         event = db.query(EventManagement).filter(
@@ -2993,7 +3035,7 @@ def get_exhibitors(
 def create_or_update_exhibitor(
     payload: SaveExhibitorRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update an exhibitor record."""
     email_clean = _bound_email(payload.organizer_email, current_user)
@@ -3006,6 +3048,7 @@ def create_or_update_exhibitor(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
 
     if not event:
         event = db.query(EventManagement).filter(
@@ -3066,14 +3109,16 @@ def create_or_update_exhibitor(
 @router.delete("/exhibitors/{exhibitor_id}")
 def delete_exhibitor(
     exhibitor_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Delete an exhibitor record."""
+    """Delete an exhibitor record owned by the authenticated host."""
     try:
         ex_uuid = uuid.UUID(exhibitor_id)
         exhibitor = db.query(Exhibitor).filter(Exhibitor.exhibitor_id == ex_uuid).first()
         if not exhibitor:
             raise HTTPException(status_code=404, detail="Exhibitor not found")
+        _require_owned_event(db, exhibitor.event_id, current_user)
         db.delete(exhibitor)
         db.commit()
         return {"status": "success", "message": "Exhibitor deleted"}
@@ -3086,7 +3131,7 @@ def clear_host_events(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None, description="Optional event id to cancel"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Cancel the host event, hide it from public pages, then clear host dashboard data."""
     email_clean = _bound_email(email, current_user)
@@ -3165,10 +3210,11 @@ def get_gates(
     organizer_email: str,
     event_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Retrieve all gates for an event."""
     email_clean = _bound_email(organizer_email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
     event = None
     if event_id:
         try:
@@ -3176,6 +3222,7 @@ def get_gates(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
         event = db.query(EventManagement).filter(
             EventManagement.organizer_email == email_clean
@@ -3204,7 +3251,7 @@ def get_gates(
 def save_gate(
     payload: SaveGateRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update an entry gate."""
     email_clean = _bound_email(payload.organizer_email, current_user)
@@ -3217,6 +3264,7 @@ def save_gate(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
         event = db.query(EventManagement).filter(
             EventManagement.organizer_email == email_clean
@@ -3285,7 +3333,8 @@ def save_gate(
 @router.delete("/gates/{gate_id}")
 def delete_gate(
     gate_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a gate if not assigned to any scanners."""
     try:
@@ -3293,6 +3342,7 @@ def delete_gate(
         gate = db.query(EventEntryGate).filter(EventEntryGate.gate_id == g_uuid).first()
         if not gate:
             raise HTTPException(status_code=404, detail="Gate not found")
+        _require_owned_event(db, gate.event_id, current_user)
 
         # Check if any staff/scanners are assigned to this gate
         assigned_scanners = db.query(EventStaffScanner).filter(EventStaffScanner.gate_id == g_uuid).first()
@@ -3326,10 +3376,11 @@ def get_scanners(
     organizer_email: str,
     event_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Retrieve all volunteer scanners for an event."""
     email_clean = _bound_email(organizer_email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
     event = None
     if event_id:
         try:
@@ -3337,6 +3388,7 @@ def get_scanners(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
         event = db.query(EventManagement).filter(
             EventManagement.organizer_email == email_clean
@@ -3366,10 +3418,12 @@ def get_scanners(
 @router.post("/scanners")
 def save_scanner(
     payload: SaveScannerRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Create or update a volunteer scanner."""
     email_clean = _bound_email(payload.organizer_email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
     event = None
     if payload.event_id:
         try:
@@ -3377,6 +3431,7 @@ def save_scanner(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
         event = db.query(EventManagement).filter(
             EventManagement.organizer_email == email_clean
@@ -3434,7 +3489,8 @@ def save_scanner(
 @router.delete("/scanners/{scanner_id}")
 def delete_scanner(
     scanner_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Revoke a volunteer scanner's access."""
     try:
@@ -3442,6 +3498,7 @@ def delete_scanner(
         scanner = db.query(EventStaffScanner).filter(EventStaffScanner.scanner_id == s_uuid).first()
         if not scanner:
             raise HTTPException(status_code=404, detail="Scanner not found")
+        _require_owned_event(db, scanner.event_id, current_user)
         db.delete(scanner)
         db.commit()
         return {"status": "success", "message": "Scanner revoked successfully"}

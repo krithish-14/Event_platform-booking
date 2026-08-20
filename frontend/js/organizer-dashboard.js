@@ -5339,7 +5339,10 @@ async function initOrganizerDashboard() {
 				}
 				setStatus("Sending OTP…", true);
 				try {
-					const res = await fetch(`${API_BASE}/send-otp`, {
+					const fetchFn = window.JodAuth && typeof window.JodAuth.fetchAuth === "function"
+						? window.JodAuth.fetchAuth
+						: fetch;
+					const res = await fetchFn(`${API_BASE}/send-otp`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ email: hostEmail, channel: otpChannel })
@@ -5347,11 +5350,7 @@ async function initOrganizerDashboard() {
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(apiErrorMessage(data, "Failed to send OTP."));
 					const banner = document.getElementById("publishOtpDevBanner");
-					const devVal = document.getElementById("publishOtpDevValue");
-					if (data.dev_otp && banner && devVal) {
-						devVal.textContent = data.dev_otp;
-						banner.style.display = "block";
-					}
+					if (banner) banner.style.display = "none";
 					setStatus(data.message || `OTP sent to ${data.destination || hostEmail}.`, true);
 					if (fields[0]) fields[0].focus();
 				} catch (err) {
@@ -5369,7 +5368,10 @@ async function initOrganizerDashboard() {
 				verifying = true;
 				setStatus("Verifying…", true);
 				try {
-					const res = await fetch(`${API_BASE}/verify-otp`, {
+					const fetchFn = window.JodAuth && typeof window.JodAuth.fetchAuth === "function"
+						? window.JodAuth.fetchAuth
+						: fetch;
+					const res = await fetchFn(`${API_BASE}/verify-otp`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ email: hostEmail, otp_code: code })

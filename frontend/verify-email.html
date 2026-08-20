@@ -262,7 +262,10 @@
 					currentEmail = email;
 
 					try {
-						const res = await fetch(`${API_BASE}/send-otp`, {
+						const fetchFn = window.JodAuth && typeof window.JodAuth.fetchAuth === "function"
+							? window.JodAuth.fetchAuth
+							: fetch;
+						const res = await fetchFn(`${API_BASE}/send-otp`, {
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
 							body: JSON.stringify({ email })
@@ -270,13 +273,7 @@
 						const data = await res.json();
 						if (!res.ok) throw new Error(data.detail || "Failed to send OTP.");
 
-						// Display Dev OTP if present
-						if (data.dev_otp) {
-							devOtpBanner.style.display = "block";
-							devOtpValue.textContent = data.dev_otp;
-						} else {
-							devOtpBanner.style.display = "none";
-						}
+						if (devOtpBanner) devOtpBanner.style.display = "none";
 
 						sentEmailDisplay.textContent = email;
 						stepEmail.classList.add("hidden-step");
@@ -348,7 +345,10 @@
 					}
 
 					try {
-						const res = await fetch(`${API_BASE}/verify-otp`, {
+						const fetchFn = window.JodAuth && typeof window.JodAuth.fetchAuth === "function"
+							? window.JodAuth.fetchAuth
+							: fetch;
+						const res = await fetchFn(`${API_BASE}/verify-otp`, {
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
 							body: JSON.stringify({ email: currentEmail, otp_code })

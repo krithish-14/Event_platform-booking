@@ -5,10 +5,12 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
+from dotenv import load_dotenv
 from alembic import context
 
-# add project root directory to sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+_backend_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, _backend_dir)
+load_dotenv(os.path.join(_backend_dir, ".env"))
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -21,17 +23,15 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from Models.base import Base, DATABASE_URL
+from Models.base import Base
 import Models  # noqa: F401
 
 target_metadata = Base.metadata
 
-# set sqlalchemy.url dynamically from environment if set
-env_url = os.getenv("DATABASE_URL")
-if env_url:
-    config.set_main_option("sqlalchemy.url", env_url)
-else:
-    config.set_main_option("sqlalchemy.url", DATABASE_URL)
+env_url = (os.getenv("DATABASE_URL") or "").strip()
+if not env_url:
+    raise RuntimeError("DATABASE_URL is required for Alembic. PostgreSQL is required.")
+config.set_main_option("sqlalchemy.url", env_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

@@ -82,15 +82,15 @@
 				<div class="admin-muted">${escapeHtml(row.attendee_phone || "No phone")}</div>
 			</td>
 			<td>
-				<div>${escapeHtml(row.event_title)}</div>
+				<div class="admin-event-title">${escapeHtml(row.event_title)}</div>
 				<div class="admin-muted">${escapeHtml(row.event_venue || "")}</div>
 			</td>
 			<td>
-				<div>${escapeHtml(row.ticket_type || "Ticket")}</div>
+				<div class="admin-ticket-title">${escapeHtml(row.ticket_type || "Ticket")}</div>
 				<div class="admin-muted">₹${Number(row.ticket_price || 0).toLocaleString("en-IN")}</div>
 				${row.transaction_id ? `<div class="admin-muted">Txn ${escapeHtml(row.transaction_id)}</div>` : ""}
 			</td>
-			<td>${escapeHtml(formatWhen(row.submitted_at))}</td>
+			<td class="admin-submitted">${escapeHtml(formatWhen(row.submitted_at))}</td>
 			<td><span class="admin-badge ${ready ? "ready" : "pending"}">${ready ? "QR ready" : "Needs QR"}</span></td>
 			<td>
 				<div class="admin-actions">

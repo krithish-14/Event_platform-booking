@@ -9,11 +9,15 @@ from typing import Optional
 from jose import JWTError, jwt
 from dotenv import load_dotenv
 
-load_dotenv()
+from Services.runtime_env import require_strong_secret
 
-SECRET_KEY = os.getenv("SECRET_KEY", "change-this-to-a-strong-secret-key-in-production")
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+load_dotenv(os.path.join(_BACKEND_DIR, ".env"))
+
+SECRET_KEY = require_strong_secret(os.getenv("SECRET_KEY"), "SECRET_KEY")
 ALGORITHM  = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+AUTH_COOKIE_NAME = "jod_access_token"
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

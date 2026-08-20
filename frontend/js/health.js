@@ -132,6 +132,15 @@ window.JodHealth = (() => {
   };
 })();
 
+window.escHtml = function escHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+};
+
 // Expose modular functions directly on window object for requirements
 window.getApiBaseUrl = window.JodHealth.getApiBaseUrl;
 window.checkBackendHealth = window.JodHealth.checkBackendHealth;
