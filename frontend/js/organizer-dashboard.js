@@ -1060,11 +1060,11 @@ async function initOrganizerDashboard() {
 
 	// ── Access Control: verification overlay (disabled until admin portal) ──
 	if (VERIFICATION_UI_ENABLED) {
-		await fetchVerificationStatus(true);
-		const vs = currentVerificationInfo ? currentVerificationInfo.verification_status : "NOT_SUBMITTED";
-		if (vs !== "VERIFIED") {
-			showVerificationOverlay();
-			renderVerificationPanel(currentVerificationInfo || { verification_status: vs });
+	await fetchVerificationStatus(true);
+	const vs = currentVerificationInfo ? currentVerificationInfo.verification_status : "NOT_SUBMITTED";
+	if (vs !== "VERIFIED") {
+		showVerificationOverlay();
+		renderVerificationPanel(currentVerificationInfo || { verification_status: vs });
 		} else {
 			hideVerificationOverlay();
 		}
@@ -2160,22 +2160,22 @@ async function initOrganizerDashboard() {
 			btn.addEventListener("click", async () => {
 				const volunteerId = btn.getAttribute("data-id");
 				if (!confirm("Revoke this volunteer's scanner access?")) return;
-				try {
+					try {
 					const res = await fetch(`${VOLUNTEERS_API}/${volunteerId}/revoke`, {
 						method: "POST",
-						headers: getAuthHeaders()
-					});
-					if (res.ok) {
+							headers: getAuthHeaders()
+						});
+						if (res.ok) {
 						loadVolunteers();
 						loadEventDayVolunteerStats();
 						showNotification("Volunteer access revoked.");
-					} else {
+						} else {
 						const err = await res.json().catch(() => ({}));
 						alert(apiErrorMessage(err, "Could not revoke volunteer."));
+						}
+					} catch (err) {
+						console.warn(err);
 					}
-				} catch (err) {
-					console.warn(err);
-				}
 			});
 		});
 
@@ -3527,28 +3527,28 @@ async function initOrganizerDashboard() {
 		div.className = "ticket-tier-row";
 		div.innerHTML = `
 			<div class="setup-grid-3 ticket-tier-main">
-				<div class="setup-form-group">
-					<label>Ticket Type / Name <span style="color: #ef4444;">*</span></label>
-					<div class="input-icon-wrap">
-						<span class="input-icon">&#127915;</span>
+			<div class="setup-form-group">
+				<label>Ticket Type / Name <span style="color: #ef4444;">*</span></label>
+				<div class="input-icon-wrap">
+					<span class="input-icon">&#127915;</span>
 						<input type="text" class="setup-input ticket-type-input" placeholder="e.g. VIP Pass, Early Bird, General" required value="${attrEscape(type)}" />
-					</div>
 				</div>
-				<div class="setup-form-group">
-					<label>Ticket Price (₹) <span style="color: #ef4444;">*</span></label>
-					<div class="input-icon-wrap">
-						<span class="input-icon">&#8377;</span>
+			</div>
+			<div class="setup-form-group">
+				<label>Ticket Price (₹) <span style="color: #ef4444;">*</span></label>
+				<div class="input-icon-wrap">
+					<span class="input-icon">&#8377;</span>
 						<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="${attrEscape(price)}" />
-					</div>
 				</div>
-				<div class="setup-form-group">
-					<label>Capacity <span style="color: #ef4444;">*</span></label>
-					<div style="display: flex; gap: 0.5rem;">
-						<div class="input-icon-wrap" style="flex: 1;">
-							<span class="input-icon">&#128101;</span>
+			</div>
+			<div class="setup-form-group">
+				<label>Capacity <span style="color: #ef4444;">*</span></label>
+				<div style="display: flex; gap: 0.5rem;">
+					<div class="input-icon-wrap" style="flex: 1;">
+						<span class="input-icon">&#128101;</span>
 							<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 100" min="1" required value="${attrEscape(qty)}" />
-						</div>
-						<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+					</div>
+					<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
 					</div>
 				</div>
 			</div>
@@ -4043,13 +4043,13 @@ async function initOrganizerDashboard() {
 
 					[profBankBeneficiary, profBankName, profBankAccountType, profBankAccountNumber, profBankIfsc].forEach(inp => {
 						if (!inp) return;
-						inp.setAttribute("readonly", "readonly");
-						inp.setAttribute("disabled", "disabled");
+							inp.setAttribute("readonly", "readonly");
+							inp.setAttribute("disabled", "disabled");
 						inp.setAttribute("tabindex", "-1");
-						inp.style.backgroundColor = "#f1f5f9";
-						inp.style.cursor = "not-allowed";
-						inp.style.color = "#334155";
-						inp.style.fontWeight = "700";
+							inp.style.backgroundColor = "#f1f5f9";
+							inp.style.cursor = "not-allowed";
+							inp.style.color = "#334155";
+							inp.style.fontWeight = "700";
 					});
 
 					if (acc.beneficiary_name && profBankBeneficiary) profBankBeneficiary.value = acc.beneficiary_name;
@@ -4133,18 +4133,18 @@ async function initOrganizerDashboard() {
 						throw new Error(apiErrorMessage(data, "Could not cancel event."));
 					}
 				}
-				sessionStorage.removeItem(`has_event_${email}`);
+					sessionStorage.removeItem(`has_event_${email}`);
 				sessionStorage.removeItem(`active_event_id_${email}`);
-				hasEvent = false;
-				activeEventId = null;
+					hasEvent = false;
+					activeEventId = null;
 				currentLifecycle = "draft";
 				canPublishNew = true;
 				canCreateNew = true;
 				if (dashEventTitle) dashEventTitle.textContent = "My Events Dashboard";
 				if (typeof renderOverviewState === "function") renderOverviewState();
 				showNotification("Event cancelled. It is no longer listed on Home, Category, or Event Details.");
-				switchTab("overview");
-			} catch (err) {
+					switchTab("overview");
+				} catch (err) {
 				console.warn("Could not cancel event:", err);
 				showNotification((err && err.message) || "Could not cancel event. Please try again.");
 			}
@@ -4176,8 +4176,8 @@ async function initOrganizerDashboard() {
 				const url = await uploadDesignAsset(file, "banner");
 				bannerImageUrl = url;
 				bannerPreviewImg.src = resolveUploadUrl(url);
-				bannerDropzoneContent.style.display = "none";
-				bannerPreviewBox.style.display = "block";
+					bannerDropzoneContent.style.display = "none";
+					bannerPreviewBox.style.display = "block";
 				updateEventPagePreview({ event_id: activeEventId, banner_image: url });
 				triggerLiveAutoSave();
 			} catch (err) {
@@ -4979,7 +4979,7 @@ async function initOrganizerDashboard() {
 				if (navigator.clipboard && navigator.clipboard.writeText) {
 					await navigator.clipboard.writeText(url);
 				} else {
-					volunteerPortalUrl.select();
+			volunteerPortalUrl.select();
 					document.execCommand("copy");
 				}
 				showNotification("Invitation link copied.");
@@ -5468,11 +5468,11 @@ async function initOrganizerDashboard() {
 	async function handleFinalPublish() {
 		if (_publishInFlight) return;
 		if (VERIFICATION_UI_ENABLED) {
-			const info = await fetchVerificationStatus(true);
-			const statusKey = info ? info.verification_status : "NOT_SUBMITTED";
-			if (statusKey !== "VERIFIED") {
-				showPublishGateModal(statusKey, info ? info.rejection_reason : null);
-				return;
+		const info = await fetchVerificationStatus(true);
+		const statusKey = info ? info.verification_status : "NOT_SUBMITTED";
+		if (statusKey !== "VERIFIED") {
+			showPublishGateModal(statusKey, info ? info.rejection_reason : null);
+			return;
 			}
 		}
 
@@ -5502,22 +5502,22 @@ async function initOrganizerDashboard() {
 				}
 			}
 
-			const manageData = collectManageEventPayload();
-			const missing = await verifyCurrentEventIsValid(manageData);
-			if (missing && missing.length > 0) {
-				alert("Please complete the following before publishing: " + missing.join(", "));
+		const manageData = collectManageEventPayload();
+		const missing = await verifyCurrentEventIsValid(manageData);
+		if (missing && missing.length > 0) {
+			alert("Please complete the following before publishing: " + missing.join(", "));
 				if (missing.indexOf("Event title") >= 0) switchTab("manage");
-				return;
-			}
+			return;
+		}
 
-			showPublishConfirm(manageData, async () => {
-				closePublishGateModal();
+		showPublishConfirm(manageData, async () => {
+			closePublishGateModal();
 				_publishInFlight = true;
 				setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
 				setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
 
 				async function postPublishEvent() {
-					const cur = await ensureCurrentEventExists();
+				const cur = await ensureCurrentEventExists();
 					const event_id = activeEventId || (cur && cur.event_id) || _publishEventId || null;
 					const dateInput = document.getElementById("eventDateInput");
 					const endDateInput = document.getElementById("eventEndDateInput");
@@ -5526,10 +5526,10 @@ async function initOrganizerDashboard() {
 					const formatInput = document.getElementById("eventFormatInput");
 					const descEl = document.getElementById("eventDescInput");
 
-					const payload = {
-						organizer_email: email,
-						event_id: event_id || undefined,
-						event_title: manageData.event_title,
+				const payload = {
+					organizer_email: email,
+					event_id: event_id || undefined,
+					event_title: manageData.event_title,
 						event_category: categorySelect ? categorySelect.value : undefined,
 						event_mode: formatInput ? formatInput.value : undefined,
 						venue: locationInput ? locationInput.value.trim() : undefined,
@@ -5545,13 +5545,13 @@ async function initOrganizerDashboard() {
 						agenda_json: collectAgendaJson(),
 						policies_json: collectPoliciesJson(),
 						about_event: descEl ? descEl.value : undefined
-					};
+				};
 
-					const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {
-						method: "POST",
-						headers: Object.assign({}, getAuthHeaders(), { "Content-Type": "application/json" }),
-						body: JSON.stringify(payload)
-					});
+				const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {
+					method: "POST",
+					headers: Object.assign({}, getAuthHeaders(), { "Content-Type": "application/json" }),
+					body: JSON.stringify(payload)
+				});
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(apiErrorMessage(data, "Publishing failed on the server."));
 
@@ -5562,20 +5562,20 @@ async function initOrganizerDashboard() {
 						);
 					}
 
-					if (data.event_id) {
+				if (data.event_id) {
 						activeEventId = data.event_id;
-						_publishEventId = data.event_id;
-						sessionStorage.setItem(`active_event_id_${email}`, String(data.event_id));
-					}
+					_publishEventId = data.event_id;
+					sessionStorage.setItem(`active_event_id_${email}`, String(data.event_id));
+				}
 					currentLifecycle = data.lifecycle || "published";
-					hasEvent = true;
-					sessionStorage.setItem(`has_event_${email}`, "true");
-					const title = manageData.event_title || "My Published Event";
-					if (dashEventTitle) dashEventTitle.textContent = title;
+				hasEvent = true;
+				sessionStorage.setItem(`has_event_${email}`, "true");
+				const title = manageData.event_title || "My Published Event";
+				if (dashEventTitle) dashEventTitle.textContent = title;
 					applySectionActionLabels();
 					renderOverviewState();
 					showNotification(`Event "${title}" is now live on Home, Category, and Event Details pages.`);
-					switchTab("overview");
+				switchTab("overview");
 				}
 
 				async function authenticateThenPublish() {
@@ -5597,8 +5597,8 @@ async function initOrganizerDashboard() {
 					setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
 					setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
 					await postPublishEvent();
-				} catch (err) {
-					const msg = err && err.message ? err.message : String(err || "");
+			} catch (err) {
+				const msg = err && err.message ? err.message : String(err || "");
 					if (isPublishAuthError(msg)) {
 						try {
 							await authenticateThenPublish();
@@ -5608,20 +5608,20 @@ async function initOrganizerDashboard() {
 					} else if (/already have an active event/i.test(msg)) {
 						showNotification("You already have an active event. You can create and publish a new event only after your current event has ended.");
 					} else if (/verification|under review|rejected/i.test(msg)) {
-						const refreshed = await fetchVerificationStatus(true);
-						showPublishGateModal(
-							refreshed ? refreshed.verification_status : "NOT_SUBMITTED",
-							refreshed ? refreshed.rejection_reason : null
-						);
-					} else {
+					const refreshed = await fetchVerificationStatus(true);
+					showPublishGateModal(
+						refreshed ? refreshed.verification_status : "NOT_SUBMITTED",
+						refreshed ? refreshed.rejection_reason : null
+					);
+				} else {
 						showNotification(msg || "Failed to publish event. Please try again.");
-					}
+				}
 				} finally {
 					_publishInFlight = false;
 					setWizardNavBusy(btnPublish, false);
 					setWizardNavBusy(btnTop, false);
-				}
-			});
+			}
+		});
 		} finally {
 			setWizardNavBusy(btnPublish, false);
 			setWizardNavBusy(btnTop, false);
