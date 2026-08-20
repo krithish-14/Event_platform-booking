@@ -1029,11 +1029,15 @@ body.home-page .hero.hero-slide-in .hero-featured-image {
 	position: relative;
 	z-index: 1;
 	display: grid;
-	grid-template-columns: 1.15fr 1fr;
+	grid-template-columns: minmax(0, 1fr) minmax(340px, 1.35fr);
 	align-items: center;
-	gap: 2rem;
+	gap: 2.25rem;
 	padding-top: 1.5rem;
 	padding-bottom: 1.25rem;
+}
+
+body.home-page .hero > .container.hero-grid {
+	width: min(100% - 2rem, 92rem);
 }
 
 .hero-copy {
@@ -1234,6 +1238,7 @@ h2 em {
 /* ── Featured Event Card ───────────────────────────────────── */
 .featured-event {
 	overflow: hidden;
+	width: 100%;
 	border: 1px solid rgba(255, 255, 255, .1);
 	border-radius: 1rem;
 	background: rgba(255, 255, 255, .04);
@@ -1249,13 +1254,31 @@ h2 em {
 }
 
 .featured-image-wrap.hero-featured-image {
-	aspect-ratio: 16 / 11;
+	aspect-ratio: 16 / 9;
+	width: 100%;
+	background: #0c0a08;
+}
+
+.featured-image-wrap.hero-featured-image > a {
+	position: absolute;
+	inset: 0;
+	display: block;
 }
 
 .featured-image-wrap img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
+	object-position: center center;
+}
+
+.featured-image-wrap.hero-featured-image img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	object-position: left center;
 }
 
 .image-gradient {
