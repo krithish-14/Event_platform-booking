@@ -1,0 +1,24 @@
+# Staging overlay: same layout as production, HTTP only, isolated volume.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.staging.yml up --build
+# Use a staging .env.production with APP_ENV=production, DEBUG=False, and
+# sandbox/test credentials — never production database or live payment secrets.
+
+services:
+  postgres:
+    volumes:
+      - jod_pgdata_staging:/var/lib/postgresql/data
+
+  api:
+    environment:
+      APP_ENV: production
+      DEBUG: "False"
+      # Staging overlay serves HTTP on :8080 — Secure cookies would never be sent by browsers.
+      # Production TLS compose must keep AUTH_COOKIE_SECURE=true (from .env.production).
+      AUTH_COOKIE_SECURE: "false"
+
+  proxy:
+    ports:
+      - "8080:80"
+
+volumes:
+  jod_pgdata_staging:

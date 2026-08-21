@@ -59,7 +59,7 @@
 			if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function") {
 				return window.JodAuth.isLoggedIn();
 			}
-			return !!(localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+			return !!(window.JodAuth && window.JodAuth.getUser && window.JodAuth.getUser());
 		} catch (_) { return false; }
 	}
 

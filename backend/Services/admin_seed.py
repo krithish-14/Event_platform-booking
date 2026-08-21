@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from Models.user import User
 from Services.auth_service import get_password_hash, verify_password
-from Services.runtime_env import WEAK_PASSWORDS
+from Services.runtime_env import WEAK_PASSWORDS, is_production
 
 
 DEFAULT_ADMIN_NAME = "JOD Admin"
@@ -43,7 +43,11 @@ def seed_admin_user(db: Session) -> None:
         return
     if password in WEAK_PASSWORDS:
         raise RuntimeError("ADMIN_PASSWORD is too weak. Choose a unique password.")
-
+    if sync_password and is_production():
+        raise RuntimeError(
+            "ADMIN_SYNC_PASSWORD must be false in production. "
+            "Reset an admin password through a controlled break-glass process, not on every boot."
+        )
     user = db.query(User).filter(func.lower(User.email) == email).first()
     if user:
         changed = False

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=1"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="View booking updates, event reminders, and offers on JOD Events." />
@@ -225,89 +226,113 @@
 
 	<script src="js/include.js?v=21"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=24"></script>
+	<script src="js/auth.js?v=25"></script>
 	<script src="js/profile.js?v=8"></script>
-	<script src="js/notifications-inbox.js?v=5"></script>
+	<script src="js/notifications-inbox.js?v=6"></script>
 	<script src="js/script.js?v=26"></script>
 	<script>
-		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+		(async function guardNotificationsPage() {
+			"use strict";
 			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
-			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
-		}
+			document.documentElement.classList.add("jod-auth-pending");
+			try {
+				if (!(window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function")) {
+					try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+					window.location.replace(`login.html?redirect=${encodeURIComponent(currentTarget)}`);
+					return;
+				}
+				const user = await window.JodAuth.requireAuthOrRedirect({ redirectTo: currentTarget });
+				if (!user) return;
 
-		function escapeHtml(value) {
-			return String(value || "").replace(/[&<>"']/g, (ch) => ({
-				"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-			}[ch]));
-		}
-
-		function renderFeed(items) {
-			const feed = document.getElementById("notifFeed");
-			const empty = document.getElementById("notifEmptyState");
-			const markBtn = document.getElementById("markReadBtn");
-			const clearBtn = document.getElementById("clearNotifsBtn");
-			if (!feed || !empty) return;
-
-			if (!items.length) {
-				feed.innerHTML = "";
-				empty.style.display = "block";
-				empty.querySelector(".notif-empty-title").textContent = "You're all caught up!";
-				if (markBtn) markBtn.disabled = true;
-				if (clearBtn) clearBtn.disabled = true;
-				return;
+				window.addEventListener("jod:auth-expired", () => {
+					try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+					window.location.replace(`login.html?redirect=${encodeURIComponent(currentTarget)}`);
+				}, { once: true });
+			} finally {
+				document.documentElement.classList.remove("jod-auth-pending");
 			}
 
-			empty.style.display = "none";
-			if (markBtn) markBtn.disabled = false;
-			if (clearBtn) clearBtn.disabled = false;
-			feed.innerHTML = items.map((item) => {
-				const tag = item.href ? "a" : "article";
-				const href = item.href ? ` href="${escapeHtml(item.href)}"` : "";
-				return `<${tag} class="notif-card${item.unread ? " unread" : ""}" data-id="${escapeHtml(item.id)}"${href}>
-					<div class="notif-icon">${item.icon}</div>
-					<div class="notif-body">
-						<div class="notif-title">
-							<span>${escapeHtml(item.title)}</span>
-							<span class="notif-time">${escapeHtml(item.time)}</span>
+			function escapeHtml(value) {
+				return String(value || "").replace(/[&<>"']/g, (ch) => ({
+					"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+				}[ch]));
+			}
+
+			function renderFeed(items) {
+				const feed = document.getElementById("notifFeed");
+				const empty = document.getElementById("notifEmptyState");
+				const markBtn = document.getElementById("markReadBtn");
+				const clearBtn = document.getElementById("clearNotifsBtn");
+				if (!feed || !empty) return;
+
+				if (!items.length) {
+					feed.innerHTML = "";
+					empty.style.display = "block";
+					empty.querySelector(".notif-empty-title").textContent = "You're all caught up!";
+					if (markBtn) markBtn.disabled = true;
+					if (clearBtn) clearBtn.disabled = true;
+					return;
+				}
+
+				empty.style.display = "none";
+				if (markBtn) markBtn.disabled = false;
+				if (clearBtn) clearBtn.disabled = false;
+				feed.innerHTML = items.map((item) => {
+					const tag = item.href ? "a" : "article";
+					const href = item.href ? ` href="${escapeHtml(item.href)}"` : "";
+					return `<${tag} class="notif-card${item.unread ? " unread" : ""}" data-id="${escapeHtml(item.id)}"${href}>
+						<div class="notif-icon">${item.icon}</div>
+						<div class="notif-body">
+							<div class="notif-title">
+								<span>${escapeHtml(item.title)}</span>
+								<span class="notif-time">${escapeHtml(item.time)}</span>
+							</div>
+							<p class="notif-desc">${item.html}</p>
 						</div>
-						<p class="notif-desc">${item.html}</p>
-					</div>
-				</${tag}>`;
-			}).join("");
-		}
-
-		document.addEventListener("DOMContentLoaded", async () => {
-			const empty = document.getElementById("notifEmptyState");
-			if (empty) empty.querySelector(".notif-empty-title").textContent = "Loading…";
-
-			const inbox = window.JodInbox;
-			const items = inbox ? await inbox.collectItems() : [];
-			renderFeed(items);
-			if (inbox) inbox.updateBadge(inbox.unreadCount(items));
-
-			const feed = document.getElementById("notifFeed");
-			if (feed) {
-				feed.addEventListener("click", (e) => {
-					const card = e.target.closest(".notif-card[data-id]");
-					if (!card || !inbox) return;
-					inbox.markRead(card.dataset.id);
-					card.classList.remove("unread");
-				});
+					</${tag}>`;
+				}).join("");
 			}
 
-			document.getElementById("markReadBtn").addEventListener("click", () => {
-				const ids = [...document.querySelectorAll(".notif-card[data-id]")].map((el) => el.dataset.id);
-				if (inbox) inbox.markAllRead(ids);
-				document.querySelectorAll(".notif-card").forEach((card) => card.classList.remove("unread"));
-			});
+			async function bootFeed() {
+				const empty = document.getElementById("notifEmptyState");
+				if (empty) empty.querySelector(".notif-empty-title").textContent = "Loading…";
 
-			document.getElementById("clearNotifsBtn").addEventListener("click", () => {
-				const ids = [...document.querySelectorAll(".notif-card[data-id]")].map((el) => el.dataset.id);
-				if (inbox) inbox.clearAll(ids);
-				renderFeed([]);
-			});
-		});
+				const inbox = window.JodInbox;
+				const items = inbox ? await inbox.collectItems() : [];
+				renderFeed(items);
+				if (inbox) inbox.updateBadge(inbox.unreadCount(items));
+
+				const feed = document.getElementById("notifFeed");
+				if (feed) {
+					feed.addEventListener("click", (e) => {
+						const card = e.target.closest(".notif-card[data-id]");
+						if (!card || !inbox) return;
+						inbox.markRead(card.dataset.id);
+						card.classList.remove("unread");
+					});
+				}
+
+				const markBtn = document.getElementById("markReadBtn");
+				if (markBtn) {
+					markBtn.addEventListener("click", () => {
+						const ids = [...document.querySelectorAll(".notif-card[data-id]")].map((el) => el.dataset.id);
+						if (inbox) inbox.markAllRead(ids);
+						document.querySelectorAll(".notif-card").forEach((card) => card.classList.remove("unread"));
+					});
+				}
+
+				const clearBtn = document.getElementById("clearNotifsBtn");
+				if (clearBtn) {
+					clearBtn.addEventListener("click", () => {
+						const ids = [...document.querySelectorAll(".notif-card[data-id]")].map((el) => el.dataset.id);
+						if (inbox) inbox.clearAll(ids);
+						renderFeed([]);
+					});
+				}
+			}
+
+			await bootFeed();
+		})();
 	</script>
 </body>
 </html>

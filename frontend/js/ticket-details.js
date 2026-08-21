@@ -7,11 +7,14 @@
 	"use strict";
 
 	function getApiBase() {
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
+		}
 		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 			return window.JodHealth.getApiBaseUrl();
 		}
-		const host = (window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
-		return window.JOD_API_BASE_OVERRIDE || `http://${host}:8001`;
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 	function getQueryParam(name) {
@@ -77,7 +80,9 @@
 			return { _error: "unavailable" };
 		}
 		if (!bookingId) return null;
-		const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+		const token = window.JodAuth && typeof window.JodAuth.getToken === "function"
+			? window.JodAuth.getToken()
+			: null;
 
 		if (!token) return { _error: "signin" };
 

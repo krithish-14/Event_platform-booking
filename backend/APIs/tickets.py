@@ -106,7 +106,7 @@ def _serialize_ticket_success(t: Ticket, message: str = "Ticket is valid for ent
         "seat": t.seat_number or "General Admission",
         "quantity": qty,
         "customer_name": cust_name,
-        "customer_email": cust_email,
+        "customer_email": None,
         "used_at": t.used_at,
         "scanned_by": t.scanned_by,
         "message": message,
@@ -276,7 +276,11 @@ def checkin_ticket_entry(
 
 @router.get("/public/{qr_token}")
 def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
-    """Open a ticket from the emailed / WhatsApp QR link without signing in."""
+    """Open a ticket from the emailed / WhatsApp QR link without signing in.
+
+    Returns only fields needed to render the attendee ticket page.
+    Does not expose email, phone, customer_id, or payment identifiers.
+    """
     from APIs.bookings import _serialize_booking
 
     ticket = _lookup_ticket(db, qr_token)
@@ -290,8 +294,36 @@ def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
     )
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
-    return _serialize_booking(booking, db=db)
-
+    full = _serialize_booking(booking, db=db)
+    allowed = {
+        "booking_id",
+        "ticket_id",
+        "qr_token",
+        "has_qr",
+        "ticket_status",
+        "used_at",
+        "user_name",
+        "receiver_name",
+        "event_id",
+        "event_title",
+        "event_venue",
+        "event_start_date",
+        "event_end_date",
+        "ticket_type",
+        "quantity",
+        "total_price",
+        "gst_amount",
+        "status",
+        "seat_number",
+        "language",
+        "event_format",
+        "booked_at",
+        "card_image",
+        "image_url",
+        "hero_image",
+        "agenda",
+    }
+    return {key: full.get(key) for key in allowed if key in full}
 
 # ── Additional Query Endpoints ────────────────────────────────────────────────
 def _assert_ticket_owner(ticket: Ticket, current_user: User) -> None:

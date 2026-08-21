@@ -8,6 +8,7 @@
 	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
 	<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=1"></script>
 	<link rel="stylesheet" href="css/style.css?v=24" />
 	<link rel="stylesheet" href="css/responsive.css?v=20" />
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -659,12 +660,16 @@
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 	<script src="js/script.js?v=26"></script>
 	<script>
-		// Auth check
-		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+		// Auth check — confirm cookie session
+		(async function guardSettingsPage() {
 			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
-			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
-		}
+			if (!(window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function")) {
+				try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+				window.location.replace(`login.html?redirect=${encodeURIComponent(currentTarget)}`);
+				return;
+			}
+			await window.JodAuth.requireAuthOrRedirect({ redirectTo: currentTarget });
+		})();
 
 		function getUser() {
 			try {
@@ -675,7 +680,7 @@
 
 		function apiBase() {
 			if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
-			return "http://127.0.0.1:8001";
+			return (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "";
 		}
 
 		function cleanCityName(name) {

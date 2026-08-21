@@ -6,7 +6,7 @@ import random
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -16,6 +16,7 @@ from Authentication.dependencies import get_current_user_optional
 from Models.base import get_db
 from Models.support_ticket import SupportTicket, generate_ticket_code
 from Models.user import User
+from Services.rate_limit import limit_support
 
 router = APIRouter()
 
@@ -104,6 +105,7 @@ def _unique_code(db: Session) -> str:
 @router.post("/tickets", response_model=SupportTicketResponse, status_code=status.HTTP_201_CREATED)
 def create_support_ticket(
     payload: SupportTicketCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -113,6 +115,7 @@ def create_support_ticket(
         email = current_user.email.lower().strip()
         if current_user.full_name:
             name = current_user.full_name.strip() or name
+    limit_support(request, email)
     subject = payload.subject.strip()
     message = payload.message.strip()
     if not name or not subject or not message:

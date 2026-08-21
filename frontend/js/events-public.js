@@ -9,12 +9,14 @@
 	const PLACEHOLDER_IMAGE = "images/hero-event.jpg";
 
 	function getApiBase() {
-		if (global.JodHealth && typeof global.JodHealth.getApiBaseUrl === "function") {
-			return global.JodHealth.getApiBaseUrl();
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
 		}
-		const host = (global.location.hostname && global.location.hostname !== "localhost")
-			? global.location.hostname : "127.0.0.1";
-		return `http://${host}:8001`;
+		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+			return window.JodHealth.getApiBaseUrl();
+		}
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 	function escapeHtml(str) {
@@ -26,19 +28,18 @@
 	}
 
 	function resolveImage(url) {
+		if (global.JodConfig && typeof global.JodConfig.safeMediaUrl === "function") {
+			return global.JodConfig.safeMediaUrl(url, PLACEHOLDER_IMAGE);
+		}
 		if (!url) return PLACEHOLDER_IMAGE;
 		const trimmed = String(url).trim();
 		const lower = trimmed.toLowerCase();
 		if (lower.startsWith("javascript:") || lower.startsWith("vbscript:") || lower.startsWith("data:")) {
 			return PLACEHOLDER_IMAGE;
 		}
-		if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
-		if (trimmed.startsWith("/api/media") || trimmed.startsWith("/uploads/") || trimmed.startsWith("uploads/")) {
-			const base = getApiBase().replace(/\/$/, "");
-			return `${base}/${trimmed.replace(/^\//, "")}`;
-		}
+		if (trimmed.startsWith("https://")) return trimmed;
 		if (trimmed.startsWith("/") || trimmed.startsWith("images/")) return trimmed;
-		return trimmed;
+		return PLACEHOLDER_IMAGE;
 	}
 
 	function formatPrice(price) {
@@ -230,9 +231,9 @@
 	}
 
 	function buildCarouselCard(event, delayClass) {
-		const id = event.id;
-		const detailsUrl = eventDetailsUrl(event);
-		const img = eventCardImage(event);
+		const id = escapeHtml(String(event.id || ""));
+		const detailsUrl = escapeHtml(eventDetailsUrl(event));
+		const img = escapeHtml(eventCardImage(event));
 		const title = escapeHtml(event.title || "Untitled Event");
 		const desc = escapeHtml((event.description || "").slice(0, 120));
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
@@ -271,9 +272,9 @@
 	}
 
 	function buildCategoryCard(event) {
-		const id = event.id;
-		const detailsUrl = eventDetailsUrl(event);
-		const img = eventCardImage(event);
+		const id = escapeHtml(String(event.id || ""));
+		const detailsUrl = escapeHtml(eventDetailsUrl(event));
+		const img = escapeHtml(eventCardImage(event));
 		const title = escapeHtml(event.title || "Untitled Event");
 		const desc = escapeHtml((event.description || "").slice(0, 90));
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
@@ -344,7 +345,7 @@
 		if (heroTitle) heroTitle.textContent = event.title || "Featured Event";
 		if (heroMeta) {
 			heroMeta.innerHTML = `
-				<p><span aria-hidden="true">&#128197;</span> ${dateStr}</p>
+				<p><span aria-hidden="true">&#128197;</span> ${escapeHtml(dateStr)}</p>
 				<p><span aria-hidden="true">&#128205;</span> ${venue}</p>
 			`;
 		}

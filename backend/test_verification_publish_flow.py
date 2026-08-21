@@ -143,9 +143,27 @@ def login(email, password="Test@1234"):
     s, d = req("POST", "/api/auth/login", body=form_body, headers=hdrs)
     if s == 200 and isinstance(d, dict):
         tok = d.get("access_token") or d.get("token")
-        if not tok and "data" in d and isinstance(d["data"], dict):
-            tok = d["data"].get("access_token") or d["data"].get("token")
-        return tok
+        if tok:
+            return tok
+        from dotenv import load_dotenv
+        load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+        from Models.base import get_session_factory
+        from Models.user import User
+        from Authentication.jwt_handler import create_access_token
+        from sqlalchemy import func
+        db = get_session_factory()()
+        try:
+            user = db.query(User).filter(func.lower(User.email) == email.lower()).first()
+            if not user:
+                return None
+            return create_access_token({
+                "sub": str(user.customer_id),
+                "customer_id": str(user.customer_id),
+                "email": user.email,
+                "username": user.username,
+            })
+        finally:
+            db.close()
     return None
 
 
@@ -215,6 +233,7 @@ s, d = req("POST", "/api/organizers/account-setup", {
     "cancelled_cheque_url": "/uploads/dummy_cheque_2.png",
     "contact_full_name": "John Doe",
     "contact_mobile": "9876543210",
+    "accepted_agreement": True,
     "is_final_submit": True
 }, headers=auth_headers(tok2))
 assert_status("S2 account-setup submit HTTP status", s, [200, 201])
@@ -272,6 +291,7 @@ req("POST", "/api/organizers/account-setup", {
     "cancelled_cheque_url": "/uploads/verified_cheque.png",
     "contact_full_name": "Jane Verified",
     "contact_mobile": "9999999999",
+    "accepted_agreement": True,
     "is_final_submit": True
 }, headers=auth_headers(tok4))
 admin_tok = make_admin_token()
@@ -342,6 +362,7 @@ req("POST", "/api/organizers/account-setup", {
     "cancelled_cheque_url": "/uploads/rejected_cheque.png",
     "contact_full_name": "Bob Rejected",
     "contact_mobile": "8888888888",
+    "accepted_agreement": True,
     "is_final_submit": True
 }, headers=auth_headers(tok6))
 # Force REJECTED with reason — admin only
@@ -385,6 +406,7 @@ s, d = req("POST", "/api/organizers/account-setup", {
     "pan_number": "BBBBB2222B",
     "pan_card_url": "/uploads/rejected_pan_fixed.png",
     "cancelled_cheque_url": "/uploads/rejected_cheque_fixed.png",
+    "accepted_agreement": True,
     "is_final_submit": True
 }, headers=auth_headers(tok6))
 s2, d2 = req("GET", "/api/organizers/verification-status", headers=auth_headers(tok6), query={"email": email6})

@@ -2,15 +2,20 @@
 	"use strict";
 
 	function apiBase() {
-		if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
+		}
+		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 			return window.JodHealth.getApiBaseUrl();
 		}
-		const host = (window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
-		return window.JOD_API_BASE_OVERRIDE || `http://${host}:8001`;
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 	function token() {
-		return window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+		return window.JodAuth && typeof window.JodAuth.getToken === "function"
+			? window.JodAuth.getToken()
+			: null;
 	}
 
 	function user() {
@@ -34,13 +39,14 @@
 
 	async function requireAdmin() {
 		const current = user();
-		if (!token() || !current) {
+		if (!token() && !(window.JodAuth && window.JodAuth.isLoggedIn && window.JodAuth.isLoggedIn()) && !current) {
 			window.location.href = "login.html";
 			return null;
 		}
 		try {
 			const res = await fetch(`${apiBase()}/api/admin/me`, {
-				headers: { Authorization: `Bearer ${token()}` },
+				credentials: "include",
+				headers: token() ? { Authorization: `Bearer ${token()}` } : {},
 			});
 			if (!res.ok) {
 				window.location.href = "login.html";
@@ -59,7 +65,8 @@
 	async function loadRows(query) {
 		const qs = query ? `?q=${encodeURIComponent(query)}` : "";
 		const res = await fetch(`${apiBase()}/api/admin/submissions${qs}`, {
-			headers: { Authorization: `Bearer ${token()}` },
+			credentials: "include",
+			headers: token() ? { Authorization: `Bearer ${token()}` } : {},
 		});
 		if (res.status === 401 || res.status === 403) {
 			window.location.href = "login.html";

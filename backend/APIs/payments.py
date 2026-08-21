@@ -2,9 +2,9 @@
 Attendee payment-proof upload after scanning the UPI QR on the bill page.
 """
 
-from typing import Optional
+import os
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -12,22 +12,17 @@ from Authentication.dependencies import get_current_user
 from Models.base import get_db
 from Models.payment_proof import PaymentProof
 from Models.user import User
-from Services.file_storage import public_url, store_bytes
+from Services.file_storage import store_bytes
+from Services.rate_limit import limit_payment
+from Utils.categories import is_allowed_image_bytes, is_allowed_image_filename
+from Utils.text_sanitize import sanitize_text
 
 router = APIRouter()
-
-ALLOWED_TYPES = {
-    "image/jpeg",
-    "image/jpg",
-    "image/png",
-    "image/webp",
-    "image/heic",
-    "image/heif",
-}
 
 
 @router.post("/proof", status_code=status.HTTP_201_CREATED)
 async def submit_payment_proof(
+    request: Request,
     event_id: str = Form(...),
     ticket_type: str = Form("General Admission"),
     amount: float = Form(0),
@@ -41,20 +36,24 @@ async def submit_payment_proof(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    name = (attendee_name or "").strip()
-    email = (attendee_email or current_user.email or "").strip().lower()
-    phone = (attendee_phone or "").strip()
-    bank = (bank_name or "").strip()
-    txn = (transaction_id or "").strip()
+    limit_payment(request)
+    name = sanitize_text(attendee_name, max_length=120)
+    email = sanitize_text(attendee_email or current_user.email or "", max_length=255).lower()
+    phone = sanitize_text(attendee_phone, max_length=40)
+    bank = sanitize_text(bank_name, max_length=120)
+    txn = sanitize_text(transaction_id, max_length=80)
     if not name or not email or not phone or not bank or not txn:
         raise HTTPException(status_code=400, detail="Please fill name, email, number, bank name, and transaction ID.")
 
     data = await screenshot.read()
     if not data:
         raise HTTPException(status_code=400, detail="Please upload a payment screenshot.")
+    filename = os.path.basename(screenshot.filename or "payment-screenshot.png")
+    if not is_allowed_image_filename(filename):
+        raise HTTPException(status_code=400, detail="Screenshot must be a JPG, PNG, or WEBP image.")
     content_type = (screenshot.content_type or "").lower()
-    if content_type and content_type not in ALLOWED_TYPES and not content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Screenshot must be an image file.")
+    if not is_allowed_image_bytes(data, content_type):
+        raise HTTPException(status_code=400, detail="Screenshot is not a valid image file.")
 
     stored = store_bytes(
         db,
@@ -113,5 +112,4 @@ async def submit_payment_proof(
         "message": "Payment details submitted. Admin will generate your QR ticket after verification.",
         "payment_id": row.id,
         "status": row.status,
-        "screenshot_url": public_url(stored),
     }

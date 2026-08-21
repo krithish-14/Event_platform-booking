@@ -1,0 +1,46 @@
+name: staging-tests
+
+on:
+  push:
+    branches: [main, krithish-feature]
+  pull_request:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: jod
+          POSTGRES_PASSWORD: jod
+          POSTGRES_DB: jod_events
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jod -d jod_events"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Unit tests
+        working-directory: backend
+        env:
+          APP_ENV: development
+          DEBUG: "True"
+          SECRET_KEY: local-development-secret-key-not-for-production-use
+          FILE_ENCRYPTION_KEY: local-development-file-key-not-for-production
+          DATABASE_URL: postgresql+psycopg://jod:jod@127.0.0.1:5432/jod_events
+          ADMIN_EMAIL: ci-admin@example.com
+          ADMIN_PASSWORD: CiAdminPass123!
+        run: |
+          python test_critical_security_fixes.py
+          python test_production_hardening.py
+      - name: Compose file renders
+        run: docker compose -f docker-compose.yml config >/dev/null

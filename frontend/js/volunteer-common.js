@@ -9,31 +9,28 @@ window.JodVolunteer = (() => {
 
 
 	function apiRoot() {
-
-		if (window.JodAuth && window.JodAuth.API_BASE) return String(window.JodAuth.API_BASE).replace(/\/$/, "");
-
-		if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
-
-			return String(window.JodHealth.getApiBaseUrl()).replace(/\/$/, "");
-
+		if (window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return String(window.JodConfig.getApiOrigin()).replace(/\/$/, "");
 		}
-
-		const host = (window.location.hostname && window.location.hostname !== "localhost")
-
-			? window.location.hostname
-
-			: "127.0.0.1";
-
-		return `http://${host}:8001`;
-
+		if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+			return String(window.JodHealth.getApiBaseUrl()).replace(/\/$/, "");
+		}
+		if (window.JodAuth && window.JodAuth.API_BASE) return String(window.JodAuth.API_BASE).replace(/\/$/, "");
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 
 
 	function apiBase() {
-
-		return `${apiRoot()}/api/volunteers`;
-
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
+		}
+		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+			return window.JodHealth.getApiBaseUrl();
+		}
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 
@@ -41,10 +38,8 @@ window.JodVolunteer = (() => {
 	function authHeaders(extra) {
 
 		const token = window.JodAuth && typeof window.JodAuth.getToken === "function"
-
 			? window.JodAuth.getToken()
-
-			: (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+			: null;
 
 		const headers = Object.assign({}, extra || {});
 
@@ -165,44 +160,35 @@ window.JodVolunteer = (() => {
 
 
 	function getPortalToken() {
-
 		const params = new URLSearchParams(window.location.search);
-
-		const fromUrl = (params.get("token") || "").trim();
-
-		if (fromUrl) {
-
-			try { sessionStorage.setItem(PORTAL_TOKEN_KEY, fromUrl); } catch (_) {}
-
-			return fromUrl;
-
+		let fromUrl = (params.get("token") || "").trim();
+		if (!fromUrl && window.location.hash) {
+			const hashParams = new URLSearchParams(String(window.location.hash || "").replace(/^#/, ""));
+			fromUrl = (hashParams.get("token") || "").trim();
 		}
-
+		if (fromUrl) {
+			try { sessionStorage.setItem(PORTAL_TOKEN_KEY, fromUrl); } catch (_) {}
+			try {
+				params.delete("token");
+				const next = params.toString();
+				const clean = window.location.pathname + (next ? `?${next}` : "");
+				window.history.replaceState({}, document.title, clean);
+			} catch (_) {}
+			return fromUrl;
+		}
 		try { return sessionStorage.getItem(PORTAL_TOKEN_KEY) || ""; } catch (_) { return ""; }
-
 	}
-
-
 
 	function portalUrl(token) {
-
 		const t = token || getPortalToken();
-
-		return t ? `volunteer-portal.html?token=${encodeURIComponent(t)}` : "volunteer-portal.html";
-
+		// Prefer hash so the token is not sent as Referer to third-party assets.
+		return t ? `volunteer-portal.html#token=${encodeURIComponent(t)}` : "volunteer-portal.html";
 	}
-
-
 
 	function scannerUrl(token) {
-
 		const t = token || getPortalToken();
-
-		return t ? `volunteer-scanner.html?token=${encodeURIComponent(t)}` : "volunteer-scanner.html";
-
+		return t ? `volunteer-scanner.html#token=${encodeURIComponent(t)}` : "volunteer-scanner.html";
 	}
-
-
 
 	async function request(path, options) {
 

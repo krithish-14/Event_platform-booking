@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=1"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Cache-Control" content="no-store" />
@@ -402,7 +403,7 @@
 			const ticket = prettyTicket(params.get("ticket") || saved.ticket || "General Admission");
 			const price = Number(params.get("price") || saved.price || 0);
 			const qty = Number(saved.quantity || 1) || 1;
-			const apiBase = ((window.JodAuth && window.JodAuth.API_BASE) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || "http://127.0.0.1:8001").replace(/\/$/, "");
+			const apiBase = ((window.JodAuth && window.JodAuth.API_BASE) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, "");
 			const DEFAULT_PAY_QR = "images/jod-upi-payment-qr.png";
 
 			const eventEl = document.getElementById("payEvent");

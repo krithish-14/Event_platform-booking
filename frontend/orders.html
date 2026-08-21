@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=1"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Manage your event bookings, tickets, and order history on JOD Events." />
@@ -305,28 +306,34 @@
 
 	<script src="js/include.js?v=21"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=24"></script>
+	<script src="js/auth.js?v=25"></script>
 	<script src="js/profile.js?v=8"></script>
 	<script src="js/location.js?v=12"></script>
 	<script src="js/script.js?v=26"></script>
 	<script>
-		// Auth check & filter tabs logic
-		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+		// Auth check & filter tabs logic — confirm cookie session before rendering
+		(async function guardOrdersPage() {
 			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
-			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
-		}
+			if (!(window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function")) {
+				try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+				window.location.replace(`login.html?redirect=${encodeURIComponent(currentTarget)}`);
+				return;
+			}
+			const user = await window.JodAuth.requireAuthOrRedirect({ redirectTo: currentTarget });
+			if (!user) return;
+		})();
 
 		let allBookingsData = [];
 		let activeOrdersFilter = "all";
 
 		function getApiBase() {
+			if (window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+				return window.JodConfig.getApiOrigin();
+			}
 			if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 				return window.JodHealth.getApiBaseUrl();
 			}
-			const host = (window.location.hostname && window.location.hostname !== "localhost")
-				? window.location.hostname : "127.0.0.1";
-			return `http://${host}:8001`;
+			return "";
 		}
 
 		function escapeHtml(str) {

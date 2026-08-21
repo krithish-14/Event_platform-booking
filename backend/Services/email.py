@@ -30,7 +30,8 @@ def send_email(to_email: str, subject: str, text_body: str, html_body: Optional[
 
     host = (os.getenv("SMTP_HOST") or "").strip()
     port = int(os.getenv("SMTP_PORT") or "587")
-    user = (os.getenv("SMTP_USER") or "").strip()
+    from Services.runtime_env import smtp_user
+    user = smtp_user()
     password = os.getenv("SMTP_PASSWORD") or ""
     from_addr = (os.getenv("SMTP_FROM") or os.getenv("EMAIL_FROM") or user or "noreply@jodevents.local").strip()
     use_tls = (os.getenv("SMTP_TLS") or "1").strip() not in ("0", "false", "False")

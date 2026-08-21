@@ -20,12 +20,14 @@ window.JodLocation = (() => {
   /* ── Config ─────────────────────────────────────────────── */
   const RADIUS_KM = 20;
   function getApiBase() {
+    if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+      return window.JodConfig.getApiOrigin();
+    }
     if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
       return window.JodHealth.getApiBaseUrl();
     }
-    const API_PORT = "8001";
-    const host = window.location.hostname && window.location.hostname !== "localhost" ? window.location.hostname : "127.0.0.1";
-    return window.JOD_API_BASE_OVERRIDE || `http://${host}:${API_PORT}`;
+    if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+    return "";
   }
   const API_BASE = getApiBase();
 
@@ -101,11 +103,10 @@ window.JodLocation = (() => {
   /* ── Helpers ────────────────────────────────────────────── */
   function getToken() {
     try {
-      return (
-        localStorage.getItem("jod_access_token") ||
-        sessionStorage.getItem("jod_access_token") ||
-        null
-      );
+      if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
+        return window.JodAuth.getToken();
+      }
+      return null;
     } catch (_) {
       return null;
     }

@@ -1,14 +1,31 @@
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 
-from Services.runtime_env import cors_origins, docs_enabled, is_production
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+from Services.runtime_env import (
+    allowed_hosts,
+    cors_origins,
+    docs_enabled,
+    is_production,
+    is_staging,
+    validate_production_env,
+)
+from Services.request_logging import RequestContextMiddleware, configure_logging
+from Services.csrf import CookieCsrfMiddleware
 
 _BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 load_dotenv(os.path.join(_BACKEND_DIR, ".env"))
+APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
+configure_logging()
 
 from APIs.auth import router as auth_router
 from APIs.events import router as events_router
@@ -44,6 +61,7 @@ def safe_print(msg: str) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_production_env()
     create_tables()
     safe_print("  [OK] Database tables ready.")
     try:
@@ -76,12 +94,57 @@ app = FastAPI(
 )
 
 origins = cors_origins()
+app.add_middleware(RequestContextMiddleware)
+app.add_middleware(CookieCsrfMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID", "X-CSRF-Token"],
+)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+_hosts = allowed_hosts()
+if is_production() and _hosts and _hosts != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_hosts)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    if is_production() or is_staging():
+        return JSONResponse(status_code=422, content={"detail": "Invalid request."})
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, HTTPException):
+        raise exc
+    logging.getLogger("jod").exception(
+        "unhandled_error",
+        extra={"endpoint": request.url.path, "error_type": type(exc).__name__},
+    )
+    detail = "Internal server error."
+    if not is_production() and not is_staging():
+        detail = str(exc) or detail
+    return JSONResponse(status_code=500, content={"detail": detail})
+
+
+# Pragmatic production CSP for the static MPA (inline scripts still required).
+# Blocks foreign script hosts and plugins; does not replace XSS escaping.
+_CSP = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'self'; "
+    "object-src 'none'; "
+    "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob: https:; "
+    "font-src 'self' data:; "
+    "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com; "
+    "frame-src https://accounts.google.com; "
+    "worker-src 'self' blob:"
 )
 
 
@@ -91,6 +154,9 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(self)"
+    if is_production() or is_staging():
+        response.headers["Content-Security-Policy"] = _CSP
     if is_production():
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
@@ -104,7 +170,10 @@ templates_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "
 if not os.path.exists(templates_path):
     os.makedirs(templates_path, exist_ok=True)
 
-templates = Jinja2Templates(directory=[templates_path, frontend_path])
+_template_dirs = [templates_path]
+if os.path.isdir(frontend_path):
+    _template_dirs.append(frontend_path)
+templates = Jinja2Templates(directory=_template_dirs)
 
 
 # ── Routers ───────────────────────────────────────────────────────────────────
@@ -130,12 +199,30 @@ app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
 # ── Health & Template Routes ───────────────────────────────────────────────────
 @app.get("/", tags=["Root"])
 def root():
-    return {"message": "JOD Events API is running 🚀", "docs": "/docs"}
+    payload = {"message": "JOD Events API is running 🚀", "version": APP_VERSION}
+    if docs_enabled():
+        payload["docs"] = "/docs"
+    return payload
 
 
 @app.get("/health", tags=["Root"])
 def health_check():
-    return {"status": "healthy", "service": "JOD Events API"}
+    return {"status": "healthy", "version": APP_VERSION}
+
+
+@app.get("/health/ready", tags=["Root"])
+def health_ready():
+    from sqlalchemy import text
+    from Models.base import get_engine
+
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception:
+        logging.getLogger("jod").error("readiness_failed", extra={"endpoint": "/health/ready"})
+        raise HTTPException(status_code=503, detail="not ready")
+    return {"status": "ready", "version": APP_VERSION}
 
 
 @app.get("/templates/events", response_class=HTMLResponse, tags=["Jinja2 Templates"])
@@ -172,10 +259,7 @@ async def render_event_details_page(request: Request, event_id: str):
             event_obj = None
 
         if not event_obj:
-            # Fallback to first available event if given ID isn't found
-            events = list_events(db, limit=1)
-            if events:
-                event_obj = events[0]
+            raise HTTPException(status_code=404, detail="Event not found.")
 
         if event_obj:
             def parse_j(val):

@@ -1,0 +1,13 @@
+# TLS overlay. Place Let's Encrypt (or equivalent) files in deploy/certs/:
+#   fullchain.pem  privkey.pem
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml up --build
+
+services:
+  proxy:
+    volumes:
+      - ./deploy/nginx/tls.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"

@@ -20,29 +20,13 @@ window.JodHealth = (() => {
    * Determine backend API base URL dynamically based on environment.
    */
   function getApiBaseUrl() {
-    if (typeof window === "undefined" || !window.location) {
-      return `http://127.0.0.1:${DEFAULT_PORT}`;
+    if (window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+      return window.JodConfig.getApiOrigin();
     }
-
     if (window.JOD_API_BASE_OVERRIDE) {
-      return window.JOD_API_BASE_OVERRIDE;
+      return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
     }
-
-    const host = window.location.hostname;
-    const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-
-    // Local environment (localhost, 127.0.0.1, or local IP / file://)
-    if (!host || host === "localhost" || host === "127.0.0.1" || host.startsWith("192.168.") || host.startsWith("10.")) {
-      const targetHost = (host === "localhost" || !host) ? "127.0.0.1" : host;
-      return `${protocol}//${targetHost}:${DEFAULT_PORT}`;
-    }
-
-    // Production environment (e.g. backend deployed on API subdomain or same origin)
-    if (window.location.port && window.location.port !== "80" && window.location.port !== "443") {
-      return `${protocol}//${host}:${DEFAULT_PORT}`;
-    }
-
-    return `${window.location.origin}`;
+    return "";
   }
 
   /**
@@ -120,7 +104,9 @@ window.JodHealth = (() => {
       if (iconSpan) iconSpan.textContent = icon;
       msgEl.textContent = message || "Connecting to server, please wait…";
     } else {
-      alertEl.innerHTML = `<span>${icon}</span><span class="alert-msg">${message || "Connecting to server, please wait…"}</span>`;
+      alertEl.innerHTML = `<span>${icon}</span><span class="alert-msg"></span>`;
+      const msgSpan = alertEl.querySelector(".alert-msg");
+      if (msgSpan) msgSpan.textContent = message || "Connecting to server, please wait…";
     }
   }
 

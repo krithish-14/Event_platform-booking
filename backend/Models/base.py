@@ -464,6 +464,21 @@ def _migrate_tables(engine=None):
                         print("  [DB MIGRATION] Added column email_otps.purpose", flush=True)
                     except Exception as e:
                         print(f"  [DB MIGRATION WARN] Could not add column email_otps.purpose: {e}", flush=True)
+                try:
+                    if is_pg:
+                        conn.execute(text("ALTER TABLE email_otps ALTER COLUMN otp_code TYPE VARCHAR(128);"))
+                    else:
+                        conn.execute(text("ALTER TABLE email_otps ALTER COLUMN otp_code TYPE VARCHAR(128);"))
+                except Exception as e:
+                    print(f"  [DB MIGRATION WARN] Could not widen email_otps.otp_code: {e}", flush=True)
+                if "attempt_count" not in existing_cols:
+                    try:
+                        if is_pg:
+                            conn.execute(text("ALTER TABLE email_otps ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 0 NOT NULL;"))
+                        else:
+                            conn.execute(text("ALTER TABLE email_otps ADD COLUMN attempt_count INTEGER DEFAULT 0 NOT NULL;"))
+                    except Exception as e:
+                        print(f"  [DB MIGRATION WARN] Could not add email_otps.attempt_count: {e}", flush=True)
                 conn.commit()
     except Exception as exc:
         print(f"  [WARN] Auto-migration check: {exc}", flush=True)

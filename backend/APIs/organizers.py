@@ -2,19 +2,19 @@
 API endpoints for Event Organizer onboarding — Email OTP verification & Account setup with bank details.
 """
 
-import random
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import or_
 
 from Models import get_db, EmailOTP, OrganizerAccount, User, HostRegistrationLog
-from Authentication.dependencies import get_current_user, get_current_user_optional
-from Authentication.jwt_handler import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from Authentication.dependencies import get_current_user
+from Services.rate_limit import limit_otp
+from Services import otp as otp_service
 
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
 from Services.email import send_email
@@ -173,11 +173,13 @@ def _mask_mobile(phone: str) -> str:
 @router.post("/send-otp")
 def send_otp(
     payload: SendOTPRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Generate and send a 6-digit OTP to the logged-in user's email."""
     email = payload.email.lower().strip()
+    limit_otp(request, email)
     if current_user.email.lower().strip() != email:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -193,24 +195,8 @@ def send_otp(
             detail="Email delivery is not configured. You can still publish events from the host dashboard.",
         )
 
-    otp_code = f"{random.randint(100000, 999999)}"
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
-
-    db.query(EmailOTP).filter(
-        EmailOTP.email == email,
-        EmailOTP.is_verified == False,
-        _organizer_otp_purpose(),
-    ).delete(synchronize_session=False)
-
-    otp_record = EmailOTP(
-        email=email,
-        otp_code=otp_code,
-        expires_at=expires_at,
-        is_verified=False,
-        purpose="organizer",
-    )
-    db.add(otp_record)
-    db.commit()
+    otp_code = otp_service.generate_otp()
+    otp_service.store_otp(db, email, "organizer", otp_code)
 
     org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email).first()
     phone = ""
@@ -265,39 +251,19 @@ def send_otp(
 @router.post("/verify-otp")
 def verify_otp(
     payload: VerifyOTPRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Verify the 6-digit OTP sent to the user's email."""
     email = payload.email.lower().strip()
+    limit_otp(request, email)
     if current_user.email.lower().strip() != email:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only verify a code for your own account.",
         )
-    code = payload.otp_code.strip()
-
-    otp_record = db.query(EmailOTP).filter(
-        EmailOTP.email == email,
-        EmailOTP.otp_code == code,
-        EmailOTP.is_verified == False,
-        _organizer_otp_purpose(),
-    ).order_by(EmailOTP.created_at.desc()).first()
-
-    if not otp_record:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid OTP verification code. Please check and try again."
-        )
-
-    if datetime.utcnow() > otp_record.expires_at:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OTP code has expired. Please request a new verification code."
-        )
-
-    # Mark OTP as verified
-    otp_record.is_verified = True
+    otp_service.verify_otp(db, email, payload.otp_code, "organizer")
 
     user = db.query(User).filter(User.email == email).first()
 
@@ -331,19 +297,6 @@ def verify_otp(
         "account_status": org_acc.status if org_acc else "draft",
         "is_completed": is_completed,
     }
-
-    if user:
-        token = create_access_token(
-            data={
-                "sub": str(user.customer_id or user.email),
-                "customer_id": str(user.customer_id) if user.customer_id else None,
-                "email": user.email,
-                "username": user.username,
-            },
-            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-        )
-        result["access_token"] = token
-        result["token_type"] = "bearer"
 
     return result
 
@@ -661,7 +614,7 @@ def upload_document(
 def get_organizer_dashboard(
     email: str = Query(..., description="Organizer email address"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Fetch organizer dashboard data, stats, and event metrics matching dashboard screenshot."""
     email_clean = _bound_organizer_email(email, current_user)
@@ -809,7 +762,8 @@ def get_verification_status(
 ):
     """Return the organizer's public verification status + KYC readiness."""
     email_clean, org_acc, is_admin = _organizer_account_for_viewer(db, current_user, email)
-    include_sensitive = is_admin or (email_clean == (current_user.email or "").lower().strip())
+    own_email = (current_user.email or "").lower().strip()
+    include_sensitive = is_admin or (email_clean == own_email)
 
     if not org_acc:
         return {
@@ -898,6 +852,12 @@ def resubmit_verification(
             org_acc.rejection_reason = payload.rejection_reason
             org_acc.verified_at = None
     else:
+        requested = str(payload.email or "").lower().strip()
+        if requested and requested != own_email:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only resubmit your own verification.",
+            )
         org_acc = db.query(OrganizerAccount).filter(
             (OrganizerAccount.customer_id == current_user.customer_id) |
             (OrganizerAccount.email == own_email)

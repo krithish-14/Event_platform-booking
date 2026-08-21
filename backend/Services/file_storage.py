@@ -25,26 +25,38 @@ PRIVATE_PURPOSES = {"pan_card", "cancelled_cheque", "payment_screenshot"}
 MAX_STORE_BYTES = 5 * 1024 * 1024
 
 
-def _fernet() -> Fernet:
-    from Services.runtime_env import require_strong_secret
-
-    raw = require_strong_secret(
-        os.getenv("FILE_ENCRYPTION_KEY") or os.getenv("SECRET_KEY"),
-        "FILE_ENCRYPTION_KEY",
-    )
+def _fernet_from(raw: str) -> Fernet:
     digest = hashlib.sha256(raw.encode("utf-8")).digest()
     return Fernet(base64.urlsafe_b64encode(digest))
 
 
+def _current_key_material() -> str:
+    from Services.runtime_env import require_strong_secret
+
+    # Never fall back to SECRET_KEY — JWT signing key must stay distinct from file encryption.
+    return require_strong_secret(os.getenv("FILE_ENCRYPTION_KEY"), "FILE_ENCRYPTION_KEY")
+
+
+def _fernets() -> list:
+    keys = [_fernet_from(_current_key_material())]
+    previous = (os.getenv("FILE_ENCRYPTION_KEY_PREVIOUS") or "").strip()
+    if previous and previous != _current_key_material():
+        keys.append(_fernet_from(previous))
+    return keys
+
+
 def encrypt_bytes(data: bytes) -> bytes:
-    return _fernet().encrypt(data)
+    return _fernets()[0].encrypt(data)
 
 
 def decrypt_bytes(token: bytes) -> bytes:
-    try:
-        return _fernet().decrypt(token)
-    except InvalidToken as exc:
-        raise ValueError("Unable to decrypt stored file.") from exc
+    last: Exception | None = None
+    for fernet in _fernets():
+        try:
+            return fernet.decrypt(token)
+        except InvalidToken as exc:
+            last = exc
+    raise ValueError("Unable to decrypt stored file.") from last
 
 
 def public_url(stored: StoredFile) -> str:
@@ -81,7 +93,7 @@ def store_bytes(
         owner_email=(owner_email or "").strip().lower() or None,
         kind="kyc" if is_private else kind,
         purpose=purpose,
-        original_filename=os.path.basename(filename or "upload"),
+        original_filename=os.path.basename(filename or "upload").replace("..", ""),
         content_type=content_type or guess_content_type(filename or ""),
         byte_size=len(data),
         is_private=is_private,

@@ -1,6 +1,8 @@
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.production.example
+!**/.env.staging.example
 **/*.log
 **/__pycache__/
 **/.venv/
@@ -8,5 +10,17 @@
 **/*.db
 **/uploads/
 .git
+**/.git
 .cursor
 node_modules
+backend/test_*.py
+backend/inspect_db.py
+backend/dump_schema.py
+backend/check_cols.py
+backend/migrate_db.py
+backend/migrate_db_v2.py
+**/*.pyc
+**/.env.backup
+**/*credentials*
+**/agent-transcripts/
+

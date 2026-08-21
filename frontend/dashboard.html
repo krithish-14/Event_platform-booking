@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=1"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Your JOD Events dashboard – manage your profile, view upcoming bookings and explore events." />
@@ -439,7 +440,7 @@
 
 	<script src="js/include.js?v=21"></script>
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=24"></script>
+	<script src="js/auth.js?v=25"></script>
 	<script src="js/profile.js?v=8"></script>
 	<script src="js/wishlist.js?v=1"></script>
 	<script src="js/location.js?v=12"></script>
@@ -447,7 +448,7 @@
 	<script src="js/search.js?v=1"></script>
 	<script src="js/script.js?v=26"></script>
 	<script>
-		(function initDashboard() {
+		(async function initDashboard() {
 			function avatarStorageKey() {
 				if (window.JodAuth && typeof window.JodAuth.avatarCacheKey === "function") {
 					return window.JodAuth.avatarCacheKey();
@@ -470,7 +471,7 @@
 			function getApiBase() {
 				if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
 				if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") return window.JodHealth.getApiBaseUrl();
-				return "http://127.0.0.1:8001";
+				return (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "";
 			}
 
 			function getToken() {
@@ -506,13 +507,15 @@
 				return ids.size;
 			}
 
-			// Auth guard
-			if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
-				const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+			// Auth guard — confirm cookie session (not localStorage alone)
+			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+			if (!(window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function")) {
 				try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-				window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
+				window.location.replace(`login.html?redirect=${encodeURIComponent(currentTarget)}`);
 				return;
 			}
+			const authed = await window.JodAuth.requireAuthOrRedirect({ redirectTo: currentTarget });
+			if (!authed) return;
 
 			function getInitials(user) {
 				if (!user) return "?";

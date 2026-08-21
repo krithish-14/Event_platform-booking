@@ -1,0 +1,68 @@
+# Production-like stack: nginx (frontend + /api + /health) → FastAPI → PostgreSQL
+# Copy .env.production.example to .env.production and fill real values first.
+# Do not commit .env.production.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_STRONG_DB_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-jod_events}
+    volumes:
+      - jod_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jod} -d ${POSTGRES_DB:-jod_events}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    networks:
+      - jod_net
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      APP_ENV: production
+      DEBUG: "False"
+      # DATABASE_URL and secrets come from env_file (.env.production).
+      # Do not set a CHANGE_ME default here — it overrides env_file and fails production validation.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8000"
+    # Port 8000 is internal only. Do not publish it to the host.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    networks:
+      - jod_net
+
+  proxy:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - jod_net
+
+networks:
+  jod_net:
+    driver: bridge
+
+volumes:
+  jod_pgdata:

@@ -34,8 +34,6 @@
 
 	function readSessionUser() {
 		try {
-			var token = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token");
-			if (!token || token === "null" || token === "undefined") return null;
 			var raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
 			if (!raw || raw === "null" || raw === "undefined") return null;
 			var user = JSON.parse(raw);
@@ -290,8 +288,14 @@
 
 	function goBack(btn) {
 		if (sameOriginReferrer() && global.history.length > 1) {
-			global.history.back();
-			return;
+			try {
+				var refPage = (new URL(document.referrer).pathname.split("/").pop() || "").toLowerCase();
+				// Never history.back() into auth pages after a successful login redirect.
+				if (refPage !== "login.html" && refPage !== "signup.html" && refPage !== "forgot-password.html") {
+					global.history.back();
+					return;
+				}
+			} catch (_) {}
 		}
 		global.location.href = fallbackHref(btn);
 	}

@@ -104,7 +104,7 @@ async function loadRecommendedEvents(currentId) {
         if (!others.length) return;
         grid.innerHTML = others.map(ev => {
             const url = EP.eventDetailsUrl(ev);
-            const img = EP.resolveImage(ev.image_url);
+            const img = EP.escapeHtml(EP.resolveImage(ev.image_url));
             const title = EP.escapeHtml(ev.title || 'Event');
             const venue = EP.escapeHtml(ev.venue || ev.location || '');
             const dateStr = EP.formatDateIST ? EP.escapeHtml(EP.formatDateIST(ev.start_date) || '') : '';
@@ -341,7 +341,7 @@ function renderEventDOM(event) {
             pGrid.innerHTML = event.performers.map(p => {
                 const name = escape(p.name || 'Speaker');
                 const role = escape(p.role || '');
-                const photo = EP ? EP.resolveImage(p.image_url || p.photo_url) : (p.image_url || p.photo_url || 'images/hero-event.jpg');
+                const photo = EP ? EP.escapeHtml(EP.resolveImage(p.image_url || p.photo_url)) : 'images/hero-event.jpg';
                 return `
                 <div class="performer-card">
                     <img class="performer-avatar" src="${photo}" alt="${name}" onerror="this.src='images/hero-event.jpg'" />
@@ -402,7 +402,7 @@ function renderEventGallery(event, EP) {
         const openIndex = isOverlay ? 0 : i;
         return `
             <button type="button" class="gallery-thumb${isOverlay ? ' gallery-thumb--more' : ''}" data-gallery-index="${openIndex}">
-                <img src="${url}" alt="Gallery photo ${i + 1}" loading="lazy" />
+                <img src="${EP && EP.escapeHtml ? EP.escapeHtml(url) : ''}" alt="Gallery photo ${i + 1}" loading="lazy" />
                 ${isOverlay ? '<span class="gallery-thumb-overlay">See the Entire Gallery</span>' : ''}
             </button>
         `;
@@ -433,7 +433,7 @@ function renderEventSponsors(event, EP, escape) {
     const esc = escape || ((s) => String(s || ''));
     grid.innerHTML = sponsors.map((s) => {
         const name = esc(s.name || s.title || '');
-        const logo = EP ? EP.resolveImage(s.logo_url || s.image_url) : (s.logo_url || s.image_url || '');
+        const logo = EP ? EP.escapeHtml(EP.resolveImage(s.logo_url || s.image_url)) : '';
         return `
             <div class="sponsor-logo-card">
                 ${logo ? `<img src="${logo}" alt="${name || 'Sponsor'}" onerror="this.style.display='none'" />` : ''}
@@ -665,10 +665,9 @@ function showToast(message) {
 function getAccessToken() {
     try {
         if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
-            const token = window.JodAuth.getToken();
-            if (token) return token;
+            return window.JodAuth.getToken() || "";
         }
-        return localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token") || "";
+        return "";
     } catch (_) {
         return "";
     }
@@ -679,7 +678,7 @@ function getApiRoot() {
     if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
         return window.JodHealth.getApiBaseUrl().replace(/\/$/, "");
     }
-    return "http://127.0.0.1:8001";
+    return (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "";
 }
 
 function sameEventId(a, b) {
@@ -842,7 +841,12 @@ async function triggerBookingModal() {
 
     const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")
         ? window.JodAuth.isLoggedIn()
-        : Boolean(localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+        : Boolean((function () {
+            try {
+                const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+                return raw && raw !== "null";
+            } catch (_) { return false; }
+        })());
 
     if (!isAuth) {
         const currentTarget = window.location.pathname + window.location.search + window.location.hash;

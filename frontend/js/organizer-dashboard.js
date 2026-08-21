@@ -168,21 +168,13 @@ async function initOrganizerDashboard() {
 	let venueFillingFromMap = false;
 	let venueMapClickBound = false;
 
-	const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/organizers"
-		: "/api/organizers";
+	const API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/organizers');
 
-	const HOST_EVENTS_API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/host-events"
-		: "/api/host-events";
+	const HOST_EVENTS_API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/host-events');
 
-	const VOLUNTEERS_API = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/volunteers"
-		: "/api/volunteers";
+	const VOLUNTEERS_API = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/volunteers');
 
-	const LOCATION_API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/location"
-		: "/api/location";
+	const LOCATION_API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/location');
 
 	function getUploadOrigin() {
 		if (HOST_EVENTS_API_BASE.startsWith("http")) {
@@ -193,12 +185,29 @@ async function initOrganizerDashboard() {
 
 	function resolveUploadUrl(url) {
 		if (!url) return "";
-		if (url.startsWith("blob:") || url.startsWith("data:")) return url;
-		if (url.startsWith("http://") || url.startsWith("https://")) return url;
+		const trimmed = String(url).trim();
+		const lower = trimmed.toLowerCase();
+		if (lower.startsWith("javascript:") || lower.startsWith("vbscript:") || lower.startsWith("data:text") || lower.startsWith("data:image/svg")) {
+			return "";
+		}
+		if (trimmed.startsWith("blob:") || lower.startsWith("data:image/")) return trimmed;
+		if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
+			const safe = window.JodConfig.safeMediaUrl(trimmed, "");
+			if (safe) return safe;
+		}
+		if (trimmed.startsWith("https://")) return trimmed;
+		if (trimmed.startsWith("http://")) {
+			try {
+				const parsed = new URL(trimmed);
+				if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") return trimmed;
+			} catch (_) {}
+			return "";
+		}
 		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
 		}
-		return url;
+		if (trimmed.startsWith("/") || trimmed.startsWith("images/") || trimmed.startsWith("./")) return trimmed;
+		return "";
 	}
 
 	function bindPrivateDocumentLink(el, url) {
@@ -1794,16 +1803,16 @@ async function initOrganizerDashboard() {
 
 		tableBody.innerHTML = list.map(ex => `
 			<tr style="border-bottom: 1px solid #f1f5f9;">
-				<td class="dash-ink" style="padding: 0.85rem 1.2rem; font-weight: 700;">${ex.company_name}</td>
-				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${ex.category}</td>
-				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${ex.contact_name} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${ex.contact_email}</span></td>
+				<td class="dash-ink" style="padding: 0.85rem 1.2rem; font-weight: 700;">${escapeVolunteerHtml(ex.company_name)}</td>
+				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${escapeVolunteerHtml(ex.category)}</td>
+				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${escapeVolunteerHtml(ex.contact_name)} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${escapeVolunteerHtml(ex.contact_email)}</span></td>
 				<td style="padding: 0.85rem 1.2rem;">
 					<span style="background: ${ex.status === 'confirmed' ? '#f0fdf4' : '#fffbe6'}; border: 1px solid ${ex.status === 'confirmed' ? '#bbf7d0' : '#ffe58f'}; color: ${ex.status === 'confirmed' ? '#166534' : '#873800'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
 						${ex.status === 'confirmed' ? 'Confirmed' : 'Pending Approval'}
 					</span>
 				</td>
 				<td style="padding: 0.85rem 1.2rem; text-align: right;">
-					<button type="button" class="btn-delete-exhibitor" data-id="${ex.exhibitor_id}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Remove</button>
+					<button type="button" class="btn-delete-exhibitor" data-id="${escapeVolunteerHtml(ex.exhibitor_id)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Remove</button>
 				</td>
 			</tr>
 		`).join('');
@@ -1918,17 +1927,17 @@ async function initOrganizerDashboard() {
 
 		gatesTableBody.innerHTML = gates.map(g => `
 			<tr style="border-bottom: 1px solid #f1f5f9;">
-				<td class="dash-ink" style="padding: 0.75rem 1rem; font-weight: 700;">${g.gate_name}</td>
-				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${g.gate_code || '—'}</td>
-				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${g.gate_description || '—'}</td>
+				<td class="dash-ink" style="padding: 0.75rem 1rem; font-weight: 700;">${escapeVolunteerHtml(g.gate_name)}</td>
+				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${escapeVolunteerHtml(g.gate_code || '—')}</td>
+				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${escapeVolunteerHtml(g.gate_description || '—')}</td>
 				<td style="padding: 0.75rem 1rem;">
-					<span style="background: ${g.status === 'Active' ? '#f0fdf4' : '#fee2e2'}; border: 1px solid ${g.status === 'Active' ? '#bbf7d0' : '#fecaca'}; color: ${g.status === 'Active' ? '#166534' : '#991b1b'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer;" class="btn-toggle-gate-status" data-id="${g.gate_id}" data-status="${g.status}">
-						${g.status}
+					<span style="background: ${g.status === 'Active' ? '#f0fdf4' : '#fee2e2'}; border: 1px solid ${g.status === 'Active' ? '#bbf7d0' : '#fecaca'}; color: ${g.status === 'Active' ? '#166534' : '#991b1b'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer;" class="btn-toggle-gate-status" data-id="${escapeVolunteerHtml(g.gate_id)}" data-status="${escapeVolunteerHtml(g.status)}">
+						${escapeVolunteerHtml(g.status)}
 					</span>
 				</td>
 				<td style="padding: 0.75rem 1rem; text-align: right; display: flex; gap: 0.4rem; justify-content: flex-end;">
-					<button type="button" class="btn-edit-gate" data-id="${g.gate_id}" style="background: #ffffff; border: 1px solid #cbd5e1; color: #2563eb; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Edit</button>
-					<button type="button" class="btn-delete-gate" data-id="${g.gate_id}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Delete</button>
+					<button type="button" class="btn-edit-gate" data-id="${escapeVolunteerHtml(g.gate_id)}" style="background: #ffffff; border: 1px solid #cbd5e1; color: #2563eb; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Edit</button>
+					<button type="button" class="btn-delete-gate" data-id="${escapeVolunteerHtml(g.gate_id)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Delete</button>
 				</td>
 			</tr>
 		`).join('');
@@ -4856,7 +4865,7 @@ async function initOrganizerDashboard() {
 		const label = status === "valid" ? "✔ Valid" : (status === "invalid" ? "✖ Invalid" : "⚠ Duplicate");
 		const row = document.createElement("div");
 		row.style.cssText = "display:flex;justify-content:space-between;align-items:center;background:#1e293b;border-radius:6px;padding:0.4rem 0.7rem;font-size:0.8rem;";
-		row.innerHTML = `<span style="color:#f1f5f9;font-weight:600;">${name}</span><span style="color:#94a3b8;font-size:0.75rem;">${code.slice(0,18)}…</span><span style="color:${color};font-weight:700;">${label}</span><span style="color:#64748b;font-size:0.72rem;">${now}</span>`;
+		row.innerHTML = `<span style="color:#f1f5f9;font-weight:600;">${escapeVolunteerHtml(name)}</span><span style="color:#94a3b8;font-size:0.75rem;">${escapeVolunteerHtml(String(code).slice(0,18))}…</span><span style="color:${color};font-weight:700;">${label}</span><span style="color:#64748b;font-size:0.72rem;">${escapeVolunteerHtml(now)}</span>`;
 		scanHistoryList.insertBefore(row, scanHistoryList.firstChild);
 	}
 
@@ -5159,19 +5168,12 @@ async function initOrganizerDashboard() {
 		return modal;
 	}
 
-	function storePublishAuthToken(token) {
-		if (!token) return;
-		try {
-			sessionStorage.setItem("jod_access_token", token);
-			localStorage.setItem("jod_access_token", token);
-		} catch (_) {}
+	function storePublishAuthToken(_token) {
+		return;
 	}
 
 	function hasPublishAuthToken() {
-		const token = window.JodAuth && typeof window.JodAuth.getToken === "function"
-			? window.JodAuth.getToken()
-			: (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
-		return !!(token && token !== "null" && token !== "undefined" && String(token).length > 10);
+		return !!(window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn());
 	}
 
 	function isPublishAuthError(msg) {
@@ -5378,8 +5380,7 @@ async function initOrganizerDashboard() {
 					});
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(apiErrorMessage(data, "Invalid OTP."));
-					if (data.access_token) storePublishAuthToken(data.access_token);
-					if (!data.verified && !data.access_token) {
+					if (!data.verified) {
 						throw new Error("Could not verify OTP. Please try again.");
 					}
 					finish(true);

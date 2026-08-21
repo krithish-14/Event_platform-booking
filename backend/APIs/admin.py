@@ -8,12 +8,14 @@ import secrets
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from Authentication.dependencies import get_current_admin
+from Services.rate_limit import limit_admin
+from Services.runtime_env import public_app_url
 from Models.base import get_db
 from Models.booking import Booking
 from Models.event import Event
@@ -34,7 +36,7 @@ from APIs.bookings import (
     _ticket_from_answers,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(limit_admin)])
 
 NAME_KEYS = (
     "full_name", "fullname", "name", "attendee_name", "attendee",
@@ -48,12 +50,7 @@ PHONE_KEYS = (
 
 
 def _public_app_url() -> str:
-    return (
-        os.getenv("PUBLIC_APP_URL")
-        or os.getenv("FRONTEND_URL")
-        or os.getenv("PUBLIC_FRONTEND_URL")
-        or "http://127.0.0.1:5500"
-    ).rstrip("/")
+    return public_app_url() or "http://127.0.0.1:5500"
 
 
 def qr_image_url(token: str) -> str:

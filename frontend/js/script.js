@@ -264,11 +264,7 @@
 			if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
 				return window.JodAuth.getToken();
 			}
-			try {
-				let tok = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token");
-				if (tok === "null" || tok === "undefined") tok = null;
-				return tok || null;
-			} catch (_) { return null; }
+			return null;
 		},
 		getUser: () => {
 			if (window.JodAuth && typeof window.JodAuth.getUser === "function") {
@@ -290,9 +286,8 @@
 				return window.JodAuth.isLoggedIn();
 			}
 			try {
-				const token = DefaultAuth.getToken();
 				const user = DefaultAuth.getUser();
-				return Boolean(token && user && (user.id || user.customer_id || user.email));
+				return Boolean(user && (user.id || user.customer_id || user.email));
 			} catch (_) { return false; }
 		},
 		logout: async () => {
@@ -339,7 +334,7 @@
 			is_authenticated: isAuth,
 			user_id: currentUser?.id || "N/A",
 			email: currentUser?.email || "N/A",
-			token_present: Boolean(auth.getToken ? auth.getToken() : localStorage.getItem("jod_access_token")),
+			token_present: Boolean(auth.isLoggedIn ? auth.isLoggedIn() : false),
 			body_data_user: isAuth ? "authenticated" : "guest"
 		});
 

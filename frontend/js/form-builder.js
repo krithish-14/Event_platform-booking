@@ -2,9 +2,7 @@
  * Dynamic Registration Form Builder & Submissions Manager (Google Forms / Typeform style)
  */
 function initFormBuilder() {
-	const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/forms"
-		: "/api/forms";
+	const API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/forms');
 
 	const currentUser = window.JodAuth ? window.JodAuth.getUser() : null;
 	const urlParams = new URLSearchParams(window.location.search);
@@ -23,9 +21,7 @@ function initFormBuilder() {
 	}
 
 	function getHostEventsApiBase() {
-		return window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-			? "http://127.0.0.1:8001/api/host-events"
-			: "/api/host-events";
+		return (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/host-events');
 	}
 
 	function getUploadOrigin() {
@@ -1021,9 +1017,7 @@ function initFormBuilder() {
 			}
 
 			// Open published form in a new tab
-			const baseUrl = window.location.origin.includes("5500")
-				? "http://127.0.0.1:5500"
-				: window.location.origin;
+			const baseUrl = window.location.origin;
 			setTimeout(() => {
 				window.open(`${baseUrl}/published-form.html?formId=${formId}`, "_blank");
 				// Restore button
@@ -1102,9 +1096,7 @@ function initFormBuilder() {
 			return;
 		}
 
-		const baseUrl = window.location.origin.includes("5500")
-			? "http://127.0.0.1:5500"
-			: window.location.origin;
+		const baseUrl = window.location.origin;
 
 		window.open(`${baseUrl}/published-form.html?formId=${formId}&mode=readOnly`, "_blank");
 	}

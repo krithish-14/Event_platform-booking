@@ -11,7 +11,7 @@ from sqlalchemy.orm import relationship
 from Models.base import Base, GUID
 
 
-INVITE_TTL_HOURS = 72
+INVITE_TTL_HOURS = 48
 
 
 class EventVolunteer(Base):

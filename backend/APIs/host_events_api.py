@@ -38,14 +38,16 @@ from APIs.organizers import to_public_verification_status, is_organizer_verified
 from Authentication.dependencies import get_current_user
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
 from Utils.categories import (
-    normalize_category,
-    is_allowed_image_filename,
-    is_allowed_image_bytes,
+    CANONICAL_CATEGORIES,
     INVALID_IMAGE_MESSAGE,
     INVALID_IMAGE_TYPE_MESSAGE,
     INVALID_IMAGE_SIZE_MESSAGE,
     MAX_IMAGE_BYTES,
+    is_allowed_image_bytes,
+    is_allowed_image_filename,
+    normalize_category,
 )
+from Utils.text_sanitize import sanitize_text
 
 router = APIRouter()
 
@@ -181,7 +183,10 @@ def resolve_or_create_event(
 
     event = _lookup_event_by_id(db, event_id)
     if event and not _event_owned(event, email_clean, customer_id, host_id, current_user):
-        event = None
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this event.",
+        )
 
     if not event:
         event = find_working_event(db, email_clean, customer_id, host_id)
@@ -1445,13 +1450,13 @@ def save_manage_event(
     # Update attributes in place (UPSERT)
     event.customer_id = customer_id
     event.host_id = host_id
-    if payload.event_title: event.event_title = payload.event_title
+    if payload.event_title: event.event_title = sanitize_text(payload.event_title, max_length=200)
     if payload.event_category:
         event.event_category = normalize_category(payload.event_category) or payload.event_category
-    if payload.event_type: event.event_type = payload.event_type
-    if payload.event_mode: event.event_mode = payload.event_mode
-    if payload.venue: event.venue = payload.venue
-    if payload.address: event.address = payload.address
+    if payload.event_type: event.event_type = sanitize_text(payload.event_type, max_length=80)
+    if payload.event_mode: event.event_mode = sanitize_text(payload.event_mode, max_length=80)
+    if payload.venue: event.venue = sanitize_text(payload.venue, max_length=200)
+    if payload.address: event.address = sanitize_text(payload.address, max_length=400)
     if payload.latitude is not None: event.latitude = payload.latitude
     if payload.longitude is not None: event.longitude = payload.longitude
     if payload.organizer_name: event.organizer_name = payload.organizer_name

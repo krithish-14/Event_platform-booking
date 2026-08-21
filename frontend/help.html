@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=1"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Get help with bookings, tickets, payments, and hosting on JOD Events. Search FAQs or raise a support ticket." />
@@ -682,7 +683,7 @@
 		function apiBase() {
 			if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
 			if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") return window.JodHealth.getApiBaseUrl();
-			return "http://127.0.0.1:8001";
+			return (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "";
 		}
 
 		function getUser() {

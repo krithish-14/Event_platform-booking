@@ -3,28 +3,28 @@ window.JodAuth = (() => {
 
 	/* ── Config ────────────────────────────────────────────── */
 	function getApiBase() {
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
+		}
 		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 			return window.JodHealth.getApiBaseUrl();
 		}
-		const API_PORT = "8001";
-		const host = (typeof window !== "undefined" && window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
-		return (window.JOD_API_BASE_OVERRIDE) || `http://${host}:${API_PORT}`;
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
-	const API_BASE = getApiBase();
 
 
 	/* ── Public Auth Helpers (exposed as window.JodAuth) ──── */
 	function getToken() {
 		try {
-			let token = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token");
-			if (token === "null" || token === "undefined") token = null;
-			return token || null;
-		} catch (_) { return null; }
+			localStorage.removeItem("jod_access_token");
+			sessionStorage.removeItem("jod_access_token");
+		} catch (_) {}
+		return null;
 	}
 
 	function getUser() {
 		try {
-			if (!getToken()) return null;
 			const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
 			if (raw && raw !== "null" && raw !== "undefined") {
 				const parsed = JSON.parse(raw);
@@ -38,9 +38,8 @@ window.JodAuth = (() => {
 
 	function isLoggedIn() {
 		try {
-			const token = getToken();
 			const user = getUser();
-			return Boolean(token && user && (user.id || user.customer_id || user.email));
+			return Boolean(user && (user.id || user.customer_id || user.email));
 		} catch (_) {
 			return false;
 		}
@@ -211,15 +210,19 @@ window.JodAuth = (() => {
 		} catch (_) {}
 	}
 
-	function persistAuthSession(token, user) {
-		clearAuth();
-		if (!token || !user) {
+	function persistAuthSession(tokenOrUser, maybeUser) {
+		try {
+			localStorage.removeItem("jod_access_token");
+			sessionStorage.removeItem("jod_access_token");
+		} catch (_) {}
+		const user = (maybeUser && typeof maybeUser === "object")
+			? maybeUser
+			: (tokenOrUser && typeof tokenOrUser === "object" ? tokenOrUser : null);
+		if (!user) {
 			syncThemeAfterAuth();
 			return;
 		}
 		try {
-			localStorage.setItem("jod_access_token", token);
-			sessionStorage.setItem("jod_access_token", token);
 			localStorage.setItem("jod_user", JSON.stringify(user));
 			sessionStorage.setItem("jod_user", JSON.stringify(user));
 			hydrateLocationFromUser(user);
@@ -283,13 +286,13 @@ window.JodAuth = (() => {
 	}
 
 	async function fetchOrganizerAccount(options = {}) {
-		const token = getToken();
 		const user = getUser();
 		const email = user && user.email;
 		try {
 			const qs = email ? `?email=${encodeURIComponent(email)}` : "";
-			const res = await fetch(`${API_BASE}/api/organizers/account-setup${qs}`, {
-				headers: token ? { "Authorization": `Bearer ${token}` } : {}
+			const res = await fetch(`${getApiBase()}/api/organizers/account-setup${qs}`, {
+				credentials: "include",
+				cache: "no-store",
 			});
 			if (!res.ok) return null;
 			const data = await res.json();
@@ -321,38 +324,57 @@ window.JodAuth = (() => {
 	}
 
 	async function validateSession() {
-		const token = getToken();
-		if (!token) return null;
 		try {
-			const res = await fetchAuth(`${API_BASE}/api/auth/me`);
+			const res = await fetch(`${getApiBase()}/api/auth/me`, {
+				credentials: "include",
+				cache: "no-store",
+			});
 			if (res.ok) {
 				const user = await res.json();
-				const isRemembered = Boolean(localStorage.getItem("jod_access_token"));
-				const storage = isRemembered ? localStorage : sessionStorage;
-				storage.setItem("jod_user", JSON.stringify(user));
-				hydrateLocationFromUser(user);
-				const avatar = user.avatar_url;
-				if (avatar && /^https?:\/\//i.test(String(avatar))) {
-					const existing = readScopedCache("jod_profile_avatar", user);
-					if (!existing) writeScopedCache("jod_profile_avatar", avatar, user);
-				}
+				persistAuthSession(null, user);
 				return user;
-			} else if (res.status === 401 || res.status === 403) {
+			}
+			if (res.status === 401) {
+				clearAuth();
+				syncThemeAfterAuth();
+				try {
+					window.dispatchEvent(new CustomEvent("jod:auth-expired", { detail: { status: 401 } }));
+				} catch (_) {}
+				return null;
+			}
+			if (res.status === 403) {
+				// Inactive account — clear local cache; not a CSRF case (GET).
 				clearAuth();
 				syncThemeAfterAuth();
 				return null;
 			}
+			// Transient API failures must not look like logout.
+			return getUser();
+		} catch (_) {
+			return getUser();
+		}
+	}
+
+	async function requireAuthOrRedirect(options = {}) {
+		const opts = options || {};
+		const currentTarget = opts.redirectTo
+			|| (window.location.pathname + window.location.search + window.location.hash);
+		const loginUrl = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
+		try {
+			sessionStorage.setItem("jod_redirect_after_login", currentTarget);
 		} catch (_) {}
-		return getUser();
+
+		const verified = await validateSession();
+		if (verified) return verified;
+		window.location.replace(loginUrl);
+		return null;
 	}
 
 	async function logout() {
-		const token = getToken();
 		try {
-			await fetch(`${API_BASE}/api/auth/logout`, {
+			await fetch(`${getApiBase()}/api/auth/logout`, {
 				method: "POST",
 				credentials: "include",
-				headers: token ? { "Authorization": `Bearer ${token}` } : {},
 			}).catch(() => { });
 		} finally {
 			clearAuth();
@@ -361,14 +383,18 @@ window.JodAuth = (() => {
 	}
 
 	async function fetchAuth(url, options = {}) {
-		const token = getToken();
 		const headers = Object.assign({}, options.headers || {});
-		if (token) headers["Authorization"] = `Bearer ${token}`;
 		const res = await fetch(url, Object.assign({}, options, { headers, credentials: "include" }));
 		if (res.status === 401) {
 			clearAuth();
 			syncThemeAfterAuth();
+			try {
+				window.dispatchEvent(new CustomEvent("jod:auth-expired", {
+					detail: { status: 401, url: String(url) },
+				}));
+			} catch (_) {}
 		}
+		// 403 (including CSRF) must not clear the session or redirect to login.
 		return res;
 	}
 
@@ -488,7 +514,7 @@ window.JodAuth = (() => {
 				body.append("username", identifier);
 				body.append("password", password);
 
-				const res = await fetch(`${API_BASE}/api/auth/login`, {
+				const res = await fetch(`${getApiBase()}/api/auth/login`, {
 					method: "POST",
 					headers: { "Content-Type": "application/x-www-form-urlencoded" },
 					credentials: "include",
@@ -518,10 +544,10 @@ window.JodAuth = (() => {
 					setTimeout(async () => {
 						const targetUrl = getRedirectTarget();
 						try {
-							window.location.href = await resolvePostAuthDestination(targetUrl);
+							window.location.replace(await resolvePostAuthDestination(targetUrl));
 						} catch (e) {
 							console.warn("[Auth Debug] Host destination check failed:", e);
-							window.location.href = targetUrl || "index.html";
+							window.location.replace(targetUrl || "index.html");
 						}
 					}, 900);
 				}
@@ -540,11 +566,11 @@ window.JodAuth = (() => {
 							doLogin();
 						},
 						onError: () => {
-							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
+							showAlert(alertEl, "error", "Could not connect to server. Please try again.");
 						}
 					});
 				} else {
-					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + getApiBase());
 				}
 			} finally {
 				setLoading(submitBtn, false);
@@ -660,7 +686,7 @@ window.JodAuth = (() => {
 			currentEmail = email;
 			if (btnSend) setLoading(btnSend, true);
 			try {
-				const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+				const res = await fetch(`${getApiBase()}/api/auth/forgot-password`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ email }),
@@ -741,7 +767,7 @@ window.JodAuth = (() => {
 				}
 				if (btnVerify) setLoading(btnVerify, true);
 				try {
-					const res = await fetch(`${API_BASE}/api/auth/verify-reset-otp`, {
+					const res = await fetch(`${getApiBase()}/api/auth/verify-reset-otp`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ email: currentEmail, otp_code }),
@@ -797,7 +823,7 @@ window.JodAuth = (() => {
 				if (!valid) return;
 				if (btnSave) setLoading(btnSave, true);
 				try {
-					const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+					const res = await fetch(`${getApiBase()}/api/auth/reset-password`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({
@@ -912,7 +938,7 @@ window.JodAuth = (() => {
 
 		async function fetchAvailability(params) {
 			const qs = new URLSearchParams(params).toString();
-			const res = await fetch(`${API_BASE}/api/auth/check?${qs}`, { cache: "no-store" });
+			const res = await fetch(`${getApiBase()}/api/auth/check?${qs}`, { cache: "no-store" });
 			if (!res.ok) throw new Error("check failed");
 			return res.json();
 		}
@@ -988,7 +1014,7 @@ window.JodAuth = (() => {
 
 		function finishSignupSuccess(data) {
 			try {
-				if (data && data.access_token && data.user) {
+				if (data && data.user) {
 					persistAuthSession(data.access_token, data.user);
 				}
 			} catch (_) { }
@@ -998,9 +1024,9 @@ window.JodAuth = (() => {
 			const targetUrl = getRedirectTarget();
 			setTimeout(async () => {
 				try {
-					window.location.href = await resolvePostAuthDestination(targetUrl);
+					window.location.replace(await resolvePostAuthDestination(targetUrl));
 				} catch (_) {
-					window.location.href = targetUrl || "index.html";
+					window.location.replace(targetUrl || "index.html");
 				}
 			}, 900);
 		}
@@ -1070,7 +1096,7 @@ window.JodAuth = (() => {
 				const payload = { username, email, password };
 				if (fullName) payload.full_name = fullName;
 
-				const res = await fetch(`${API_BASE}/api/auth/register`, {
+				const res = await fetch(`${getApiBase()}/api/auth/register`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json", "Accept": "application/json" },
 					credentials: "include",
@@ -1127,11 +1153,11 @@ window.JodAuth = (() => {
 							doSignup();
 						},
 						onError: () => {
-							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
+							showAlert(alertEl, "error", "Could not connect to server. Please try again.");
 						}
 					});
 				} else {
-					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + getApiBase());
 				}
 			} finally {
 				signupBusy = false;
@@ -1177,7 +1203,7 @@ window.JodAuth = (() => {
 				payload.redirect_uri = window.location.origin + window.location.pathname;
 			}
 
-			const res = await fetch(`${API_BASE}/api/auth/google`, {
+			const res = await fetch(`${getApiBase()}/api/auth/google`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				credentials: "include",
@@ -1199,9 +1225,9 @@ window.JodAuth = (() => {
 				const targetUrl = getRedirectTarget();
 				setTimeout(async () => {
 					try {
-						window.location.href = await resolvePostAuthDestination(targetUrl);
+						window.location.replace(await resolvePostAuthDestination(targetUrl));
 					} catch (_) {
-						window.location.href = targetUrl || "index.html";
+						window.location.replace(targetUrl || "index.html");
 					}
 				}, 900);
 			}
@@ -1230,7 +1256,7 @@ window.JodAuth = (() => {
 		}
 
 		try {
-			const res = await fetch(`${API_BASE}/api/auth/google/config`);
+			const res = await fetch(`${getApiBase()}/api/auth/google/config`);
 			if (res.ok) googleClientConfig = await res.json();
 		} catch (_) {}
 
@@ -1264,7 +1290,7 @@ window.JodAuth = (() => {
 		}
 		
 		try {
-			const res = await fetch(`${API_BASE}/api/auth/google/url`);
+			const res = await fetch(`${getApiBase()}/api/auth/google/url`);
 			if (!res.ok) {
 				throw new Error("Backend rejected Google Auth URL generation");
 			}
@@ -1399,11 +1425,11 @@ window.JodAuth = (() => {
 			try {
 				const dest = await resolvePostAuthDestination(targetUrl);
 				if (dest && dest !== pageFile) {
-					window.location.href = dest;
+					window.location.replace(dest);
 				}
 			} catch (_) {
 				if (targetUrl && targetUrl !== pageFile) {
-					window.location.href = targetUrl;
+					window.location.replace(targetUrl);
 				}
 			}
 		})();
@@ -1661,7 +1687,7 @@ window.JodAuth = (() => {
 		}
 
 		try {
-			window.location.href = await resolvePostAuthDestination("organizer-dashboard.html");
+			window.location.replace(await resolvePostAuthDestination("organizer-dashboard.html"));
 		} catch (_) {
 			window.location.href = "account-setup.html";
 		}
@@ -1701,7 +1727,8 @@ window.JodAuth = (() => {
 
 	/* ── Expose Public API ─────────────────────────────────── */
 	return {
-		API_BASE,
+		get API_BASE() { return getApiBase(); },
+		getApiBase,
 		getToken,
 		getUser,
 		isLoggedIn,
@@ -1724,6 +1751,7 @@ window.JodAuth = (() => {
 		resolvePostAuthDestination,
 		getRedirectTarget,
 		validateSession,
+		requireAuthOrRedirect,
 		initGoogleAuth,
 		handleGoogleCredentialResponse,
 		openGuestAuthModal,
