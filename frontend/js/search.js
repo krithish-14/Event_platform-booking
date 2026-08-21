@@ -212,7 +212,13 @@ window.JodSearch = (() => {
           const highlightedVenue = highlightMatch(this.escapeHtml(ev.venue || ev.location || ""), query);
 
           const safeId = encodeURIComponent(ev.id);
-          const thumb = this.escapeHtml(ev.image_url || "images/JOD Events Logo.png");
+          const logoFb = (window.JodConfig && window.JodConfig.assetUrl)
+            ? window.JodConfig.assetUrl("images/JOD Events Logo.png")
+            : "https://assets.jodevents.com/images/JOD%20Events%20Logo.png";
+          const thumbSrc = (window.JodConfig && window.JodConfig.safeMediaUrl)
+            ? window.JodConfig.safeMediaUrl(ev.image_url, "images/JOD Events Logo.png")
+            : (ev.image_url || logoFb);
+          const thumb = this.escapeHtml(thumbSrc);
           html += `
             <a href="event-details.html?id=${safeId}" class="search-suggestion-item" data-type="event" data-id="${this.escapeHtml(ev.id)}">
               <img class="suggestion-thumb" src="${thumb}" alt="" />

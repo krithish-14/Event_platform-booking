@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
-		<script src="js/api-config.js?v=1"></script>
+		<script src="js/api-config.js?v=2"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Cache-Control" content="no-store" />
 	<title>Ticket Bill | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 	<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -310,7 +310,7 @@
 			<div class="qr-pay-card">
 				<h2>Pay with this QR</h2>
 				<p id="payQrCaption">Scan the QR code, complete UPI payment, then fill the details below.</p>
-				<img id="payQrImage" src="images/jod-upi-payment-qr.png" alt="Payment QR" />
+				<img id="payQrImage" src="https://assets.jodevents.com/images/jod-upi-payment-qr.png" alt="Payment QR" />
 			</div>
 			<form class="proof-card" id="payProofForm">
 				<h2 style="font-size:0.95rem;margin-bottom:0.2rem;">Payment details</h2>
@@ -404,7 +404,9 @@
 			const price = Number(params.get("price") || saved.price || 0);
 			const qty = Number(saved.quantity || 1) || 1;
 			const apiBase = ((window.JodAuth && window.JodAuth.API_BASE) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, "");
-			const DEFAULT_PAY_QR = "images/jod-upi-payment-qr.png";
+			const DEFAULT_PAY_QR = (window.JodConfig && window.JodConfig.assetUrl)
+				? window.JodConfig.assetUrl("images/jod-upi-payment-qr.png")
+				: "https://assets.jodevents.com/images/jod-upi-payment-qr.png";
 
 			const eventEl = document.getElementById("payEvent");
 			const venueRow = document.getElementById("venueRow");

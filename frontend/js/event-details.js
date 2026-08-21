@@ -247,9 +247,13 @@ function renderEventDOM(event) {
     const venueEl = document.getElementById('headerVenue');
     if (venueEl) venueEl.textContent = `📍 ${event.venue || event.location || 'Event Venue'}`;
 
+    const heroFb = (window.JodConfig && window.JodConfig.assetUrl)
+        ? window.JodConfig.assetUrl('images/hero-event.jpg')
+        : 'https://assets.jodevents.com/images/hero-event.jpg';
+
     const imgEl = document.getElementById('eventImage');
     if (imgEl) {
-        imgEl.src = EP ? EP.resolveImage(event.image_url) : (event.image_url || 'images/hero-event.jpg');
+        imgEl.src = EP ? EP.resolveImage(event.image_url) : (event.image_url ? (window.JodConfig && window.JodConfig.safeMediaUrl ? window.JodConfig.safeMediaUrl(event.image_url) : event.image_url) : heroFb);
         imgEl.alt = event.title || 'Event Banner';
     }
 
@@ -341,10 +345,12 @@ function renderEventDOM(event) {
             pGrid.innerHTML = event.performers.map(p => {
                 const name = escape(p.name || 'Speaker');
                 const role = escape(p.role || '');
-                const photo = EP ? EP.escapeHtml(EP.resolveImage(p.image_url || p.photo_url)) : 'images/hero-event.jpg';
+                const photo = EP
+                    ? EP.escapeHtml(EP.resolveImage(p.image_url || p.photo_url))
+                    : heroFb;
                 return `
-                <div class="performer-card">
-                    <img class="performer-avatar" src="${photo}" alt="${name}" onerror="this.src='images/hero-event.jpg'" />
+                    <div class="performer-card">
+                    <img class="performer-avatar" src="${photo}" alt="${name}" onerror="this.src='${heroFb}'" />
                     <h3 class="performer-name">${name}</h3>
                     ${role ? `<p class="performer-role">${role}</p>` : ''}
                 </div>`;

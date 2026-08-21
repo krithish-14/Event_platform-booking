@@ -206,7 +206,13 @@ async function initOrganizerDashboard() {
 		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
 		}
-		if (trimmed.startsWith("/") || trimmed.startsWith("images/") || trimmed.startsWith("./")) return trimmed;
+		if (trimmed.startsWith("images/") || trimmed.startsWith("./images/") || trimmed.startsWith("/images/")) {
+			if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
+				return window.JodConfig.assetUrl(trimmed);
+			}
+			return "https://assets.jodevents.com/images/" + trimmed.replace(/^(\.\/)?images\//, "");
+		}
+		if (trimmed.startsWith("/") || trimmed.startsWith("./")) return trimmed;
 		return "";
 	}
 
@@ -1281,7 +1287,9 @@ async function initOrganizerDashboard() {
 		if (banner) {
 			const imgSrc = (data && (data.banner_image || data.image_url))
 				|| bannerImageUrl
-				|| "images/hero-event.jpg";
+				|| (window.JodConfig && window.JodConfig.assetUrl
+					? window.JodConfig.assetUrl("images/hero-event.jpg")
+					: "https://assets.jodevents.com/images/hero-event.jpg");
 			banner.src = resolveUploadUrl(imgSrc);
 			banner.alt = `${title} banner`;
 		}

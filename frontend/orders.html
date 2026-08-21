@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
-		<script src="js/api-config.js?v=1"></script>
+		<script src="js/api-config.js?v=2"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Manage your event bookings, tickets, and order history on JOD Events." />
 	<title>Your Orders | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="stylesheet" href="css/style.css?v=24" />
 	<link rel="stylesheet" href="css/responsive.css?v=25" />
 	<style>
@@ -345,9 +345,16 @@
 		}
 
 		function resolveOrderImage(url) {
-			if (!url) return "images/hero-event.jpg";
+			const fallback = (window.JodConfig && window.JodConfig.assetUrl)
+				? window.JodConfig.assetUrl("images/hero-event.jpg")
+				: "https://assets.jodevents.com/images/hero-event.jpg";
+			if (!url) return fallback;
 			if (/^(https?:|data:|blob:)/i.test(url)) return url;
-			if (url.startsWith("images/")) return url;
+			if (url.startsWith("images/") || url.startsWith("./images/") || url.startsWith("/images/")) {
+				return (window.JodConfig && window.JodConfig.assetUrl)
+					? window.JodConfig.assetUrl(url)
+					: fallback;
+			}
 			const cleaned = String(url).replace(/^\//, "");
 			if (
 				cleaned.startsWith("api/media") ||
@@ -536,7 +543,7 @@
 				html += `
 					<div class="order-card" data-status="${cancelled ? 'cancelled' : 'completed'}">
 						<div class="order-thumb">
-							<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(b.event_title || 'Event Ticket')}" onerror="this.onerror=null;this.src='images/hero-event.jpg'" />
+							<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(b.event_title || 'Event Ticket')}" onerror="this.onerror=null;this.src=(window.JodConfig&&window.JodConfig.assetUrl?window.JodConfig.assetUrl('images/hero-event.jpg'):'https://assets.jodevents.com/images/hero-event.jpg')" />
 						</div>
 						<div class="order-details" style="cursor:pointer;" onclick="window.location.href='ticket-details.html?id=${encodeURIComponent(b.booking_id)}'">
 							${statusBadge}

@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
-		<script src="js/api-config.js?v=1"></script>
+		<script src="js/api-config.js?v=2"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Your saved events and wishlist on JOD Events." />
 	<title>Your Wishlist | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="stylesheet" href="css/style.css?v=24" />
 	<link rel="stylesheet" href="css/responsive.css?v=20" />
 	<style>
@@ -180,7 +180,7 @@
 	<script src="js/profile.js?v=8"></script>
 	<script src="js/location.js?v=12"></script>
 	<script src="js/script.js?v=26"></script>
-	<script src="js/events-public.js?v=8"></script>
+	<script src="js/events-public.js?v=11"></script>
 	<script src="js/wishlist.js?v=1"></script>
 	<script>
 		(async function loadWishlistPage() {
@@ -215,7 +215,11 @@
 				const ev = item.event || { id: item.event_id };
 				const id = ev.id || item.event_id;
 				const url = EP ? EP.eventDetailsUrl(ev) : `event-details.html?id=${encodeURIComponent(id)}`;
-				const img = EP ? EP.resolveImage(ev.image_url) : "images/hero-event.jpg";
+				const img = EP
+					? EP.resolveImage(ev.image_url)
+					: ((window.JodConfig && window.JodConfig.assetUrl)
+						? window.JodConfig.assetUrl("images/hero-event.jpg")
+						: "https://assets.jodevents.com/images/hero-event.jpg");
 				const title = EP ? EP.escapeHtml(ev.title || "Saved event") : (ev.title || "Saved event");
 				const dateStr = EP ? EP.formatDateIST(ev.start_date) : "";
 				const venue = EP ? EP.escapeHtml(ev.venue || ev.location || "Venue TBA") : (ev.venue || "Venue TBA");

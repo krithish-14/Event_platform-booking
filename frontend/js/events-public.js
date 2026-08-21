@@ -6,7 +6,14 @@
 	"use strict";
 
 	const IST = "Asia/Kolkata";
-	const PLACEHOLDER_IMAGE = "images/hero-event.jpg";
+	function placeholderImage() {
+		if (global.JodConfig && typeof global.JodConfig.assetUrl === "function") {
+			return global.JodConfig.assetUrl("images/hero-event.jpg");
+		}
+		return "https://assets.jodevents.com/images/hero-event.jpg";
+	}
+
+	const PLACEHOLDER_IMAGE = placeholderImage();
 
 	function getApiBase() {
 		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
@@ -29,17 +36,21 @@
 
 	function resolveImage(url) {
 		if (global.JodConfig && typeof global.JodConfig.safeMediaUrl === "function") {
-			return global.JodConfig.safeMediaUrl(url, PLACEHOLDER_IMAGE);
+			return global.JodConfig.safeMediaUrl(url, "images/hero-event.jpg");
 		}
-		if (!url) return PLACEHOLDER_IMAGE;
+		if (!url) return placeholderImage();
 		const trimmed = String(url).trim();
 		const lower = trimmed.toLowerCase();
 		if (lower.startsWith("javascript:") || lower.startsWith("vbscript:") || lower.startsWith("data:")) {
-			return PLACEHOLDER_IMAGE;
+			return placeholderImage();
 		}
 		if (trimmed.startsWith("https://")) return trimmed;
-		if (trimmed.startsWith("/") || trimmed.startsWith("images/")) return trimmed;
-		return PLACEHOLDER_IMAGE;
+		if (trimmed.startsWith("/") || trimmed.startsWith("images/")) {
+			return global.JodConfig && global.JodConfig.assetUrl
+				? global.JodConfig.assetUrl(trimmed)
+				: trimmed;
+		}
+		return placeholderImage();
 	}
 
 	function formatPrice(price) {

@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
-		<script src="js/api-config.js?v=1"></script>
+		<script src="js/api-config.js?v=2"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Your JOD Events dashboard – manage your profile, view upcoming bookings and explore events." />
 	<title>Dashboard | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="stylesheet" href="css/style.css?v=24" />
 	<link rel="stylesheet" href="css/responsive.css?v=20" />
 	<style>
@@ -444,7 +444,7 @@
 	<script src="js/profile.js?v=8"></script>
 	<script src="js/wishlist.js?v=1"></script>
 	<script src="js/location.js?v=12"></script>
-	<script src="js/events-public.js?v=8"></script>
+	<script src="js/events-public.js?v=11"></script>
 	<script src="js/search.js?v=1"></script>
 	<script src="js/script.js?v=26"></script>
 	<script>
@@ -597,7 +597,14 @@
 							</div>`;
 						return;
 					}
-					const resolveImg = EP && EP.resolveImage ? EP.resolveImage.bind(EP) : (url) => url || "images/hero-event.jpg";
+					const resolveImg = EP && EP.resolveImage
+						? EP.resolveImage.bind(EP)
+						: (url) => (window.JodConfig && window.JodConfig.safeMediaUrl
+							? window.JodConfig.safeMediaUrl(url, "images/hero-event.jpg")
+							: (url || "https://assets.jodevents.com/images/hero-event.jpg"));
+					const heroFb = (window.JodConfig && window.JodConfig.assetUrl)
+						? window.JodConfig.assetUrl("images/hero-event.jpg")
+						: "https://assets.jodevents.com/images/hero-event.jpg";
 					const formatDate = EP && EP.formatDateIST ? EP.formatDateIST.bind(EP) : (iso) => iso || "Date TBA";
 					const detailsUrl = EP && EP.eventDetailsUrl ? EP.eventDetailsUrl.bind(EP) : (ev) => `event-details.html?id=${encodeURIComponent(ev.id)}`;
 					container.innerHTML = `<div class="dash-event-grid">${list.map((ev) => {
@@ -607,7 +614,7 @@
 						const venue = escapeHtml(ev.venue || ev.location || "Venue TBA");
 						const when = escapeHtml(formatDate(ev.start_date));
 						return `<a class="dash-event-card" href="${url}">
-							<img src="${escapeHtml(img)}" alt="${title}" onerror="this.src='images/hero-event.jpg'" />
+							<img src="${escapeHtml(img)}" alt="${title}" onerror="this.src='${escapeHtml(heroFb)}'" />
 							<div class="dash-event-body">
 								<h3>${title}</h3>
 								<p class="dash-event-meta">${when} · ${venue}</p>

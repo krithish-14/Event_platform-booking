@@ -130,7 +130,20 @@
 			const base = getApiBase().replace(/\/$/, "");
 			return `${base}/${url.replace(/^\//, "")}`;
 		}
+		if (url.startsWith("images/") || url.startsWith("./images/") || url.startsWith("/images/")) {
+			if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
+				return window.JodConfig.assetUrl(url);
+			}
+			return "https://assets.jodevents.com/images/" + url.replace(/^(\.\/)?\/?images\//, "");
+		}
 		return url;
+	}
+
+	function heroFallback() {
+		if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
+			return window.JodConfig.assetUrl("images/hero-event.jpg");
+		}
+		return "https://assets.jodevents.com/images/hero-event.jpg";
 	}
 
 	function renderTicketDOM(data) {
@@ -197,10 +210,10 @@
 				imgEl.src = resolveTicketImage(ticketImg);
 				imgEl.onerror = function onTicketImgError() {
 					this.onerror = null;
-					this.src = "images/hero-event.jpg";
+					this.src = heroFallback();
 				};
 			} else {
-				imgEl.src = "images/hero-event.jpg";
+				imgEl.src = heroFallback();
 			}
 		}
 

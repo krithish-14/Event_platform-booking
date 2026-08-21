@@ -7,12 +7,19 @@
 (function () {
 	"use strict";
 
+	function asset(path) {
+		if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
+			return window.JodConfig.assetUrl(path);
+		}
+		return "https://assets.jodevents.com/images/" + String(path || "").replace(/^images\//, "");
+	}
+
 	function photoUrl(name) {
-		return encodeURI("images/Picflow Images Aug 20/" + name);
+		return asset("images/Picflow Images Aug 20/" + name);
 	}
 
 	function videoUrl(name) {
-		return encodeURI("images/Singapenn image/" + name);
+		return asset("images/Singapenn image/" + name);
 	}
 
 	const FALLBACK = photoUrl("8I2A9459.webp");
