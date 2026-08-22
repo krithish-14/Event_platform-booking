@@ -356,6 +356,18 @@
 		const loggedIn = auth.isLoggedIn ? auth.isLoggedIn() : false;
 
 		if (loggedIn) {
+			if (desktopGroup) {
+				desktopGroup.classList.add("has-session");
+				desktopGroup.querySelectorAll(":scope > a.button-login, :scope > a.button-primary, #nav-login-btn, #nav-signup-btn").forEach((btn) => {
+					btn.hidden = true;
+					btn.setAttribute("aria-hidden", "true");
+					btn.style.setProperty("display", "none", "important");
+				});
+			}
+			if (mobileGroup) {
+				mobileGroup.hidden = true;
+				mobileGroup.innerHTML = "";
+			}
 			if (window.JodProfile) {
 				if (desktopGroup) window.JodProfile.renderProfileWidget(desktopGroup);
 				if (mobileGroup) window.JodProfile.renderMobileAuthGroup(mobileGroup);
@@ -386,10 +398,23 @@
 				}
 			}
 		} else {
-			if (desktopGroup && !desktopGroup.querySelector("#nav-login-btn")) {
-				desktopGroup.innerHTML = `
+			if (desktopGroup) {
+				desktopGroup.classList.remove("has-session");
+				const sessionWidget = desktopGroup.querySelector(".profile-wrap, .auth-user-block");
+				if (sessionWidget) sessionWidget.remove();
+				const loginBtn = desktopGroup.querySelector("#nav-login-btn");
+				const signupBtn = desktopGroup.querySelector("#nav-signup-btn");
+				if (loginBtn && signupBtn) {
+					[loginBtn, signupBtn].forEach((btn) => {
+						btn.hidden = false;
+						btn.removeAttribute("aria-hidden");
+						btn.style.removeProperty("display");
+					});
+				} else if (!loginBtn) {
+					desktopGroup.innerHTML = `
 					<a class="button button-sm button-login" href="login.html" id="nav-login-btn">Login</a>
 					<a class="button button-sm button-primary" href="signup.html" id="nav-signup-btn">Sign Up &#8599;</a>`;
+				}
 			}
 			if (mobileGroup && !mobileGroup.querySelector('a[href="login.html"]')) {
 				mobileGroup.hidden = false;

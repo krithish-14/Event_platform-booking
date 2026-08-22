@@ -18,6 +18,14 @@
 
 @font-face {
 	font-family: 'Grift';
+	src: url('../fonts/Grift-ExtraBold.otf') format('opentype');
+	font-weight: 800;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Grift';
 	src: url('../fonts/Grift-Light.otf') format('opentype');
 	font-weight: 300;
 	font-style: normal;
@@ -876,6 +884,15 @@ mark.search-highlight {
 	display: flex;
 	align-items: center;
 	gap: .625rem;
+}
+
+body.is-auth-ready[data-user="authenticated"] .nav-auth > #nav-login-btn,
+body.is-auth-ready[data-user="authenticated"] .nav-auth > #nav-signup-btn,
+body.is-auth-ready[data-user="authenticated"] .nav-auth > a.button-login,
+body.is-auth-ready[data-user="authenticated"] .nav-auth > a.button-primary,
+body.is-auth-ready[data-user="authenticated"] .nav-auth.has-session > a.button,
+body.is-auth-ready[data-user="authenticated"] .mobile-auth-group {
+	display: none !important;
 }
 
 .button-login {
@@ -2390,7 +2407,8 @@ h2 em {
 	margin-top: .75rem;
 }
 
-.footer-grid>div:nth-child(2) p {
+.footer-grid>div:nth-child(2) p,
+.footer-contact p {
 	margin-top: .5rem;
 }
 
@@ -2409,14 +2427,22 @@ h2 em {
 	border: 1px solid var(--border);
 	border-radius: 50%;
 	background: var(--card);
-	font-size: .75rem;
-	font-weight: 700;
-	transition: background .2s, color .2s;
+	color: var(--foreground);
+	transition: background .2s, color .2s, border-color .2s, transform .15s;
+}
+
+.social-links a svg {
+	display: block;
+	width: 1.05rem;
+	height: 1.05rem;
+	flex-shrink: 0;
 }
 
 .social-links a:hover {
 	background: var(--brand-gradient);
+	border-color: transparent;
 	color: #fff;
+	transform: translateY(-1px);
 }
 
 .copyright {

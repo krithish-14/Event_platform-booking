@@ -18,77 +18,31 @@
 		return asset("images/Picflow Images Aug 20/" + name);
 	}
 
-	function videoUrl(name) {
-		return asset("images/Singapenn image/" + name);
-	}
-
-	const FALLBACK = photoUrl("8I2A9459.webp");
+	const FALLBACK = photoUrl("2G5A0980.webp");
 
 	const PHOTO_PLAN = [
-		{ file: "773A2253.webp", layout: "tall" },
-		{ file: "773A2265.webp", layout: "tall" },
-		{ file: "773A2708.webp", layout: "tall" },
-		{ file: "8I2A8909.webp", layout: "tall" },
-		{ file: "8I2A9287.webp", layout: "tall" },
-		{ file: "8I2A9514.webp", layout: "tall" },
-		{ file: "773A2908.webp", layout: "feature" },
-		{ file: "8I2A8941.webp", layout: "square" },
-		{ file: "773A2327.webp", layout: "feature" },
-		{ file: "8I2A8940.webp", layout: "square" },
-		{ file: "773A2464.webp", layout: "feature" },
-		{ file: "773A2238.webp", layout: "square" },
-		{ file: "2G5A0922.webp", layout: "feature" },
-		{ file: "8I2A9060.webp", layout: "square" },
-		{ file: "773A2684.webp", layout: "feature" },
-		{ file: "2G5A1131.webp", layout: "square" },
-		{ file: "773A2710.webp", layout: "feature" },
-		{ file: "773A2224.webp", layout: "square" },
 		{ file: "2G5A0980.webp", layout: "feature" },
-		{ file: "8I2A8923.webp", layout: "square" },
-		{ file: "8I2A9459.webp", layout: "feature" },
-		{ file: "773A2255.webp", layout: "square" },
-		{ file: "773A2321.webp", layout: "feature" },
-		{ file: "8I2A9242.webp", layout: "square" },
-		{ file: "2G5A0951.webp", layout: "feature" },
-		{ file: "8I2A8915.webp", layout: "square" },
-		{ file: "2G5A1114.webp", layout: "feature" },
-		{ file: "8I2A9214.webp", layout: "square" },
-		{ file: "773A2379.webp", layout: "feature" },
-		{ file: "773A2387.webp", layout: "square" },
-		{ file: "2G5A1112.webp", layout: "feature" },
-		{ file: "773A2276.webp", layout: "square" },
-		{ file: "8I2A9521.webp", layout: "feature" },
-		{ file: "8I2A8969.webp", layout: "square" },
-		{ file: "2G5A0947.webp", layout: "feature" },
-		{ file: "8I2A9396.webp", layout: "square" },
+		{ file: "8I2A8909.webp", layout: "tall" },
 		{ file: "773A2389.webp", layout: "feature" },
-		{ file: "8I2A9088.webp", layout: "square" },
+		{ file: "8I2A8969.webp", layout: "square" },
+		{ file: "2G5A0951.webp", layout: "feature" },
+		{ file: "2G5A1131.webp", layout: "square" },
 		{ file: "773A2231.webp", layout: "feature" },
+		{ file: "8I2A9088.webp", layout: "square" },
+		{ file: "8I2A9521.webp", layout: "feature" },
 		{ file: "8I2A9250.webp", layout: "square" },
-		{ file: "8I2A9337.webp", layout: "feature" },
-		{ file: "2G5A1126.webp", layout: "square" }
+		{ file: "773A2276.webp", layout: "wide" }
 	];
 
-	const GALLERY_ITEMS = [
-		{
-			id: "singapenn-film",
-			type: "video",
-			layout: "feature",
-			highlight: true,
-			title: "Singapenn Marathon 2026",
-			caption: "Official race film.",
-			src: videoUrl("singapenn marathon 2026.mp4"),
-			poster: photoUrl("773A2327.webp")
-		}
-	].concat(PHOTO_PLAN.map((photo, i) => ({
+	const GALLERY_ITEMS = PHOTO_PLAN.map((photo, i) => ({
 		id: "singapenn-" + (i + 1),
 		type: "image",
 		layout: photo.layout,
-		highlight: photo.layout === "feature" || photo.layout === "tall",
+		highlight: photo.layout === "feature" || photo.layout === "tall" || photo.layout === "wide",
 		title: "Singapenn Marathon 2026",
 		caption: photo.layout === "tall" ? "Portrait still from race day." : "Race day still.",
 		src: photoUrl(photo.file)
-	})));
+	}));
 
 	let items = GALLERY_ITEMS.slice();
 	let visible = items.slice();

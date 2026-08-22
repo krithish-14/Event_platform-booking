@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
-		<script src="js/api-config.js?v=2"></script>
+		<script src="js/api-config.js?v=3"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Cache-Control" content="no-store" />
@@ -114,8 +114,29 @@
 		.header-back-btn svg { width: 1.05rem; height: 1.05rem; display: block; }
 		.err { color: #b91c1c; font-size: 0.85rem; margin-top: 0.75rem; min-height: 1.1em; }
 		.ok { color: #166534; font-size: 0.9rem; margin-top: 0.75rem; font-weight: 700; }
-		#payFormPanel { display: none; margin-top: 1.2rem; }
-		#payFormPanel.is-open { display: block; }
+		#payFormPanel { display: block; margin-top: 1.2rem; }
+		#payFormPanel.is-hidden { display: none; }
+		.pay-wait {
+			display: none;
+			margin-top: 1.1rem;
+			background: #fff7ed;
+			border: 1px solid #fdba74;
+			border-radius: 16px;
+			padding: 1rem 1.1rem;
+			color: #9a3412;
+			font-size: 0.92rem;
+			font-weight: 600;
+			line-height: 1.45;
+		}
+		.pay-wait.is-visible { display: block; }
+		.qr-missing {
+			display: none;
+			margin: 0.6rem 0 0;
+			color: #b91c1c;
+			font-size: 0.86rem;
+			font-weight: 700;
+		}
+		.qr-missing.is-visible { display: block; }
 		.qr-pay-card {
 			background: #ffffff;
 			border: 1px solid #e2e8f0;
@@ -295,7 +316,7 @@
 			<span>Back</span>
 		</a>
 		<h1>Ticket bill</h1>
-		<p class="sub">Complete payment to finish your registration.</p>
+		<p class="sub">For payment use QR. Your ticket is held until support verifies this form.</p>
 		<div class="bill-card">
 			<h2>Selected ticket</h2>
 			<div class="row"><span>Event</span><span id="payEvent">Loading…</span></div>
@@ -303,29 +324,28 @@
 			<div class="row"><span>Ticket</span><span id="payTicket">—</span></div>
 			<div class="row"><span>Quantity</span><span id="payQty">1</span></div>
 			<div class="row is-total"><span>Amount</span><span id="payAmount">—</span></div>
-			<div class="row"><span>Status</span><span><span class="status">Payment pending</span></span></div>
+			<div class="row"><span>Status</span><span><span class="status" id="payStatus">Payment pending</span></span></div>
 		</div>
-		<button type="button" class="pay-btn" id="payBtn">Payment</button>
+		<div class="pay-wait" id="payWaitNote">Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.</div>
 		<div id="payFormPanel">
 			<div class="qr-pay-card">
 				<h2>Pay with this QR</h2>
-				<p id="payQrCaption">Scan the QR code, complete UPI payment, then fill the details below.</p>
-				<img id="payQrImage" src="https://assets.jodevents.com/images/jod-upi-payment-qr.png" alt="Payment QR" />
+				<p id="payQrCaption">For payment use QR. Scan the QR for this ticket, then fill the details below.</p>
+				<img id="payQrImage" alt="Payment QR for selected ticket" hidden />
+				<p class="qr-missing" id="payQrMissing">Payment QR for this ticket is not available. Ask the host to upload the ticket QR.</p>
 			</div>
 			<form class="proof-card" id="payProofForm">
 				<h2 style="font-size:0.95rem;margin-bottom:0.2rem;">Payment details</h2>
-				<p class="sub" style="margin-bottom:0.2rem;">Admin will verify this and generate your ticket QR.</p>
+				<p class="sub" style="margin-bottom:0.2rem;">For payment use QR. After submit, support verifies and then issues your ticket.</p>
 				<label for="payName">Name</label>
 				<input type="text" id="payName" name="attendee_name" required autocomplete="name" />
 				<label for="payEmail">Email</label>
 				<input type="email" id="payEmail" name="attendee_email" required autocomplete="email" />
-				<label for="payNumber">Number</label>
+				<label for="payNumber">Phone number</label>
 				<input type="tel" id="payNumber" name="attendee_phone" required autocomplete="tel" />
-				<label for="payBank">Bank name</label>
-				<input type="text" id="payBank" name="bank_name" required />
 				<label for="payTxn">Transaction ID</label>
 				<input type="text" id="payTxn" name="transaction_id" required />
-				<label for="payShot">Screenshot of the payment</label>
+				<label for="payShot">Payment screenshot</label>
 				<input type="file" id="payShot" name="screenshot" accept="image/*" required />
 				<img class="shot-preview" id="payShotPreview" alt="Payment screenshot preview" />
 				<button type="submit" class="pay-btn" id="paySubmitBtn">Submit payment details</button>
@@ -335,16 +355,16 @@
 	</div>
 	<div class="pay-modal" id="paySuccessModal" role="dialog" aria-modal="true" aria-labelledby="paySuccessTitle">
 		<div class="pay-modal-card">
-			<h2 id="paySuccessTitle">Payment submitted</h2>
-			<p id="paySuccessText">Payment details submitted. Admin will generate your QR ticket after verification.</p>
-			<p class="wait-note">Your QR will be generated within 24 hrs.</p>
+			<h2 id="paySuccessTitle">Registration process completed</h2>
+			<p id="paySuccessText">Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.</p>
+			<p class="wait-note">Admin will generate your QR ticket after verification. You will get it on the website, email, and WhatsApp.</p>
 			<p class="pay-modal-timer" id="paySuccessTimer">Exit available in 5s</p>
 			<button type="button" class="pay-btn pay-modal-exit" id="paySuccessExit">Exit</button>
 		</div>
 	</div>
 
 	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=24"></script>
+	<script src="js/auth.js?v=25"></script>
 	<script>
 		(function () {
 			const params = new URLSearchParams(window.location.search);
@@ -365,8 +385,11 @@
 				if (!Array.isArray(types)) return "";
 				const key = normalizeTicketKey(ticketName);
 				const match = types.find((item) => {
-					const name = item && (item.name || item.ticket_name || item.type || "");
-					return normalizeTicketKey(name) === key;
+					const name = normalizeTicketKey(item && (item.name || item.ticket_name || item.type || ""));
+					return name && name === key;
+				}) || types.find((item) => {
+					const name = normalizeTicketKey(item && (item.name || item.ticket_name || item.type || ""));
+					return key && name && (name.includes(key) || key.includes(name));
 				});
 				if (!match) return "";
 				return String(match.payment_qr_url || match.qr_url || match.payment_qr || "").trim();
@@ -383,30 +406,42 @@
 			function applyPaymentQr(url, ticketName) {
 				const img = document.getElementById("payQrImage");
 				const caption = document.getElementById("payQrCaption");
-				const resolved = resolveMediaUrl(url) || DEFAULT_PAY_QR;
+				const missing = document.getElementById("payQrMissing");
+				const resolved = resolveMediaUrl(url);
+				if (caption) {
+					caption.textContent = ticketName
+						? ("For payment use QR. Scan this QR for " + ticketName + ", then fill the form.")
+						: "For payment use QR. Scan the ticket QR, then fill the form.";
+				}
+				if (!resolved) {
+					if (img) {
+						img.removeAttribute("src");
+						img.hidden = true;
+					}
+					if (missing) missing.classList.add("is-visible");
+					return false;
+				}
+				if (missing) missing.classList.remove("is-visible");
 				if (img) {
+					img.hidden = false;
 					img.onerror = function () {
-						if (img.getAttribute("src") === DEFAULT_PAY_QR) return;
-						img.src = DEFAULT_PAY_QR;
+						img.hidden = true;
+						img.removeAttribute("src");
+						if (missing) missing.classList.add("is-visible");
 					};
 					img.src = resolved;
 					img.alt = ticketName ? ("Payment QR for " + ticketName) : "Payment QR";
 				}
-				if (caption) {
-					caption.textContent = ticketName
-						? ("Scan this QR to pay for " + ticketName + ", then fill the details below.")
-						: "Scan the QR code, complete UPI payment, then fill the details below.";
-				}
+				return true;
 			}
 
 			const eventId = params.get("eventId") || saved.eventId || "";
 			const ticket = prettyTicket(params.get("ticket") || saved.ticket || "General Admission");
 			const price = Number(params.get("price") || saved.price || 0);
+			const qrFromUrl = params.get("qr") || saved.paymentQrUrl || "";
 			const qty = Number(saved.quantity || 1) || 1;
-			const apiBase = ((window.JodAuth && window.JodAuth.API_BASE) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, "");
-			const DEFAULT_PAY_QR = (window.JodConfig && window.JodConfig.assetUrl)
-				? window.JodConfig.assetUrl("images/jod-upi-payment-qr.png")
-				: "https://assets.jodevents.com/images/jod-upi-payment-qr.png";
+			const apiBase = ((window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, "");
+			const SUCCESS_COPY = "Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.";
 
 			const eventEl = document.getElementById("payEvent");
 			const venueRow = document.getElementById("venueRow");
@@ -415,9 +450,10 @@
 			const qtyEl = document.getElementById("payQty");
 			const amountEl = document.getElementById("payAmount");
 			const backEl = document.getElementById("payBack");
-			const btn = document.getElementById("payBtn");
 			const errEl = document.getElementById("payError");
 			const formPanel = document.getElementById("payFormPanel");
+			const waitNote = document.getElementById("payWaitNote");
+			const statusEl = document.getElementById("payStatus");
 			const proofForm = document.getElementById("payProofForm");
 			const submitBtn = document.getElementById("paySubmitBtn");
 			const successModal = document.getElementById("paySuccessModal");
@@ -435,19 +471,20 @@
 				venueRow.hidden = false;
 			}
 			if (eventId && backEl) backEl.href = "event-details.html?id=" + encodeURIComponent(eventId);
-			applyPaymentQr(saved.paymentQrUrl, ticket);
+			applyPaymentQr(qrFromUrl, ticket);
 
-			function getToken() {
-				let token = "";
-				if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
-					token = window.JodAuth.getToken() || "";
+			function isSessionUser() {
+				if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function") {
+					return window.JodAuth.isLoggedIn();
 				}
-				if (!token) {
-					token = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token") || "";
+				try {
+					const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+					if (!raw || raw === "null" || raw === "undefined") return false;
+					const user = JSON.parse(raw);
+					return Boolean(user && (user.email || user.id || user.customer_id));
+				} catch (_) {
+					return false;
 				}
-				token = String(token || "").replace(/^Bearer\s+/i, "").replace(/^["']|["']$/g, "").trim();
-				if (token === "null" || token === "undefined") return "";
-				return token;
 			}
 
 			function currentReturnUrl() {
@@ -459,7 +496,20 @@
 				const returnUrl = currentReturnUrl();
 				try { sessionStorage.setItem("jod_redirect_after_login", returnUrl); } catch (_) {}
 				if (errEl) errEl.textContent = message || "Please log in to complete payment.";
-				window.location.href = "login.html?redirect=" + encodeURIComponent(returnUrl);
+				if (window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function") {
+					window.JodAuth.requireAuthOrRedirect({ redirectTo: returnUrl });
+					return;
+				}
+				window.location.replace("login.html?redirect=" + encodeURIComponent(returnUrl));
+			}
+
+			async function ensureSession() {
+				if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+					const user = await window.JodAuth.validateSession();
+					if (user) return user;
+					return null;
+				}
+				return isSessionUser() ? (window.JodAuth && window.JodAuth.getUser ? window.JodAuth.getUser() : {}) : null;
 			}
 
 			function apiErrorMessage(data, fallback) {
@@ -476,24 +526,21 @@
 			}
 
 			async function authFetch(url, options) {
-				const token = getToken();
 				const headers = Object.assign({}, (options && options.headers) || {});
-				if (token) headers.Authorization = "Bearer " + token;
 				if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
 					return window.JodAuth.fetchAuth(url, Object.assign({}, options || {}, { headers: headers }));
 				}
-				return fetch(url, Object.assign({}, options || {}, { headers: headers, redirect: "follow" }));
+				return fetch(url, Object.assign({}, options || {}, { headers: headers, credentials: "include", redirect: "follow" }));
 			}
 
 			async function fetchRegistrationStatus() {
-				const token = getToken();
-				if (!token || !eventId) return { state: "new" };
+				if (!eventId) return { state: "new" };
 				try {
 					const res = await authFetch(apiBase + "/api/bookings/registration-status?event_id=" + encodeURIComponent(eventId), {
 						cache: "no-store",
 						headers: { Accept: "application/json" }
 					});
-					if (res.status === 401 || res.status === 403) return { state: "auth_required" };
+					if (res.status === 401) return { state: "auth_required" };
 					if (!res.ok) return { state: "new" };
 					const data = await res.json();
 					return data && data.state ? data : { state: "new" };
@@ -517,10 +564,10 @@
 						venueEl.textContent = venue;
 						venueRow.hidden = false;
 					}
-					applyPaymentQr(ticketQrFromTypes(data.ticket_types, ticket) || saved.paymentQrUrl, ticket);
+					applyPaymentQr(ticketQrFromTypes(data.ticket_types, ticket) || qrFromUrl, ticket);
 				} catch (_) {
 					if (eventEl && !eventEl.textContent) eventEl.textContent = saved.eventTitle || "Event";
-					applyPaymentQr(saved.paymentQrUrl, ticket);
+					applyPaymentQr(qrFromUrl, ticket);
 				}
 			}
 
@@ -539,7 +586,7 @@
 					successCountdown = null;
 				}
 				if (successText) {
-					successText.textContent = message || "Payment details submitted. Admin will generate your QR ticket after verification.";
+					successText.textContent = message || SUCCESS_COPY;
 				}
 				if (successExit) successExit.classList.remove("is-visible");
 				let remaining = 5;
@@ -558,25 +605,20 @@
 				}, 1000);
 			}
 
-			async function completePayment() {
-				errEl.textContent = "";
-				if (!eventId) {
-					errEl.textContent = "Missing event. Go back and book again.";
-					return;
-				}
-				const token = getToken();
-				if (!token) {
-					redirectToLogin("Please log in to complete payment.");
-					return;
-				}
-				if (formPanel) formPanel.classList.add("is-open");
-				if (btn) btn.style.display = "none";
+			function prefillUser() {
 				const user = window.JodAuth && window.JodAuth.getUser ? (window.JodAuth.getUser() || {}) : {};
 				const nameEl = document.getElementById("payName");
 				const emailEl = document.getElementById("payEmail");
+				const phoneEl = document.getElementById("payNumber");
 				if (nameEl && !nameEl.value) nameEl.value = user.full_name || user.username || "";
 				if (emailEl && !emailEl.value) emailEl.value = user.email || "";
-				formPanel && formPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+				if (phoneEl && !phoneEl.value) phoneEl.value = user.phone || user.mobile || "";
+			}
+
+			function showHoldState() {
+				if (statusEl) statusEl.textContent = "Waiting for support verification";
+				if (waitNote) waitNote.classList.add("is-visible");
+				if (formPanel) formPanel.classList.add("is-hidden");
 			}
 
 			async function submitProof(event) {
@@ -586,8 +628,8 @@
 					errEl.textContent = "Missing event. Go back and book again.";
 					return;
 				}
-				const token = getToken();
-				if (!token) {
+				const sessionUser = await ensureSession();
+				if (!sessionUser) {
 					redirectToLogin("Please log in to complete payment.");
 					return;
 				}
@@ -604,7 +646,7 @@
 				body.append("attendee_name", document.getElementById("payName").value.trim());
 				body.append("attendee_email", document.getElementById("payEmail").value.trim());
 				body.append("attendee_phone", document.getElementById("payNumber").value.trim());
-				body.append("bank_name", document.getElementById("payBank").value.trim());
+				body.append("bank_name", "");
 				body.append("transaction_id", document.getElementById("payTxn").value.trim());
 				body.append("screenshot", shot.files[0]);
 				submitBtn.disabled = true;
@@ -615,7 +657,7 @@
 						body: body
 					});
 					const data = await res.json().catch(() => ({}));
-					if (res.status === 401 || res.status === 403) {
+					if (res.status === 401) {
 						redirectToLogin("Your session expired. Please log in again to complete payment.");
 						return;
 					}
@@ -623,7 +665,7 @@
 						throw new Error(apiErrorMessage(data, "Could not submit payment details."));
 					}
 					try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
-					showSuccessModal(data.message || "Payment details submitted. Admin will generate your QR ticket after verification.");
+					showSuccessModal(data.message || SUCCESS_COPY);
 					submitBtn.textContent = "Submitted";
 				} catch (err) {
 					errEl.textContent = err.message || "Could not submit payment details.";
@@ -632,7 +674,6 @@
 				}
 			}
 
-			if (btn) btn.addEventListener("click", completePayment);
 			if (proofForm) proofForm.addEventListener("submit", submitProof);
 			if (successExit) successExit.addEventListener("click", closeSuccessModal);
 			const shotInput = document.getElementById("payShot");
@@ -650,20 +691,22 @@
 				});
 			}
 			(async function bootPaymentPage() {
-				if (!getToken()) {
+				const sessionUser = await ensureSession();
+				if (!sessionUser) {
 					redirectToLogin("Please log in to complete payment.");
 					return;
 				}
+				try { sessionStorage.removeItem("jod_auth_bounce"); } catch (_) {}
+				prefillUser();
 				const status = await fetchRegistrationStatus();
 				if (status.state === "auth_required") {
 					redirectToLogin("Your session expired. Please log in again to complete payment.");
 					return;
 				}
-				if (status.state === "ticket" && status.booking_id) {
-					window.location.replace("ticket-details.html?id=" + encodeURIComponent(status.booking_id));
-					return;
-				}
 				await loadEvent();
+				if (status.state === "payment_submitted") {
+					showHoldState();
+				}
 			})();
 		})();
 	</script>

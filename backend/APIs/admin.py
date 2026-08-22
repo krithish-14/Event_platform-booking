@@ -50,7 +50,16 @@ PHONE_KEYS = (
 
 
 def _public_app_url() -> str:
-    return public_app_url() or "http://127.0.0.1:5500"
+    from Services.runtime_env import is_production, public_app_url
+    url = public_app_url()
+    if url:
+        return url
+    if is_production():
+        raise HTTPException(
+            status_code=500,
+            detail="PUBLIC_APP_URL is not configured. Set it in AWS/env before generating ticket links.",
+        )
+    return "http://127.0.0.1:5500"
 
 
 def qr_image_url(token: str) -> str:
@@ -377,12 +386,9 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
         db.commit()
         db.refresh(booking)
     else:
-        if phone and not (booking.receiver_phone or "").strip():
-            booking.receiver_phone = phone
-        if name and not (booking.receiver_name or "").strip():
-            booking.receiver_name = name
-        if email and not (booking.receiver_email or "").strip():
-            booking.receiver_email = email
+        booking.receiver_phone = phone or booking.receiver_phone
+        booking.receiver_name = name or booking.receiver_name
+        booking.receiver_email = email or booking.receiver_email
         if qty > int(booking.quantity or 1):
             booking.quantity = qty
         db.commit()
@@ -401,7 +407,7 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
     return issued
 
 
-def _deliver_ticket(booking: Booking, phone: str) -> dict:
+def _deliver_ticket(booking: Booking, phone: str, email: Optional[str] = None) -> dict:
     tickets = [t for t in (booking.tickets or []) if (t.qr_token or "").strip()]
     if not tickets:
         raise HTTPException(status_code=500, detail="No unique QR ticket was issued for this attendee.")
@@ -411,7 +417,7 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
     ticket_link = public_ticket_url(token)
     image = qr_image_url(token)
     attendee = booking.receiver_name or "there"
-    email_addr = booking.receiver_email or ""
+    email_addr = (email or booking.receiver_email or "").strip()
     extra_links = ""
     extra_text = ""
     if len(tickets) > 1:
@@ -573,7 +579,7 @@ def generate_payment_qr(
     if not booking:
         raise HTTPException(status_code=500, detail="Could not create the QR ticket.")
     db.refresh(row)
-    delivery = _deliver_ticket(booking, row.attendee_phone)
+    delivery = _deliver_ticket(booking, row.attendee_phone, row.attendee_email)
     item = _serialize_payment_proof(db, row)
     item["delivery"] = delivery
     item["booking"] = _serialize_booking(booking, db=db)

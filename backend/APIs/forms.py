@@ -43,12 +43,25 @@ def save_form_draft(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-	"""Save or update draft registration form schema."""
+	"""Save or update draft registration form schema. No OTP — OTP is only for event publish."""
 	email = current_user.email.lower().strip()
 
-	form = db.query(FormDefinition).filter(
-		FormDefinition.organizer_email == email
-	).order_by(FormDefinition.id.desc()).first()
+	form = None
+	if payload.event_id:
+		form = db.query(FormDefinition).filter(
+			FormDefinition.organizer_email == email,
+			FormDefinition.event_id == str(payload.event_id),
+		).order_by(FormDefinition.version.desc(), FormDefinition.id.desc()).first()
+	if not form:
+		# Only reuse an unscoped/latest form when it belongs to this event (or has no event yet).
+		candidate = db.query(FormDefinition).filter(
+			FormDefinition.organizer_email == email
+		).order_by(FormDefinition.id.desc()).first()
+		if candidate:
+			if not payload.event_id or not candidate.event_id or str(candidate.event_id) == str(payload.event_id):
+				form = candidate
+
+	was_published = bool(form and form.is_published)
 
 	if not form:
 		form = FormDefinition(
@@ -71,9 +84,51 @@ def save_form_draft(
 		if payload.theme_json:
 			form.theme_json = payload.theme_json
 		form.updated_at = datetime.utcnow()
+		# Updating a live form must not unpublish it (attendees keep seeing the latest schema).
+		if was_published:
+			form.is_published = True
+
+	# If the host event is already published, keep FormDefinition live after edits.
+	if payload.event_id:
+		try:
+			from Models.event_management import EventManagement
+			import uuid as _uuid
+			eid = _uuid.UUID(str(payload.event_id))
+			host = db.query(EventManagement).filter(EventManagement.event_id == eid).first()
+			if host and (host.event_status or "").lower() == "published" and form.schema_json:
+				form.is_published = True
+		except Exception:
+			pass
 
 	db.commit()
 	db.refresh(form)
+
+	# Mirror schema into host registration table for Buy Ticket lookups.
+	if payload.event_id:
+		try:
+			import uuid as _uuid
+			eid = _uuid.UUID(str(payload.event_id))
+			reg = db.query(EventRegistrationForm).filter(EventRegistrationForm.event_id == eid).first()
+			if not reg:
+				reg = EventRegistrationForm(
+					form_id=_uuid.uuid4(),
+					event_id=eid,
+				)
+				db.add(reg)
+			reg.questions_json = payload.schema_json
+			reg.settings_json = payload.theme_json or {}
+			reg.form_json = {
+				"form_title": payload.form_title,
+				"form_description": payload.form_description or "",
+				"schema": payload.schema_json,
+				"theme_json": payload.theme_json or {},
+			}
+			if form.is_published:
+				reg.published = True
+			reg.updated_at = datetime.utcnow()
+			db.commit()
+		except Exception:
+			db.rollback()
 
 	return {
 		"message": "Form draft saved successfully!",
@@ -87,6 +142,7 @@ def save_form_draft(
 @router.get("/get-form")
 def get_form_definition(
     email: str = Query(..., description="Organizer email address"),
+    event_id: Optional[str] = Query(None, description="Optional host event UUID"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -94,9 +150,16 @@ def get_form_definition(
 	email_clean = current_user.email.lower().strip()
 	if email and email.lower().strip() != email_clean:
 		raise HTTPException(status_code=403, detail="You can only load your own registration form.")
-	form = db.query(FormDefinition).filter(
-		FormDefinition.organizer_email == email_clean
-	).order_by(FormDefinition.id.desc()).first()
+	form = None
+	if event_id:
+		form = db.query(FormDefinition).filter(
+			FormDefinition.organizer_email == email_clean,
+			FormDefinition.event_id == str(event_id),
+		).order_by(FormDefinition.version.desc(), FormDefinition.id.desc()).first()
+	if not form:
+		form = db.query(FormDefinition).filter(
+			FormDefinition.organizer_email == email_clean
+		).order_by(FormDefinition.id.desc()).first()
 
 	if not form:
 		# Return default initial schema if no form created yet
@@ -212,14 +275,9 @@ def get_form_by_event(
 ):
 	"""Fetch the published registration form for a specific event."""
 	import uuid as _uuid
+	from Models.event import Event
 
-	# Prefer FormDefinition linked to event_id
-	form = db.query(FormDefinition).filter(
-		FormDefinition.event_id == event_id,
-		FormDefinition.is_published == True,
-	).order_by(FormDefinition.version.desc()).first()
-
-	if form:
+	def _form_definition_payload(form: FormDefinition):
 		return {
 			"exists": True,
 			"source": "form_definitions",
@@ -229,33 +287,84 @@ def get_form_by_event(
 			"form_title": form.form_title,
 			"form_description": form.form_description,
 			"version": form.version,
-			"is_published": form.is_published,
+			"is_published": True,
 			"schema_json": form.schema_json,
 			"theme_json": form.theme_json or {},
 		}
 
-	# Fallback: host-events registration form table
+	def _host_form_payload(reg: EventRegistrationForm, eid: str):
+		title = "Event Registration"
+		desc = "Please complete the registration form to confirm your booking."
+		meta = reg.form_json if isinstance(reg.form_json, dict) else {}
+		if meta.get("form_title"):
+			title = str(meta.get("form_title"))
+		if meta.get("form_description"):
+			desc = str(meta.get("form_description"))
+		return {
+			"exists": True,
+			"source": "event_registration_forms",
+			"form_id": str(reg.form_id),
+			"event_id": eid,
+			"form_title": title,
+			"form_description": desc,
+			"version": 1,
+			"is_published": True,
+			"schema_json": reg.questions_json,
+			"theme_json": reg.settings_json or meta.get("theme_json") or {},
+		}
+
+	# Prefer FormDefinition linked to event_id
+	form = db.query(FormDefinition).filter(
+		FormDefinition.event_id == event_id,
+		FormDefinition.is_published == True,
+	).order_by(FormDefinition.version.desc()).first()
+
+	if form:
+		return _form_definition_payload(form)
+
+	# Fallback: host-events registration form table (explicitly published)
 	try:
 		eid = _uuid.UUID(event_id)
+	except Exception:
+		eid = None
+
+	if eid is not None:
 		reg = db.query(EventRegistrationForm).filter(
 			EventRegistrationForm.event_id == eid,
 			EventRegistrationForm.published == True,
 		).first()
 		if reg and reg.questions_json:
-			return {
-				"exists": True,
-				"source": "event_registration_forms",
-				"form_id": str(reg.form_id),
-				"event_id": event_id,
-				"form_title": "Event Registration",
-				"form_description": "Please complete the registration form to confirm your booking.",
-				"version": 1,
-				"is_published": True,
-				"schema_json": reg.questions_json,
-				"theme_json": reg.settings_json or {},
-			}
-	except Exception:
-		pass
+			return _host_form_payload(reg, event_id)
+
+		# Heal: live public events should expose their saved host form even if
+		# the dashboard previously saved it only as a draft.
+		public_event = db.query(Event).filter(
+			Event.id == eid,
+			Event.is_published == True,
+			Event.is_cancelled == False,
+		).first()
+		if public_event:
+			draft_form = db.query(FormDefinition).filter(
+				FormDefinition.event_id == event_id,
+			).order_by(FormDefinition.version.desc(), FormDefinition.id.desc()).first()
+			if draft_form and draft_form.schema_json:
+				if not draft_form.is_published:
+					draft_form.is_published = True
+					draft_form.updated_at = datetime.utcnow()
+					db.commit()
+					db.refresh(draft_form)
+				return _form_definition_payload(draft_form)
+
+			draft_reg = db.query(EventRegistrationForm).filter(
+				EventRegistrationForm.event_id == eid,
+			).first()
+			if draft_reg and draft_reg.questions_json:
+				if not draft_reg.published:
+					draft_reg.published = True
+					draft_reg.updated_at = datetime.utcnow()
+					db.commit()
+					db.refresh(draft_reg)
+				return _host_form_payload(draft_reg, event_id)
 
 	raise HTTPException(status_code=404, detail="No published registration form found for this event.")
 
@@ -271,9 +380,16 @@ def publish_form(
 	"""Publish current registration form version for attendees."""
 	email = current_user.email.lower().strip()
 
-	form = db.query(FormDefinition).filter(
-		FormDefinition.organizer_email == email
-	).order_by(FormDefinition.id.desc()).first()
+	form = None
+	if payload.event_id:
+		form = db.query(FormDefinition).filter(
+			FormDefinition.organizer_email == email,
+			FormDefinition.event_id == payload.event_id,
+		).order_by(FormDefinition.version.desc(), FormDefinition.id.desc()).first()
+	if not form:
+		form = db.query(FormDefinition).filter(
+			FormDefinition.organizer_email == email
+		).order_by(FormDefinition.id.desc()).first()
 
 	if not form:
 		form = FormDefinition(
@@ -301,6 +417,32 @@ def publish_form(
 
 	db.commit()
 	db.refresh(form)
+
+	# Keep host registration form table in sync for Buy Ticket lookups.
+	if payload.event_id:
+		try:
+			import uuid as _uuid
+			eid = _uuid.UUID(str(payload.event_id))
+			reg = db.query(EventRegistrationForm).filter(EventRegistrationForm.event_id == eid).first()
+			if not reg:
+				reg = EventRegistrationForm(
+					form_id=_uuid.uuid4(),
+					event_id=eid,
+				)
+				db.add(reg)
+			reg.questions_json = payload.schema_json
+			reg.settings_json = payload.theme_json or {}
+			reg.form_json = {
+				"form_title": payload.form_title,
+				"form_description": payload.form_description or "",
+				"schema": payload.schema_json,
+				"theme_json": payload.theme_json or {},
+			}
+			reg.published = True
+			reg.updated_at = datetime.utcnow()
+			db.commit()
+		except Exception:
+			db.rollback()
 
 	return {
 		"message": f"Form version {form.version} published live for attendees!",

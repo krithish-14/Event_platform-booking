@@ -207,7 +207,13 @@ def root():
 
 @app.get("/health", tags=["Root"])
 def health_check():
-    return {"status": "healthy", "version": APP_VERSION}
+    from Services.r2_storage import is_configured as r2_configured
+
+    return {
+        "status": "healthy",
+        "version": APP_VERSION,
+        "r2_configured": r2_configured(),
+    }
 
 
 @app.get("/health/ready", tags=["Root"])

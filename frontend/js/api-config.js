@@ -41,6 +41,24 @@
 		return DEFAULT_ASSETS_IMAGE_BASE;
 	}
 
+	function isAppMediaPath(path) {
+		var p = String(path || "");
+		return (
+			p.indexOf("/api/media") === 0 ||
+			p.indexOf("api/media") === 0 ||
+			p.indexOf("/uploads/") === 0 ||
+			p.indexOf("uploads/") === 0
+		);
+	}
+
+	function prefixApiPath(path) {
+		var p = String(path || "").trim();
+		if (!p) return "";
+		if (!p.startsWith("/")) p = "/" + p;
+		var origin = getApiOrigin();
+		return origin ? origin + p : p;
+	}
+
 	function escapeHtml(value) {
 		return String(value == null ? "" : value)
 			.replace(/&/g, "&amp;")
@@ -90,7 +108,7 @@
 		if (/^https?:\/\//i.test(trimmed)) {
 			try {
 				var abs = new URL(trimmed);
-				if (abs.hostname === "assets.jodevents.com") return trimmed;
+				if (isAppMediaPath(abs.pathname)) return prefixApiPath(abs.pathname + abs.search);
 				return trimmed;
 			} catch (_) {
 				return trimmed;
@@ -98,9 +116,16 @@
 		}
 
 		var rel = trimmed.replace(/^\.\//, "");
-		if (rel.startsWith("/api/") || rel.startsWith("api/")) return trimmed;
-		if (rel.startsWith("/uploads/") || rel.startsWith("uploads/")) return trimmed;
-		if (rel.indexOf("/api/media") !== -1) return trimmed;
+		if (rel.startsWith("/api/") || rel.startsWith("api/")) {
+			return prefixApiPath(rel.startsWith("/") ? rel : "/" + rel);
+		}
+		if (rel.startsWith("/uploads/") || rel.startsWith("uploads/")) {
+			return prefixApiPath(rel.startsWith("/") ? rel : "/" + rel);
+		}
+		if (rel.indexOf("/api/media") !== -1) {
+			var mediaPath = rel.indexOf("/api/media") >= 0 ? rel.slice(rel.indexOf("/api/media")) : "/api/media";
+			return prefixApiPath(mediaPath);
+		}
 
 		if (rel.startsWith("/images/")) rel = rel.slice("/images/".length);
 		else if (rel.startsWith("images/")) rel = rel.slice("images/".length);
@@ -125,21 +150,22 @@
 		) {
 			return placeholder;
 		}
-		if (lower.startsWith("https://")) return trimmed;
-		if (lower.startsWith("http://")) {
+		if (/^https?:\/\//i.test(trimmed)) {
 			try {
 				var parsed = new URL(trimmed);
+				if (isAppMediaPath(parsed.pathname)) {
+					return prefixApiPath(parsed.pathname + parsed.search);
+				}
+				if (lower.startsWith("https://")) return trimmed;
 				if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") return trimmed;
-			} catch (_) {}
+			} catch (_) {
+				if (lower.startsWith("https://")) return trimmed;
+			}
 			return placeholder;
 		}
-		if (
-			trimmed.startsWith("/api/") ||
-			trimmed.startsWith("api/") ||
-			trimmed.startsWith("/uploads/") ||
-			trimmed.startsWith("uploads/")
-		) {
-			return trimmed;
+		if (isAppMediaPath(trimmed) || trimmed.startsWith("/api/") || trimmed.startsWith("api/")) {
+			var path = trimmed.startsWith("/") ? trimmed : "/" + trimmed;
+			return prefixApiPath(path);
 		}
 		if (
 			trimmed.startsWith("/") ||
@@ -262,6 +288,7 @@
 		assetUrl: assetUrl,
 		escapeHtml: escapeHtml,
 		safeMediaUrl: safeMediaUrl,
+		prefixApiPath: prefixApiPath,
 	};
 	global.escHtml = escapeHtml;
 	global.getApiBaseUrl = getApiOrigin;

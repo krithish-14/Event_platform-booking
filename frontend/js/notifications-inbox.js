@@ -245,10 +245,13 @@ window.JodInbox = (() => {
 
 	function updateBadge(count) {
 		const n = Math.max(0, Number(count) || 0);
+		const label = n === 1 ? "1 unread notification" : `${n} unread notifications`;
 		document.querySelectorAll(".profile-notif-badge").forEach((badge) => {
 			badge.textContent = n > 99 ? "99+" : String(n);
 			badge.classList.toggle("is-visible", n > 0);
 			badge.hidden = n <= 0;
+			badge.setAttribute("aria-hidden", n <= 0 ? "true" : "false");
+			badge.setAttribute("aria-label", label);
 		});
 	}
 
