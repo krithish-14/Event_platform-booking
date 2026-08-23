@@ -13,7 +13,7 @@
 		if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 			return window.JodHealth.getApiBaseUrl();
 		}
-		return "";
+		return "https://api.jodevents.com";
 	}
 
 	function authFetch(url, options) {

@@ -1,6 +1,6 @@
 /**
  * Single API origin + Cloudflare assets base for every page.
- * Production (nginx same origin): "" so fetch("/api/...") works.
+ * Production (Cloudflare frontend): https://api.jodevents.com
  * Local split (:5500): http://127.0.0.1:8001
  * Static images: https://assets.jodevents.com/images/...
  * Override: window.JOD_API_BASE_OVERRIDE / window.JOD_ASSETS_BASE_OVERRIDE
@@ -8,6 +8,7 @@
 (function (global) {
 	"use strict";
 
+	var PRODUCTION_API_ORIGIN = "https://api.jodevents.com";
 	var DEFAULT_ASSETS_IMAGE_BASE = "https://assets.jodevents.com/images";
 
 	function stripSlash(value) {
@@ -28,7 +29,17 @@
 	function getApiOrigin() {
 		if (global.JOD_API_BASE_OVERRIDE) return stripSlash(global.JOD_API_BASE_OVERRIDE);
 		if (isLocalSplitFrontend()) return "http://127.0.0.1:8001";
-		return "";
+		return PRODUCTION_API_ORIGIN;
+	}
+
+	function isRelativeApiPath(url) {
+		return (
+			url === "/api" ||
+			url.indexOf("/api/") === 0 ||
+			url === "/health" ||
+			url.indexOf("/health?") === 0 ||
+			url.indexOf("/health/") === 0
+		);
 	}
 
 	function getApiBase() {
@@ -252,15 +263,19 @@
 	if (nativeFetch) {
 		global.fetch = function (input, init) {
 			var initObj = Object.assign({}, init || {});
+			var origin = getApiOrigin();
 			var url = "";
 			if (typeof input === "string") url = input;
 			else if (input && typeof input.url === "string") url = input.url;
-			var origin = getApiOrigin();
+			if (typeof input === "string" && origin && isRelativeApiPath(url)) {
+				url = origin + url;
+				input = url;
+			}
 			var isApi =
-				url.startsWith("/") ||
-				url.startsWith(origin + "/") ||
+				isRelativeApiPath(url) ||
+				(origin && url.indexOf(origin + "/") === 0) ||
 				url.indexOf("/api/") !== -1 ||
-				/127\.0\.0\.1:8001|localhost:8001/.test(url);
+				/127\.0\.0\.1:8001|localhost:8001|api\.jodevents\.com/.test(url);
 			if (isApi) {
 				initObj.credentials = initObj.credentials || "include";
 				var method = String(

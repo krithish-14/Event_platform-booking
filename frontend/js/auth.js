@@ -10,7 +10,7 @@ window.JodAuth = (() => {
 			return window.JodHealth.getApiBaseUrl();
 		}
 		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
-		return "";
+		return "https://api.jodevents.com";
 	}
 
 
