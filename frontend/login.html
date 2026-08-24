@@ -1,16 +1,17 @@
 <!doctype html>
 <html lang="en">
 	<head>
-			<script src="js/theme.js?v=3"></script>
+			<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta name="description" content="Login to your JOD Events account to manage event registrations, bookings, and more." />
 		<title>Login - JOD Events</title>
-		<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-		<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-		<link rel="stylesheet" href="css/style.css?v=23" />
-		<link rel="stylesheet" href="css/auth.css?v=13" />
-		<link rel="stylesheet" href="css/responsive.css?v=24" />
+		<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+		<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
+		<link rel="stylesheet" href="css/style.css?v=27" />
+		<link rel="stylesheet" href="css/auth.css?v=15" />
+		<link rel="stylesheet" href="css/responsive.css?v=30" />
 	</head>
 	<body class="auth-page-body sub-page">
 		<div class="auth-split">
@@ -20,8 +21,12 @@
 				<div class="auth-brand-orb auth-brand-orb-2"></div>
 
 				<div class="auth-brand-top">
+					<button type="button" class="header-back-btn header-back-btn--on-dark auth-mobile-back" data-header-back data-back-fallback="index.html" aria-label="Go back">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+						<span>Back</span>
+					</button>
 					<div class="auth-brand-logo">
-						<img src="images/JOD Events Logo.png" alt="JOD Events" />
+						<img src="https://assets.jodevents.com/images/JOD Events Logo.png" alt="JOD Events" />
 					</div>
 				</div>
 
@@ -111,7 +116,7 @@
 								<input type="checkbox" id="rememberMe" />
 								Remember me
 							</label>
-							<a class="forgot-link" href="#">Forgot password?</a>
+							<a class="forgot-link" href="forgot-password.html">Forgot password?</a>
 						</div>
 
 						<!-- Submit -->
@@ -135,9 +140,9 @@
 			</div>
 		</div>
 
-		<script src="js/health.js?v=1"></script>
+		<script src="js/health.js?v=2"></script>
 		<script src="js/location.js?v=12"></script>
-		<script src="js/auth.js?v=24"></script>
+		<script src="js/auth.js?v=28"></script>
 	</body>
 </html>
 

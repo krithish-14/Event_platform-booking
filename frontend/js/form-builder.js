@@ -2,9 +2,7 @@
  * Dynamic Registration Form Builder & Submissions Manager (Google Forms / Typeform style)
  */
 function initFormBuilder() {
-	const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/forms"
-		: "/api/forms";
+	const API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/forms');
 
 	const currentUser = window.JodAuth ? window.JodAuth.getUser() : null;
 	const urlParams = new URLSearchParams(window.location.search);
@@ -23,9 +21,7 @@ function initFormBuilder() {
 	}
 
 	function getHostEventsApiBase() {
-		return window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-			? "http://127.0.0.1:8001/api/host-events"
-			: "/api/host-events";
+		return (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/host-events');
 	}
 
 	function getUploadOrigin() {
@@ -37,6 +33,9 @@ function initFormBuilder() {
 	function resolveUploadUrl(url) {
 		if (!url) return "";
 		if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+		if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
+			return window.JodConfig.safeMediaUrl(url, "images/hero-event.jpg");
+		}
 		if (url.startsWith("http://") || url.startsWith("https://")) return url;
 		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
@@ -325,6 +324,9 @@ function initFormBuilder() {
 	const btnRefreshSubmissions = document.getElementById("btnRefreshSubmissions");
 	const btnExportCSV = document.getElementById("btnExportCSV");
 	const kpiTotalSubmissions = document.getElementById("kpiTotalSubmissions");
+	const kpiCompletionRate = document.getElementById("kpiCompletionRate");
+	const kpiAvgTime = document.getElementById("kpiAvgTime");
+	const submissionsTableHead = document.getElementById("submissionsTableHead");
 
 	// Form State
 	let formId = null;
@@ -373,6 +375,7 @@ function initFormBuilder() {
 	};
 
 	let allSubmissionsData = [];
+	let submissionQuestionColumns = [];
 
 	// ── Sub-Tab Switcher ──────────────────────────────────────────────────────
 	if (subTabBuilder && subTabSubmissions) {
@@ -481,14 +484,6 @@ function initFormBuilder() {
 
 				const card = document.createElement("div");
 				card.className = "builder-question-card";
-				card.style.background = "#ffffff";
-				card.style.border = "1.5px solid #cbd5e1";
-				card.style.borderRadius = "10px";
-				card.style.padding = "1.2rem";
-				card.style.boxShadow = "0 2px 6px rgba(0,0,0,0.03)";
-				card.style.display = "flex";
-				card.style.flexDirection = "column";
-				card.style.gap = "0.9rem";
 
 				const titleStr = String(q.title || '').replace(/"/g, '&quot;');
 				const placeholderStr = String(q.placeholder || '').replace(/"/g, '&quot;');
@@ -496,7 +491,7 @@ function initFormBuilder() {
 
 				card.innerHTML = `
 					<div style="display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.6rem;">
-						<span style="font-weight: 800; color: #2563eb; font-size: 0.85rem; background: #eff6ff; padding: 0.2rem 0.6rem; border-radius: 6px;">Q${idx + 1}</span>
+						<span class="builder-q-badge">Q${idx + 1}</span>
 						
 						<div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
 							<select class="setup-select q-type-select" style="padding: 0.4rem 0.7rem; font-size: 0.88rem; font-weight: 700; height: 40px; line-height: 1.3; max-width: 240px; border-radius: 8px;">
@@ -546,7 +541,7 @@ function initFormBuilder() {
 					</div>
 
 					${hasOptions ? `
-						<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.8rem; margin-top: 0.4rem;">
+						<div class="q-options-box">
 							<label style="font-size: 0.82rem; font-weight: 700; color: #475569; margin-bottom: 0.5rem; display: block;">Options List</label>
 							<div class="q-options-container" style="display: flex; flex-direction: column; gap: 0.4rem;">
 								${(q.options || ["Option 1"]).map((opt, oIdx) => `
@@ -914,12 +909,16 @@ function initFormBuilder() {
 			if (!res.ok) throw new Error(data.detail || "Failed to save draft.");
 
 			formId = data.form_id;
-			await syncRegistrationFormToHost(resolveActiveEventId(), payload.schema_json, payload.theme_json, false);
-
 			const lifecycle = window.JodOrganizer && typeof window.JodOrganizer.getLifecycle === "function"
 				? window.JodOrganizer.getLifecycle()
 				: "draft";
 			const updated = lifecycle === "published" || lifecycle === "live" || lifecycle === "ended";
+			await syncRegistrationFormToHost(
+				resolveActiveEventId(),
+				payload.schema_json,
+				payload.theme_json,
+				updated === true
+			);
 			if (formStatusBadge) {
 				formStatusBadge.textContent = updated ? "Form Updated" : "Draft Saved";
 				formStatusBadge.style.background = updated ? "#f0fdf4" : "#fef3c7";
@@ -997,7 +996,7 @@ function initFormBuilder() {
 		try {
 			const res = await fetch(`${API_BASE}/publish`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
 				body: JSON.stringify(payload)
 			});
 			const data = await res.json();
@@ -1025,9 +1024,7 @@ function initFormBuilder() {
 			}
 
 			// Open published form in a new tab
-			const baseUrl = window.location.origin.includes("5500")
-				? "http://127.0.0.1:5500"
-				: window.location.origin;
+			const baseUrl = window.location.origin;
 			setTimeout(() => {
 				window.open(`${baseUrl}/published-form.html?formId=${formId}`, "_blank");
 				// Restore button
@@ -1078,7 +1075,7 @@ function initFormBuilder() {
 		};
 		const res = await fetch(`${API_BASE}/publish`, {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
 			body: JSON.stringify(payload)
 		});
 		const data = await res.json();
@@ -1092,7 +1089,8 @@ function initFormBuilder() {
 	window.JodFormBuilder = {
 		saveDraft: saveDraftForm,
 		saveAndPublishForEvent,
-		loadFromHost
+		loadFromHost,
+		loadSubmissionsData
 	};
 
 	const btnViewFormHost = document.getElementById("btnViewFormHost");
@@ -1105,9 +1103,7 @@ function initFormBuilder() {
 			return;
 		}
 
-		const baseUrl = window.location.origin.includes("5500")
-			? "http://127.0.0.1:5500"
-			: window.location.origin;
+		const baseUrl = window.location.origin;
 
 		window.open(`${baseUrl}/published-form.html?formId=${formId}&mode=readOnly`, "_blank");
 	}
@@ -1134,7 +1130,9 @@ function initFormBuilder() {
 			console.log("Host registration form not loaded, trying forms API.");
 		}
 		try {
-			const res = await fetch(`${API_BASE}/get-form?email=${encodeURIComponent(email)}`, {
+			const activeEventId = typeof resolveActiveEventId === "function" ? resolveActiveEventId() : "";
+			const eventQs = activeEventId ? `&event_id=${encodeURIComponent(activeEventId)}` : "";
+			const res = await fetch(`${API_BASE}/get-form?email=${encodeURIComponent(email)}${eventQs}`, {
 				headers: getAuthHeaders()
 			});
 			if (res.ok) {
@@ -1185,28 +1183,42 @@ function initFormBuilder() {
 	// ── Submissions & Analytics Manager ───────────────────────────────────────
 	async function loadSubmissionsData() {
 		if (!submissionsTableBody) return;
+		const eventId = resolveActiveEventId() || "";
 		try {
-			const res = await fetch(`${API_BASE}/submissions?email=${encodeURIComponent(email)}`);
-			if (res.ok) {
-				const data = await res.json();
-				if (data.analytics && kpiTotalSubmissions) {
-					kpiTotalSubmissions.textContent = data.analytics.total_registrations;
-				}
-				if (data.submissions) {
-					allSubmissionsData = data.submissions;
-					renderSubmissionsTable(allSubmissionsData);
-				}
+			const qs = new URLSearchParams();
+			if (email) qs.set("email", email);
+			if (eventId) qs.set("event_id", eventId);
+			const res = await fetch(`${API_BASE}/submissions?${qs.toString()}`, {
+				headers: Object.assign({ Accept: "application/json" }, getAuthHeaders()),
+				cache: "no-store"
+			});
+			if (!res.ok) throw new Error("Could not load submissions");
+			const data = await res.json();
+			submissionQuestionColumns = Array.isArray(data.columns) ? data.columns : [];
+			if (data.analytics) {
+				if (kpiTotalSubmissions) kpiTotalSubmissions.textContent = data.analytics.total_registrations;
+				if (kpiCompletionRate) kpiCompletionRate.textContent = data.analytics.completion_rate || "0%";
+				if (kpiAvgTime) kpiAvgTime.textContent = data.analytics.avg_completion_time || "—";
 			}
+			allSubmissionsData = Array.isArray(data.submissions) ? data.submissions : [];
+			applySubmissionFilters();
 		} catch (e) {
 			console.log("Could not load submissions.");
+			allSubmissionsData = [];
+			renderSubmissionsTable([]);
 		}
 	}
 
-	function parseSubmissionDate(submittedAt) {
-		if (!submittedAt) return null;
-		const dt = new Date(submittedAt);
+	function parseSubmissionDate(sub) {
+		const iso = sub && sub.submitted_at_iso;
+		if (iso) {
+			const dt = new Date(iso);
+			if (Number.isFinite(dt.getTime())) return dt;
+		}
+		if (!sub || !sub.submitted_at) return null;
+		const dt = new Date(sub.submitted_at);
 		return Number.isFinite(dt.getTime()) ? dt : null;
-}
+	}
 
 	function applySubmissionFilters() {
 		if (!allSubmissionsData) return;
@@ -1216,47 +1228,163 @@ function initFormBuilder() {
 		const toDate = submissionsToDate && submissionsToDate.value ? new Date(submissionsToDate.value) : null;
 
 		const filtered = allSubmissionsData.filter(s => {
-			const emailMatch = s.user_email && s.user_email.toLowerCase().includes(query);
-			const answersMatch = query && JSON.stringify(s.answers).toLowerCase().includes(query);
+			const hay = [
+				s.user_email,
+				s.attendee_name,
+				s.ticket_type,
+				s.status,
+				JSON.stringify(s.answer_values || s.answers || {})
+			].join(" ").toLowerCase();
 			const statusMatch = statusValue === "all" || (s.status && s.status.toLowerCase() === statusValue);
-			const submissionDate = parseSubmissionDate(s.submitted_at);
+			const submissionDate = parseSubmissionDate(s);
 			const fromMatch = !fromDate || (submissionDate && submissionDate >= fromDate);
 			const toMatch = !toDate || (submissionDate && submissionDate <= new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate(), 23, 59, 59));
-			const queryMatch = !query || emailMatch || answersMatch;
+			const queryMatch = !query || hay.includes(query);
 			return queryMatch && statusMatch && fromMatch && toMatch;
 		});
 
 		renderSubmissionsTable(filtered);
-}
+	}
+
+	function escapeHtml(value) {
+		return String(value ?? "")
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
+	function renderSubmissionsHead(columns) {
+		if (!submissionsTableHead) return;
+		const extra = (columns || []).map((title) => `<th style="padding:0.85rem 1rem; white-space:nowrap;">${escapeHtml(title)}</th>`).join("");
+		submissionsTableHead.innerHTML = `
+			<th style="padding: 0.85rem 1.2rem;">ID</th>
+			<th style="padding: 0.85rem 1.2rem;">Name</th>
+			<th style="padding: 0.85rem 1.2rem;">Email</th>
+			<th style="padding: 0.85rem 1.2rem;">Ticket</th>
+			<th style="padding: 0.85rem 1.2rem;">Submitted</th>
+			<th style="padding: 0.85rem 1.2rem;">Status</th>
+			${extra}
+			<th style="padding: 0.85rem 1.2rem; text-align: right;">Action</th>
+		`;
+	}
+
+	function readableAnswers(sub) {
+		const values = sub.answer_values || {};
+		const leftover = sub.answers || {};
+		const rows = [
+			["Name", sub.attendee_name || "—"],
+			["Email", sub.user_email || "—"],
+			["Phone", sub.phone || "—"],
+			["Ticket", sub.ticket_type || "—"],
+			["Status", sub.status || "—"],
+			["Submitted", sub.submitted_at || "—"]
+		];
+		const seen = new Set(rows.map((row) => row[0].toLowerCase()));
+		Object.keys(values).forEach((key) => {
+			if (!seen.has(String(key).toLowerCase())) {
+				rows.push([key, values[key] || "—"]);
+				seen.add(String(key).toLowerCase());
+			}
+		});
+		Object.keys(leftover).forEach((key) => {
+			if (String(key).startsWith("_")) return;
+			if (seen.has(String(key).toLowerCase())) return;
+			const val = leftover[key];
+			rows.push([key, Array.isArray(val) ? val.join(", ") : String(val ?? "—")]);
+			seen.add(String(key).toLowerCase());
+		});
+		return rows;
+	}
+
+	function ensureAnswersModal() {
+		let modal = document.getElementById("registrationAnswersModal");
+		if (modal) return modal;
+		modal = document.createElement("div");
+		modal.id = "registrationAnswersModal";
+		modal.setAttribute("hidden", "");
+		modal.innerHTML = `
+			<div class="reg-answers-backdrop" data-close-answers="1"></div>
+			<div class="reg-answers-card" role="dialog" aria-modal="true" aria-labelledby="registrationAnswersTitle">
+				<div class="reg-answers-head">
+					<h3 id="registrationAnswersTitle">Registration details</h3>
+					<button type="button" class="reg-answers-close" data-close-answers="1" aria-label="Close">&times;</button>
+				</div>
+				<dl id="registrationAnswersBody" class="reg-answers-body"></dl>
+			</div>
+		`;
+		const style = document.createElement("style");
+		style.textContent = `
+			#registrationAnswersModal { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center; padding:1.25rem; }
+			#registrationAnswersModal[hidden] { display:none; }
+			.reg-answers-backdrop { position:absolute; inset:0; background:rgba(15,23,42,.45); }
+			.reg-answers-card { position:relative; width:min(560px,100%); max-height:min(80vh,720px); overflow:auto; background:#fff; border-radius:14px; box-shadow:0 20px 50px rgba(15,23,42,.2); padding:1.25rem 1.4rem 1.4rem; }
+			.reg-answers-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
+			.reg-answers-head h3 { margin:0; font-size:1.1rem; color:#0f172a; }
+			.reg-answers-close { border:0; background:#f1f5f9; width:32px; height:32px; border-radius:8px; font-size:1.2rem; cursor:pointer; }
+			.reg-answers-body { margin:0; display:grid; grid-template-columns:140px 1fr; gap:.55rem 1rem; }
+			.reg-answers-body dt { margin:0; color:#64748b; font-size:.8rem; font-weight:700; }
+			.reg-answers-body dd { margin:0; color:#0f172a; font-weight:600; word-break:break-word; }
+		`;
+		document.head.appendChild(style);
+		document.body.appendChild(modal);
+		modal.addEventListener("click", (e) => {
+			if (e.target && e.target.getAttribute("data-close-answers")) {
+				modal.setAttribute("hidden", "");
+			}
+		});
+		return modal;
+	}
+
+	function openAnswersModal(sub) {
+		const modal = ensureAnswersModal();
+		const title = document.getElementById("registrationAnswersTitle");
+		const body = document.getElementById("registrationAnswersBody");
+		if (title) title.textContent = `Registration: ${sub.attendee_name || sub.user_email || "attendee"}`;
+		if (body) {
+			body.innerHTML = readableAnswers(sub).map(([label, value]) => (
+				`<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`
+			)).join("");
+		}
+		modal.removeAttribute("hidden");
+	}
 
 	function renderSubmissionsTable(items) {
 		if (!submissionsTableBody) return;
+		const columns = submissionQuestionColumns || [];
+		renderSubmissionsHead(columns);
+		const colCount = 7 + columns.length;
 		submissionsTableBody.innerHTML = "";
 
 		if (!items || items.length === 0) {
-			submissionsTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:2rem; color:#64748b;">No registrations submitted yet.</td></tr>`;
+			submissionsTableBody.innerHTML = `<tr><td colspan="${colCount}" style="text-align:center; padding:2rem; color:#64748b;">No registrations submitted yet.</td></tr>`;
 			return;
 		}
 
 		items.forEach(sub => {
+			const extra = columns.map((title) => {
+				const val = (sub.answer_values && sub.answer_values[title]) || "";
+				return `<td style="padding:0.85rem 1rem; color:#334155; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
+			}).join("");
 			const tr = document.createElement("tr");
 			tr.style.borderBottom = "1px solid #e2e8f0";
 			tr.innerHTML = `
-				<td style="padding:0.85rem 1.2rem; font-weight:700; color:#2563eb;">#${sub.id}</td>
-				<td style="padding:0.85rem 1.2rem; font-weight:600; color:#0f172a;">${sub.user_email}</td>
-				<td style="padding:0.85rem 1.2rem; color:#64748b;">${sub.submitted_at}</td>
-				<td style="padding:0.85rem 1.2rem;"><span style="background:#f0fdf4; color:#166534; padding:0.15rem 0.6rem; border-radius:12px; font-weight:700; font-size:0.78rem;">✓ ${sub.status}</span></td>
+				<td style="padding:0.85rem 1.2rem; font-weight:700; color:#2563eb;">#${escapeHtml(sub.id)}</td>
+				<td style="padding:0.85rem 1.2rem; font-weight:600; color:#0f172a;">${escapeHtml(sub.attendee_name || "—")}</td>
+				<td style="padding:0.85rem 1.2rem; font-weight:600; color:#0f172a;">${escapeHtml(sub.user_email || "")}</td>
+				<td style="padding:0.85rem 1.2rem; color:#334155;">${escapeHtml(sub.ticket_type || "—")}</td>
+				<td style="padding:0.85rem 1.2rem; color:#64748b; white-space:nowrap;">${escapeHtml(sub.submitted_at || "")}</td>
+				<td style="padding:0.85rem 1.2rem;"><span style="background:#f0fdf4; color:#166534; padding:0.15rem 0.6rem; border-radius:12px; font-weight:700; font-size:0.78rem;">${escapeHtml(sub.status || "submitted")}</span></td>
+				${extra}
 				<td style="padding:0.85rem 1.2rem; text-align:right;">
 					<button type="button" class="btn-view-answers" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; font-weight:700; font-size:0.8rem; padding:0.3rem 0.7rem; border-radius:6px; cursor:pointer;">
-						View Answers ↗
+						View Answers
 					</button>
 				</td>
 			`;
-
 			tr.querySelector(".btn-view-answers").addEventListener("click", () => {
-				alert(`Attendee Answers for ${sub.user_email}:\n\n` + JSON.stringify(sub.answers, null, 2));
+				openAnswersModal(sub);
 			});
-
 			submissionsTableBody.appendChild(tr);
 		});
 	}
@@ -1287,14 +1415,41 @@ function initFormBuilder() {
 	}
 
 	if (btnExportCSV) {
-		btnExportCSV.addEventListener("click", () => {
-			window.location.href = `${API_BASE}/export-csv?email=${encodeURIComponent(email)}`;
+		btnExportCSV.addEventListener("click", async () => {
+			const eventId = resolveActiveEventId() || "";
+			const qs = new URLSearchParams();
+			if (email) qs.set("email", email);
+			if (eventId) qs.set("event_id", eventId);
+			try {
+				const res = await fetch(`${API_BASE}/export-csv?${qs.toString()}`, {
+					headers: getAuthHeaders(),
+					cache: "no-store"
+				});
+				if (!res.ok) {
+					const data = await res.json().catch(() => ({}));
+					alert(data.detail || "Could not download the CSV. Please sign in again and retry.");
+					return;
+				}
+				const blob = await res.blob();
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement("a");
+				const stamp = new Date().toISOString().slice(0, 10);
+				a.href = url;
+				a.download = `event_registrations_${stamp}.csv`;
+				document.body.appendChild(a);
+				a.click();
+				a.remove();
+				setTimeout(() => URL.revokeObjectURL(url), 1000);
+			} catch (err) {
+				alert("Could not download the CSV. Check your connection and try again.");
+			}
 		});
 	}
 
 	// Expose global renderers for tab switching
 	window.renderFormBuilderQuestions = renderBuilderQuestions;
 	window.renderFormLivePreview = renderLivePreview;
+	window.loadFormSubmissionsData = loadSubmissionsData;
 
 	// Synchronous First Render so questions are immediately visible
 	renderBuilderQuestions();

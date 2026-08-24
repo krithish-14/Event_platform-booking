@@ -13,8 +13,75 @@ from Models.event import Event
 from Services.geo_service import filter_by_radius
 
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from Utils.categories import normalize_category
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _parse_json_maybe(value):
+    if value is None:
+        return None
+    if isinstance(value, (list, dict)):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            import json
+            return json.loads(text)
+        except Exception:
+            return None
+    return None
+
+
+def _parse_ticket_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=IST).astimezone(timezone.utc).replace(tzinfo=None)
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=IST)
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
+def is_ticket_on_sale(ticket, now=None) -> bool:
+    if not isinstance(ticket, dict):
+        return True
+    now = now or datetime.utcnow()
+    start = _parse_ticket_datetime(
+        ticket.get("sales_start") or ticket.get("offer_start") or ticket.get("sale_start")
+    )
+    end = _parse_ticket_datetime(
+        ticket.get("sales_end") or ticket.get("offer_end") or ticket.get("sale_end")
+    )
+    if start and now < start:
+        return False
+    if end and now >= end:
+        return False
+    return True
+
+
+def event_currently_visible(event, now=None) -> bool:
+    """Public catalog visibility is based on event end only — not ticket offer windows."""
+    now = now or datetime.utcnow()
+    end = getattr(event, "end_date", None)
+    if end and end <= now:
+        return False
+    return True
 
 
 def _heal_host_schedule(db: Session, events):
@@ -91,7 +158,7 @@ def list_events(
         .all()
     )
     _heal_host_schedule(db, rows)
-    return rows
+    return [row for row in rows if event_currently_visible(row)]
 
 
 
@@ -157,7 +224,10 @@ def list_nearby_events(
     query = _published_events_query(db)
     query = _apply_category_filter(query, category)
     candidates = query.all()
-    nearby = filter_by_radius(candidates, lat, lon, radius_km=radius_km)
+    nearby = [
+        pair for pair in filter_by_radius(candidates, lat, lon, radius_km=radius_km)
+        if event_currently_visible(pair[0])
+    ]
     return nearby[skip : skip + limit]
 
 
@@ -218,4 +288,6 @@ def search_events(
     if matched_month:
         filters.append(extract("month", Event.start_date) == matched_month)
 
-    return query.filter(or_(*filters)).order_by(Event.start_date).limit(limit).all()
+    rows = query.filter(or_(*filters)).order_by(Event.start_date).limit(limit * 3).all()
+    _heal_host_schedule(db, rows)
+    return [row for row in rows if event_currently_visible(row)][:limit]

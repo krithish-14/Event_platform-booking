@@ -43,6 +43,11 @@ def is_allowed_image_bytes(contents: bytes, content_type: str = "") -> bool:
     mime = (content_type or "").split(";")[0].strip().lower()
     if mime and mime not in ALLOWED_IMAGE_MIMES and mime != "application/octet-stream":
         return False
+    if mime in ("image/svg+xml", "text/html", "application/xhtml+xml", "image/svg"):
+        return False
+    lowered = contents[:200].lstrip().lower()
+    if lowered.startswith(b"<svg") or lowered.startswith(b"<?xml") or lowered.startswith(b"<!doctype") or lowered.startswith(b"<html"):
+        return False
     if contents.startswith(b"\xff\xd8\xff"):
         return True
     if contents.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -50,3 +55,15 @@ def is_allowed_image_bytes(contents: bytes, content_type: str = "") -> bool:
     if contents[:4] == b"RIFF" and contents[8:12] == b"WEBP":
         return True
     return False
+
+
+def is_allowed_kyc_bytes(contents: bytes, filename: str = "", content_type: str = "") -> bool:
+    """PAN/cheque uploads: JPEG/PNG/WEBP magic bytes, or a PDF starting with %PDF."""
+    import os
+    if not contents:
+        return False
+    ext = os.path.splitext(filename or "")[1].lower()
+    mime = (content_type or "").split(";")[0].strip().lower()
+    if ext == ".pdf" or mime == "application/pdf":
+        return contents.startswith(b"%PDF")
+    return is_allowed_image_bytes(contents, content_type)

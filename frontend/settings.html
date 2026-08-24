@@ -5,11 +5,12 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Manage your account profile, profile picture, security, and preferences on JOD Events." />
 	<title>Settings | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<script src="js/theme.js?v=3"></script>
-	<link rel="stylesheet" href="css/style.css?v=23" />
-	<link rel="stylesheet" href="css/responsive.css?v=24" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=4"></script>
+	<link rel="stylesheet" href="css/style.css?v=27" />
+	<link rel="stylesheet" href="css/responsive.css?v=30" />
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<style>
 		.page-hero {
@@ -83,16 +84,21 @@
 			box-shadow: 0 4px 14px rgba(255,117,8,.25);
 		}
 
-		@media (max-width: 768px) {
+		@media (max-width: 600px) {
 			.settings-nav {
-				flex-direction: column;
-				align-items: stretch;
+				flex-wrap: nowrap;
+				overflow-x: auto;
+				-webkit-overflow-scrolling: touch;
+				scrollbar-width: none;
 			}
+			.settings-nav::-webkit-scrollbar { display: none; }
 			.snav-item {
-				width: 100%;
-				justify-content: flex-start;
-				min-height: 44px;
+				flex-shrink: 0;
+				width: auto;
 			}
+			.settings-card { padding: 1.2rem 1rem; }
+			.page-hero { padding: calc(4.75rem + 1.1rem) 0 1.6rem; }
+			.settings-section { padding: 1.75rem 0 3rem; }
 		}
 
 		.settings-card {
@@ -150,9 +156,9 @@
 			grid-template-columns: 1fr 1fr;
 			gap: 1.25rem;
 		}
-		@media (max-width: 768px) {
+		@media (max-width: 600px) {
 			.form-grid { grid-template-columns: 1fr; }
-			.form-input, .form-group select, .form-group textarea { min-height: 44px; font-size: 16px; }
+			.settings-avatar-flex { gap: 1rem; }
 		}
 
 		.form-group {
@@ -444,7 +450,7 @@
 			transform: rotate(-45deg);
 			box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
 		}
-		@media (max-width: 768px) {
+		@media (max-width: 700px) {
 			#settingsAvatar.settings-avatar,
 			.settings-avatar {
 				width: 8.5rem !important;
@@ -646,20 +652,24 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=19"></script>
-	<script src="js/health.js?v=1"></script>
+	<script src="js/include.js?v=24"></script>
+	<script src="js/health.js?v=2"></script>
 	<script src="js/auth.js?v=24"></script>
-	<script src="js/profile.js?v=6"></script>
+	<script src="js/profile.js?v=10"></script>
 	<script src="js/location.js?v=12"></script>
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-	<script src="js/script.js?v=28"></script>
+	<script src="js/script.js?v=27"></script>
 	<script>
-		// Auth check
-		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+		// Auth check — confirm cookie session
+		(async function guardSettingsPage() {
 			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
-			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
-		}
+			if (!(window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function")) {
+				try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+				window.location.replace(`login.html?redirect=${encodeURIComponent(currentTarget)}`);
+				return;
+			}
+			await window.JodAuth.requireAuthOrRedirect({ redirectTo: currentTarget });
+		})();
 
 		function getUser() {
 			try {
@@ -670,7 +680,7 @@
 
 		function apiBase() {
 			if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
-			return "http://127.0.0.1:8001";
+			return (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "";
 		}
 
 		function cleanCityName(name) {

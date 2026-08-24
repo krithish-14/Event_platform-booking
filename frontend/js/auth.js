@@ -3,28 +3,28 @@ window.JodAuth = (() => {
 
 	/* ── Config ────────────────────────────────────────────── */
 	function getApiBase() {
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
+		}
 		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 			return window.JodHealth.getApiBaseUrl();
 		}
-		const API_PORT = "8001";
-		const host = (typeof window !== "undefined" && window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
-		return (window.JOD_API_BASE_OVERRIDE) || `http://${host}:${API_PORT}`;
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "https://api.jodevents.com";
 	}
-	const API_BASE = getApiBase();
 
 
 	/* ── Public Auth Helpers (exposed as window.JodAuth) ──── */
 	function getToken() {
 		try {
-			let token = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token");
-			if (token === "null" || token === "undefined") token = null;
-			return token || null;
-		} catch (_) { return null; }
+			localStorage.removeItem("jod_access_token");
+			sessionStorage.removeItem("jod_access_token");
+		} catch (_) {}
+		return null;
 	}
 
 	function getUser() {
 		try {
-			if (!getToken()) return null;
 			const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
 			if (raw && raw !== "null" && raw !== "undefined") {
 				const parsed = JSON.parse(raw);
@@ -38,9 +38,8 @@ window.JodAuth = (() => {
 
 	function isLoggedIn() {
 		try {
-			const token = getToken();
 			const user = getUser();
-			return Boolean(token && user && (user.id || user.customer_id || user.email));
+			return Boolean(user && (user.id || user.customer_id || user.email));
 		} catch (_) {
 			return false;
 		}
@@ -211,15 +210,19 @@ window.JodAuth = (() => {
 		} catch (_) {}
 	}
 
-	function persistAuthSession(token, user) {
-		clearAuth();
-		if (!token || !user) {
+	function persistAuthSession(tokenOrUser, maybeUser) {
+		try {
+			localStorage.removeItem("jod_access_token");
+			sessionStorage.removeItem("jod_access_token");
+		} catch (_) {}
+		const user = (maybeUser && typeof maybeUser === "object")
+			? maybeUser
+			: (tokenOrUser && typeof tokenOrUser === "object" ? tokenOrUser : null);
+		if (!user) {
 			syncThemeAfterAuth();
 			return;
 		}
 		try {
-			localStorage.setItem("jod_access_token", token);
-			sessionStorage.setItem("jod_access_token", token);
 			localStorage.setItem("jod_user", JSON.stringify(user));
 			sessionStorage.setItem("jod_user", JSON.stringify(user));
 			hydrateLocationFromUser(user);
@@ -283,13 +286,13 @@ window.JodAuth = (() => {
 	}
 
 	async function fetchOrganizerAccount(options = {}) {
-		const token = getToken();
 		const user = getUser();
 		const email = user && user.email;
 		try {
 			const qs = email ? `?email=${encodeURIComponent(email)}` : "";
-			const res = await fetch(`${API_BASE}/api/organizers/account-setup${qs}`, {
-				headers: token ? { "Authorization": `Bearer ${token}` } : {}
+			const res = await fetch(`${getApiBase()}/api/organizers/account-setup${qs}`, {
+				credentials: "include",
+				cache: "no-store",
 			});
 			if (!res.ok) return null;
 			const data = await res.json();
@@ -300,8 +303,16 @@ window.JodAuth = (() => {
 		}
 	}
 
+	function isAdminUser(user) {
+		const source = user || getUser() || {};
+		return Boolean(source.is_admin);
+	}
+
 	async function resolvePostAuthDestination(preferredUrl) {
 		const preferred = preferredUrl || "index.html";
+		if (isAdminUser(getUser())) {
+			return "admin-portal.html";
+		}
 		if (!isHostFlowUrl(preferred)) {
 			return preferred;
 		}
@@ -313,37 +324,66 @@ window.JodAuth = (() => {
 	}
 
 	async function validateSession() {
-		const token = getToken();
-		if (!token) return null;
 		try {
-			const res = await fetchAuth(`${API_BASE}/api/auth/me`);
+			const res = await fetch(`${getApiBase()}/api/auth/me`, {
+				credentials: "include",
+				cache: "no-store",
+			});
 			if (res.ok) {
 				const user = await res.json();
-				const isRemembered = Boolean(localStorage.getItem("jod_access_token"));
-				const storage = isRemembered ? localStorage : sessionStorage;
-				storage.setItem("jod_user", JSON.stringify(user));
-				hydrateLocationFromUser(user);
-				const avatar = user.avatar_url;
-				if (avatar && /^https?:\/\//i.test(String(avatar))) {
-					const existing = readScopedCache("jod_profile_avatar", user);
-					if (!existing) writeScopedCache("jod_profile_avatar", avatar, user);
-				}
+				persistAuthSession(null, user);
 				return user;
-			} else if (res.status === 401 || res.status === 403) {
+			}
+			if (res.status === 401) {
+				clearAuth();
+				syncThemeAfterAuth();
+				try {
+					window.dispatchEvent(new CustomEvent("jod:auth-expired", { detail: { status: 401 } }));
+				} catch (_) {}
+				return null;
+			}
+			if (res.status === 403) {
+				// Inactive account — clear local cache; not a CSRF case (GET).
 				clearAuth();
 				syncThemeAfterAuth();
 				return null;
 			}
+			// Transient API failures must not look like logout.
+			return getUser();
+		} catch (_) {
+			return getUser();
+		}
+	}
+
+	async function requireAuthOrRedirect(options = {}) {
+		const opts = options || {};
+		const currentTarget = opts.redirectTo
+			|| (window.location.pathname + window.location.search + window.location.hash);
+		const loginUrl = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
+		try {
+			sessionStorage.setItem("jod_redirect_after_login", currentTarget);
 		} catch (_) {}
-		return getUser();
+
+		const verified = await validateSession();
+		if (verified) return verified;
+		const bounceKey = "jod_auth_bounce";
+		try {
+			const last = sessionStorage.getItem(bounceKey) || "";
+			const now = Date.now();
+			if (last && now - Number(last) < 8000) {
+				return null;
+			}
+			sessionStorage.setItem(bounceKey, String(now));
+		} catch (_) {}
+		window.location.replace(loginUrl);
+		return null;
 	}
 
 	async function logout() {
-		const token = getToken();
 		try {
-			await fetch(`${API_BASE}/api/auth/logout`, {
+			await fetch(`${getApiBase()}/api/auth/logout`, {
 				method: "POST",
-				headers: token ? { "Authorization": `Bearer ${token}` } : {},
+				credentials: "include",
 			}).catch(() => { });
 		} finally {
 			clearAuth();
@@ -352,14 +392,18 @@ window.JodAuth = (() => {
 	}
 
 	async function fetchAuth(url, options = {}) {
-		const token = getToken();
 		const headers = Object.assign({}, options.headers || {});
-		if (token) headers["Authorization"] = `Bearer ${token}`;
-		const res = await fetch(url, Object.assign({}, options, { headers }));
+		const res = await fetch(url, Object.assign({}, options, { headers, credentials: "include" }));
 		if (res.status === 401) {
 			clearAuth();
 			syncThemeAfterAuth();
+			try {
+				window.dispatchEvent(new CustomEvent("jod:auth-expired", {
+					detail: { status: 401, url: String(url) },
+				}));
+			} catch (_) {}
 		}
+		// 403 (including CSRF) must not clear the session or redirect to login.
 		return res;
 	}
 
@@ -460,33 +504,6 @@ window.JodAuth = (() => {
 
 		initTogglePw(loginForm.querySelector("#toggleLoginPw"), loginForm.querySelector("#loginPassword"));
 
-		const forgotLink = loginForm.querySelector(".forgot-link");
-		if (forgotLink) {
-			forgotLink.addEventListener("click", async (e) => {
-				e.preventDefault();
-				const email = prompt("Enter your account email address to reset password:");
-				if (!email) return;
-				const newPassword = prompt("Enter your new password (min. 8 characters, with letters & numbers):");
-				if (!newPassword) return;
-
-				try {
-					const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ email: email.trim(), new_password: newPassword }),
-					});
-					const data = await res.json();
-					if (res.ok) {
-						showAlert(alertEl, "success", data.message || "Password updated successfully! You can now log in.");
-					} else {
-						showAlert(alertEl, "error", data.detail || "Could not reset password.");
-					}
-				} catch (_) {
-					showAlert(alertEl, "error", "Network error while resetting password.");
-				}
-			});
-		}
-
 		async function doLogin() {
 			clearErrors(loginForm);
 			hideAlert(alertEl);
@@ -506,9 +523,10 @@ window.JodAuth = (() => {
 				body.append("username", identifier);
 				body.append("password", password);
 
-				const res = await fetch(`${API_BASE}/api/auth/login`, {
+				const res = await fetch(`${getApiBase()}/api/auth/login`, {
 					method: "POST",
 					headers: { "Content-Type": "application/x-www-form-urlencoded" },
+					credentials: "include",
 					body,
 				});
 
@@ -535,10 +553,10 @@ window.JodAuth = (() => {
 					setTimeout(async () => {
 						const targetUrl = getRedirectTarget();
 						try {
-							window.location.href = await resolvePostAuthDestination(targetUrl);
+							window.location.replace(await resolvePostAuthDestination(targetUrl));
 						} catch (e) {
 							console.warn("[Auth Debug] Host destination check failed:", e);
-							window.location.href = targetUrl || "index.html";
+							window.location.replace(targetUrl || "index.html");
 						}
 					}, 900);
 				}
@@ -557,11 +575,11 @@ window.JodAuth = (() => {
 							doLogin();
 						},
 						onError: () => {
-							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
+							showAlert(alertEl, "error", "Could not connect to server. Please try again.");
 						}
 					});
 				} else {
-					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + getApiBase());
 				}
 			} finally {
 				setLoading(submitBtn, false);
@@ -593,6 +611,259 @@ window.JodAuth = (() => {
 		loginForm.querySelector("#loginIdentifier").addEventListener("keydown", (e) => {
 			if (e.key === "Enter") { e.preventDefault(); doLogin(); }
 		});
+	}
+
+	/* ── Forgot password (email → OTP → new password) ─────── */
+	const forgotRoot = document.getElementById("forgotPasswordRoot");
+	if (forgotRoot) {
+		const alertEl = forgotRoot.querySelector(".form-alert");
+		const stepEmail = document.getElementById("fpStepEmail");
+		const stepOtp = document.getElementById("fpStepOtp");
+		const stepPassword = document.getElementById("fpStepPassword");
+		const stepDone = document.getElementById("fpStepDone");
+		const emailForm = document.getElementById("fpEmailForm");
+		const otpForm = document.getElementById("fpOtpForm");
+		const passwordForm = document.getElementById("fpPasswordForm");
+		const emailInput = document.getElementById("fpEmail");
+		const sentEmailDisplay = document.getElementById("fpSentEmail");
+		const otpFields = Array.from(forgotRoot.querySelectorAll(".otp-field"));
+		const btnSend = document.getElementById("fpSendBtn");
+		const btnVerify = document.getElementById("fpVerifyBtn");
+		const btnSave = document.getElementById("fpSaveBtn");
+		const btnResend = document.getElementById("fpResendBtn");
+		const btnEditEmail = document.getElementById("fpEditEmail");
+		const timerEl = document.getElementById("fpTimer");
+		const devBanner = document.getElementById("fpDevOtpBanner");
+		const devValue = document.getElementById("fpDevOtpValue");
+		const newPw = document.getElementById("fpNewPassword");
+		const confirmPw = document.getElementById("fpConfirmPassword");
+
+		let currentEmail = "";
+		let verifiedOtp = "";
+		let resendTimer = null;
+		let countdownSecs = 60;
+
+		function showFpStep(step) {
+			[stepEmail, stepOtp, stepPassword, stepDone].forEach((el) => {
+				if (el) el.classList.toggle("is-active", el === step);
+			});
+		}
+
+		function startCountdown() {
+			if (!btnResend || !timerEl) return;
+			btnResend.disabled = true;
+			countdownSecs = 60;
+			timerEl.style.display = "inline";
+			timerEl.textContent = `(${countdownSecs}s)`;
+			if (resendTimer) clearInterval(resendTimer);
+			resendTimer = setInterval(() => {
+				countdownSecs -= 1;
+				timerEl.textContent = `(${countdownSecs}s)`;
+				if (countdownSecs <= 0) {
+					clearInterval(resendTimer);
+					btnResend.disabled = false;
+					timerEl.style.display = "none";
+				}
+			}, 1000);
+		}
+
+		function otpValue() {
+			return otpFields.map((f) => (f.value || "").trim()).join("");
+		}
+
+		function clearOtp() {
+			otpFields.forEach((f) => { f.value = ""; });
+		}
+
+		function passwordError(pw) {
+			if (!pw) return "New password is required.";
+			if (pw.length < 8) return "Password must be at least 8 characters.";
+			if (!/[A-Za-z]/.test(pw)) return "Password must contain at least one letter.";
+			if (!/[0-9]/.test(pw)) return "Password must contain at least one digit.";
+			return "";
+		}
+
+		async function sendResetOtp() {
+			hideAlert(alertEl);
+			const email = (emailInput && emailInput.value ? emailInput.value : currentEmail).trim().toLowerCase();
+			if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+				if (emailInput) setError(emailInput, "Enter a valid email address.");
+				showAlert(alertEl, "error", "Enter the email address on your JOD Events account.");
+				return;
+			}
+			if (emailInput) setError(emailInput, "");
+			currentEmail = email;
+			if (btnSend) setLoading(btnSend, true);
+			try {
+				const res = await fetch(`${getApiBase()}/api/auth/forgot-password`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ email }),
+				});
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok) {
+					showAlert(alertEl, "error", data.detail || "Could not send a verification code.");
+					return;
+				}
+				if (sentEmailDisplay) sentEmailDisplay.textContent = email;
+				if (devBanner) devBanner.style.display = "none";
+				clearOtp();
+				verifiedOtp = "";
+				showFpStep(stepOtp);
+				showAlert(alertEl, "success", data.message || `6-digit code sent to ${email}.`);
+				startCountdown();
+				if (otpFields[0]) otpFields[0].focus();
+			} catch (_) {
+				showAlert(alertEl, "error", "Network error while sending the verification code.");
+			} finally {
+				if (btnSend) setLoading(btnSend, false);
+			}
+		}
+
+		if (emailForm) {
+			emailForm.addEventListener("submit", (e) => {
+				e.preventDefault();
+				sendResetOtp();
+			});
+		}
+		if (btnSend) btnSend.addEventListener("click", sendResetOtp);
+		if (btnResend) {
+			btnResend.addEventListener("click", () => {
+				if (btnResend.disabled) return;
+				sendResetOtp();
+			});
+		}
+		if (btnEditEmail) {
+			btnEditEmail.addEventListener("click", () => {
+				showFpStep(stepEmail);
+				if (devBanner) devBanner.style.display = "none";
+				hideAlert(alertEl);
+			});
+		}
+
+		otpFields.forEach((field, index) => {
+			field.addEventListener("input", (e) => {
+				const val = String(e.target.value || "").replace(/\D/g, "").slice(0, 1);
+				e.target.value = val;
+				if (val && index < otpFields.length - 1) otpFields[index + 1].focus();
+				if (otpValue().length === 6 && otpForm) {
+					otpForm.dispatchEvent(new Event("submit"));
+				}
+			});
+			field.addEventListener("keydown", (e) => {
+				if (e.key === "Backspace" && !field.value && index > 0) {
+					otpFields[index - 1].focus();
+				}
+			});
+			field.addEventListener("paste", (e) => {
+				e.preventDefault();
+				const pasted = ((e.clipboardData || window.clipboardData).getData("text") || "").replace(/\D/g, "").slice(0, 6);
+				pasted.split("").forEach((char, i) => {
+					if (otpFields[i]) otpFields[i].value = char;
+				});
+				if (pasted.length === 6 && otpForm) otpForm.dispatchEvent(new Event("submit"));
+			});
+		});
+
+		if (otpForm) {
+			otpForm.addEventListener("submit", async (e) => {
+				e.preventDefault();
+				hideAlert(alertEl);
+				const otp_code = otpValue();
+				if (otp_code.length !== 6) {
+					showAlert(alertEl, "error", "Enter all 6 digits of the verification code.");
+					return;
+				}
+				if (btnVerify) setLoading(btnVerify, true);
+				try {
+					const res = await fetch(`${getApiBase()}/api/auth/verify-reset-otp`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ email: currentEmail, otp_code }),
+					});
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						showAlert(alertEl, "error", data.detail || "Invalid verification code.");
+						return;
+					}
+					verifiedOtp = otp_code;
+					if (devBanner) devBanner.style.display = "none";
+					showFpStep(stepPassword);
+					showAlert(alertEl, "success", data.message || "Code verified. Set your new password.");
+					if (newPw) newPw.focus();
+				} catch (_) {
+					showAlert(alertEl, "error", "Network error while verifying the code.");
+				} finally {
+					if (btnVerify) setLoading(btnVerify, false);
+				}
+			});
+		}
+
+		initTogglePw(document.getElementById("toggleFpNewPw"), newPw);
+		initTogglePw(document.getElementById("toggleFpConfirmPw"), confirmPw);
+		initPasswordStrength(newPw, forgotRoot.querySelector(".pw-strength-bar"), forgotRoot.querySelector(".pw-strength-label"));
+
+		if (passwordForm) {
+			passwordForm.addEventListener("submit", async (e) => {
+				e.preventDefault();
+				hideAlert(alertEl);
+				if (newPw) setError(newPw, "");
+				if (confirmPw) setError(confirmPw, "");
+				const password = newPw ? newPw.value : "";
+				const confirm = confirmPw ? confirmPw.value : "";
+				const pwErr = passwordError(password);
+				let valid = true;
+				if (pwErr) {
+					if (newPw) setError(newPw, pwErr);
+					valid = false;
+				}
+				if (!confirm) {
+					if (confirmPw) setError(confirmPw, "Please confirm your new password.");
+					valid = false;
+				} else if (password !== confirm) {
+					if (confirmPw) setError(confirmPw, "Passwords do not match.");
+					valid = false;
+				}
+				if (!verifiedOtp) {
+					showAlert(alertEl, "error", "Verify the email code before setting a new password.");
+					showFpStep(stepOtp);
+					return;
+				}
+				if (!valid) return;
+				if (btnSave) setLoading(btnSave, true);
+				try {
+					const res = await fetch(`${getApiBase()}/api/auth/reset-password`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							email: currentEmail,
+							otp_code: verifiedOtp,
+							new_password: password,
+						}),
+					});
+					const data = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						showAlert(alertEl, "error", data.detail || "Could not update password.");
+						return;
+					}
+					showFpStep(stepDone);
+					hideAlert(alertEl);
+				} catch (_) {
+					showAlert(alertEl, "error", "Network error while updating the password.");
+				} finally {
+					if (btnSave) setLoading(btnSave, false);
+				}
+			});
+		}
+		if (btnSave && passwordForm) {
+			btnSave.addEventListener("click", () => {
+				passwordForm.dispatchEvent(new Event("submit"));
+			});
+		}
+
+		const params = new URLSearchParams(window.location.search);
+		const prefill = params.get("email");
+		if (prefill && emailInput) emailInput.value = prefill;
 	}
 
 	/* ── Sign Up form ──────────────────────────────────────── */
@@ -676,7 +947,7 @@ window.JodAuth = (() => {
 
 		async function fetchAvailability(params) {
 			const qs = new URLSearchParams(params).toString();
-			const res = await fetch(`${API_BASE}/api/auth/check?${qs}`, { cache: "no-store" });
+			const res = await fetch(`${getApiBase()}/api/auth/check?${qs}`, { cache: "no-store" });
 			if (!res.ok) throw new Error("check failed");
 			return res.json();
 		}
@@ -752,7 +1023,7 @@ window.JodAuth = (() => {
 
 		function finishSignupSuccess(data) {
 			try {
-				if (data && data.access_token && data.user) {
+				if (data && data.user) {
 					persistAuthSession(data.access_token, data.user);
 				}
 			} catch (_) { }
@@ -762,9 +1033,9 @@ window.JodAuth = (() => {
 			const targetUrl = getRedirectTarget();
 			setTimeout(async () => {
 				try {
-					window.location.href = await resolvePostAuthDestination(targetUrl);
+					window.location.replace(await resolvePostAuthDestination(targetUrl));
 				} catch (_) {
-					window.location.href = targetUrl || "index.html";
+					window.location.replace(targetUrl || "index.html");
 				}
 			}, 900);
 		}
@@ -834,9 +1105,10 @@ window.JodAuth = (() => {
 				const payload = { username, email, password };
 				if (fullName) payload.full_name = fullName;
 
-				const res = await fetch(`${API_BASE}/api/auth/register`, {
+				const res = await fetch(`${getApiBase()}/api/auth/register`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json", "Accept": "application/json" },
+					credentials: "include",
 					body: JSON.stringify(payload),
 				});
 
@@ -890,11 +1162,11 @@ window.JodAuth = (() => {
 							doSignup();
 						},
 						onError: () => {
-							showAlert(alertEl, "error", "Could not connect to server. Please ensure the backend is running on port 8001.");
+							showAlert(alertEl, "error", "Could not connect to server. Please try again.");
 						}
 					});
 				} else {
-					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + API_BASE);
+					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + getApiBase());
 				}
 			} finally {
 				signupBusy = false;
@@ -940,9 +1212,10 @@ window.JodAuth = (() => {
 				payload.redirect_uri = window.location.origin + window.location.pathname;
 			}
 
-			const res = await fetch(`${API_BASE}/api/auth/google`, {
+			const res = await fetch(`${getApiBase()}/api/auth/google`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
+				credentials: "include",
 				body: JSON.stringify(payload),
 			});
 
@@ -961,9 +1234,9 @@ window.JodAuth = (() => {
 				const targetUrl = getRedirectTarget();
 				setTimeout(async () => {
 					try {
-						window.location.href = await resolvePostAuthDestination(targetUrl);
+						window.location.replace(await resolvePostAuthDestination(targetUrl));
 					} catch (_) {
-						window.location.href = targetUrl || "index.html";
+						window.location.replace(targetUrl || "index.html");
 					}
 				}, 900);
 			}
@@ -992,7 +1265,7 @@ window.JodAuth = (() => {
 		}
 
 		try {
-			const res = await fetch(`${API_BASE}/api/auth/google/config`);
+			const res = await fetch(`${getApiBase()}/api/auth/google/config`);
 			if (res.ok) googleClientConfig = await res.json();
 		} catch (_) {}
 
@@ -1026,7 +1299,7 @@ window.JodAuth = (() => {
 		}
 		
 		try {
-			const res = await fetch(`${API_BASE}/api/auth/google/url`);
+			const res = await fetch(`${getApiBase()}/api/auth/google/url`);
 			if (!res.ok) {
 				throw new Error("Backend rejected Google Auth URL generation");
 			}
@@ -1157,15 +1430,17 @@ window.JodAuth = (() => {
 	const pageFile = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 	if ((pageFile === "login.html" || pageFile === "signup.html") && isLoggedIn()) {
 		(async () => {
+			const verified = await validateSession();
+			if (!verified) return;
 			const targetUrl = getRedirectTarget();
 			try {
 				const dest = await resolvePostAuthDestination(targetUrl);
 				if (dest && dest !== pageFile) {
-					window.location.href = dest;
+					window.location.replace(dest);
 				}
 			} catch (_) {
 				if (targetUrl && targetUrl !== pageFile) {
-					window.location.href = targetUrl;
+					window.location.replace(targetUrl);
 				}
 			}
 		})();
@@ -1200,13 +1475,13 @@ window.JodAuth = (() => {
 						<p id="guestAuthModalDesc">You need to sign up or log in to reserve tickets for this event.</p>
 					</div>
 					<div class="guest-auth-modal-actions">
-						<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html" data-guest-auth-nav="signup">
+						<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html">
 							Sign Up <span aria-hidden="true">&rarr;</span>
 						</a>
 						<button class="button button-ghost-light" type="button" id="guestAuthCancelBtn">Maybe Later</button>
 					</div>
 					<div class="guest-auth-modal-switch">
-						Already have an account? <a href="login.html" id="guestAuthLoginLink" data-guest-auth-nav="login">Log In</a>
+						Already have an account? <a href="login.html" id="guestAuthLoginLink">Log In</a>
 					</div>
 				</div>
 			`;
@@ -1232,34 +1507,7 @@ window.JodAuth = (() => {
 			cancelBtn._hasCloseHandler = true;
 		}
 
-		bindGuestAuthNavLinks(modal);
 		return modal;
-	}
-
-	function navigateGuestAuthLink(el, fallbackPage) {
-		const href = String((el && el.getAttribute("href")) || fallbackPage || "").trim();
-		if (!href || href === "#") return;
-		window.location.assign(href);
-	}
-
-	function bindGuestAuthNavLinks(modal) {
-		if (!modal) return;
-		const signupBtn = modal.querySelector("#guestAuthSignupBtn");
-		const loginLink = modal.querySelector("#guestAuthLoginLink");
-
-		function bind(el, fallbackPage) {
-			if (!el || el._hasAuthNavHandler) return;
-			el.addEventListener("click", (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
-				navigateGuestAuthLink(el, fallbackPage);
-			});
-			el._hasAuthNavHandler = true;
-		}
-
-		bind(signupBtn, "signup.html");
-		bind(loginLink, "login.html");
 	}
 
 	function closeGuestAuthModal() {
@@ -1272,12 +1520,17 @@ window.JodAuth = (() => {
 		}
 	}
 
+	function currentPageName() {
+		return (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+	}
+
 	function openGuestAuthModal(optionsOrUrl) {
 		const modal = ensureGuestModal();
 		let targetUrl = "index.html";
 		let title = "Sign Up to Book Tickets";
 		let desc = "Please sign up or log in to access this feature.";
 		let badge = "ACCOUNT REQUIRED";
+		let primaryAction = "signup";
 
 		if (typeof optionsOrUrl === "string") {
 			targetUrl = optionsOrUrl;
@@ -1298,6 +1551,9 @@ window.JodAuth = (() => {
 			title = optionsOrUrl.title || title;
 			desc = optionsOrUrl.message || optionsOrUrl.desc || "Please sign up or log in to access this feature.";
 			if (optionsOrUrl.badge) badge = optionsOrUrl.badge;
+			if (optionsOrUrl.primaryAction === "login" || optionsOrUrl.primaryAction === "signup") {
+				primaryAction = optionsOrUrl.primaryAction;
+			}
 		}
 
 		// Save redirect URL in sessionStorage
@@ -1311,28 +1567,49 @@ window.JodAuth = (() => {
 		const descEl = modal.querySelector("#guestAuthModalDesc");
 		const badgeEl = modal.querySelector("#guestAuthModalBadge");
 		const signupBtn = modal.querySelector("#guestAuthSignupBtn");
-		const loginLink = modal.querySelector("#guestAuthLoginLink");
+		const switchEl = modal.querySelector(".guest-auth-modal-switch");
 
 		if (titleEl) titleEl.textContent = title;
 		if (descEl) descEl.textContent = desc;
 		if (badgeEl) badgeEl.textContent = badge;
 
 		const redirectParam = targetUrl ? `?redirect=${encodeURIComponent(targetUrl)}` : "";
-		if (signupBtn) {
-			signupBtn.href = `signup.html${redirectParam}`;
-			signupBtn.setAttribute("data-guest-auth-nav", "signup");
-			signupBtn.innerHTML = `Sign Up <span aria-hidden="true">&rarr;</span>`;
+		if (primaryAction === "login") {
+			if (signupBtn) {
+				signupBtn.href = `login.html${redirectParam}`;
+				signupBtn.innerHTML = `Log In <span aria-hidden="true">&rarr;</span>`;
+			}
+			if (switchEl) {
+				switchEl.innerHTML = `New here? <a href="signup.html${redirectParam}" id="guestAuthLoginLink">Sign Up</a>`;
+			}
+		} else {
+			if (signupBtn) {
+				signupBtn.href = `signup.html${redirectParam}`;
+				signupBtn.innerHTML = `Sign Up <span aria-hidden="true">&rarr;</span>`;
+			}
+			if (switchEl) {
+				switchEl.innerHTML = `Already have an account? <a href="login.html${redirectParam}" id="guestAuthLoginLink">Log In</a>`;
+			}
 		}
-		if (loginLink) {
-			loginLink.href = `login.html${redirectParam}`;
-			loginLink.setAttribute("data-guest-auth-nav", "login");
-		}
-		bindGuestAuthNavLinks(modal);
 
 		modal.hidden = false;
 		if (document.body) {
 			document.body.classList.add("guest-modal-open");
 		}
+	}
+
+	function promptGuestForEventDetails(targetUrl) {
+		const page = currentPageName();
+		const preferLogin = page === "index.html" || page === "";
+		openGuestAuthModal({
+			title: preferLogin ? "Log In to View This Event" : "Sign Up to View Event Details",
+			message: preferLogin
+				? "Please log in or create an account to explore this event."
+				: "Create an account or log in to see full event details and book tickets.",
+			targetUrl: targetUrl || "event-details.html",
+			badge: "ACCOUNT REQUIRED",
+			primaryAction: preferLogin ? "login" : "signup"
+		});
 	}
 
 	if (typeof document !== "undefined") {
@@ -1349,31 +1626,14 @@ window.JodAuth = (() => {
 	// Global Click Interception for Guest Users
 	if (typeof document !== "undefined") {
 		document.addEventListener("click", (e) => {
-			const page = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+			const page = currentPageName();
 			if (page === "login.html" || page === "signup.html") return;
-
-			// If user is already logged in, let normal interactions proceed
 			if (isLoggedIn()) return;
+			if (e.target.closest("#guestAuthModal, .modal-close, [data-modal-close], #navAuth")) return;
+			if (e.target.closest(".wishlist-heart-btn, .carousel-arrow, .menu-toggle")) return;
 
-			const guestAuthNav = e.target.closest("#guestAuthSignupBtn, #guestAuthLoginLink, [data-guest-auth-nav]");
-			if (guestAuthNav) {
-				e.preventDefault();
-				e.stopPropagation();
-				if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
-				navigateGuestAuthLink(
-					guestAuthNav,
-					guestAuthNav.getAttribute("data-guest-auth-nav") === "login" ? "login.html" : "signup.html"
-				);
-				return;
-			}
-
-			if (e.target.closest("#guestAuthModal")) return;
-
-			// 1. "Host Your Event" links & buttons
 			const hostLink = e.target.closest("a[href*='host-your-event'], a[href*='account-setup'], [data-host-flow]");
 			if (hostLink) {
-				const href = String(hostLink.getAttribute("href") || "").toLowerCase();
-				if (href.includes("signup.html") || href.includes("login.html")) return;
 				e.preventDefault();
 				e.stopPropagation();
 				e.stopImmediatePropagation();
@@ -1386,10 +1646,30 @@ window.JodAuth = (() => {
 				return;
 			}
 
-			// 2. Booking only — event details are public for attendees, guests, and other hosts
+			const onHomeOrCategory = page === "index.html" || page === "" || page === "category.html";
+			if (onHomeOrCategory) {
+				const eventLink = e.target.closest("a[href*='event-details.html'], a[href*='makeup-boutique'], .hero a.button-gold, .hero-featured-image a");
+				if (eventLink) {
+					e.preventDefault();
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+					const href = eventLink.getAttribute("href") || "";
+					promptGuestForEventDetails((href && href !== "#") ? href : "event-details.html");
+					return;
+				}
+				const eventCard = e.target.closest("article.event-card");
+				if (eventCard) {
+					e.preventDefault();
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+					const link = eventCard.querySelector("a.card-link, a[href*='event-details']");
+					promptGuestForEventDetails(link ? link.getAttribute("href") : "event-details.html");
+					return;
+				}
+			}
+
 			const bookTarget = e.target.closest(".btn-book-now");
 			if (bookTarget) {
-				if (e.target.closest("#guestAuthModal, .modal-close, [data-modal-close], #navAuth")) return;
 				e.preventDefault();
 				e.stopPropagation();
 				e.stopImmediatePropagation();
@@ -1418,7 +1698,7 @@ window.JodAuth = (() => {
 		}
 
 		try {
-			window.location.href = await resolvePostAuthDestination("organizer-dashboard.html");
+			window.location.replace(await resolvePostAuthDestination("organizer-dashboard.html"));
 		} catch (_) {
 			window.location.href = "account-setup.html";
 		}
@@ -1447,7 +1727,7 @@ window.JodAuth = (() => {
 				badge: "HOST YOUR EVENT"
 			});
 		} else {
-			window.location.href = targetUrl || "event-details.html";
+			promptGuestForEventDetails(targetUrl || "event-details.html");
 		}
 		return false;
 	}
@@ -1458,7 +1738,8 @@ window.JodAuth = (() => {
 
 	/* ── Expose Public API ─────────────────────────────────── */
 	return {
-		API_BASE,
+		get API_BASE() { return getApiBase(); },
+		getApiBase,
 		getToken,
 		getUser,
 		isLoggedIn,
@@ -1481,6 +1762,7 @@ window.JodAuth = (() => {
 		resolvePostAuthDestination,
 		getRedirectTarget,
 		validateSession,
+		requireAuthOrRedirect,
 		initGoogleAuth,
 		handleGoogleCredentialResponse,
 		openGuestAuthModal,

@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let currentSelectedPrice = 0;
 let currentSelectedTicketType = "General Admission";
+let currentSelectedPaymentQr = "";
 let currentEventData = null;
 let galleryImages = [];
 let galleryIndex = 0;
@@ -36,6 +37,12 @@ async function initEventDetailsPage() {
             applyBookingCtaState(eventId);
         }
     });
+    window.addEventListener("focus", () => applyBookingCtaState(eventId));
+    setInterval(() => {
+        if (document.visibilityState === "visible") {
+            applyBookingCtaState(eventId);
+        }
+    }, 12000);
 }
 
 function showLoadingState() {
@@ -103,7 +110,7 @@ async function loadRecommendedEvents(currentId) {
         if (!others.length) return;
         grid.innerHTML = others.map(ev => {
             const url = EP.eventDetailsUrl(ev);
-            const img = EP.resolveImage(ev.image_url);
+            const img = EP.escapeHtml(EP.resolveImage(ev.image_url));
             const title = EP.escapeHtml(ev.title || 'Event');
             const venue = EP.escapeHtml(ev.venue || ev.location || '');
             const dateStr = EP.formatDateIST ? EP.escapeHtml(EP.formatDateIST(ev.start_date) || '') : '';
@@ -235,7 +242,10 @@ function renderEventDOM(event) {
     document.title = `${event.title || 'Event Details'} — JOD Events`;
 
     const perfTitleEl = document.getElementById('performersTitle');
-    if (perfTitleEl) perfTitleEl.textContent = themeConfig.performersTitle;
+    if (perfTitleEl) {
+        const customTitle = String(event.performers_title || '').trim();
+        perfTitleEl.textContent = customTitle || themeConfig.performersTitle;
+    }
 
     const titleEl = document.getElementById('eventTitle');
     if (titleEl) titleEl.textContent = event.title || 'Event';
@@ -243,9 +253,13 @@ function renderEventDOM(event) {
     const venueEl = document.getElementById('headerVenue');
     if (venueEl) venueEl.textContent = `📍 ${event.venue || event.location || 'Event Venue'}`;
 
+    const heroFb = (window.JodConfig && window.JodConfig.assetUrl)
+        ? window.JodConfig.assetUrl('images/hero-event.jpg')
+        : 'https://assets.jodevents.com/images/hero-event.jpg';
+
     const imgEl = document.getElementById('eventImage');
     if (imgEl) {
-        imgEl.src = EP ? EP.resolveImage(event.image_url) : (event.image_url || 'images/hero-event.jpg');
+        imgEl.src = EP ? EP.resolveImage(event.image_url) : (event.image_url ? (window.JodConfig && window.JodConfig.safeMediaUrl ? window.JodConfig.safeMediaUrl(event.image_url) : event.image_url) : heroFb);
         imgEl.alt = event.title || 'Event Banner';
     }
 
@@ -337,10 +351,12 @@ function renderEventDOM(event) {
             pGrid.innerHTML = event.performers.map(p => {
                 const name = escape(p.name || 'Speaker');
                 const role = escape(p.role || '');
-                const photo = EP ? EP.resolveImage(p.image_url || p.photo_url) : (p.image_url || p.photo_url || 'images/hero-event.jpg');
+                const photo = EP
+                    ? EP.escapeHtml(EP.resolveImage(p.image_url || p.photo_url))
+                    : heroFb;
                 return `
-                <div class="performer-card">
-                    <img class="performer-avatar" src="${photo}" alt="${name}" onerror="this.src='images/hero-event.jpg'" />
+                    <div class="performer-card">
+                    <img class="performer-avatar" src="${photo}" alt="${name}" onerror="this.src='${heroFb}'" />
                     <h3 class="performer-name">${name}</h3>
                     ${role ? `<p class="performer-role">${role}</p>` : ''}
                 </div>`;
@@ -353,40 +369,8 @@ function renderEventDOM(event) {
 
     renderEventGallery(event, EP);
     renderEventSponsors(event, EP, escape);
-
-    if (event.ticket_types && Array.isArray(event.ticket_types) && event.ticket_types.length > 0) {
-        const tList = document.getElementById('ticketsList');
-        if (tList) {
-            tList.innerHTML = event.ticket_types.map((t, idx) => `
-                <div class="ticket-type-option ${idx === 0 ? 'selected' : ''}" onclick="selectTicketOption(this, ${t.price}, '${(t.name || '').replace(/'/g, "\\'")}')">
-                    <div>
-                        <div class="ticket-name">${t.name}</div>
-                        <div class="ticket-status">${t.availability || 'Available'}</div>
-                    </div>
-                    <div class="ticket-price">₹${t.price}</div>
-                </div>
-            `).join('');
-            const first = event.ticket_types[0];
-            if (first) {
-                currentSelectedTicketType = first.name || currentSelectedTicketType;
-                currentSelectedPrice = Number(first.price);
-            }
-            setStartingPriceDisplay(lowestTicketPrice(event));
-        }
-    } else {
-        const tList = document.getElementById('ticketsList');
-        if (tList) {
-            tList.innerHTML = `
-                <div class="ticket-type-option selected" onclick="selectTicketOption(this, ${startingPrice}, 'General Admission')">
-                    <div>
-                        <div class="ticket-name">General Admission</div>
-                        <div class="ticket-status">Available</div>
-                    </div>
-                    <div class="ticket-price">${startingPrice <= 0 ? 'Free' : '₹' + startingPrice}</div>
-                </div>
-            `;
-        }
-    }
+    paintTicketTypes(event);
+    bindTicketPruneListener();
 }
 
 function collectGalleryUrls(event, EP) {
@@ -430,7 +414,7 @@ function renderEventGallery(event, EP) {
         const openIndex = isOverlay ? 0 : i;
         return `
             <button type="button" class="gallery-thumb${isOverlay ? ' gallery-thumb--more' : ''}" data-gallery-index="${openIndex}">
-                <img src="${url}" alt="Gallery photo ${i + 1}" loading="lazy" />
+                <img src="${EP && EP.escapeHtml ? EP.escapeHtml(url) : ''}" alt="Gallery photo ${i + 1}" loading="lazy" />
                 ${isOverlay ? '<span class="gallery-thumb-overlay">See the Entire Gallery</span>' : ''}
             </button>
         `;
@@ -461,7 +445,7 @@ function renderEventSponsors(event, EP, escape) {
     const esc = escape || ((s) => String(s || ''));
     grid.innerHTML = sponsors.map((s) => {
         const name = esc(s.name || s.title || '');
-        const logo = EP ? EP.resolveImage(s.logo_url || s.image_url) : (s.logo_url || s.image_url || '');
+        const logo = EP ? EP.escapeHtml(EP.resolveImage(s.logo_url || s.image_url)) : '';
         return `
             <div class="sponsor-logo-card">
                 ${logo ? `<img src="${logo}" alt="${name || 'Sponsor'}" onerror="this.style.display='none'" />` : ''}
@@ -528,12 +512,159 @@ function closeGalleryLightbox() {
     document.body.style.overflow = '';
 }
 
+function liveTickets(event) {
+    const EP = window.JodEventsPublic;
+    if (EP && typeof EP.listableTicketTypes === "function") {
+        return EP.listableTicketTypes(event);
+    }
+    if (EP && typeof EP.visibleTicketTypes === "function") {
+        return EP.visibleTicketTypes(event);
+    }
+    return (event && Array.isArray(event.ticket_types)) ? event.ticket_types : [];
+}
+
+function setBuyTicketEnabled(enabled, label) {
+    document.querySelectorAll(".btn-book-now").forEach((btn) => {
+        if (btn.classList.contains("btn-view-ticket")) return;
+        btn.disabled = !enabled;
+        btn.style.opacity = enabled ? "" : "0.55";
+        btn.style.cursor = enabled ? "" : "not-allowed";
+        if (label) btn.textContent = label;
+    });
+}
+
+function paintTicketTypes(event) {
+    const tList = document.getElementById("ticketsList");
+    if (!tList) return;
+    const EP = window.JodEventsPublic;
+    const escape = (EP && typeof EP.escapeHtml === "function")
+        ? EP.escapeHtml
+        : (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const phaseOf = (t) => (EP && typeof EP.ticketOfferPhase === "function")
+        ? EP.ticketOfferPhase(t)
+        : "always";
+    const ended = EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(event) === "ended";
+    if (ended) {
+        tList.innerHTML = '<p class="ticket-unavailable">This event has ended.</p>';
+        setBuyTicketEnabled(false, "Event ended");
+        setStartingPriceDisplay(0);
+        return;
+    }
+    const types = liveTickets(event);
+    const purchasable = types.filter((t) => {
+        const p = phaseOf(t);
+        return p === "always" || p === "live";
+    });
+    if (!types.length) {
+        const hadAny = Array.isArray(event.ticket_types) && event.ticket_types.length > 0;
+        tList.innerHTML = `<p class="ticket-unavailable">${hadAny ? "Ticket offers for this event have ended." : "Tickets will be announced soon."}</p>`;
+        setBuyTicketEnabled(false, hadAny ? "Offer closed" : "Unavailable");
+        return;
+    }
+    const firstBuyableIdx = types.findIndex((t) => {
+        const p = phaseOf(t);
+        return p === "always" || p === "live";
+    });
+    const defaultIdx = firstBuyableIdx >= 0 ? firstBuyableIdx : 0;
+    setBuyTicketEnabled(purchasable.length > 0, purchasable.length ? "Buy Ticket" : "Opens soon");
+    const enc = (v) => encodeURIComponent(String(v || ""));
+    tList.innerHTML = types.map((t, idx) => {
+        const start = EP && EP.ticketSaleStart ? EP.ticketSaleStart(t) : (t.sales_start || "");
+        const end = EP && EP.ticketSaleEnd ? EP.ticketSaleEnd(t) : (t.sales_end || "");
+        const timed = Boolean(start || end);
+        const phase = phaseOf(t);
+        const upcoming = phase === "upcoming";
+        const name = escape(t.name || "Ticket");
+        const price = Number(t.price) || 0;
+        const qrUrl = escape(t.payment_qr_url || t.qr_url || t.payment_qr || "");
+        const statusText = upcoming
+            ? "Opens soon"
+            : escape(t.availability || (timed ? "Limited-time offer" : "Available"));
+        const selectedClass = idx === defaultIdx && !upcoming ? "selected" : "";
+        const disabledClass = upcoming ? "is-upcoming" : "";
+        return `<div class="ticket-type-option ${selectedClass} ${disabledClass}" data-ticket-option data-ticket-phase="${phase}" data-sales-start="${enc(start)}" data-sales-end="${enc(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" ${upcoming ? 'aria-disabled="true"' : ""}>
+            <div>
+                ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${enc(start)}" data-ticket-end="${enc(end)}"></div>` : ""}
+                <div class="ticket-name">${name}</div>
+                <div class="ticket-status">${statusText}</div>
+            </div>
+            <div class="ticket-price">${price <= 0 ? "Free" : "₹" + Number(price).toLocaleString("en-IN")}</div>
+        </div>`;
+    }).join("");
+    tList.querySelectorAll("[data-ticket-option]").forEach((opt) => {
+        opt.addEventListener("click", () => {
+            const start = EP && EP.decodeTicketTimeAttr
+                ? EP.decodeTicketTimeAttr(opt.dataset.salesStart || "")
+                : decodeURIComponent(opt.dataset.salesStart || "");
+            const end = EP && EP.decodeTicketTimeAttr
+                ? EP.decodeTicketTimeAttr(opt.dataset.salesEnd || "")
+                : decodeURIComponent(opt.dataset.salesEnd || "");
+            const phase = EP && typeof EP.ticketOfferPhase === "function"
+                ? EP.ticketOfferPhase({ sales_start: start, sales_end: end })
+                : (opt.dataset.ticketPhase || "live");
+            if (phase === "upcoming") {
+                showToast("This ticket offer has not opened yet.");
+                return;
+            }
+            if (phase === "ended") {
+                showToast("This ticket offer has ended.");
+                return;
+            }
+            selectTicketOption(opt, Number(opt.dataset.price), opt.dataset.name);
+        });
+    });
+    const first = types[defaultIdx] || types[0];
+    const firstPhase = phaseOf(first);
+    if (firstPhase === "always" || firstPhase === "live") {
+        currentSelectedTicketType = first.name || "General Admission";
+        currentSelectedPrice = Number(first.price) || 0;
+        currentSelectedPaymentQr = first.payment_qr_url || first.qr_url || first.payment_qr || "";
+        updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+    } else {
+        currentSelectedTicketType = "";
+        currentSelectedPrice = 0;
+        currentSelectedPaymentQr = "";
+        const minUpcoming = Math.min(...types.map((t) => Number(t.price) || 0));
+        setStartingPriceDisplay(Number.isFinite(minUpcoming) ? minUpcoming : 0);
+    }
+    if (EP && typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
+    if (EP && typeof EP.syncTicketPurchaseAvailability === "function") EP.syncTicketPurchaseAvailability();
+}
+
+let ticketPruneBound = false;
+function bindTicketPruneListener() {
+    if (ticketPruneBound) return;
+    ticketPruneBound = true;
+    window.addEventListener("jod:tickets-pruned", () => {
+        if (currentEventData) syncTicketAvailability(currentEventData);
+    });
+}
+
+function syncTicketAvailability(event) {
+    const tList = document.getElementById("ticketsList");
+    if (!tList) return;
+    const remaining = tList.querySelectorAll("[data-ticket-option]");
+    if (!remaining.length) {
+        paintTicketTypes(event);
+        return;
+    }
+    if (!tList.querySelector(".ticket-type-option.selected") && remaining[0]) {
+        remaining[0].click();
+        return;
+    }
+    const selected = tList.querySelector(".ticket-type-option.selected");
+    if (selected) {
+        updateSelectedPriceUI(Number(selected.dataset.price) || 0, selected.dataset.name);
+    }
+}
+
 function selectTicketOption(element, price, ticketName) {
     const options = document.querySelectorAll('.ticket-type-option');
     options.forEach(opt => opt.classList.remove('selected'));
     element.classList.add('selected');
 
     currentSelectedPrice = price;
+    currentSelectedPaymentQr = (element && element.dataset && element.dataset.paymentQr) || "";
     if (ticketName) {
         currentSelectedTicketType = ticketName;
     } else {
@@ -542,10 +673,11 @@ function selectTicketOption(element, price, ticketName) {
             currentSelectedTicketType = nameEl.textContent.trim();
         }
     }
+    updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
 }
 
 function lowestTicketPrice(event) {
-    const types = event && Array.isArray(event.ticket_types) ? event.ticket_types : [];
+    const types = liveTickets(event);
     const prices = types
         .map((t) => Number(t && t.price))
         .filter((n) => Number.isFinite(n));
@@ -563,6 +695,16 @@ function setStartingPriceDisplay(price) {
     if (displayPrice) displayPrice.textContent = formatTicketPrice(price);
     const mobilePrice = document.getElementById('mobileStickyPrice');
     if (mobilePrice) mobilePrice.textContent = formatTicketPrice(price);
+}
+
+function updateSelectedPriceUI(price, ticketName) {
+    setStartingPriceDisplay(price);
+    const label = String(ticketName || "").trim();
+    document.querySelectorAll(".bar-price-group p").forEach((el) => {
+        if (el.textContent === "Your ticket") return;
+        el.dataset.defaultLabel = el.dataset.defaultLabel || el.textContent || "Starts from";
+        el.textContent = label || "Selected";
+    });
 }
 
 function copyEventShareLink() {
@@ -587,10 +729,9 @@ function showToast(message) {
 function getAccessToken() {
     try {
         if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
-            const token = window.JodAuth.getToken();
-            if (token) return token;
+            return window.JodAuth.getToken() || "";
         }
-        return localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token") || "";
+        return "";
     } catch (_) {
         return "";
     }
@@ -601,7 +742,7 @@ function getApiRoot() {
     if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
         return window.JodHealth.getApiBaseUrl().replace(/\/$/, "");
     }
-    return "http://127.0.0.1:8001";
+    return (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "";
 }
 
 function sameEventId(a, b) {
@@ -639,32 +780,33 @@ function findCachedBookingForEvent(eventId) {
     }
 }
 
+async function authJson(url) {
+    const options = { cache: "no-store", headers: { Accept: "application/json" } };
+    if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+        return window.JodAuth.fetchAuth(url, options);
+    }
+    return fetch(url, Object.assign({ credentials: "include" }, options));
+}
+
 async function fetchMyBookingForEvent(eventId) {
-    const token = getAccessToken();
-    if (!token || !eventId) return null;
+    if (!eventId) return null;
     try {
-        const res = await fetch(`${getApiRoot()}/api/bookings/my-bookings`, {
-            cache: "no-store",
-            headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
-        });
+        const res = await authJson(`${getApiRoot()}/api/bookings/my-bookings`);
         if (!res.ok) return null;
         const rows = await res.json();
         if (!Array.isArray(rows)) return null;
-        return rows.find((row) => row && row.booking_id && sameEventId(row.event_id, eventId) && isActiveBookingRow(row)) || null;
+        return rows.find((row) => row && row.booking_id && sameEventId(row.event_id, eventId) && isActiveBookingRow(row) && (row.qr_token || row.ticket_id)) || null;
     } catch (_) {
         return null;
     }
 }
 
 async function fetchRegistrationStatus(eventId) {
-    const token = getAccessToken();
-    if (!token || !eventId) return { state: "new" };
+    if (!eventId) return { state: "new" };
     let status = { state: "new" };
     try {
-        const res = await fetch(`${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`, {
-            cache: "no-store",
-            headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
-        });
+        const url = `${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`;
+        const res = await authJson(url);
         if (res.ok) {
             const data = await res.json();
             if (data && data.state) status = data;
@@ -673,8 +815,6 @@ async function fetchRegistrationStatus(eventId) {
     if (status.state === "ticket" && status.booking_id) return status;
     const mine = await fetchMyBookingForEvent(eventId);
     if (mine) return ticketStateFromBooking(mine);
-    const cached = findCachedBookingForEvent(eventId);
-    if (cached) return ticketStateFromBooking(cached);
     return status;
 }
 
@@ -736,7 +876,13 @@ async function applyBookingCtaState(eventId) {
         showPostPurchaseActions(status.booking_id);
     } else {
         hidePostPurchaseActions();
-        setBookNowLabels("Buy Ticket");
+        if (status.state === "payment_submitted") {
+            setBookNowLabels("Payment under review");
+        } else if (window.JodEventsPublic && typeof window.JodEventsPublic.syncTicketPurchaseAvailability === "function") {
+            window.JodEventsPublic.syncTicketPurchaseAvailability();
+        } else {
+            setBookNowLabels("Buy Ticket");
+        }
     }
     return status;
 }
@@ -749,10 +895,38 @@ async function triggerBookingModal() {
         showToast("This event is currently unavailable.");
         return;
     }
+    const EP = window.JodEventsPublic;
+    if (EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(currentEventData) === "ended") {
+        showToast("This event has ended.");
+        return;
+    }
+    if (EP && typeof EP.visibleTicketTypes === "function") {
+        const live = EP.visibleTicketTypes(currentEventData);
+        if (!live.length && Array.isArray(currentEventData.ticket_types) && currentEventData.ticket_types.length) {
+            showToast("No ticket is on sale right now. Check offer start/end times.");
+            return;
+        }
+    }
+    // Prefer an explicitly selected live ticket; otherwise use the first live offer.
+    if (!currentSelectedTicketType || !currentSelectedPrice) {
+        const live = (EP && typeof EP.visibleTicketTypes === "function")
+            ? EP.visibleTicketTypes(currentEventData)
+            : [];
+        if (live.length) {
+            currentSelectedTicketType = live[0].name || "General Admission";
+            currentSelectedPrice = Number(live[0].price) || 0;
+            currentSelectedPaymentQr = live[0].payment_qr_url || live[0].qr_url || live[0].payment_qr || "";
+        }
+    }
 
     const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")
         ? window.JodAuth.isLoggedIn()
-        : Boolean(localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+        : Boolean((function () {
+            try {
+                const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+                return raw && raw !== "null";
+            } catch (_) { return false; }
+        })());
 
     if (!isAuth) {
         const currentTarget = window.location.pathname + window.location.search + window.location.hash;
@@ -787,9 +961,28 @@ async function triggerBookingModal() {
         window.location.href = "orders.html";
         return;
     }
+    if (status.state === "payment_submitted") {
+        const waitUrl = new URL("payment.html", window.location.href);
+        waitUrl.searchParams.set("eventId", eventId);
+        if (status.ticket_type) waitUrl.searchParams.set("ticket", status.ticket_type);
+        if (status.price != null) waitUrl.searchParams.set("price", String(status.price));
+        window.location.href = waitUrl.toString();
+        return;
+    }
 
     const pendingTicket = status.ticket_type || ticketType;
     const pendingPrice = (status.price != null && status.price !== "") ? status.price : price;
+    const selectedOpt = document.querySelector(".ticket-type-option.selected");
+    const types = (currentEventData && Array.isArray(currentEventData.ticket_types)) ? currentEventData.ticket_types : [];
+    const ticketKey = String(pendingTicket || "").replace(/\+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+    const matchedTicket = types.find((item) => {
+        const name = String((item && (item.name || item.ticket_name || item.type)) || "").replace(/\+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+        return name && name === ticketKey;
+    });
+    const pendingQr = (matchedTicket && (matchedTicket.payment_qr_url || matchedTicket.qr_url || matchedTicket.payment_qr))
+        || (selectedOpt && selectedOpt.dataset && selectedOpt.dataset.paymentQr)
+        || currentSelectedPaymentQr
+        || "";
     try {
         sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify({
             eventId: eventId,
@@ -797,15 +990,16 @@ async function triggerBookingModal() {
             venue: status.venue || (currentEventData && (currentEventData.venue || currentEventData.location)) || "",
             ticket: pendingTicket,
             price: String(pendingPrice),
-            quantity: 1
+            quantity: 1,
+            paymentQrUrl: pendingQr
         }));
-    } catch (_) {}
+            } catch (_) {}
 
     const regUrl = new URL("published-form.html", window.location.href);
     regUrl.searchParams.set("eventId", eventId);
     regUrl.searchParams.set("ticket", pendingTicket);
     regUrl.searchParams.set("price", String(pendingPrice));
-    regUrl.searchParams.set("v", "19");
+    regUrl.searchParams.set("v", "20");
     if (status.state === "payment_pending") {
         regUrl.searchParams.set("resume", "payment");
     }

@@ -54,8 +54,18 @@ html[data-theme="dark"] body.category-page .site-header {
 	border-bottom-color: rgba(255, 117, 8, 0.32) !important;
 }
 
-html[data-theme="dark"] .brand-name,
-html[data-theme="dark"] .profile-name-text,
+html[data-theme="dark"] .header-back-btn {
+	background: #1c1814;
+	border-color: rgba(255, 138, 31, 0.28);
+	color: #fff8f0;
+}
+
+html[data-theme="dark"] .header-back-btn:hover,
+html[data-theme="dark"] .header-back-btn:focus-visible {
+	border-color: #FFA136;
+	color: #FFA136;
+	background: rgba(255, 117, 8, 0.14);
+}
 html[data-theme="dark"] .nav-inner,
 html[data-theme="dark"] .desktop-nav,
 html[data-theme="dark"] .desktop-nav > a,
@@ -405,6 +415,16 @@ html[data-theme="dark"] .ticket-type-option.selected {
 	background: rgba(255, 117, 8, 0.12) !important;
 }
 
+html[data-theme="dark"] .ticket-type-option.is-upcoming {
+	opacity: 0.75;
+	background: rgba(255, 255, 255, 0.03) !important;
+	cursor: not-allowed;
+}
+
+html[data-theme="dark"] .ticket-type-option.is-upcoming:hover {
+	background: rgba(255, 255, 255, 0.03) !important;
+}
+
 html[data-theme="dark"] .info-header {
 	border-bottom-color: rgba(255, 138, 31, 0.22) !important;
 }
@@ -505,8 +525,42 @@ html[data-theme="dark"] .crop-modal-card {
 /* ── Ticket / payment leftover light panels ────────────────── */
 html[data-theme="dark"] body.ticket-page .site-header + *,
 html[data-theme="dark"] .payment-card,
-html[data-theme="dark"] .bill-card {
-	color: #f6f0e8;
+html[data-theme="dark"] .bill-card,
+html[data-theme="dark"] .qr-pay-card,
+html[data-theme="dark"] .proof-card {
+	background: #1c1814 !important;
+	background-color: #1c1814 !important;
+	color: #f6f0e8 !important;
+	border-color: rgba(255, 138, 31, 0.28) !important;
+}
+
+html[data-theme="dark"] .bill-card h2,
+html[data-theme="dark"] .qr-pay-card h2,
+html[data-theme="dark"] .qr-pay-card p,
+html[data-theme="dark"] .bill-card .row > span:first-child,
+html[data-theme="dark"] .proof-card label {
+	color: #b8aea2 !important;
+}
+
+html[data-theme="dark"] .bill-card .row {
+	border-bottom-color: rgba(255, 248, 240, 0.1) !important;
+}
+
+html[data-theme="dark"] .bill-card .row > span:last-child {
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .bill-card .row.is-total > span:last-child {
+	color: #60a5fa !important;
+}
+
+html[data-theme="dark"] .proof-card input[type="text"],
+html[data-theme="dark"] .proof-card input[type="email"],
+html[data-theme="dark"] .proof-card input[type="tel"],
+html[data-theme="dark"] .proof-card input[type="file"] {
+	background: #0e0c0a !important;
+	color: #f6f0e8 !important;
+	border-color: rgba(255, 138, 31, 0.35) !important;
 }
 
 html[data-theme="dark"] .mticket-card {
@@ -760,4 +814,296 @@ html[data-theme="dark"] body.dashboard-body .tab-section h2:not(.theme-exempt *)
 html[data-theme="dark"] body.dashboard-body .tab-section h3:not(.theme-exempt *),
 html[data-theme="dark"] body.dashboard-body .tab-section h4:not(.theme-exempt *) {
 	color: #fff8f0 !important;
+}
+
+/* ── Account setup / bank details ──────────────────────────── */
+html[data-theme="dark"] .setup-wrapper {
+	background: #0e0c0a !important;
+	color: #f6f0e8 !important;
+}
+
+html[data-theme="dark"] .setup-header-container h1 {
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .setup-header-container p,
+html[data-theme="dark"] .bank-setup-hint,
+html[data-theme="dark"] .wizard-step {
+	color: #b8aea2 !important;
+}
+
+html[data-theme="dark"] .wizard-step.active {
+	color: #FFA136 !important;
+	border-bottom-color: #FF8A1F !important;
+}
+
+html[data-theme="dark"] .setup-card-container,
+html[data-theme="dark"] .doc-modal-card {
+	background: #1c1814 !important;
+	color: #f6f0e8 !important;
+	border: 1px solid rgba(255, 138, 31, 0.22);
+	box-shadow: none !important;
+}
+
+html[data-theme="dark"] .setup-section-banner {
+	background: rgba(255, 117, 8, 0.12) !important;
+	border-left-color: #FF8A1F !important;
+}
+
+html[data-theme="dark"] .setup-section-banner h2 {
+	color: #FFB24D !important;
+}
+
+html[data-theme="dark"] .setup-wrapper .setup-form-group label,
+html[data-theme="dark"] .setup-wrapper .radio-label,
+html[data-theme="dark"] .setup-wrapper .checkbox-label {
+	color: #e8dcc8 !important;
+}
+
+html[data-theme="dark"] .setup-wrapper .setup-input,
+html[data-theme="dark"] .setup-wrapper .setup-select,
+html[data-theme="dark"] .setup-wrapper .setup-textarea,
+html[data-theme="dark"] .setup-wrapper input[type="text"],
+html[data-theme="dark"] .setup-wrapper input[type="tel"],
+html[data-theme="dark"] .setup-wrapper input[type="email"],
+html[data-theme="dark"] .setup-wrapper select {
+	background: #2c241c !important;
+	background-color: #2c241c !important;
+	color: #fff8f0 !important;
+	-webkit-text-fill-color: #fff8f0 !important;
+	caret-color: #FFA136;
+	border: 1px solid rgba(255, 180, 90, 0.45) !important;
+	color-scheme: dark;
+}
+
+html[data-theme="dark"] .setup-wrapper .setup-input::placeholder,
+html[data-theme="dark"] .setup-wrapper .setup-textarea::placeholder,
+html[data-theme="dark"] .setup-wrapper input::placeholder,
+html[data-theme="dark"] .setup-wrapper .setup-input::-webkit-input-placeholder {
+	color: #e4d5c2 !important;
+	-webkit-text-fill-color: #e4d5c2 !important;
+	opacity: 1 !important;
+}
+
+html[data-theme="dark"] .setup-wrapper .setup-select,
+html[data-theme="dark"] .setup-wrapper .setup-select option,
+html[data-theme="dark"] .setup-wrapper .setup-select option:disabled {
+	background: #2c241c !important;
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .setup-wrapper .setup-input:focus,
+html[data-theme="dark"] .setup-wrapper .setup-select:focus,
+html[data-theme="dark"] .setup-wrapper .setup-textarea:focus {
+	background: #322920 !important;
+	border-color: #FFA136 !important;
+	box-shadow: 0 0 0 3px rgba(255, 138, 31, 0.22) !important;
+	color: #fff8f0 !important;
+	-webkit-text-fill-color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .setup-wrapper input:-webkit-autofill,
+html[data-theme="dark"] .setup-wrapper input:-webkit-autofill:hover,
+html[data-theme="dark"] .setup-wrapper input:-webkit-autofill:focus {
+	-webkit-text-fill-color: #fff8f0 !important;
+	caret-color: #FFA136;
+	box-shadow: 0 0 0 1000px #2c241c inset !important;
+	transition: background-color 9999s ease-out;
+}
+
+html[data-theme="dark"] .setup-wrapper .upload-dropzone {
+	background: rgba(255, 117, 8, 0.08) !important;
+	border-color: rgba(255, 138, 31, 0.35) !important;
+}
+
+html[data-theme="dark"] .setup-wrapper .undertaking-link,
+html[data-theme="dark"] .setup-wrapper .view-example-link {
+	color: #FFA136 !important;
+}
+
+html[data-theme="dark"] .btn-setup-back,
+html[data-theme="dark"] .btn-setup-secondary {
+	background: #1c1814 !important;
+	border-color: #FF8A1F !important;
+	color: #FFA136 !important;
+}
+
+html[data-theme="dark"] .btn-setup-primary.active-proceed,
+html[data-theme="dark"] .btn-setup-primary:enabled {
+	background: #FF7508 !important;
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .sponsor-row,
+html[data-theme="dark"] body.dashboard-body .artist-row,
+html[data-theme="dark"] body.dashboard-body .builder-panel-card,
+html[data-theme="dark"] body.dashboard-body .builder-question-card,
+html[data-theme="dark"] body.dashboard-body .builder-toolbar,
+html[data-theme="dark"] body.dashboard-body .q-options-box,
+html[data-theme="dark"] body.dashboard-body #sectionDesign [style*="rgb(255, 255, 255)"],
+html[data-theme="dark"] body.dashboard-body #sectionDesign [style*="rgb(248, 250, 252)"],
+html[data-theme="dark"] body.dashboard-body #sectionRegistrations *:not(.theme-exempt):not(.theme-exempt *)[style*="rgb(255, 255, 255)"],
+html[data-theme="dark"] body.dashboard-body #sectionRegistrations *:not(.theme-exempt):not(.theme-exempt *)[style*="rgb(248, 250, 252)"],
+html[data-theme="dark"] body.dashboard-body #sectionRegistrations *:not(.theme-exempt):not(.theme-exempt *)[style*="rgb(241, 245, 249)"] {
+	background: #1c1814 !important;
+	background-color: #1c1814 !important;
+	border-color: rgba(255, 138, 31, 0.24) !important;
+	color: #f6f0e8 !important;
+	box-shadow: none !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .builder-q-badge {
+	background: rgba(255, 117, 8, 0.16) !important;
+	color: #FFA136 !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .builder-question-card .setup-input,
+html[data-theme="dark"] body.dashboard-body .builder-question-card .setup-select,
+html[data-theme="dark"] body.dashboard-body .builder-panel-card .setup-input,
+html[data-theme="dark"] body.dashboard-body .builder-panel-card .setup-select,
+html[data-theme="dark"] body.dashboard-body .builder-panel-card .setup-textarea,
+html[data-theme="dark"] body.dashboard-body .artist-row .setup-input,
+html[data-theme="dark"] body.dashboard-body .sponsor-row .setup-input,
+html[data-theme="dark"] body.dashboard-body .sponsor-row .setup-select {
+	background: #241c14 !important;
+	color: #fff8f0 !important;
+	border-color: rgba(255, 138, 31, 0.28) !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .builder-question-card label,
+html[data-theme="dark"] body.dashboard-body .builder-panel-card label,
+html[data-theme="dark"] body.dashboard-body .builder-panel-card h4 {
+	color: #FFA136 !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .builder-question-card .btn-move-up,
+html[data-theme="dark"] body.dashboard-body .builder-question-card .btn-move-down,
+html[data-theme="dark"] body.dashboard-body .builder-question-card .btn-duplicate-q,
+html[data-theme="dark"] body.dashboard-body .builder-question-card .btn-add-option {
+	background: #241c14 !important;
+	color: #FFA136 !important;
+	border-color: rgba(255, 138, 31, 0.32) !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .section-title-select {
+	background: #241c14 !important;
+	color: #fff8f0 !important;
+	border-color: rgba(255, 138, 31, 0.32) !important;
+	font-weight: 800;
+}
+
+/* ── Admin QR portal (light table + inherited cream text was unreadable) ── */
+html[data-theme="dark"] body.admin-portal-body {
+	background: #0e0c0a !important;
+	color: #f6f0e8 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-hero h1,
+html[data-theme="dark"] body.admin-portal-body .admin-block-head h2,
+html[data-theme="dark"] body.admin-portal-body .admin-modal-head h2 {
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-hero p,
+html[data-theme="dark"] body.admin-portal-body .admin-block-head p {
+	color: #cbbfb0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-stat,
+html[data-theme="dark"] body.admin-portal-body .admin-block-count,
+html[data-theme="dark"] body.admin-portal-body .admin-table-card,
+html[data-theme="dark"] body.admin-portal-body .admin-modal-card {
+	background: #1c1814 !important;
+	border-color: rgba(255, 138, 31, 0.22) !important;
+	color: #f6f0e8 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-stat strong,
+html[data-theme="dark"] body.admin-portal-body .admin-block-count {
+	color: #FF8A1F !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-stat span {
+	color: #cbbfb0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-section-label span {
+	color: #FFB24D !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-section-label select,
+html[data-theme="dark"] body.admin-portal-body .admin-toolbar input {
+	background: #1a1612 !important;
+	color: #f6f0e8 !important;
+	border-color: rgba(255, 138, 31, 0.32) !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-toolbar input::placeholder {
+	color: rgba(246, 240, 232, 0.45) !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-table th {
+	background: #241c16 !important;
+	color: #FFB24D !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-table td,
+html[data-theme="dark"] body.admin-portal-body .admin-name,
+html[data-theme="dark"] body.admin-portal-body .admin-event-title,
+html[data-theme="dark"] body.admin-portal-body .admin-ticket-title,
+html[data-theme="dark"] body.admin-portal-body .admin-submitted {
+	color: #fff8f0 !important;
+	border-top-color: rgba(255, 138, 31, 0.14);
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-muted,
+html[data-theme="dark"] body.admin-portal-body .admin-empty {
+	color: #cbbfb0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-badge.pending {
+	background: rgba(255, 117, 8, 0.18) !important;
+	color: #fdba74 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-badge.ready {
+	background: rgba(22, 101, 52, 0.32) !important;
+	color: #86efac !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-btn.ghost {
+	background: transparent !important;
+	color: #FFA136 !important;
+	border-color: rgba(255, 161, 54, 0.5) !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-modal-head button {
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-answers dt {
+	color: #FFB24D !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-answers dd,
+html[data-theme="dark"] body.admin-portal-body .delivery-item {
+	color: #f6f0e8 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .delivery-item {
+	border-color: rgba(255, 138, 31, 0.22) !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .ok {
+	color: #86efac !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .warn {
+	color: #fdba74 !important;
+}
+
+html[data-theme="dark"] body.admin-portal-body .admin-theme-toggle {
+	background: #1a1612 !important;
+	color: #fff8f0 !important;
+	border-color: rgba(255, 138, 31, 0.4) !important;
 }

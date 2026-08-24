@@ -168,21 +168,13 @@ async function initOrganizerDashboard() {
 	let venueFillingFromMap = false;
 	let venueMapClickBound = false;
 
-	const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/organizers"
-		: "/api/organizers";
+	const API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/organizers');
 
-	const HOST_EVENTS_API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/host-events"
-		: "/api/host-events";
+	const HOST_EVENTS_API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/host-events');
 
-	const VOLUNTEERS_API = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/volunteers"
-		: "/api/volunteers";
+	const VOLUNTEERS_API = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/volunteers');
 
-	const LOCATION_API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/location"
-		: "/api/location";
+	const LOCATION_API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/location');
 
 	function getUploadOrigin() {
 		if (HOST_EVENTS_API_BASE.startsWith("http")) {
@@ -193,12 +185,37 @@ async function initOrganizerDashboard() {
 
 	function resolveUploadUrl(url) {
 		if (!url) return "";
-		if (url.startsWith("blob:") || url.startsWith("data:")) return url;
-		if (url.startsWith("http://") || url.startsWith("https://")) return url;
-		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
-			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
+		const trimmed = String(url).trim();
+		const lower = trimmed.toLowerCase();
+		if (lower.startsWith("javascript:") || lower.startsWith("vbscript:") || lower.startsWith("data:text") || lower.startsWith("data:image/svg")) {
+			return "";
 		}
-		return url;
+		if (trimmed.startsWith("blob:") || lower.startsWith("data:image/")) return trimmed;
+		if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
+			return window.JodConfig.safeMediaUrl(trimmed, "images/hero-event.jpg");
+		}
+		if (trimmed.startsWith("https://")) return trimmed;
+		if (trimmed.startsWith("http://")) {
+			try {
+				const parsed = new URL(trimmed);
+				if (parsed.pathname.indexOf("/api/media") === 0 || parsed.pathname.indexOf("/uploads/") === 0) {
+					return `${getUploadOrigin()}${parsed.pathname}${parsed.search || ""}`;
+				}
+				if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") return trimmed;
+			} catch (_) {}
+			return "";
+		}
+		if (trimmed.startsWith("/api/media") || trimmed.startsWith("/uploads/") || trimmed.startsWith("uploads/")) {
+			return `${getUploadOrigin()}/${String(trimmed).replace(/^\//, "")}`;
+		}
+		if (trimmed.startsWith("images/") || trimmed.startsWith("./images/") || trimmed.startsWith("/images/")) {
+			if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
+				return window.JodConfig.assetUrl(trimmed);
+			}
+			return "https://assets.jodevents.com/images/" + trimmed.replace(/^(\.\/)?images\//, "");
+		}
+		if (trimmed.startsWith("/") || trimmed.startsWith("./")) return trimmed;
+		return "";
 	}
 
 	function bindPrivateDocumentLink(el, url) {
@@ -265,17 +282,75 @@ async function initOrganizerDashboard() {
 		return value.split("T")[1];
 	}
 
+	function isoToDatetimeLocal(value) {
+		if (!value) return "";
+		const s = String(value).trim();
+		if (!s) return "";
+		// Already a datetime-local / IST wall-clock string without offset
+		if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s) && !/[zZ]|[+-]\d{2}:\d{2}$/.test(s)) {
+			return s.slice(0, 16);
+		}
+		const d = new Date(s.includes("T") || s.includes("Z") || s.includes("+") ? s : s.replace(" ", "T"));
+		if (Number.isNaN(d.getTime())) return s.slice(0, 16);
+		const parts = new Intl.DateTimeFormat("en-CA", {
+			timeZone: "Asia/Kolkata",
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false
+		}).formatToParts(d);
+		const get = (type) => (parts.find((p) => p.type === type) || {}).value || "00";
+		return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+	}
+
+	function attrEscape(value) {
+		return String(value ?? "")
+			.replace(/&/g, "&amp;")
+			.replace(/"/g, "&quot;")
+			.replace(/</g, "&lt;");
+	}
+
+	function clearTicketTierRow(row) {
+		if (!row) return;
+		const type = row.querySelector(".ticket-type-input");
+		const price = row.querySelector(".ticket-price-input");
+		const qty = row.querySelector(".ticket-qty-input");
+		const start = row.querySelector(".ticket-offer-start-input");
+		const end = row.querySelector(".ticket-offer-end-input");
+		if (type) type.value = "";
+		if (price) price.value = "";
+		if (qty) qty.value = "";
+		if (start) start.value = "";
+		if (end) end.value = "";
+		row.dataset.paymentQrUrl = "";
+		const qrInput = row.querySelector(".ticket-qr-input");
+		const qrPreview = row.querySelector(".ticket-qr-preview");
+		if (qrInput) qrInput.value = "";
+		if (qrPreview) {
+			qrPreview.removeAttribute("src");
+			qrPreview.hidden = true;
+		}
+	}
+
 	function collectTicketsJson() {
 		const rows = document.querySelectorAll(".ticket-tier-row");
 		const out = [];
 		rows.forEach((row) => {
 			const name = row.querySelector(".ticket-type-input")?.value?.trim();
 			if (!name) return;
-			out.push({
+			const item = {
 				name,
 				price: Number(row.querySelector(".ticket-price-input")?.value || 0),
-				qty: Number(row.querySelector(".ticket-qty-input")?.value || 0)
-			});
+				qty: Number(row.querySelector(".ticket-qty-input")?.value || 0),
+				// Always include keys so clearing offer windows updates the public page.
+				sales_start: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-start-input")?.value || "") || null,
+				sales_end: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-end-input")?.value || "") || null
+			};
+			const qrUrl = (row.dataset.paymentQrUrl || "").trim();
+			if (qrUrl) item.payment_qr_url = qrUrl;
+			out.push(item);
 		});
 		return out;
 	}
@@ -391,6 +466,7 @@ async function initOrganizerDashboard() {
 		fd.append("email", email);
 		fd.append("asset_type", assetType);
 		fd.append("file", file);
+		if (activeEventId) fd.append("event_id", String(activeEventId));
 		let res;
 		try {
 			res = await fetch(`${HOST_EVENTS_API_BASE}/upload-asset`, {
@@ -439,6 +515,54 @@ async function initOrganizerDashboard() {
 			});
 		});
 		return out;
+	}
+
+	function collectPerformersTitle() {
+		const select = document.getElementById("performersTitleSelect");
+		const custom = document.getElementById("performersTitleCustom");
+		if (!select) return "";
+		if (select.value === "__other__") {
+			return (custom && custom.value.trim()) || "";
+		}
+		return String(select.value || "").trim();
+	}
+
+	function syncPerformersTitleCustomVisibility() {
+		const select = document.getElementById("performersTitleSelect");
+		const custom = document.getElementById("performersTitleCustom");
+		if (!select || !custom) return;
+		const isOther = select.value === "__other__";
+		custom.hidden = !isOther;
+		if (isOther) custom.focus();
+	}
+
+	function applyPerformersTitle(title) {
+		const select = document.getElementById("performersTitleSelect");
+		const custom = document.getElementById("performersTitleCustom");
+		if (!select) return;
+		const value = String(title || "").trim();
+		if (!value) {
+			select.value = "";
+			if (custom) {
+				custom.value = "";
+				custom.hidden = true;
+			}
+			return;
+		}
+		const match = Array.from(select.options).find((opt) => opt.value === value);
+		if (match && value !== "__other__") {
+			select.value = value;
+			if (custom) {
+				custom.value = "";
+				custom.hidden = true;
+			}
+			return;
+		}
+		select.value = "__other__";
+		if (custom) {
+			custom.value = value;
+			custom.hidden = false;
+		}
 	}
 
 	function collectPoliciesJson() {
@@ -971,11 +1095,11 @@ async function initOrganizerDashboard() {
 
 	// ── Access Control: verification overlay (disabled until admin portal) ──
 	if (VERIFICATION_UI_ENABLED) {
-		await fetchVerificationStatus(true);
-		const vs = currentVerificationInfo ? currentVerificationInfo.verification_status : "NOT_SUBMITTED";
-		if (vs !== "VERIFIED") {
-			showVerificationOverlay();
-			renderVerificationPanel(currentVerificationInfo || { verification_status: vs });
+	await fetchVerificationStatus(true);
+	const vs = currentVerificationInfo ? currentVerificationInfo.verification_status : "NOT_SUBMITTED";
+	if (vs !== "VERIFIED") {
+		showVerificationOverlay();
+		renderVerificationPanel(currentVerificationInfo || { verification_status: vs });
 		} else {
 			hideVerificationOverlay();
 		}
@@ -1183,7 +1307,9 @@ async function initOrganizerDashboard() {
 		if (banner) {
 			const imgSrc = (data && (data.banner_image || data.image_url))
 				|| bannerImageUrl
-				|| "images/hero-event.jpg";
+				|| (window.JodConfig && window.JodConfig.assetUrl
+					? window.JodConfig.assetUrl("images/hero-event.jpg")
+					: "https://assets.jodevents.com/images/hero-event.jpg");
 			banner.src = resolveUploadUrl(imgSrc);
 			banner.alt = `${title} banner`;
 		}
@@ -1492,44 +1618,17 @@ async function initOrganizerDashboard() {
 			const completion = total > 0 ? `${Math.round((confirmed / total) * 100)}%` : "0%";
 			const avgTime = total > 0 ? `${Math.max(1, Math.round(total / 2))}m` : "0m";
 
+			if (typeof window.loadFormSubmissionsData === "function") {
+				window.loadFormSubmissionsData();
+				return;
+			}
+
 			const totalSubmissionsEl = document.getElementById("kpiTotalSubmissions");
 			if (totalSubmissionsEl) totalSubmissionsEl.textContent = total.toLocaleString("en-IN");
 			const completionRateEl = document.getElementById("kpiCompletionRate");
 			if (completionRateEl) completionRateEl.textContent = completion;
 			const avgTimeEl = document.getElementById("kpiAvgTime");
 			if (avgTimeEl) avgTimeEl.textContent = avgTime;
-
-			const submissionsTableBody = document.getElementById("submissionsTableBody");
-			if (submissionsTableBody) {
-				const regList = data.registrations || [];
-				if (regList.length === 0) {
-					submissionsTableBody.innerHTML = `
-						<tr>
-							<td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8;">
-								<div style="font-size: 1.5rem; margin-bottom: 0.4rem;">📝</div>
-								<div style="font-weight: 700; color: #475569;">No Registrations Yet</div>
-								<div style="font-size: 0.82rem; margin-top: 0.2rem;">Attendee registrations and submissions will appear here once attendees register.</div>
-							</td>
-						</tr>
-					`;
-				} else {
-					submissionsTableBody.innerHTML = regList.map(r => `
-						<tr style="border-bottom: 1px solid #f1f5f9;">
-							<td class="dash-ink" style="padding: 0.85rem 1.2rem; font-weight: 700;">${r.registration_number || r.registration_id || 'REG-001'}</td>
-							<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${r.attendee_name || 'Attendee'} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${r.attendee_email || ''}</span></td>
-							<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Just now'}</td>
-							<td style="padding: 0.85rem 1.2rem;">
-								<span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
-									${r.status || 'Confirmed'}
-								</span>
-							</td>
-							<td style="padding: 0.85rem 1.2rem; text-align: right;">
-								<button type="button" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">View</button>
-							</td>
-						</tr>
-					`).join('');
-				}
-			}
 		} catch (err) {
 			console.warn("Could not load registration module data:", err);
 		}
@@ -1583,32 +1682,8 @@ async function initOrganizerDashboard() {
 
 			const ticketRowsEl = document.getElementById("repTicketFeeRows");
 			if (ticketRowsEl) {
-				const ticketRows = Array.isArray(data.ticket_fee_rows) ? data.ticket_fee_rows : [];
-				if (!ticketRows.length) {
-					ticketRowsEl.style.display = "none";
-					ticketRowsEl.innerHTML = "";
-				} else {
-					ticketRowsEl.style.display = "flex";
-					ticketRowsEl.innerHTML = ticketRows.map((row) => {
-						const qty = Number(row.quantity || 0);
-						const gstAmt = Number(row.gst_fee || 0);
-						const platAmt = Number(row.platform_fee || 0);
-						const typeName = String(row.ticket_type || "Ticket")
-							.replace(/&/g, "&amp;")
-							.replace(/</g, "&lt;")
-							.replace(/>/g, "&gt;")
-							.replace(/"/g, "&quot;");
-						return `<div class="dash-surface" style="border:1px solid #e2e8f0;border-radius:10px;padding:0.75rem 0.85rem;">
-							<div class="dash-ink" style="display:flex;justify-content:space-between;gap:0.75rem;font-size:0.86rem;font-weight:800;margin-bottom:0.35rem;">
-								<span>${typeName}</span>
-								<span>${qty} ticket${qty === 1 ? "" : "s"} · ${formatInr(row.gross)}</span>
-							</div>
-							<div class="dash-muted-text" style="font-size:0.78rem;line-height:1.45;">
-								Platform ${platformPct}%: ${formatInr(-platAmt, true)} · GST ${gstPct}%: ${formatInr(-gstAmt, true)} · Net ${formatInr(row.net)}
-							</div>
-						</div>`;
-					}).join("");
-				}
+				ticketRowsEl.style.display = "none";
+				ticketRowsEl.innerHTML = "";
 			}
 
 			const citiesEl = document.getElementById("repTopCities");
@@ -1756,16 +1831,16 @@ async function initOrganizerDashboard() {
 
 		tableBody.innerHTML = list.map(ex => `
 			<tr style="border-bottom: 1px solid #f1f5f9;">
-				<td class="dash-ink" style="padding: 0.85rem 1.2rem; font-weight: 700;">${ex.company_name}</td>
-				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${ex.category}</td>
-				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${ex.contact_name} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${ex.contact_email}</span></td>
+				<td class="dash-ink" style="padding: 0.85rem 1.2rem; font-weight: 700;">${escapeVolunteerHtml(ex.company_name)}</td>
+				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${escapeVolunteerHtml(ex.category)}</td>
+				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${escapeVolunteerHtml(ex.contact_name)} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${escapeVolunteerHtml(ex.contact_email)}</span></td>
 				<td style="padding: 0.85rem 1.2rem;">
 					<span style="background: ${ex.status === 'confirmed' ? '#f0fdf4' : '#fffbe6'}; border: 1px solid ${ex.status === 'confirmed' ? '#bbf7d0' : '#ffe58f'}; color: ${ex.status === 'confirmed' ? '#166534' : '#873800'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
 						${ex.status === 'confirmed' ? 'Confirmed' : 'Pending Approval'}
 					</span>
 				</td>
 				<td style="padding: 0.85rem 1.2rem; text-align: right;">
-					<button type="button" class="btn-delete-exhibitor" data-id="${ex.exhibitor_id}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Remove</button>
+					<button type="button" class="btn-delete-exhibitor" data-id="${escapeVolunteerHtml(ex.exhibitor_id)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Remove</button>
 				</td>
 			</tr>
 		`).join('');
@@ -1880,17 +1955,17 @@ async function initOrganizerDashboard() {
 
 		gatesTableBody.innerHTML = gates.map(g => `
 			<tr style="border-bottom: 1px solid #f1f5f9;">
-				<td class="dash-ink" style="padding: 0.75rem 1rem; font-weight: 700;">${g.gate_name}</td>
-				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${g.gate_code || '—'}</td>
-				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${g.gate_description || '—'}</td>
+				<td class="dash-ink" style="padding: 0.75rem 1rem; font-weight: 700;">${escapeVolunteerHtml(g.gate_name)}</td>
+				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${escapeVolunteerHtml(g.gate_code || '—')}</td>
+				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${escapeVolunteerHtml(g.gate_description || '—')}</td>
 				<td style="padding: 0.75rem 1rem;">
-					<span style="background: ${g.status === 'Active' ? '#f0fdf4' : '#fee2e2'}; border: 1px solid ${g.status === 'Active' ? '#bbf7d0' : '#fecaca'}; color: ${g.status === 'Active' ? '#166534' : '#991b1b'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer;" class="btn-toggle-gate-status" data-id="${g.gate_id}" data-status="${g.status}">
-						${g.status}
+					<span style="background: ${g.status === 'Active' ? '#f0fdf4' : '#fee2e2'}; border: 1px solid ${g.status === 'Active' ? '#bbf7d0' : '#fecaca'}; color: ${g.status === 'Active' ? '#166534' : '#991b1b'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer;" class="btn-toggle-gate-status" data-id="${escapeVolunteerHtml(g.gate_id)}" data-status="${escapeVolunteerHtml(g.status)}">
+						${escapeVolunteerHtml(g.status)}
 					</span>
 				</td>
 				<td style="padding: 0.75rem 1rem; text-align: right; display: flex; gap: 0.4rem; justify-content: flex-end;">
-					<button type="button" class="btn-edit-gate" data-id="${g.gate_id}" style="background: #ffffff; border: 1px solid #cbd5e1; color: #2563eb; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Edit</button>
-					<button type="button" class="btn-delete-gate" data-id="${g.gate_id}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Delete</button>
+					<button type="button" class="btn-edit-gate" data-id="${escapeVolunteerHtml(g.gate_id)}" style="background: #ffffff; border: 1px solid #cbd5e1; color: #2563eb; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Edit</button>
+					<button type="button" class="btn-delete-gate" data-id="${escapeVolunteerHtml(g.gate_id)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Delete</button>
 				</td>
 			</tr>
 		`).join('');
@@ -2122,22 +2197,22 @@ async function initOrganizerDashboard() {
 			btn.addEventListener("click", async () => {
 				const volunteerId = btn.getAttribute("data-id");
 				if (!confirm("Revoke this volunteer's scanner access?")) return;
-				try {
+					try {
 					const res = await fetch(`${VOLUNTEERS_API}/${volunteerId}/revoke`, {
 						method: "POST",
-						headers: getAuthHeaders()
-					});
-					if (res.ok) {
+							headers: getAuthHeaders()
+						});
+						if (res.ok) {
 						loadVolunteers();
 						loadEventDayVolunteerStats();
 						showNotification("Volunteer access revoked.");
-					} else {
+						} else {
 						const err = await res.json().catch(() => ({}));
 						alert(apiErrorMessage(err, "Could not revoke volunteer."));
+						}
+					} catch (err) {
+						console.warn(err);
 					}
-				} catch (err) {
-					console.warn(err);
-				}
 			});
 		});
 
@@ -2836,6 +2911,14 @@ async function initOrganizerDashboard() {
 					const el = document.getElementById("badgeHostId");
 					if (el) el.textContent = `HOST: ${data.host_id}`;
 				}
+				if (isPublishedLifecycle() && data.catalog_synced === false) {
+					const syncMsg = data.catalog_sync_error
+						? `Saved, but public page sync failed: ${data.catalog_sync_error}`
+						: "Saved, but public page sync failed. Retry Save.";
+					if (notifyError) showNotification(syncMsg);
+					else console.warn(syncMsg);
+					return false;
+				}
 				return true;
 			}
 			if (notifyError) showNotification(apiErrorMessage(data, "Could not save Manage details."));
@@ -2862,6 +2945,7 @@ async function initOrganizerDashboard() {
 			gallery_images: galleryImageUrls.length ? galleryImageUrls : undefined,
 			sponsor_details: collectSponsorDetails(),
 			speaker_details: collectSpeakerDetails(),
+			performers_title: collectPerformersTitle(),
 			about_event: descEl ? descEl.value : undefined
 		};
 
@@ -2874,6 +2958,14 @@ async function initOrganizerDashboard() {
 			const data = await res.json().catch(() => ({}));
 			if (res.ok) {
 				if (data.event_id) activeEventId = data.event_id;
+				if (isPublishedLifecycle() && data.catalog_synced === false) {
+					const syncMsg = data.catalog_sync_error
+						? `Design saved, but public page sync failed: ${data.catalog_sync_error}`
+						: "Design saved, but public page sync failed. Retry Save.";
+					if (notifyError) showNotification(syncMsg);
+					else console.warn(syncMsg);
+					return false;
+				}
 				return true;
 			}
 			if (notifyError) showNotification(apiErrorMessage(data, "Could not save Design details."));
@@ -3483,24 +3575,23 @@ async function initOrganizerDashboard() {
 	const ticketTiersRows = document.getElementById("ticketTiersRows");
 	const btnAddTicketTier = document.getElementById("btnAddTicketTier");
 
-	function createTicketTierRowHtml(type = "", price = "", qty = "") {
+	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "", paymentQrUrl = "") {
 		const div = document.createElement("div");
-		div.className = "setup-grid-3 ticket-tier-row";
-		div.style.alignItems = "flex-end";
-		div.style.marginBottom = "0.8rem";
+		div.className = "ticket-tier-row";
 		div.innerHTML = `
+			<div class="setup-grid-3 ticket-tier-main">
 			<div class="setup-form-group">
 				<label>Ticket Type / Name <span style="color: #ef4444;">*</span></label>
 				<div class="input-icon-wrap">
 					<span class="input-icon">&#127915;</span>
-					<input type="text" class="setup-input ticket-type-input" placeholder="e.g. VIP Pass, Early Bird, General" required value="${type}" />
+						<input type="text" class="setup-input ticket-type-input" placeholder="e.g. VIP Pass, Early Bird, General" required value="${attrEscape(type)}" />
 				</div>
 			</div>
 			<div class="setup-form-group">
 				<label>Ticket Price (₹) <span style="color: #ef4444;">*</span></label>
 				<div class="input-icon-wrap">
 					<span class="input-icon">&#8377;</span>
-					<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="${price}" />
+						<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="${attrEscape(price)}" />
 				</div>
 			</div>
 			<div class="setup-form-group">
@@ -3508,9 +3599,29 @@ async function initOrganizerDashboard() {
 				<div style="display: flex; gap: 0.5rem;">
 					<div class="input-icon-wrap" style="flex: 1;">
 						<span class="input-icon">&#128101;</span>
-						<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 100" min="1" required value="${qty}" />
+							<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 100" min="1" required value="${attrEscape(qty)}" />
 					</div>
 					<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
+					</div>
+				</div>
+			</div>
+			<div class="setup-grid-2 ticket-tier-offer">
+				<div class="setup-form-group">
+					<label>Offer starts</label>
+					<input type="datetime-local" class="setup-input ticket-offer-start-input" value="${attrEscape(offerStart)}" />
+				</div>
+				<div class="setup-form-group">
+					<label>Offer ends</label>
+					<input type="datetime-local" class="setup-input ticket-offer-end-input" value="${attrEscape(offerEnd)}" />
+				</div>
+			</div>
+			<p class="ticket-offer-hint">Leave blank to keep this ticket on sale for the whole event. Set dates for a same-day or limited-time offer.</p>
+			<div class="ticket-qr-upload">
+				<label>Payment QR code</label>
+				<p class="ticket-offer-hint">Upload the UPI QR for this ticket. The payment form shows this QR when an attendee chooses this ticket.</p>
+				<div class="ticket-qr-row">
+					<input type="file" class="setup-input ticket-qr-input" accept="image/png,image/jpeg,image/jpg,image/webp" />
+					<img class="ticket-qr-preview" alt="Payment QR preview" hidden />
 				</div>
 			</div>
 		`;
@@ -3520,13 +3631,47 @@ async function initOrganizerDashboard() {
 			if (ticketTiersRows.children.length > 1) {
 				div.remove();
 			} else {
-				div.querySelector(".ticket-type-input").value = "";
-				div.querySelector(".ticket-price-input").value = "";
-				div.querySelector(".ticket-qty-input").value = "";
+				clearTicketTierRow(div);
 			}
 		});
-
+		bindTicketPaymentQr(div, paymentQrUrl);
 		return div;
+	}
+
+	function showTicketQrPreview(row, url) {
+		const preview = row.querySelector(".ticket-qr-preview");
+		if (!preview) return;
+		if (!url) {
+			preview.removeAttribute("src");
+			preview.hidden = true;
+			return;
+		}
+		preview.src = resolveUploadUrl(url);
+		preview.hidden = false;
+	}
+
+	function bindTicketPaymentQr(row, existingUrl) {
+		if (!row || row.dataset.qrBound === "1") return;
+		row.dataset.qrBound = "1";
+		const input = row.querySelector(".ticket-qr-input");
+		if (existingUrl) {
+			row.dataset.paymentQrUrl = existingUrl;
+			showTicketQrPreview(row, existingUrl);
+		}
+		if (!input) return;
+		input.addEventListener("change", async () => {
+			const file = input.files && input.files[0];
+			if (!file) return;
+			try {
+				const url = await uploadDesignAsset(file, "payment_qr");
+				row.dataset.paymentQrUrl = url || "";
+				showTicketQrPreview(row, url);
+				if (typeof triggerManageAutoSave === "function") triggerManageAutoSave();
+			} catch (err) {
+				input.value = "";
+				showNotification(err.message || "Could not upload the payment QR.");
+			}
+		});
 	}
 
 	if (btnAddTicketTier) {
@@ -3543,12 +3688,11 @@ async function initOrganizerDashboard() {
 				if (ticketTiersRows.children.length > 1) {
 					row.remove();
 				} else {
-					row.querySelector(".ticket-type-input").value = "";
-					row.querySelector(".ticket-price-input").value = "";
-					row.querySelector(".ticket-qty-input").value = "";
+					clearTicketTierRow(row);
 				}
 			});
 		}
+		ticketTiersRows.querySelectorAll(".ticket-tier-row").forEach((row) => bindTicketPaymentQr(row));
 	}
 
 	// Dynamic Agenda Session Rows Adder
@@ -3638,12 +3782,12 @@ async function initOrganizerDashboard() {
 			pill.classList.toggle("active", pill.getAttribute("data-value") === mode);
 		});
 		const dateInput = document.getElementById("eventDateInput");
-		if (dateInput && event.event_start_date) {
-			dateInput.value = String(event.event_start_date).slice(0, 16);
+		if (dateInput && (event.event_start_date_local || event.event_start_date)) {
+			dateInput.value = isoToDatetimeLocal(event.event_start_date_local || event.event_start_date);
 		}
 		const endDateInput = document.getElementById("eventEndDateInput");
-		if (endDateInput && event.event_end_date) {
-			endDateInput.value = String(event.event_end_date).slice(0, 16);
+		if (endDateInput && (event.event_end_date_local || event.event_end_date)) {
+			endDateInput.value = isoToDatetimeLocal(event.event_end_date_local || event.event_end_date);
 		}
 		const locationInput = document.getElementById("eventLocationInput");
 		if (locationInput) locationInput.value = event.venue || event.address || "";
@@ -3668,7 +3812,10 @@ async function initOrganizerDashboard() {
 				ticketTiersRows.appendChild(createTicketTierRowHtml(
 					t.name || t.ticket_name || t.type || "",
 					t.price != null ? t.price : "",
-					t.qty != null ? t.qty : (t.quantity != null ? t.quantity : "")
+					t.qty != null ? t.qty : (t.quantity != null ? t.quantity : ""),
+					isoToDatetimeLocal(t.sales_start || t.offer_start || t.sale_start || ""),
+					isoToDatetimeLocal(t.sales_end || t.offer_end || t.sale_end || ""),
+					t.payment_qr_url || t.qr_url || t.payment_qr || ""
 				));
 			});
 		}
@@ -3949,13 +4096,13 @@ async function initOrganizerDashboard() {
 
 					[profBankBeneficiary, profBankName, profBankAccountType, profBankAccountNumber, profBankIfsc].forEach(inp => {
 						if (!inp) return;
-						inp.setAttribute("readonly", "readonly");
-						inp.setAttribute("disabled", "disabled");
+							inp.setAttribute("readonly", "readonly");
+							inp.setAttribute("disabled", "disabled");
 						inp.setAttribute("tabindex", "-1");
-						inp.style.backgroundColor = "#f1f5f9";
-						inp.style.cursor = "not-allowed";
-						inp.style.color = "#334155";
-						inp.style.fontWeight = "700";
+							inp.style.backgroundColor = "#f1f5f9";
+							inp.style.cursor = "not-allowed";
+							inp.style.color = "#334155";
+							inp.style.fontWeight = "700";
 					});
 
 					if (acc.beneficiary_name && profBankBeneficiary) profBankBeneficiary.value = acc.beneficiary_name;
@@ -4039,18 +4186,18 @@ async function initOrganizerDashboard() {
 						throw new Error(apiErrorMessage(data, "Could not cancel event."));
 					}
 				}
-				sessionStorage.removeItem(`has_event_${email}`);
+					sessionStorage.removeItem(`has_event_${email}`);
 				sessionStorage.removeItem(`active_event_id_${email}`);
-				hasEvent = false;
-				activeEventId = null;
+					hasEvent = false;
+					activeEventId = null;
 				currentLifecycle = "draft";
 				canPublishNew = true;
 				canCreateNew = true;
 				if (dashEventTitle) dashEventTitle.textContent = "My Events Dashboard";
 				if (typeof renderOverviewState === "function") renderOverviewState();
 				showNotification("Event cancelled. It is no longer listed on Home, Category, or Event Details.");
-				switchTab("overview");
-			} catch (err) {
+					switchTab("overview");
+				} catch (err) {
 				console.warn("Could not cancel event:", err);
 				showNotification((err && err.message) || "Could not cancel event. Please try again.");
 			}
@@ -4067,11 +4214,60 @@ async function initOrganizerDashboard() {
 	const bannerPreviewImg = document.getElementById("bannerPreviewImg");
 	const btnClearBanner = document.getElementById("btnClearBanner");
 
-	if (bannerDropzone && bannerFileInput) {
-		bannerDropzone.addEventListener("click", (e) => {
-			if (e.target.id !== "btnClearBanner") bannerFileInput.click();
+	function bindImageDropzone(dropzone, fileInput, skipIds) {
+		if (!dropzone || !fileInput) return;
+		const skip = skipIds || [];
+		dropzone.addEventListener("dragover", (event) => {
+			event.preventDefault();
+			dropzone.style.borderColor = "#2563eb";
 		});
+		dropzone.addEventListener("dragleave", () => {
+			dropzone.style.borderColor = "";
+		});
+		dropzone.addEventListener("drop", (event) => {
+			event.preventDefault();
+			dropzone.style.borderColor = "";
+			const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+			if (!file) return;
+			try {
+				const dt = new DataTransfer();
+				dt.items.add(file);
+				fileInput.files = dt.files;
+			} catch (_) {
+				return;
+			}
+			fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+		dropzone.addEventListener("click", (e) => {
+			if (skip.includes(e.target && e.target.id)) return;
+			fileInput.click();
+		});
+	}
 
+	function showLocalThenRemotePreview(imgEl, file, remoteUrl) {
+		if (!imgEl) return resolveUploadUrl(remoteUrl);
+		let localUrl = "";
+		if (file) {
+			try {
+				localUrl = URL.createObjectURL(file);
+				imgEl.src = localUrl;
+			} catch (_) {}
+		}
+		const resolved = resolveUploadUrl(remoteUrl);
+		if (resolved) {
+			imgEl.onload = function onPreviewLoad() {
+				imgEl.onload = null;
+				if (localUrl) {
+					try { URL.revokeObjectURL(localUrl); } catch (_) {}
+				}
+			};
+			imgEl.src = resolved;
+		}
+		return resolved;
+	}
+
+	if (bannerDropzone && bannerFileInput) {
+		bindImageDropzone(bannerDropzone, bannerFileInput, ["btnClearBanner"]);
 		bannerFileInput.addEventListener("change", async (e) => {
 			const file = e.target.files && e.target.files[0];
 			if (!file) return;
@@ -4079,9 +4275,14 @@ async function initOrganizerDashboard() {
 			setInlineUploadError(host, "");
 			try {
 				bannerDropzoneContent.style.opacity = "0.6";
+				if (bannerPreviewImg && file) {
+					bannerPreviewImg.src = URL.createObjectURL(file);
+					bannerDropzoneContent.style.display = "none";
+					bannerPreviewBox.style.display = "block";
+				}
 				const url = await uploadDesignAsset(file, "banner");
 				bannerImageUrl = url;
-				bannerPreviewImg.src = resolveUploadUrl(url);
+				showLocalThenRemotePreview(bannerPreviewImg, null, url);
 				bannerDropzoneContent.style.display = "none";
 				bannerPreviewBox.style.display = "block";
 				updateEventPagePreview({ event_id: activeEventId, banner_image: url });
@@ -4131,10 +4332,7 @@ async function initOrganizerDashboard() {
 	const btnClearCardImage = document.getElementById("btnClearCardImage");
 
 	if (cardImageDropzone && cardImageFileInput) {
-		cardImageDropzone.addEventListener("click", (e) => {
-			if (e.target.id !== "btnClearCardImage") cardImageFileInput.click();
-		});
-
+		bindImageDropzone(cardImageDropzone, cardImageFileInput, ["btnClearCardImage"]);
 		cardImageFileInput.addEventListener("change", async (e) => {
 			const file = e.target.files && e.target.files[0];
 			if (!file) return;
@@ -4148,9 +4346,14 @@ async function initOrganizerDashboard() {
 			}
 			try {
 				cardImageDropzoneContent.style.opacity = "0.6";
+				if (cardImagePreviewImg && file) {
+					cardImagePreviewImg.src = URL.createObjectURL(file);
+					cardImageDropzoneContent.style.display = "none";
+					cardImagePreviewBox.style.display = "block";
+				}
 				const url = await uploadDesignAsset(file, "card_image");
 				cardImageUrl = url;
-				cardImagePreviewImg.src = resolveUploadUrl(url);
+				showLocalThenRemotePreview(cardImagePreviewImg, null, url);
 				cardImageDropzoneContent.style.display = "none";
 				cardImagePreviewBox.style.display = "block";
 				triggerLiveAutoSave();
@@ -4182,12 +4385,6 @@ async function initOrganizerDashboard() {
 	function createSponsorRowHtml(name = "", tier = "Title Sponsor", logoUrl = "") {
 		const div = document.createElement("div");
 		div.className = "setup-grid-3 sponsor-row";
-		div.style.alignItems = "start";
-		div.style.marginBottom = "0.9rem";
-		div.style.background = "#f8fafc";
-		div.style.border = "1px solid #e2e8f0";
-		div.style.padding = "1rem";
-		div.style.borderRadius = "10px";
 		if (logoUrl) div.dataset.logoUrl = logoUrl;
 		const safeName = String(name).replace(/"/g, "&quot;");
 		div.innerHTML = `
@@ -4285,12 +4482,6 @@ async function initOrganizerDashboard() {
 	function createArtistRowHtml(name = "", role = "", photoUrl = "") {
 		const div = document.createElement("div");
 		div.className = "setup-grid-3 artist-row";
-		div.style.alignItems = "start";
-		div.style.marginBottom = "0.9rem";
-		div.style.background = "#f8fafc";
-		div.style.border = "1px solid #e2e8f0";
-		div.style.padding = "1rem";
-		div.style.borderRadius = "10px";
 		if (photoUrl) div.dataset.photoUrl = photoUrl;
 		const safeName = String(name).replace(/"/g, "&quot;");
 		const safeRole = String(role).replace(/"/g, "&quot;");
@@ -4376,6 +4567,19 @@ async function initOrganizerDashboard() {
 		if (!artistsRows.children.length) {
 			artistsRows.appendChild(createArtistRowHtml());
 		}
+	}
+
+	const performersTitleSelect = document.getElementById("performersTitleSelect");
+	const performersTitleCustom = document.getElementById("performersTitleCustom");
+	if (performersTitleSelect) {
+		performersTitleSelect.addEventListener("change", () => {
+			syncPerformersTitleCustomVisibility();
+			if (performersTitleSelect.value !== "__other__") triggerLiveAutoSave();
+		});
+	}
+	if (performersTitleCustom) {
+		performersTitleCustom.addEventListener("input", triggerLiveAutoSave);
+		performersTitleCustom.addEventListener("change", triggerLiveAutoSave);
 	}
 
 	// Dynamic Event Gallery Photos
@@ -4490,13 +4694,15 @@ async function initOrganizerDashboard() {
 				const cardPreviewImg = document.getElementById("cardImagePreviewImg");
 				const cardDropzoneContent = document.getElementById("cardImageDropzoneContent");
 				const cardPreviewBox = document.getElementById("cardImagePreviewBox");
-				if (cardPreviewImg) cardPreviewImg.src = resolveUploadUrl(d.card_image);
+				const cardSrc = resolveUploadUrl(d.card_image);
+				if (cardPreviewImg && cardSrc) cardPreviewImg.src = cardSrc;
 				if (cardDropzoneContent) cardDropzoneContent.style.display = "none";
 				if (cardPreviewBox) cardPreviewBox.style.display = "block";
 			}
 			if (d.banner_image) {
 				bannerImageUrl = d.banner_image;
-				if (bannerPreviewImg) bannerPreviewImg.src = resolveUploadUrl(d.banner_image);
+				const bannerSrc = resolveUploadUrl(d.banner_image);
+				if (bannerPreviewImg && bannerSrc) bannerPreviewImg.src = bannerSrc;
 				if (bannerDropzoneContent) bannerDropzoneContent.style.display = "none";
 				if (bannerPreviewBox) bannerPreviewBox.style.display = "block";
 				updateEventPagePreview({ event_id: activeEventId, banner_image: d.banner_image });
@@ -4507,10 +4713,12 @@ async function initOrganizerDashboard() {
 				d.gallery_images.forEach((url) => addThumbnail(url));
 			}
 			populateDesignRows(d.sponsor_details || [], d.speaker_details || []);
+			applyPerformersTitle(d.performers_title || "");
 			pendingHostDesignData = null;
 		}
 		applyPendingHostDesign();
 	} else if (pendingHostDesignData) {
+		applyPerformersTitle(pendingHostDesignData.performers_title || "");
 		populateDesignRows(
 			pendingHostDesignData.sponsor_details || [],
 			pendingHostDesignData.speaker_details || []
@@ -4759,7 +4967,7 @@ async function initOrganizerDashboard() {
 		const label = status === "valid" ? "✔ Valid" : (status === "invalid" ? "✖ Invalid" : "⚠ Duplicate");
 		const row = document.createElement("div");
 		row.style.cssText = "display:flex;justify-content:space-between;align-items:center;background:#1e293b;border-radius:6px;padding:0.4rem 0.7rem;font-size:0.8rem;";
-		row.innerHTML = `<span style="color:#f1f5f9;font-weight:600;">${name}</span><span style="color:#94a3b8;font-size:0.75rem;">${code.slice(0,18)}…</span><span style="color:${color};font-weight:700;">${label}</span><span style="color:#64748b;font-size:0.72rem;">${now}</span>`;
+		row.innerHTML = `<span style="color:#f1f5f9;font-weight:600;">${escapeVolunteerHtml(name)}</span><span style="color:#94a3b8;font-size:0.75rem;">${escapeVolunteerHtml(String(code).slice(0,18))}…</span><span style="color:${color};font-weight:700;">${label}</span><span style="color:#64748b;font-size:0.72rem;">${escapeVolunteerHtml(now)}</span>`;
 		scanHistoryList.insertBefore(row, scanHistoryList.firstChild);
 	}
 
@@ -4882,7 +5090,7 @@ async function initOrganizerDashboard() {
 				if (navigator.clipboard && navigator.clipboard.writeText) {
 					await navigator.clipboard.writeText(url);
 				} else {
-					volunteerPortalUrl.select();
+			volunteerPortalUrl.select();
 					document.execCommand("copy");
 				}
 				showNotification("Invitation link copied.");
@@ -5062,19 +5270,12 @@ async function initOrganizerDashboard() {
 		return modal;
 	}
 
-	function storePublishAuthToken(token) {
-		if (!token) return;
-		try {
-			sessionStorage.setItem("jod_access_token", token);
-			localStorage.setItem("jod_access_token", token);
-		} catch (_) {}
+	function storePublishAuthToken(_token) {
+		return;
 	}
 
 	function hasPublishAuthToken() {
-		const token = window.JodAuth && typeof window.JodAuth.getToken === "function"
-			? window.JodAuth.getToken()
-			: (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
-		return !!(token && token !== "null" && token !== "undefined" && String(token).length > 10);
+		return !!(window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn());
 	}
 
 	function isPublishAuthError(msg) {
@@ -5242,7 +5443,10 @@ async function initOrganizerDashboard() {
 				}
 				setStatus("Sending OTP…", true);
 				try {
-					const res = await fetch(`${API_BASE}/send-otp`, {
+					const fetchFn = window.JodAuth && typeof window.JodAuth.fetchAuth === "function"
+						? window.JodAuth.fetchAuth
+						: fetch;
+					const res = await fetchFn(`${API_BASE}/send-otp`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ email: hostEmail, channel: otpChannel })
@@ -5250,11 +5454,7 @@ async function initOrganizerDashboard() {
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(apiErrorMessage(data, "Failed to send OTP."));
 					const banner = document.getElementById("publishOtpDevBanner");
-					const devVal = document.getElementById("publishOtpDevValue");
-					if (data.dev_otp && banner && devVal) {
-						devVal.textContent = data.dev_otp;
-						banner.style.display = "block";
-					}
+					if (banner) banner.style.display = "none";
 					setStatus(data.message || `OTP sent to ${data.destination || hostEmail}.`, true);
 					if (fields[0]) fields[0].focus();
 				} catch (err) {
@@ -5272,15 +5472,17 @@ async function initOrganizerDashboard() {
 				verifying = true;
 				setStatus("Verifying…", true);
 				try {
-					const res = await fetch(`${API_BASE}/verify-otp`, {
+					const fetchFn = window.JodAuth && typeof window.JodAuth.fetchAuth === "function"
+						? window.JodAuth.fetchAuth
+						: fetch;
+					const res = await fetchFn(`${API_BASE}/verify-otp`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ email: hostEmail, otp_code: code })
 					});
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(apiErrorMessage(data, "Invalid OTP."));
-					if (data.access_token) storePublishAuthToken(data.access_token);
-					if (!data.verified && !data.access_token) {
+					if (!data.verified) {
 						throw new Error("Could not verify OTP. Please try again.");
 					}
 					finish(true);
@@ -5371,11 +5573,11 @@ async function initOrganizerDashboard() {
 	async function handleFinalPublish() {
 		if (_publishInFlight) return;
 		if (VERIFICATION_UI_ENABLED) {
-			const info = await fetchVerificationStatus(true);
-			const statusKey = info ? info.verification_status : "NOT_SUBMITTED";
-			if (statusKey !== "VERIFIED") {
-				showPublishGateModal(statusKey, info ? info.rejection_reason : null);
-				return;
+		const info = await fetchVerificationStatus(true);
+		const statusKey = info ? info.verification_status : "NOT_SUBMITTED";
+		if (statusKey !== "VERIFIED") {
+			showPublishGateModal(statusKey, info ? info.rejection_reason : null);
+			return;
 			}
 		}
 
@@ -5405,22 +5607,22 @@ async function initOrganizerDashboard() {
 				}
 			}
 
-			const manageData = collectManageEventPayload();
-			const missing = await verifyCurrentEventIsValid(manageData);
-			if (missing && missing.length > 0) {
-				alert("Please complete the following before publishing: " + missing.join(", "));
+		const manageData = collectManageEventPayload();
+		const missing = await verifyCurrentEventIsValid(manageData);
+		if (missing && missing.length > 0) {
+			alert("Please complete the following before publishing: " + missing.join(", "));
 				if (missing.indexOf("Event title") >= 0) switchTab("manage");
-				return;
-			}
+			return;
+		}
 
-			showPublishConfirm(manageData, async () => {
-				closePublishGateModal();
+		showPublishConfirm(manageData, async () => {
+			closePublishGateModal();
 				_publishInFlight = true;
 				setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
 				setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
 
 				async function postPublishEvent() {
-					const cur = await ensureCurrentEventExists();
+				const cur = await ensureCurrentEventExists();
 					const event_id = activeEventId || (cur && cur.event_id) || _publishEventId || null;
 					const dateInput = document.getElementById("eventDateInput");
 					const endDateInput = document.getElementById("eventEndDateInput");
@@ -5429,10 +5631,10 @@ async function initOrganizerDashboard() {
 					const formatInput = document.getElementById("eventFormatInput");
 					const descEl = document.getElementById("eventDescInput");
 
-					const payload = {
-						organizer_email: email,
-						event_id: event_id || undefined,
-						event_title: manageData.event_title,
+				const payload = {
+					organizer_email: email,
+					event_id: event_id || undefined,
+					event_title: manageData.event_title,
 						event_category: categorySelect ? categorySelect.value : undefined,
 						event_mode: formatInput ? formatInput.value : undefined,
 						venue: locationInput ? locationInput.value.trim() : undefined,
@@ -5448,13 +5650,13 @@ async function initOrganizerDashboard() {
 						agenda_json: collectAgendaJson(),
 						policies_json: collectPoliciesJson(),
 						about_event: descEl ? descEl.value : undefined
-					};
+				};
 
-					const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {
-						method: "POST",
-						headers: Object.assign({}, getAuthHeaders(), { "Content-Type": "application/json" }),
-						body: JSON.stringify(payload)
-					});
+				const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {
+					method: "POST",
+					headers: Object.assign({}, getAuthHeaders(), { "Content-Type": "application/json" }),
+					body: JSON.stringify(payload)
+				});
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(apiErrorMessage(data, "Publishing failed on the server."));
 
@@ -5465,20 +5667,31 @@ async function initOrganizerDashboard() {
 						);
 					}
 
-					if (data.event_id) {
+				if (data.event_id) {
 						activeEventId = data.event_id;
-						_publishEventId = data.event_id;
-						sessionStorage.setItem(`active_event_id_${email}`, String(data.event_id));
+					_publishEventId = data.event_id;
+					sessionStorage.setItem(`active_event_id_${email}`, String(data.event_id));
+				}
+
+					// Publish registration form so Buy Ticket can load published-form.html
+					if (window.JodFormBuilder && typeof window.JodFormBuilder.saveAndPublishForEvent === "function") {
+						try {
+							await window.JodFormBuilder.saveAndPublishForEvent();
+						} catch (formPublishErr) {
+							console.warn("Registration form publish warning:", formPublishErr);
+							showNotification("Event is live, but the registration form could not be published. Open Form Builder and publish the form.");
+						}
 					}
+
 					currentLifecycle = data.lifecycle || "published";
-					hasEvent = true;
-					sessionStorage.setItem(`has_event_${email}`, "true");
-					const title = manageData.event_title || "My Published Event";
-					if (dashEventTitle) dashEventTitle.textContent = title;
+				hasEvent = true;
+				sessionStorage.setItem(`has_event_${email}`, "true");
+				const title = manageData.event_title || "My Published Event";
+				if (dashEventTitle) dashEventTitle.textContent = title;
 					applySectionActionLabels();
 					renderOverviewState();
 					showNotification(`Event "${title}" is now live on Home, Category, and Event Details pages.`);
-					switchTab("overview");
+				switchTab("overview");
 				}
 
 				async function authenticateThenPublish() {
@@ -5500,8 +5713,8 @@ async function initOrganizerDashboard() {
 					setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
 					setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
 					await postPublishEvent();
-				} catch (err) {
-					const msg = err && err.message ? err.message : String(err || "");
+			} catch (err) {
+				const msg = err && err.message ? err.message : String(err || "");
 					if (isPublishAuthError(msg)) {
 						try {
 							await authenticateThenPublish();
@@ -5511,20 +5724,20 @@ async function initOrganizerDashboard() {
 					} else if (/already have an active event/i.test(msg)) {
 						showNotification("You already have an active event. You can create and publish a new event only after your current event has ended.");
 					} else if (/verification|under review|rejected/i.test(msg)) {
-						const refreshed = await fetchVerificationStatus(true);
-						showPublishGateModal(
-							refreshed ? refreshed.verification_status : "NOT_SUBMITTED",
-							refreshed ? refreshed.rejection_reason : null
-						);
-					} else {
+					const refreshed = await fetchVerificationStatus(true);
+					showPublishGateModal(
+						refreshed ? refreshed.verification_status : "NOT_SUBMITTED",
+						refreshed ? refreshed.rejection_reason : null
+					);
+				} else {
 						showNotification(msg || "Failed to publish event. Please try again.");
-					}
+				}
 				} finally {
 					_publishInFlight = false;
 					setWizardNavBusy(btnPublish, false);
 					setWizardNavBusy(btnTop, false);
-				}
-			});
+			}
+		});
 		} finally {
 			setWizardNavBusy(btnPublish, false);
 			setWizardNavBusy(btnTop, false);

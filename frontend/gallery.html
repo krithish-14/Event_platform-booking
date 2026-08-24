@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=4"></script>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="description" content="JOD Events gallery — photos and aftermovies from concerts, weddings, marathons, conferences, and festivals we produce." />
+	<title>Gallery | JOD Events</title>
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="stylesheet" href="css/style.css?v=28" />
+	<link rel="stylesheet" href="css/responsive.css?v=30" />
+	<link rel="stylesheet" href="css/gallery.css?v=14" />
+</head>
+<body class="sub-page gallery-page">
+	<canvas class="bg-canvas" id="bgCanvas"></canvas>
+	<div class="bg-gradient-layer"></div>
+
+	<div class="site-shell" id="top">
+		<div id="header"></div>
+
+		<main>
+			<section class="gallery-hero" aria-labelledby="gallery-hero-title">
+				<div class="gallery-smoke" aria-hidden="true"></div>
+				<div class="container gallery-hero-grid">
+					<h1 id="gallery-hero-title" class="gallery-hero-brand">
+						<span class="gallery-hero-brand-name">JOD Events</span>
+						<span class="gallery-hero-brand-page">Gallery</span>
+					</h1>
+					<div class="gallery-hero-mosaic" aria-hidden="true">
+						<figure class="mosaic-tile mosaic-wide">
+							<img src="https://assets.jodevents.com/images/Picflow%20Images%20Aug%2020/2G5A0980.webp" alt="" />
+						</figure>
+						<figure class="mosaic-tile mosaic-tall">
+							<img src="https://assets.jodevents.com/images/Picflow%20Images%20Aug%2020/8I2A8909.webp" alt="" />
+						</figure>
+						<figure class="mosaic-tile mosaic-video">
+							<img src="https://assets.jodevents.com/images/Picflow%20Images%20Aug%2020/2G5A0951.webp" alt="" />
+						</figure>
+					</div>
+				</div>
+			</section>
+
+			<section class="section gallery-board">
+				<div class="container">
+					<h2 class="gallery-subtitle">Singapenn Marathon 2026</h2>
+					<div class="gallery-bento" id="galleryBento"></div>
+					<p class="gallery-empty" id="galleryEmpty" hidden>No pieces in this view yet.</p>
+				</div>
+			</section>
+
+			<section class="section gallery-cta section-dark">
+				<div class="container narrow text-center">
+					<h2>Want your event in this gallery?</h2>
+					<p>We shoot stills and aftermovies as part of production. Host with JOD and we’ll frame the night the way people remember it.</p>
+					<div class="button-row centered">
+						<a class="button button-primary" href="host-your-event.html">Host your event</a>
+						<a class="button button-outline-light" href="category.html">Browse events</a>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<div id="footer"></div>
+	</div>
+
+	<div class="gallery-lightbox" id="galleryLightbox" hidden>
+		<button type="button" class="gallery-lb-close" id="galleryLbClose" aria-label="Close">&times;</button>
+		<button type="button" class="gallery-lb-nav gallery-lb-prev" id="galleryLbPrev" aria-label="Previous">‹</button>
+		<div class="gallery-lb-stage" id="galleryLbStage"></div>
+		<button type="button" class="gallery-lb-nav gallery-lb-next" id="galleryLbNext" aria-label="Next">›</button>
+		<div class="gallery-lb-meta">
+			<p class="gallery-lb-kicker" id="galleryLbKicker"></p>
+			<h3 id="galleryLbTitle"></h3>
+			<p id="galleryLbCaption"></p>
+		</div>
+	</div>
+
+	<script src="js/include.js?v=24"></script>
+	<script src="js/health.js?v=2"></script>
+	<script src="js/auth.js?v=24"></script>
+	<script src="js/profile.js?v=10"></script>
+	<script src="js/search.js?v=1"></script>
+	<script src="js/script.js?v=27"></script>
+	<script src="js/events-public.js?v=20260822_v12"></script>
+	<script src="js/gallery.js?v=7"></script>
+</body>
+</html>

@@ -49,62 +49,9 @@ def run_google_auth_tests():
         print(f"[OK] Empty payload correctly returned status {e.code}")
         assert e.code == 400, f"Expected 400 status code, got {e.code}"
 
-    print("\n--- 3. Testing Google Sign-Up for New User ---")
+    print("\n--- 3. Unsigned / forged Google JWT must fail closed ---")
     test_email = f"testgoogleuser_{random.randint(1000, 9999)}@gmail.com"
-    test_name = "Google Test User"
-    test_picture = "https://lh3.googleusercontent.com/a/test-avatar.jpg"
-    mock_token = create_mock_google_token(test_email, test_name, test_picture)
-
-    signup_payload = {
-        "credential": mock_token,
-        "city": "Chennai",
-        "location_pincode": "600001"
-    }
-
-    req = urllib.request.Request(
-        f"{BASE_URL}/api/auth/google",
-        data=json.dumps(signup_payload).encode(),
-        headers={"Content-Type": "application/json"},
-        method="POST"
-    )
-
-    try:
-        with urllib.request.urlopen(req) as resp:
-            assert resp.status == 200, f"Expected status 200, got {resp.status}"
-            res_data = json.loads(resp.read().decode())
-            print(f"[OK] Google registration response received")
-            
-            assert "access_token" in res_data, "Missing access_token in response"
-            assert "user" in res_data, "Missing user in response"
-            
-            user = res_data["user"]
-            print(f"[OK] User created: email={user['email']}, username={user['username']}, customer_id={user['customer_id']}, avatar_url={user.get('avatar_url')}")
-            
-            assert user["email"] == test_email.lower(), f"Email mismatch: {user['email']} != {test_email}"
-            assert user["full_name"] == test_name, f"Name mismatch: {user['full_name']} != {test_name}"
-            assert user["avatar_url"] == test_picture, f"Avatar mismatch: {user.get('avatar_url')}"
-            assert user["customer_id"].startswith("CUST-") or len(user["customer_id"]) > 5, "Invalid customer_id format"
-            
-            access_token = res_data["access_token"]
-    except Exception as e:
-        print(f"[FAIL] Google Sign-Up test failed: {e}")
-        sys.exit(1)
-
-    print("\n--- 4. Testing Session Persistence via GET /api/auth/me ---")
-    req = urllib.request.Request(
-        f"{BASE_URL}/api/auth/me",
-        headers={"Authorization": f"Bearer {access_token}"}
-    )
-    try:
-        with urllib.request.urlopen(req) as resp:
-            me_data = json.loads(resp.read().decode())
-            print(f"[OK] /api/auth/me profile validated for Google user: {me_data['email']}")
-            assert me_data["email"] == test_email.lower(), "Session user email mismatch"
-    except Exception as e:
-        print(f"[FAIL] Session validation failed: {e}")
-        sys.exit(1)
-
-    print("\n--- 5. Testing Repeat Sign-In / Registration for Existing User (Must be Rejected) ---")
+    mock_token = create_mock_google_token(test_email, "Google Test User")
     req = urllib.request.Request(
         f"{BASE_URL}/api/auth/google",
         data=json.dumps({"credential": mock_token}).encode(),
@@ -113,15 +60,13 @@ def run_google_auth_tests():
     )
     try:
         urllib.request.urlopen(req)
-        print("[FAIL] Expected 400 error for existing user Google OAuth attempt but request succeeded")
+        print("[FAIL] Forged Google JWT was accepted")
         sys.exit(1)
     except urllib.error.HTTPError as e:
         assert e.code == 400, f"Expected 400 status code, got {e.code}"
-        err_body = json.loads(e.read().decode())
-        assert err_body.get("detail") == "User already exists", f"Unexpected error message: {err_body}"
-        print(f"[OK] Existing user Google OAuth attempt correctly rejected with status 400: '{err_body['detail']}'")
+        print(f"[OK] Forged Google JWT correctly returned status {e.code}")
 
-    print("\n[SUCCESS] ALL GOOGLE OAUTH INTEGRATION TESTS PASSED SUCCESSFULLY!")
+    print("\n[SUCCESS] GOOGLE AUTH HARDENING TESTS PASSED")
 
 if __name__ == "__main__":
     run_google_auth_tests()

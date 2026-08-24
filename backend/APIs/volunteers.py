@@ -5,7 +5,6 @@ Volunteer invitations, event-scoped scanner access, and ticket check-in.
 from __future__ import annotations
 
 import hashlib
-import os
 import secrets
 from datetime import datetime
 from typing import Optional
@@ -30,6 +29,7 @@ from Models.event_volunteer import (
 from Models.ticket import Ticket
 from Models.user import User
 from Services.email import send_email
+from Services.runtime_env import is_production, public_app_url
 
 from APIs.tickets import _lookup_ticket, _serialize_ticket_success
 
@@ -58,22 +58,20 @@ def _hash_token(raw: str) -> str:
 
 
 def _frontend_base(request: Optional[Request] = None) -> str:
-    env = (os.getenv("FRONTEND_URL") or os.getenv("PUBLIC_SITE_URL") or "").strip().rstrip("/")
-    if env:
-        return env
-    if request:
-        origin = (request.headers.get("origin") or "").strip().rstrip("/")
-        if origin:
-            return origin
-        referer = (request.headers.get("referer") or "").strip()
-        if referer.startswith("http"):
-            parts = referer.split("/", 3)
-            if len(parts) >= 3:
-                return f"{parts[0]}//{parts[2]}"
+    base = (public_app_url() or "").strip().rstrip("/")
+    if base:
+        return base
+    if is_production():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="PUBLIC_APP_URL is not configured.",
+        )
     return "http://127.0.0.1:5500"
 
 
 def _invite_url(request: Optional[Request], raw_token: str) -> str:
+    # Query string is required for email clients (many strip URL fragments).
+    # The portal JS immediately moves the token into sessionStorage and strips it from the address bar.
     return f"{_frontend_base(request)}/volunteer-portal.html?token={raw_token}"
 
 
@@ -341,7 +339,6 @@ def _portal_payload(db: Session, volunteer: EventVolunteer, event: Optional[Even
     )
     return {
         "volunteer_name": volunteer.volunteer_name,
-        "email": volunteer.invited_email,
         "event_id": str(volunteer.event_id),
         "event_title": event.event_title if event else "Event",
         "venue": event.venue if event else None,
@@ -881,7 +878,6 @@ def peek_invitation(token: str, db: Session = Depends(get_db)):
             "role": _role_label(volunteer.role if volunteer else "SCANNER"),
             "gate_name": gate_name,
             "volunteer_name": volunteer_name,
-            "email": invite.invited_email,
         }
     if invite.status in ("REVOKED", "REPLACED") or (volunteer and volunteer.status == "REVOKED"):
         raise HTTPException(status_code=410, detail="This invitation has been revoked.")
@@ -898,7 +894,6 @@ def peek_invitation(token: str, db: Session = Depends(get_db)):
         "role": _role_label(volunteer.role if volunteer else "SCANNER"),
         "gate_name": gate_name,
         "volunteer_name": volunteer_name,
-        "email": invite.invited_email,
         "expires_at": invite.expires_at.isoformat() if invite.expires_at else None,
     }
 

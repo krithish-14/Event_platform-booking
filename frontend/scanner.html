@@ -1,15 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-		<script src="js/theme.js?v=3"></script>
+		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="JOD Events Gate Scanner — Live QR Ticket Entry Verification & Check-In Portal for Event Staff." />
 	<title>Staff Ticket Scanner — JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=23" />
-	<link rel="stylesheet" href="css/responsive.css?v=24" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="stylesheet" href="css/style.css?v=27" />
+	<link rel="stylesheet" href="css/responsive.css?v=30" />
 	<style>
 		:root {
 			--scanner-bg: #0d0f12;
@@ -47,6 +48,24 @@
 		.brand-badge img {
 			height: 36px;
 		}
+		.header-back-btn {
+			display: none;
+			align-items: center;
+			justify-content: center;
+			gap: 0.35rem;
+			height: 2.35rem;
+			padding: 0 0.85rem 0 0.6rem;
+			border: 1px solid rgba(255, 255, 255, 0.18);
+			background: rgba(255, 255, 255, 0.08);
+			color: #fff;
+			border-radius: 999px;
+			font-size: 0.82rem;
+			font-weight: 700;
+			font-family: inherit;
+			cursor: pointer;
+			flex-shrink: 0;
+		}
+		.header-back-btn svg { width: 1rem; height: 1rem; display: block; }
 		.brand-title {
 			font-size: 1.1rem;
 			font-weight: 700;
@@ -323,17 +342,17 @@
 		.badge-mini-used { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
 		.badge-mini-invalid { background: rgba(239, 68, 68, 0.2); color: #f87171; }
 
-		@media (max-width: 1024px) {
-			.result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-		}
-		@media (max-width: 768px) {
-			.result-header { flex-direction: column; align-items: flex-start; gap: 0.65rem; }
-			.result-grid { grid-template-columns: 1fr; }
-			.btn-reset-scan, .scanner-actions button, .scanner-actions a {
-				width: 100%;
-				min-height: 44px;
+		@media (max-width: 640px) {
+			.scanner-header {
+				flex-wrap: wrap;
+				gap: 0.65rem;
+				padding: 0.85rem 1rem;
 			}
-			video, canvas { max-width: 100%; height: auto; }
+			.result-grid {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+			.scanner-mobile-back { display: inline-flex; }
+			.brand-badge > img { display: none; }
 		}
 	</style>
 </head>
@@ -342,7 +361,11 @@
 	<!-- Header -->
 	<header class="scanner-header">
 		<div class="brand-badge">
-			<img src="images/JOD Events Logo.png" alt="JOD Events Logo" />
+			<button type="button" class="header-back-btn header-back-btn--on-dark scanner-mobile-back" data-header-back data-back-fallback="index.html" aria-label="Go back">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+				<span>Back</span>
+			</button>
+			<img src="https://assets.jodevents.com/images/JOD Events Logo.png" alt="JOD Events Logo" />
 			<div>
 				<h1 class="brand-title">JOD Events Gate Scanner</h1>
 				<span class="brand-subtitle">Venue Entry Verification System</span>
@@ -437,11 +460,11 @@
 
 	<!-- jsQR Engine Library for Camera Processing -->
 	<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-	<script src="js/include.js?v=19"></script>
-	<script src="js/health.js?v=1"></script>
+	<script src="js/include.js?v=24"></script>
+	<script src="js/health.js?v=2"></script>
 	<script src="js/auth.js?v=24"></script>
-	<script src="js/profile.js?v=6"></script>
-	<script src="js/script.js?v=28"></script>
+	<script src="js/profile.js?v=10"></script>
+	<script src="js/script.js?v=27"></script>
 	<script src="js/scanner.js?v=1"></script>
 </body>
 </html>

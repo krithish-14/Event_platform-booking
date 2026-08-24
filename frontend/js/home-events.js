@@ -154,6 +154,17 @@
 		}
 	}
 
+	window.addEventListener("jod:public-events-pruned", () => {
+		const track = document.querySelector("[data-carousel-track]");
+		if (track && !track.querySelector(".event-card")) {
+			EP.showEmptyState(track, "No events available", "Timed events appear here while they are on sale.");
+		}
+	});
+	window.addEventListener("jod:featured-expired", () => {
+		const remaining = (heroEvents || []).filter((ev) => !EP.isEventCurrentlyVisible || EP.isEventCurrentlyVisible(ev));
+		startHeroRotation(remaining);
+	});
+
 	window.addEventListener("includesLoaded", () => {
 		const current = heroEvents[heroIndex] || window.__jodFeaturedEvent;
 		if (current && EP.renderAnnouncementBar) {

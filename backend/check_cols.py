@@ -1,17 +1,44 @@
-import os, sys
-os.chdir('d:/JOD-Events/backend')
-sys.path.insert(0, 'd:/JOD-Events/backend')
+"""
+Column inspection utility — development/admin only. Excluded from production images.
+"""
+import os
+import sys
+import re
+
+_BACKEND = os.path.dirname(os.path.abspath(__file__))
+os.chdir(_BACKEND)
+sys.path.insert(0, _BACKEND)
 from dotenv import load_dotenv
 load_dotenv()
 from sqlalchemy import create_engine, text
 
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql+psycopg://jod_user:jod_password@localhost:5432/jod_events')
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+if not DATABASE_URL:
+    raise SystemExit("DATABASE_URL is required")
 engine = create_engine(DATABASE_URL)
 
+_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _safe_ident(name: str) -> str:
+    if not _IDENT.match(name or ""):
+        raise SystemExit(f"Refusing unsafe identifier: {name!r}")
+    return name
+
+
 with engine.connect() as conn:
-    tables = conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;")).fetchall()
+    tables = conn.execute(
+        text("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
+    ).fetchall()
     for (tname,) in tables:
-        cols = conn.execute(text(f"SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='{tname}';")).fetchall()
+        tname = _safe_ident(tname)
+        cols = conn.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema='public' AND table_name=:tname"
+            ),
+            {"tname": tname},
+        ).fetchall()
         col_list = [c[0] for c in cols]
-        user_related = [c for c in col_list if c in ['id', 'user_id', 'customer_id', 'organizer_id']]
+        user_related = [c for c in col_list if c in ["id", "user_id", "customer_id", "organizer_id"]]
         print(f"{tname:<30}: {user_related}")

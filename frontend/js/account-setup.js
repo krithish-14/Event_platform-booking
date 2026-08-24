@@ -1,7 +1,5 @@
 document.addEventListener("DOMContentLoaded", async () => {
-	const API_BASE = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1")
-		? "http://127.0.0.1:8001/api/organizers"
-		: "/api/organizers";
+	const API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/organizers');
         const authFetch = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
                 ? window.JodAuth.fetchAuth
                 : window.fetch.bind(window);

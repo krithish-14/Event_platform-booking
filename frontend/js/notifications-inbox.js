@@ -31,17 +31,21 @@ window.JodInbox = (() => {
 	let serverStateLoaded = false;
 
 	function apiBase() {
-		if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
-		if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") return window.JodHealth.getApiBaseUrl();
-		const host = (window.location && window.location.hostname && window.location.hostname !== "localhost")
-			? window.location.hostname : "127.0.0.1";
-		return window.JOD_API_BASE_OVERRIDE || `http://${host}:8001`;
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
+		}
+		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+			return window.JodHealth.getApiBaseUrl();
+		}
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 	function isLoggedIn() {
 		try {
 			if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function") return window.JodAuth.isLoggedIn();
-			return !!(localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+			const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+			return !!(raw && raw !== "null");
 		} catch (_) { return false; }
 	}
 
@@ -241,10 +245,13 @@ window.JodInbox = (() => {
 
 	function updateBadge(count) {
 		const n = Math.max(0, Number(count) || 0);
+		const label = n === 1 ? "1 unread notification" : `${n} unread notifications`;
 		document.querySelectorAll(".profile-notif-badge").forEach((badge) => {
 			badge.textContent = n > 99 ? "99+" : String(n);
 			badge.classList.toggle("is-visible", n > 0);
 			badge.hidden = n <= 0;
+			badge.setAttribute("aria-hidden", n <= 0 ? "true" : "false");
+			badge.setAttribute("aria-label", label);
 		});
 	}
 

@@ -7,11 +7,14 @@
 	"use strict";
 
 	function getApiBase() {
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
+		}
 		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 			return window.JodHealth.getApiBaseUrl();
 		}
-		const host = (window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
-		return window.JOD_API_BASE_OVERRIDE || `http://${host}:8001`;
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 	// Active filter state
@@ -94,6 +97,43 @@
 				chip.classList.remove("active");
 			}
 		});
+		syncDropdownLabel(container);
+	}
+
+	function syncDropdownLabel(listEl) {
+		if (!listEl) return;
+		const dropdown = listEl.closest("[data-filter-dropdown]");
+		const label = dropdown && dropdown.querySelector(".filter-dropdown-current");
+		const active = listEl.querySelector(".filter-chip.active");
+		if (label && active) label.textContent = active.textContent.trim();
+	}
+
+	function closeFilterDropdowns(except) {
+		document.querySelectorAll("[data-filter-dropdown].is-open").forEach((dd) => {
+			if (except && dd === except) return;
+			dd.classList.remove("is-open");
+			const btn = dd.querySelector(".filter-dropdown-btn");
+			if (btn) btn.setAttribute("aria-expanded", "false");
+		});
+	}
+
+	function bindFilterDropdowns() {
+		document.querySelectorAll("[data-filter-dropdown]").forEach((dd) => {
+			const btn = dd.querySelector(".filter-dropdown-btn");
+			if (!btn) return;
+			btn.addEventListener("click", (e) => {
+				e.stopPropagation();
+				const willOpen = !dd.classList.contains("is-open");
+				closeFilterDropdowns(willOpen ? dd : null);
+				dd.classList.toggle("is-open", willOpen);
+				btn.setAttribute("aria-expanded", String(willOpen));
+			});
+			dd.addEventListener("click", (e) => e.stopPropagation());
+		});
+		document.addEventListener("click", () => closeFilterDropdowns());
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape") closeFilterDropdowns();
+		});
 	}
 
 	async function fetchEventsFromBackend() {
@@ -127,6 +167,10 @@
 		const tagsContainer = document.getElementById("activeTagsContainer");
 
 		if (!grid) return;
+		if (!events) events = [];
+		if (EP && typeof EP.isEventCurrentlyVisible === "function") {
+			events = events.filter(EP.isEventCurrentlyVisible);
+		}
 
 		if (countEl) {
 			countEl.textContent = `Showing ${events.length} ${events.length === 1 ? "Event" : "Events"}`;
@@ -224,9 +268,12 @@
 					container.querySelectorAll(".filter-chip").forEach((c) => c.classList.remove("active"));
 					chip.classList.add("active");
 					filterState[stateKey] = chip.dataset[stateKey] || "all";
+					syncDropdownLabel(container);
+					closeFilterDropdowns();
 					updateAndRender();
 				});
 			});
+			syncDropdownLabel(container);
 		};
 
 		wireChipGroup("filterCategoriesList", "category");
@@ -270,30 +317,22 @@
 
 		clearAllBtn?.addEventListener("click", resetAll);
 		resetFiltersBtn?.addEventListener("click", resetAll);
-
-		const filterToggle = document.getElementById("catFilterToggle");
-		const sidebar = document.getElementById("catSidebar");
-		filterToggle?.addEventListener("click", () => {
-			const open = sidebar?.classList.toggle("is-open");
-			filterToggle.setAttribute("aria-expanded", String(Boolean(open)));
-			filterToggle.textContent = open ? "Hide filters" : "Filters";
-		});
-
-		document.querySelectorAll(".filter-group-header").forEach((header) => {
-			header.addEventListener("click", (event) => {
-				if (event.target.closest(".btn-clear-group")) return;
-				if (window.innerWidth > 1024) return;
-				header.parentElement?.classList.toggle("is-expanded");
-			});
-		});
-		const firstGroup = document.querySelector(".filter-group");
-		if (firstGroup) firstGroup.classList.add("is-expanded");
 	}
 
 	document.addEventListener("DOMContentLoaded", () => {
 		initCategoryHeader();
+		bindFilterDropdowns();
 		bindFilterEvents();
 		updateAndRender();
+		window.addEventListener("jod:public-events-pruned", () => {
+			const grid = document.getElementById("categoryEventsGrid");
+			const emptyState = document.getElementById("catEmptyState");
+			const countEl = document.getElementById("resultsCount");
+			if (!grid) return;
+			const left = grid.querySelectorAll(".event-card").length;
+			if (countEl) countEl.textContent = `Showing ${left} ${left === 1 ? "Event" : "Events"}`;
+			if (!left && emptyState) emptyState.hidden = false;
+		});
 	});
 
 })();

@@ -192,34 +192,18 @@
 	color: #6b7280;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 800px) {
 	.agenda-main {
-		padding: 1.5rem 0 3rem;
-	}
-}
-
-@media (max-width: 768px) {
-	.agenda-main {
-		padding: 1.15rem 0 2.5rem;
+		padding: calc(4.75rem + 1rem) 0 2.5rem;
 	}
 
 	.agenda-page-card {
-		padding: 1.25rem 1rem 1.5rem;
-		border-radius: 1rem;
+		padding: 1.35rem 1.1rem 1.6rem;
+		border-radius: 1.15rem;
 	}
 
 	.agenda-page-card h1 {
 		font-size: 1.35rem;
-	}
-
-	.agenda-page-actions {
-		flex-direction: column;
-	}
-
-	.agenda-page-actions .button {
-		width: 100%;
-		min-width: 0;
-		min-height: 44px;
 	}
 }
 

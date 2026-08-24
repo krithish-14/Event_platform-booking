@@ -21,35 +21,90 @@ from sqlalchemy.orm import Session
 from Models.stored_file import StoredFile
 
 
-PRIVATE_PURPOSES = {"pan_card", "cancelled_cheque"}
+PRIVATE_PURPOSES = {"pan_card", "cancelled_cheque", "payment_screenshot"}
 MAX_STORE_BYTES = 5 * 1024 * 1024
 
 
-def _fernet() -> Fernet:
-    raw = (
-        os.getenv("FILE_ENCRYPTION_KEY")
-        or os.getenv("SECRET_KEY")
-        or "jod-dev-file-encryption-key"
-    )
+def _fernet_from(raw: str) -> Fernet:
     digest = hashlib.sha256(raw.encode("utf-8")).digest()
     return Fernet(base64.urlsafe_b64encode(digest))
 
 
+def _current_key_material() -> str:
+    from Services.runtime_env import require_strong_secret
+
+    # Never fall back to SECRET_KEY — JWT signing key must stay distinct from file encryption.
+    return require_strong_secret(os.getenv("FILE_ENCRYPTION_KEY"), "FILE_ENCRYPTION_KEY")
+
+
+def _fernets() -> list:
+    keys = [_fernet_from(_current_key_material())]
+    previous = (os.getenv("FILE_ENCRYPTION_KEY_PREVIOUS") or "").strip()
+    if previous and previous != _current_key_material():
+        keys.append(_fernet_from(previous))
+    return keys
+
+
 def encrypt_bytes(data: bytes) -> bytes:
-    return _fernet().encrypt(data)
+    return _fernets()[0].encrypt(data)
 
 
 def decrypt_bytes(token: bytes) -> bytes:
-    try:
-        return _fernet().decrypt(token)
-    except InvalidToken as exc:
-        raise ValueError("Unable to decrypt stored file.") from exc
+    last: Exception | None = None
+    for fernet in _fernets():
+        try:
+            return fernet.decrypt(token)
+        except InvalidToken as exc:
+            last = exc
+    raise ValueError("Unable to decrypt stored file.") from last
 
 
 def public_url(stored: StoredFile) -> str:
     if stored.is_private:
         return f"/api/media/private/{stored.id}"
     return f"/api/media/{stored.id}"
+
+
+def store_public_image(
+    db: Session,
+    *,
+    data: bytes,
+    filename: str,
+    content_type: Optional[str] = None,
+    purpose: str = "file",
+    owner_customer_id: Optional[str] = None,
+    owner_email: Optional[str] = None,
+    event_id: Optional[str] = None,
+) -> str:
+    """
+    Store a public event image.
+
+    Uses Cloudflare R2 when configured so the saved URL is
+    https://assets.jodevents.com/images/uploads/...
+    Otherwise falls back to encrypted database storage at /api/media/{id}.
+    """
+    from Services import r2_storage
+
+    if r2_storage.is_configured():
+        return r2_storage.upload_public_image(
+            data=data,
+            filename=filename,
+            content_type=content_type,
+            purpose=purpose,
+            owner_customer_id=owner_customer_id,
+            event_id=event_id,
+        )
+    stored = store_bytes(
+        db,
+        data=data,
+        filename=filename,
+        content_type=content_type,
+        kind="event_media",
+        purpose=purpose,
+        owner_customer_id=owner_customer_id,
+        owner_email=owner_email,
+    )
+    return public_url(stored)
 
 
 def guess_content_type(filename: str, fallback: str = "application/octet-stream") -> str:
@@ -74,13 +129,13 @@ def store_bytes(
     if len(data) > MAX_STORE_BYTES:
         raise ValueError("File is too large to store.")
 
-    is_private = kind == "kyc" or (purpose or "") in PRIVATE_PURPOSES
+    is_private = kind in {"kyc", "payment_proof"} or (purpose or "") in PRIVATE_PURPOSES
     stored = StoredFile(
         owner_customer_id=owner_customer_id,
         owner_email=(owner_email or "").strip().lower() or None,
         kind="kyc" if is_private else kind,
         purpose=purpose,
-        original_filename=os.path.basename(filename or "upload"),
+        original_filename=os.path.basename(filename or "upload").replace("..", ""),
         content_type=content_type or guess_content_type(filename or ""),
         byte_size=len(data),
         is_private=is_private,

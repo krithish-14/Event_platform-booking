@@ -1,15 +1,16 @@
 <!doctype html>
 <html lang="en">
 <head>
-		<script src="js/theme.js?v=3"></script>
+		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Get help with bookings, tickets, payments, and hosting on JOD Events. Search FAQs or raise a support ticket." />
 	<title>Help & Support | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=23" />
-	<link rel="stylesheet" href="css/responsive.css?v=24" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="stylesheet" href="css/style.css?v=27" />
+	<link rel="stylesheet" href="css/responsive.css?v=30" />
 	<style>
 		.page-hero {
 			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 58%, #3d2a14 100%);
@@ -416,14 +417,15 @@
 		.lookup-row input { flex: 1; padding: .7rem .9rem; border-radius: 10px; border: 1px solid var(--border); font-size: .88rem; }
 		.no-match { display: none; padding: .75rem; color: var(--muted); font-size: .88rem; }
 
-		@media (max-width: 1024px) {
+		@media (max-width: 980px) {
 			.help-topics { grid-template-columns: 1fr 1fr; margin-top: 1.5rem; }
 			.help-grid, .ticket-layout { grid-template-columns: 1fr; }
 		}
-		@media (max-width: 768px) {
-			.help-topics, .ticket-form-grid { grid-template-columns: 1fr; }
+		@media (max-width: 640px) {
+			.help-topics { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+			.ticket-form-grid { grid-template-columns: 1fr; }
 			.lookup-row { flex-direction: column; }
-			.help-search-wrap input, .help-chip { min-height: 44px; }
+			.page-hero { padding: calc(4.75rem + 1.1rem) 0 1.6rem; }
 		}
 	</style>
 </head>
@@ -653,11 +655,11 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=19"></script>
-	<script src="js/health.js?v=1"></script>
+	<script src="js/include.js?v=24"></script>
+	<script src="js/health.js?v=2"></script>
 	<script src="js/auth.js?v=24"></script>
-	<script src="js/profile.js?v=6"></script>
-	<script src="js/script.js?v=28"></script>
+	<script src="js/profile.js?v=10"></script>
+	<script src="js/script.js?v=27"></script>
 	<script>
 		const LS_TICKETS = "jod_help_tickets";
 		const LS_EMAIL = "jod_help_ticket_email";
@@ -681,7 +683,7 @@
 		function apiBase() {
 			if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE;
 			if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") return window.JodHealth.getApiBaseUrl();
-			return "http://127.0.0.1:8001";
+			return (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "";
 		}
 
 		function getUser() {

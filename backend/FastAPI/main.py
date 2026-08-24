@@ -1,11 +1,31 @@
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 
-load_dotenv()
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+from Services.runtime_env import (
+    allowed_hosts,
+    cors_origins,
+    docs_enabled,
+    is_production,
+    is_staging,
+    validate_production_env,
+)
+from Services.request_logging import RequestContextMiddleware, configure_logging
+from Services.csrf import CookieCsrfMiddleware
+
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+load_dotenv(os.path.join(_BACKEND_DIR, ".env"))
+APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
+configure_logging()
 
 from APIs.auth import router as auth_router
 from APIs.events import router as events_router
@@ -18,16 +38,16 @@ from APIs.forms import router as forms_router
 from APIs.host_events_api import router as host_events_router
 from APIs.wishlist import router as wishlist_router
 from APIs.media import router as media_router
-from APIs.payments import router as payments_router
 from APIs.support import router as support_router
 from APIs.notifications import router as notifications_router
 from APIs.volunteers import router as volunteers_router
+from APIs.admin import router as admin_router
+from APIs.payments import router as payments_router
 from Models.base import create_tables
 from Models.user import User
 from Models.event import Event
 from Models.booking import Booking
 from Models.ticket import Ticket
-from Models.payment import Payment
 
 
 def safe_print(msg: str) -> None:
@@ -41,50 +61,108 @@ def safe_print(msg: str) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_production_env()
+    create_tables()
+    safe_print("  [OK] Database tables ready.")
     try:
-        create_tables()
-        safe_print("  [OK] Database tables ready.")
-        try:
-            from Services.file_storage import migrate_disk_uploads
-            moved = migrate_disk_uploads()
-            if moved:
-                safe_print(f"  [OK] Moved {moved} upload file(s) into encrypted database storage.")
-        except Exception as migrate_exc:
-            safe_print(f"  [WARN] Could not migrate disk uploads into the database: {migrate_exc}")
-    except Exception as exc:
-        safe_print(f"  [WARN] Could not connect to PostgreSQL: {exc}")
-        safe_print("  [WARN] Auth/Events endpoints requiring the DB will 500 until Postgres is running.")
-        safe_print("  [WARN] Create DB user with:  CREATE USER jod_user WITH PASSWORD 'jod_password'; CREATE DATABASE jod_events OWNER jod_user;")
+        from Services.file_storage import migrate_disk_uploads
+        moved = migrate_disk_uploads()
+        if moved:
+            safe_print(f"  [OK] Moved {moved} upload file(s) into encrypted database storage.")
+    except Exception as migrate_exc:
+        safe_print(f"  [WARN] Could not migrate disk uploads into the database: {migrate_exc}")
+    from Models.base import get_session_factory
+    from Services.admin_seed import seed_admin_user
+    session_factory = get_session_factory()
+    seed_db = session_factory()
+    try:
+        seed_admin_user(seed_db)
+    finally:
+        seed_db.close()
     yield
 
 
+_docs = "/docs" if docs_enabled() else None
 app = FastAPI(
     title="JOD Events API",
     description="REST API for the JOD Events platform — manage events, users, and registrations.",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=_docs,
+    redoc_url="/redoc" if _docs else None,
+    openapi_url="/openapi.json" if _docs else None,
     lifespan=lifespan,
 )
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
-origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
-if not origins:
-    origins = ["*"]
-
+origins = cors_origins()
+app.add_middleware(RequestContextMiddleware)
+app.add_middleware(CookieCsrfMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if "*" not in origins else ["*"],
-    allow_credentials=True if "*" not in origins else False,
-    allow_origin_regex=r"https?://.*" if "*" in origins else None,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID", "X-CSRF-Token"],
 )
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+_hosts = allowed_hosts()
+if is_production() and _hosts and _hosts != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_hosts)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    if is_production() or is_staging():
+        return JSONResponse(status_code=422, content={"detail": "Invalid request."})
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, HTTPException):
+        raise exc
+    logging.getLogger("jod").exception(
+        "unhandled_error",
+        extra={"endpoint": request.url.path, "error_type": type(exc).__name__},
+    )
+    detail = "Internal server error."
+    if not is_production() and not is_staging():
+        detail = str(exc) or detail
+    return JSONResponse(status_code=500, content={"detail": detail})
+
+
+# Pragmatic production CSP for the static MPA (inline scripts still required).
+# Blocks foreign script hosts and plugins; does not replace XSS escaping.
+_CSP = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'self'; "
+    "object-src 'none'; "
+    "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob: https:; "
+    "font-src 'self' data:; "
+    "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com; "
+    "frame-src https://accounts.google.com; "
+    "worker-src 'self' blob:"
+)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(self)"
+    if is_production() or is_staging():
+        response.headers["Content-Security-Policy"] = _CSP
+    if is_production():
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # ── Templates ─────────────────────────────────────────────────
 from fastapi.templating import Jinja2Templates
-from fastapi.requests import Request
 from fastapi.responses import HTMLResponse
 
 frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
@@ -92,7 +170,10 @@ templates_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "
 if not os.path.exists(templates_path):
     os.makedirs(templates_path, exist_ok=True)
 
-templates = Jinja2Templates(directory=[templates_path, frontend_path])
+_template_dirs = [templates_path]
+if os.path.isdir(frontend_path):
+    _template_dirs.append(frontend_path)
+templates = Jinja2Templates(directory=_template_dirs)
 
 
 # ── Routers ───────────────────────────────────────────────────────────────────
@@ -107,22 +188,47 @@ app.include_router(host_events_router, prefix="/api/host-events", tags=["Host Ev
 app.include_router(wishlist_router,    prefix="/api/wishlist",    tags=["Wishlist"])
 app.include_router(forms_router)
 app.include_router(media_router)
-app.include_router(payments_router)
 app.include_router(support_router, prefix="/api/support", tags=["Support"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(volunteers_router, prefix="/api/volunteers", tags=["Volunteers"])
+app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
+app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
 
 
 
 # ── Health & Template Routes ───────────────────────────────────────────────────
 @app.get("/", tags=["Root"])
 def root():
-    return {"message": "JOD Events API is running 🚀", "docs": "/docs"}
+    payload = {"message": "JOD Events API is running 🚀", "version": APP_VERSION}
+    if docs_enabled():
+        payload["docs"] = "/docs"
+    return payload
 
 
 @app.get("/health", tags=["Root"])
 def health_check():
-    return {"status": "healthy", "service": "JOD Events API"}
+    from Services.r2_storage import is_configured as r2_configured
+
+    return {
+        "status": "healthy",
+        "version": APP_VERSION,
+        "r2_configured": r2_configured(),
+    }
+
+
+@app.get("/health/ready", tags=["Root"])
+def health_ready():
+    from sqlalchemy import text
+    from Models.base import get_engine
+
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception:
+        logging.getLogger("jod").error("readiness_failed", extra={"endpoint": "/health/ready"})
+        raise HTTPException(status_code=503, detail="not ready")
+    return {"status": "ready", "version": APP_VERSION}
 
 
 @app.get("/templates/events", response_class=HTMLResponse, tags=["Jinja2 Templates"])
@@ -137,6 +243,7 @@ async def render_events_template(request: Request, city: str = "Chennai", radius
             "app_title": "JOD Events — Recommended Near You",
         },
     )
+
 
 @app.get("/event/{event_id}", response_class=HTMLResponse, tags=["Jinja2 Templates"])
 async def render_event_details_page(request: Request, event_id: str):
@@ -158,10 +265,7 @@ async def render_event_details_page(request: Request, event_id: str):
             event_obj = None
 
         if not event_obj:
-            # Fallback to first available event if given ID isn't found
-            events = list_events(db, limit=1)
-            if events:
-                event_obj = events[0]
+            raise HTTPException(status_code=404, detail="Event not found.")
 
         if event_obj:
             def parse_j(val):
@@ -281,20 +385,13 @@ async def render_event_details_static_fallback(request: Request, id: str = "1111
     return await render_event_details_page(request, event_id=id)
 
 
-@app.get("/payment", response_class=HTMLResponse, tags=["Payments"])
-async def render_razorpay_payment_page(request: Request):
-    """Jinja2 checkout page. Only KEY_ID is injected — KEY_SECRET stays on the server."""
-    key_id = (os.getenv("RAZORPAY_KEY_ID") or os.getenv("KEY_ID") or "").strip()
+@app.get("/makeup-boutique-workshop.html", response_class=HTMLResponse, tags=["Jinja2 Templates"])
+async def render_makeup_boutique_workshop_page(request: Request):
+    """Render dedicated template page for Makeup & Boutique Workshop."""
     return templates.TemplateResponse(
         request=request,
-        name="payment_checkout.html",
-        context={
-            "request": request,
-            "razorpay_key_id": key_id,
-            "theme_color": "#f59e0b",
-            "api_base": str(request.base_url).rstrip("/"),
-        },
+        name="makeup_boutique_workshop.html",
+        context={"request": request},
     )
-
 
 

@@ -25,10 +25,9 @@ load_dotenv()
 
 from sqlalchemy import create_engine, text
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg://jod_user:jod_password@localhost:5432/jod_events"
-)
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+if not DATABASE_URL:
+    raise SystemExit("DATABASE_URL is required")
 engine = create_engine(DATABASE_URL, connect_args={"connect_timeout": 5})
 
 

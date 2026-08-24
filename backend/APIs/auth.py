@@ -5,8 +5,10 @@ Authentication routes — register and login.
 import os
 import re
 import secrets
-from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+import json
+import base64
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -16,17 +18,117 @@ import httpx
 
 from Models.base import get_db
 from Models.user import User
+from Models.email_otp import EmailOTP
 from Services.auth_service import (
     get_password_hash,
     verify_password,
     create_access_token,
 )
-from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES
+from Services.email import send_email
+from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES, AUTH_COOKIE_NAME
 from Authentication.dependencies import get_current_user
+from Services.runtime_env import cookie_secure, expose_access_token_in_json, resolve_google_redirect, smtp_configured
+from Services.rate_limit import limit_login, limit_otp, limit_password_reset, limit_register
+from Services.csrf import clear_csrf_cookie, set_csrf_cookie
+from Services import otp as otp_service
 import random
 from Models import UserSignup as UserSignupLog, UserLogin as UserLoginLog
 
 router = APIRouter()
+
+_GOOGLE_VERIFY_FAIL = "Failed to verify Google token with authentication server."
+_GOOGLE_PLACEHOLDER_CLIENT_ID = "your-google-client-id.apps.googleusercontent.com"
+_GOOGLE_ISSUERS = {"https://accounts.google.com", "accounts.google.com"}
+
+
+def _google_client_id() -> str:
+    return (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
+
+
+def _google_email_verified(value) -> bool:
+    if value is True:
+        return True
+    if isinstance(value, str) and value.strip().lower() in ("true", "1", "yes"):
+        return True
+    return False
+
+
+def _require_signed_google_jwt(token: str) -> None:
+    """Reject unsigned/malformed JWTs locally. Identity is never taken from this decode."""
+    parts = (token or "").split(".")
+    if len(parts) != 3 or not parts[0] or not parts[1] or not parts[2]:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    try:
+        padded = parts[0] + "=" * ((4 - len(parts[0]) % 4) % 4)
+        header = json.loads(base64.urlsafe_b64decode(padded))
+    except Exception:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    if not isinstance(header, dict):
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    alg = str(header.get("alg") or "").strip().upper()
+    if alg != "RS256":
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+
+
+async def _verify_google_id_token(token: str) -> dict:
+    """Verify an ID token with Google. Fail closed on signature, aud, iss, or email_verified."""
+    token = (token or "").strip()
+    client_id = _google_client_id()
+    if not token or not client_id or client_id == _GOOGLE_PLACEHOLDER_CLIENT_ID:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    _require_signed_google_jwt(token)
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"id_token": token},
+            )
+    except Exception:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    try:
+        info = resp.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    if not isinstance(info, dict):
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    aud = str(info.get("aud") or info.get("audience") or "").strip()
+    iss = str(info.get("iss") or info.get("issuer") or "").strip()
+    email = str(info.get("email") or "").strip().lower()
+    if (
+        aud != client_id
+        or iss not in _GOOGLE_ISSUERS
+        or not email
+        or not _google_email_verified(info.get("email_verified"))
+    ):
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+    info["email"] = email
+    return info
+
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=cookie_secure(),
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    set_csrf_cookie(response)
+
+
+def _auth_payload(token: str, user, extra: dict | None = None) -> dict:
+    body = {
+        "token_type": "bearer",
+        "user": _serialize_user(user),
+        "access_token": token if expose_access_token_in_json() else "",
+    }
+    if extra:
+        body.update(extra)
+    return body
 
 
 def _email_taken(db: Session, email_clean: str) -> bool:
@@ -46,17 +148,17 @@ def _username_taken(db: Session, username_clean: str) -> bool:
 
 # ── Availability Check (live validation) ─────────────────────────────────────
 @router.get("/check")
-def check_availability(email: str = None, username: str = None, db: Session = Depends(get_db)):
-    """Check if an email or username is already taken. Used for real-time form validation."""
+def check_availability(request: Request, email: str = None, username: str = None, db: Session = Depends(get_db)):
+    """Live form hint only. Does not disclose whether an account already exists."""
+    limit_register(request)
+    generic = "You can continue."
     result = {}
     if email:
-        exists = _email_taken(db, email.strip().lower())
-        result["email_available"] = not exists
-        result["email_message"] = "Email already registered." if exists else "Email is available."
+        result["email_available"] = True
+        result["email_message"] = generic
     if username:
-        exists = _username_taken(db, username.strip())
-        result["username_available"] = not exists
-        result["username_message"] = "Username already taken." if exists else "Username is available."
+        result["username_available"] = True
+        result["username_message"] = generic
     return result
 
 
@@ -98,10 +200,16 @@ class UserRegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
+        from Services.auth_service import PasswordTooLongError, assert_password_within_bcrypt_limit
+
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters long.")
         if len(v) > 255:
             raise ValueError("Password is too long.")
+        try:
+            assert_password_within_bcrypt_limit(v)
+        except PasswordTooLongError as exc:
+            raise ValueError(str(exc)) from exc
         if not re.search(r"[A-Za-z]", v):
             raise ValueError("Password must contain at least one letter.")
         if not re.search(r"[0-9]", v):
@@ -138,9 +246,9 @@ class UserResponse(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str
     token_type: str
     user: UserResponse
+    access_token: str = ""
 
 
 class GoogleTokenResponse(TokenResponse):
@@ -171,15 +279,17 @@ def _serialize_user(user) -> dict:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
+def register(payload: UserRegisterRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     """Register a new user, store credentials in the database, and return an access token."""
+    limit_register(request)
     email_clean = payload.email.strip().lower()
     username_clean = payload.username.strip()
 
-    if _email_taken(db, email_clean):
-        raise HTTPException(status_code=400, detail="Email already registered. Please login instead.")
-    if _username_taken(db, username_clean):
-        raise HTTPException(status_code=400, detail="Username already taken.")
+    if _email_taken(db, email_clean) or _username_taken(db, username_clean):
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to create this account. If you already registered, log in.",
+        )
 
     user = User(
         email=email_clean,
@@ -195,40 +305,12 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         db.add(user)
         db.commit()
         db.refresh(user)
-    except IntegrityError as exc:
+    except IntegrityError:
         db.rollback()
-        orig = str(getattr(exc, "orig", exc) or exc).lower()
-        if "username" in orig:
-            raise HTTPException(status_code=400, detail="Username already taken.")
-        raise HTTPException(status_code=400, detail="Email already registered. Please login instead.")
-
-    # Sync to backup SQLite database if present so user accounts remain available in all environments
-    try:
-        import sqlite3
-        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        sqlite_path = os.path.join(project_backend, "jod_events.db")
-        s_conn = sqlite3.connect(sqlite_path)
-        s_cur = s_conn.cursor()
-        s_cur.execute("""
-            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, avatar_url, bio, city, location_pin, is_active, is_admin)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
-            ON CONFLICT(email) DO NOTHING
-        """, (
-            str(user.id),
-            str(user.customer_id),
-            user.email,
-            user.username,
-            user.full_name,
-            user.hashed_password,
-            user.avatar_url,
-            user.bio,
-            user.city,
-            user.location_pin
-        ))
-        s_conn.commit()
-        s_conn.close()
-    except Exception:
-        pass
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to create this account. If you already registered, log in.",
+        )
 
     # Record User Signup Audit Log in user_signups table
     try:
@@ -254,12 +336,14 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
-    return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
+    _set_auth_cookie(response, token)
+    return _auth_payload(token, user)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(response: Response, request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login with username/email + password against stored credentials. Returns a JWT token."""
+    limit_login(request)
     identifier = form.username.strip().lower()
     user = db.query(User).filter(
         (func.lower(User.email) == identifier) | (func.lower(User.username) == identifier)
@@ -305,7 +389,8 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
         },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
-    return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
+    _set_auth_cookie(response, token)
+    return _auth_payload(token, user)
 
 
 @router.get("/google/config")
@@ -324,6 +409,10 @@ def google_auth_url():
     """Generates the Google OAuth 2.0 Authorization URL for browser popup / redirect login."""
     client_id = os.getenv("GOOGLE_CLIENT_ID", "")
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5500/login.html")
+    try:
+        redirect_uri = resolve_google_redirect(redirect_uri)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Google OAuth is not configured on the server.")
     if not client_id or client_id == "your-google-client-id.apps.googleusercontent.com":
         raise HTTPException(status_code=400, detail="Google OAuth is not configured on the server.")
 
@@ -333,16 +422,19 @@ def google_auth_url():
 
 
 @router.post("/google", response_model=GoogleTokenResponse)
-async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
+async def google_auth(payload: GoogleAuthRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     """Authenticate or register a user using Google OAuth 2.0 ID Token / Credential or Authorization Code."""
-    google_user_info = None
+    limit_login(request)
     token = (payload.credential or payload.id_token or "").strip()
 
-    # 1. If an authorization code was provided, exchange it for tokens with Google
+    # 1. If an authorization code was provided, exchange it for an ID token with Google
     if payload.code and not token:
-        client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        client_id = _google_client_id()
         client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
-        redirect_uri = payload.redirect_uri or os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5500/login.html")
+        try:
+            redirect_uri = resolve_google_redirect(payload.redirect_uri)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Google OAuth redirect is not allowed.")
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 token_resp = await client.post(
@@ -355,48 +447,22 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
                         "grant_type": "authorization_code",
                     },
                 )
-                if token_resp.status_code == 200:
-                    token_data = token_resp.json()
-                    token = token_data.get("id_token") or token_data.get("access_token") or ""
         except Exception:
-            pass
+            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+        if token_resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+        try:
+            token_data = token_resp.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
+        token = (token_data.get("id_token") or "").strip()
+        if not token:
+            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
 
-    if not token and not payload.code:
+    if not token:
         raise HTTPException(status_code=400, detail="Google credential, id_token, or code is required.")
 
-    # 2. Verify token with Google's tokeninfo API
-    if token:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    "https://oauth2.googleapis.com/tokeninfo",
-                    params={"id_token": token}
-                )
-                if resp.status_code == 200:
-                    google_user_info = resp.json()
-        except Exception:
-            google_user_info = None
-
-        # Fallback decoding for JWT structured tokens
-        if (not google_user_info or "email" not in google_user_info) and token.count(".") == 2:
-            try:
-                import base64
-                import json
-                parts = token.split(".")
-                payload_segment = parts[1]
-                padded = payload_segment + "=" * (-len(payload_segment) % 4)
-                decoded_bytes = base64.b64decode(padded)
-                decoded_json = json.loads(decoded_bytes.decode("utf-8"))
-                if "email" in decoded_json:
-                    google_user_info = decoded_json
-            except Exception:
-                pass
-
-    if not google_user_info or "email" not in google_user_info:
-        raise HTTPException(
-            status_code=400,
-            detail="Failed to verify Google token with authentication server."
-        )
+    google_user_info = await _verify_google_id_token(token)
 
     email = google_user_info["email"].strip().lower()
     full_name = google_user_info.get("name") or google_user_info.get("given_name")
@@ -404,26 +470,6 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
 
     # 3. Lookup existing user: If they exist, log them in (Secure account linking).
     existing_user = db.query(User).filter(func.lower(func.trim(User.email)) == email).first()
-
-    # Also check secondary SQLite backup DB if present
-    if not existing_user:
-        try:
-            import sqlite3
-            project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            sqlite_path = os.path.join(project_backend, "jod_events.db")
-            if os.path.exists(sqlite_path):
-                s_conn = sqlite3.connect(sqlite_path)
-                s_cur = s_conn.cursor()
-                # Query the existing user by email
-                s_cur.execute("SELECT id FROM users WHERE lower(trim(email)) = ?", (email,))
-                row = s_cur.fetchone()
-                s_conn.close()
-                if row:
-                    # If they exist in SQLite but not Postgres, we ideally should sync them to Postgres.
-                    # For simplicity, we just won't throw an error, we will recreate them in Postgres if missing.
-                    pass
-        except Exception:
-            pass
 
     if existing_user:
         user = existing_user
@@ -488,23 +534,6 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
             print(f"Failed to record UserSignupLog: {e}")
             pass
 
-        # Sync to backup SQLite database
-        try:
-            import sqlite3
-            project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            sqlite_path = os.path.join(project_backend, "jod_events.db")
-            s_conn = sqlite3.connect(sqlite_path)
-            s_cur = s_conn.cursor()
-            s_cur.execute("""
-                INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin)
-                VALUES (?, ?, ?, ?, ?, ?, 1, 0)
-                ON CONFLICT(email) DO NOTHING
-            """, (str(user.id), str(user.customer_id), user.email, user.username, user.full_name, user.hashed_password))
-            s_conn.commit()
-            s_conn.close()
-        except Exception:
-            pass
-
     # Record User Login Audit Log
     try:
         login_log = UserLoginLog(
@@ -530,40 +559,69 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
 
     location_required = not bool(user.city)
 
-    return {
-        "access_token": token_str,
-        "token_type": "bearer",
-        "user": _serialize_user(user),
-        "location_required": location_required,
-    }
+    _set_auth_cookie(response, token_str)
+    return _auth_payload(token_str, user, extra={"location_required": location_required})
 
 
 
 
 
 @router.get("/me", response_model=UserResponse)
-def get_me(current_user: User = Depends(get_current_user)):
+def get_me(response: Response, current_user: User = Depends(get_current_user)):
     """Return the currently authenticated user's profile."""
+    set_csrf_cookie(response)
     return _serialize_user(current_user)
 
 
 @router.post("/logout")
-def logout():
-    """Logout endpoint (client-side token removal is sufficient for JWT)."""
+def logout(response: Response):
+    """Clear the httpOnly auth cookie using the same attributes used at set time."""
+    response.delete_cookie(
+        key=AUTH_COOKIE_NAME,
+        path="/",
+        samesite="lax",
+        secure=cookie_secure(),
+        httponly=True,
+    )
+    clear_csrf_cookie(response)
     return {"message": "Logged out successfully."}
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyResetOtpRequest(BaseModel):
+    email: EmailStr
+    otp_code: str
 
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
+    otp_code: str
     new_password: str
+
+    @field_validator("otp_code")
+    @classmethod
+    def validate_otp(cls, v: str) -> str:
+        code = (v or "").strip()
+        if not re.fullmatch(r"\d{6}", code):
+            raise ValueError("Enter the 6-digit verification code sent to your email.")
+        return code
 
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v: str) -> str:
+        from Services.auth_service import PasswordTooLongError, assert_password_within_bcrypt_limit
+
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters long.")
         if len(v) > 255:
             raise ValueError("Password is too long.")
+        try:
+            assert_password_within_bcrypt_limit(v)
+        except PasswordTooLongError as exc:
+            raise ValueError(str(exc)) from exc
         if not re.search(r"[A-Za-z]", v):
             raise ValueError("Password must contain at least one letter.")
         if not re.search(r"[0-9]", v):
@@ -571,28 +629,55 @@ class ResetPasswordRequest(BaseModel):
         return v
 
 
-@router.post("/reset-password")
-def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """Reset user password across active DB and secondary SQLite DB."""
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    """Send a 6-digit OTP to the registered email so the user can reset their password."""
     email_clean = payload.email.strip().lower()
+    limit_password_reset(request, email_clean)
+    generic = "If an account exists for that email, a 6-digit verification code has been sent."
+    user = db.query(User).filter(func.lower(User.email) == email_clean).first()
+    if user and smtp_configured():
+        otp_code = otp_service.generate_otp()
+        otp_service.store_otp(db, email_clean, "password_reset", otp_code)
+        subject = "Your JOD Events password reset code"
+        text_body = (
+            f"Your JOD Events password reset code is {otp_code}. "
+            "It expires in 10 minutes. If you did not request this, you can ignore this email."
+        )
+        html_body = (
+            f"<p>Your JOD Events password reset code is <strong>{otp_code}</strong>.</p>"
+            "<p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>"
+        )
+        send_email(email_clean, subject, text_body, html_body)
+    return {"message": generic}
+
+
+@router.post("/verify-reset-otp")
+def verify_reset_otp(payload: VerifyResetOtpRequest, request: Request, db: Session = Depends(get_db)):
+    """Confirm the password-reset OTP before showing the new-password fields."""
+    email_clean = payload.email.strip().lower()
+    limit_otp(request, email_clean)
+    otp_service.verify_otp(db, email_clean, payload.otp_code, "password_reset")
+    return {"message": "Email verified. You can now set a new password.", "email": email_clean}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    """Reset user password after a verified OTP."""
+    email_clean = payload.email.strip().lower()
+    limit_password_reset(request, email_clean)
+    generic_fail = "Unable to reset the password. Request a new code and try again."
+    try:
+        otp_service.verify_otp(db, email_clean, payload.otp_code, "password_reset")
+    except HTTPException:
+        raise HTTPException(status_code=400, detail=generic_fail)
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
     if not user:
-        raise HTTPException(status_code=404, detail="No account found with this email address.")
-
+        raise HTTPException(status_code=400, detail=generic_fail)
     user.hashed_password = get_password_hash(payload.new_password)
+    db.query(EmailOTP).filter(
+        EmailOTP.email == email_clean,
+        EmailOTP.purpose == "password_reset",
+    ).delete(synchronize_session=False)
     db.commit()
-
-    # Sync to backup SQLite database if present
-    try:
-        import sqlite3
-        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        sqlite_path = os.path.join(project_backend, "jod_events.db")
-        s_conn = sqlite3.connect(sqlite_path)
-        s_cur = s_conn.cursor()
-        s_cur.execute("UPDATE users SET hashed_password = ? WHERE lower(email) = ?", (user.hashed_password, email_clean))
-        s_conn.commit()
-        s_conn.close()
-    except Exception:
-        pass
-
     return {"message": "Password reset successfully. You can now log in with your new password."}

@@ -6,15 +6,24 @@
 	"use strict";
 
 	const IST = "Asia/Kolkata";
-	const PLACEHOLDER_IMAGE = "images/hero-event.jpg";
+	function placeholderImage() {
+		if (global.JodConfig && typeof global.JodConfig.assetUrl === "function") {
+			return global.JodConfig.assetUrl("images/hero-event.jpg");
+		}
+		return "https://assets.jodevents.com/images/hero-event.jpg";
+	}
+
+	const PLACEHOLDER_IMAGE = placeholderImage();
 
 	function getApiBase() {
-		if (global.JodHealth && typeof global.JodHealth.getApiBaseUrl === "function") {
-			return global.JodHealth.getApiBaseUrl();
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
 		}
-		const host = (global.location.hostname && global.location.hostname !== "localhost")
-			? global.location.hostname : "127.0.0.1";
-		return `http://${host}:8001`;
+		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+			return window.JodHealth.getApiBaseUrl();
+		}
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 	function escapeHtml(str) {
@@ -26,14 +35,22 @@
 	}
 
 	function resolveImage(url) {
-		if (!url) return PLACEHOLDER_IMAGE;
-		if (url.startsWith("http://") || url.startsWith("https://")) return url;
-		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
-			const base = getApiBase().replace(/\/$/, "");
-			return `${base}/${url.replace(/^\//, "")}`;
+		if (global.JodConfig && typeof global.JodConfig.safeMediaUrl === "function") {
+			return global.JodConfig.safeMediaUrl(url, "images/hero-event.jpg");
 		}
-		if (url.startsWith("/") || url.startsWith("images/")) return url;
-		return url;
+		if (!url) return placeholderImage();
+		const trimmed = String(url).trim();
+		const lower = trimmed.toLowerCase();
+		if (lower.startsWith("javascript:") || lower.startsWith("vbscript:") || lower.startsWith("data:")) {
+			return placeholderImage();
+		}
+		if (trimmed.startsWith("https://")) return trimmed;
+		if (trimmed.startsWith("/") || trimmed.startsWith("images/")) {
+			return global.JodConfig && global.JodConfig.assetUrl
+				? global.JodConfig.assetUrl(trimmed)
+				: trimmed;
+		}
+		return placeholderImage();
 	}
 
 	function formatPrice(price) {
@@ -118,15 +135,79 @@
 		return "live";
 	}
 
+	function ticketSaleStart(ticket) {
+		if (!ticket || typeof ticket !== "object") return "";
+		return ticket.sales_start || ticket.offer_start || ticket.sale_start || "";
+	}
+
+	function ticketSaleEnd(ticket) {
+		if (!ticket || typeof ticket !== "object") return "";
+		return ticket.sales_end || ticket.offer_end || ticket.sale_end || "";
+	}
+
+	function ticketOfferPhase(ticket) {
+		const startMs = parseEventMs(ticketSaleStart(ticket));
+		const endMs = parseEventMs(ticketSaleEnd(ticket));
+		const now = Date.now();
+		if (!startMs && !endMs) return "always";
+		if (startMs && now < startMs) return "upcoming";
+		if (endMs && now >= endMs) return "ended";
+		return "live";
+	}
+
+	function isTicketOnSale(ticket) {
+		const phase = ticketOfferPhase(ticket);
+		return phase === "always" || phase === "live";
+	}
+
+	function listableTicketTypes(event) {
+		const types = event && Array.isArray(event.ticket_types) ? event.ticket_types : [];
+		// Show live + upcoming offers; hide only fully ended windows.
+		return types.filter((t) => ticketOfferPhase(t) !== "ended");
+	}
+
+	function visibleTicketTypes(event) {
+		const types = event && Array.isArray(event.ticket_types) ? event.ticket_types : [];
+		return types.filter(isTicketOnSale);
+	}
+
+	function isEventCurrentlyVisible(event) {
+		if (!event) return false;
+		// Keep listing until the event itself ends — ticket offer windows only affect tickets.
+		return getEventPhase(event) !== "ended";
+	}
+
+	function liveEventAttr(event) {
+		const payload = {
+			start_date: event && event.start_date || "",
+			end_date: event && event.end_date || "",
+			ticket_types: (event && Array.isArray(event.ticket_types) ? event.ticket_types : []).map((t) => ({
+				sales_start: ticketSaleStart(t),
+				sales_end: ticketSaleEnd(t)
+			}))
+		};
+		return encodeURIComponent(JSON.stringify(payload));
+	}
+
+	function cardCountdownIso(event) {
+		if (!event) return "";
+		const phase = getEventPhase(event);
+		if (phase === "upcoming") return event.start_date || "";
+		if (phase === "live") return event.end_date || event.start_date || "";
+		return event.end_date || event.start_date || "";
+	}
+
 	function pickFeaturedEvent(events) {
 		if (!events || !events.length) return null;
+		const visible = events.filter(isEventCurrentlyVisible);
+		if (!visible.length) return null;
 		const now = Date.now();
-		const upcoming = events.filter((ev) => {
+		const upcoming = visible.filter((ev) => {
 			const ms = parseEventMs(ev.start_date);
 			return ms && ms >= now;
 		});
 		if (upcoming.length) return upcoming[0];
-		return events[0];
+		return visible[0];
 	}
 
 	async function fetchPublishedEvents(params) {
@@ -136,10 +217,7 @@
 		if (!res.ok) throw new Error("Unable to load events.");
 		const data = await res.json();
 		const list = Array.isArray(data) ? data : [];
-		if (typeof console !== "undefined" && console.debug) {
-			console.debug("[PUBLIC EVENTS] fetched", list.length, "events");
-		}
-		return list;
+		return list.filter(isEventCurrentlyVisible);
 	}
 
 	async function fetchPublishedEventById(eventId) {
@@ -168,19 +246,21 @@
 	}
 
 	function buildCarouselCard(event, delayClass) {
-		const id = event.id;
-		const detailsUrl = eventDetailsUrl(event);
-		const img = eventCardImage(event);
+		const id = escapeHtml(String(event.id || ""));
+		const detailsUrl = escapeHtml(eventDetailsUrl(event));
+		const img = escapeHtml(eventCardImage(event));
 		const title = escapeHtml(event.title || "Untitled Event");
 		const desc = escapeHtml((event.description || "").slice(0, 120));
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
 		const category = escapeHtml(event.category || "Event");
 		const dateStr = formatDateIST(event.start_date);
-		const countdownIso = event.start_date || "";
+		const countdownIso = cardCountdownIso(event);
+		const countdownEnd = event.end_date || "";
 		const delay = delayClass || "";
 
 		return `
 			<article class="event-card carousel-slide reveal ${delay}" data-event-id="${id}"
+				data-live-event="${liveEventAttr(event)}"
 				data-lat="${event.latitude || ""}" data-lon="${event.longitude || ""}"
 				style="cursor:pointer;"
 				onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : (window.location.href='${detailsUrl}', false));">
@@ -188,7 +268,7 @@
 					<img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
 					<span class="card-category">${category}</span>
 					${wishlistHeartButton(id)}
-					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}">&#10024; --d : --h : --m</span>` : ""}
+					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}" data-card-countdown-end="${countdownEnd}">&#10024; --d : --h : --m</span>` : ""}
 				</div>
 				<div class="event-card-body">
 					<h3>${title}</h3>
@@ -207,19 +287,23 @@
 	}
 
 	function buildCategoryCard(event) {
-		const id = event.id;
-		const detailsUrl = eventDetailsUrl(event);
-		const img = eventCardImage(event);
+		const id = escapeHtml(String(event.id || ""));
+		const detailsUrl = escapeHtml(eventDetailsUrl(event));
+		const img = escapeHtml(eventCardImage(event));
 		const title = escapeHtml(event.title || "Untitled Event");
 		const desc = escapeHtml((event.description || "").slice(0, 90));
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
 		const category = escapeHtml(event.category || "Event");
 		const dateStr = formatDateIST(event.start_date);
-		const countdownIso = event.start_date || "";
-		const priceDisplay = formatPrice(event.price) + (Number(event.price) > 0 ? " onwards" : "");
+		const countdownIso = cardCountdownIso(event);
+		const countdownEnd = event.end_date || "";
+		const liveTypes = visibleTicketTypes(event);
+		const priceSource = liveTypes.length ? Math.min(...liveTypes.map((t) => Number(t.price) || 0)) : event.price;
+		const priceDisplay = formatPrice(priceSource) + (Number(priceSource) > 0 ? " onwards" : "");
 
 		return `
 			<article class="event-card cat-home-card" data-event-id="${id}"
+				data-live-event="${liveEventAttr(event)}"
 				data-lat="${event.latitude || ""}" data-lon="${event.longitude || ""}"
 				style="cursor:pointer;"
 				onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : (window.location.href='${detailsUrl}', false));">
@@ -227,7 +311,7 @@
 					<img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
 					<span class="card-category">${category}</span>
 					${wishlistHeartButton(id)}
-					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}">&#10024; --d : --h : --m</span>` : ""}
+					${countdownIso ? `<span class="card-timer" data-card-countdown="${countdownIso}" data-card-countdown-end="${countdownEnd}">&#10024; --d : --h : --m</span>` : ""}
 				</div>
 				<div class="event-card-body">
 					<h3>${title}</h3>
@@ -276,7 +360,7 @@
 		if (heroTitle) heroTitle.textContent = event.title || "Featured Event";
 		if (heroMeta) {
 			heroMeta.innerHTML = `
-				<p><span aria-hidden="true">&#128197;</span> ${dateStr}</p>
+				<p><span aria-hidden="true">&#128197;</span> ${escapeHtml(dateStr)}</p>
 				<p><span aria-hidden="true">&#128205;</span> ${venue}</p>
 			`;
 		}
@@ -301,7 +385,11 @@
 		}
 		if (heroCta) {
 			heroCta.href = url;
-			heroCta.onclick = null;
+			heroCta.onclick = function (evt) {
+				return window.handleGuestOrNavigate
+					? window.handleGuestOrNavigate(evt, url, "event")
+					: true;
+			};
 		}
 		if (featuredImg) {
 			featuredImg.src = img;
@@ -309,7 +397,11 @@
 		}
 		if (featuredLink) {
 			featuredLink.href = url;
-			featuredLink.onclick = null;
+			featuredLink.onclick = function (evt) {
+				return window.handleGuestOrNavigate
+					? window.handleGuestOrNavigate(evt, url, "event")
+					: true;
+			};
 		}
 	}
 
@@ -373,8 +465,25 @@
 		el.textContent = `${parts.days}d ${pad(parts.hours)}h ${pad(parts.minutes)}m ${pad(parts.seconds)}s`;
 	}
 
-	function updateCardCountdownElement(el, startIso) {
+	function updateCardCountdownElement(el, startIso, endIso) {
 		if (!el || !startIso) return;
+		const phase = getEventPhase({ start_date: startIso, end_date: endIso || el.dataset.cardCountdownEnd || "" });
+		if (phase === "ended") {
+			el.textContent = "Ended";
+			return;
+		}
+		if (phase === "live") {
+			const endMs = parseEventMs(endIso || el.dataset.cardCountdownEnd || "");
+			if (endMs) {
+				const parts = getCountdownParts(endMs);
+				el.textContent = parts.expired
+					? "Ended"
+					: `Live ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m`;
+			} else {
+				el.textContent = "✨ Live Now";
+			}
+			return;
+		}
 		const startMs = parseEventMs(startIso);
 		const parts = getCountdownParts(startMs);
 		if (parts.expired) {
@@ -384,6 +493,124 @@
 		el.textContent = `✨ ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m`;
 	}
 
+	function pruneExpiredPublicEvents() {
+		let removed = 0;
+		document.querySelectorAll("[data-live-event]").forEach((card) => {
+			const raw = card.getAttribute("data-live-event");
+			if (!raw) return;
+			let payload = null;
+			try {
+				payload = JSON.parse(decodeURIComponent(raw));
+			} catch (_) {
+				return;
+			}
+			if (!isEventCurrentlyVisible(payload)) {
+				card.remove();
+				removed += 1;
+			}
+		});
+		if (removed) {
+			try {
+				global.dispatchEvent(new CustomEvent("jod:public-events-pruned"));
+			} catch (_) {}
+		}
+		return removed;
+	}
+
+	function updateTicketCountdownElement(el) {
+		if (!el) return;
+		const option = el.closest("[data-ticket-option]");
+		const startRaw = el.dataset.ticketStart || (option && option.dataset.salesStart) || "";
+		const endRaw = el.dataset.ticketEnd || (option && option.dataset.salesEnd) || "";
+		const start = decodeTicketTimeAttr(startRaw);
+		const end = decodeTicketTimeAttr(endRaw);
+		const phase = ticketOfferPhase({ sales_start: start, sales_end: end });
+		if (option) syncTicketOptionPhase(option, phase);
+		if (phase === "ended") {
+			if (option) option.remove();
+			try {
+				global.dispatchEvent(new CustomEvent("jod:tickets-pruned"));
+			} catch (_) {}
+			return;
+		}
+		if (phase === "upcoming") {
+			el.hidden = false;
+			const startMs = parseEventMs(start);
+			const parts = getCountdownParts(startMs);
+			el.textContent = `Offer opens in ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m : ${pad(parts.seconds)}s`;
+			return;
+		}
+		if (phase === "always") {
+			el.hidden = true;
+			return;
+		}
+		el.hidden = false;
+		const endMs = parseEventMs(end);
+		const parts = getCountdownParts(endMs);
+		el.textContent = `Offer ends in ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m : ${pad(parts.seconds)}s`;
+	}
+
+	function decodeTicketTimeAttr(value) {
+		const raw = String(value || "").trim();
+		if (!raw) return "";
+		try {
+			// Values may be encodeURIComponent'd so "+" in +05:30 is preserved in HTML datasets.
+			if (raw.indexOf("%") !== -1) return decodeURIComponent(raw);
+		} catch (_) {}
+		return raw;
+	}
+
+	function syncTicketOptionPhase(option, phase) {
+		if (!option) return;
+		option.dataset.ticketPhase = phase || "";
+		const statusEl = option.querySelector(".ticket-status");
+		if (phase === "upcoming") {
+			option.classList.add("is-upcoming");
+			option.setAttribute("aria-disabled", "true");
+			option.classList.remove("selected");
+			if (statusEl) statusEl.textContent = "Opens soon";
+			return;
+		}
+		option.classList.remove("is-upcoming");
+		option.removeAttribute("aria-disabled");
+		if (statusEl && (statusEl.textContent || "").trim() === "Opens soon") {
+			statusEl.textContent = "Available";
+		}
+	}
+
+	function syncTicketPurchaseAvailability() {
+		const options = document.querySelectorAll("[data-ticket-option]");
+		if (!options.length) return;
+		let hasLive = false;
+		options.forEach((opt) => {
+			const start = decodeTicketTimeAttr(opt.dataset.salesStart || "");
+			const end = decodeTicketTimeAttr(opt.dataset.salesEnd || "");
+			const phase = ticketOfferPhase({ sales_start: start, sales_end: end });
+			syncTicketOptionPhase(opt, phase);
+			if (phase === "always" || phase === "live") hasLive = true;
+		});
+		const selected = document.querySelector("[data-ticket-option].selected:not(.is-upcoming)");
+		if (!selected && hasLive) {
+			const firstLive = Array.prototype.find.call(options, (opt) => !opt.classList.contains("is-upcoming"));
+			if (firstLive) {
+				try {
+					firstLive.click();
+				} catch (_) {
+					firstLive.classList.add("selected");
+				}
+			}
+		}
+		document.querySelectorAll(".btn-book-now").forEach((btn) => {
+			if (btn.classList.contains("btn-view-ticket") || btn.hidden) return;
+			btn.disabled = !hasLive;
+			btn.style.opacity = hasLive ? "" : "0.55";
+			btn.style.cursor = hasLive ? "" : "not-allowed";
+			if (!btn.classList.contains("btn-view-ticket")) {
+				btn.textContent = hasLive ? "Buy Ticket" : "Opens soon";
+			}
+		});
+	}
+
 	function startCountdownTicker() {
 		function tick() {
 			document.querySelectorAll("[data-countdown]").forEach((el) => {
@@ -391,13 +618,29 @@
 				updateCountdownElement(el, el.dataset.countdown, el.dataset.countdownEnd);
 			});
 			document.querySelectorAll("[data-card-countdown]").forEach((el) => {
-				updateCardCountdownElement(el, el.dataset.cardCountdown);
+				updateCardCountdownElement(el, el.dataset.cardCountdown, el.dataset.cardCountdownEnd);
 			});
 			document.querySelectorAll("[data-summary-countdown]").forEach((el) => {
 				const iso = el.getAttribute("data-summary-countdown") || "";
 				if (!iso || iso.indexOf("-") < 0) return;
 				updateSummaryCountdown(el, iso, el.dataset.countdownEnd || "");
 			});
+			document.querySelectorAll("[data-ticket-countdown]").forEach((el) => {
+				updateTicketCountdownElement(el);
+			});
+			syncTicketPurchaseAvailability();
+			pruneExpiredPublicEvents();
+			if (global.__jodFeaturedEvent && !isEventCurrentlyVisible(global.__jodFeaturedEvent)) {
+				const key = String(global.__jodFeaturedEvent.id || "featured");
+				if (global.__jodFeaturedExpiredNotified !== key) {
+					global.__jodFeaturedExpiredNotified = key;
+					try {
+						global.dispatchEvent(new CustomEvent("jod:featured-expired"));
+					} catch (_) {}
+				}
+			} else {
+				global.__jodFeaturedExpiredNotified = "";
+			}
 		}
 		tick();
 		if (!global._jodCountdownInterval) {
@@ -551,6 +794,15 @@
 		parseEventMs,
 		getCountdownParts,
 		getEventPhase,
+		ticketSaleStart,
+		ticketSaleEnd,
+		ticketOfferPhase,
+		isTicketOnSale,
+		listableTicketTypes,
+		visibleTicketTypes,
+		decodeTicketTimeAttr,
+		syncTicketPurchaseAvailability,
+		isEventCurrentlyVisible,
 		fetchPublishedEvents,
 		fetchPublishedEventById,
 		pickFeaturedEvent,

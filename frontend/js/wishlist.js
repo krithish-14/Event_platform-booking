@@ -10,13 +10,14 @@
 	let inflight = new Set();
 
 	function getApiBase() {
-		if (global.JodHealth && typeof global.JodHealth.getApiBaseUrl === "function") {
-			return global.JodHealth.getApiBaseUrl();
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
 		}
-		if (global.JodAuth && global.JodAuth.API_BASE) return global.JodAuth.API_BASE;
-		const host = (global.location && global.location.hostname && global.location.hostname !== "localhost")
-			? global.location.hostname : "127.0.0.1";
-		return `http://${host}:8001`;
+		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+			return window.JodHealth.getApiBaseUrl();
+		}
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 	function isLoggedIn() {

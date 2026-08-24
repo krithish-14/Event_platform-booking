@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-		<script src="js/theme.js?v=3"></script>
+		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Cache-Control" content="no-store" />
 	<title>Ticket Bill | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 	<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -23,9 +24,21 @@
 			justify-content: center;
 			padding: 1.5rem;
 		}
-		.wrap { width: 100%; max-width: 480px; }
-		h1 { font-size: 1.45rem; font-weight: 800; margin-bottom: 0.35rem; }
-		.sub { color: #64748b; font-size: 0.92rem; line-height: 1.55; margin-bottom: 1.2rem; }
+		.wrap {
+			width: 100%;
+			max-width: 480px;
+		}
+		h1 {
+			font-size: 1.45rem;
+			font-weight: 800;
+			margin-bottom: 0.35rem;
+		}
+		.sub {
+			color: #64748b;
+			font-size: 0.92rem;
+			line-height: 1.55;
+			margin-bottom: 1.2rem;
+		}
 		.bill-card {
 			background: #ffffff;
 			border: 1px solid #e2e8f0;
@@ -52,7 +65,7 @@
 		.row:last-of-type { border-bottom: none; }
 		.row span:first-child { color: #64748b; font-weight: 600; }
 		.row span:last-child { font-weight: 700; text-align: right; }
-		.row.is-total span:last-child { color: #d97706; font-weight: 800; }
+		.row.is-total span:last-child { color: #2563eb; font-weight: 800; }
 		.status {
 			display: inline-block;
 			background: #fff7ed;
@@ -63,26 +76,14 @@
 			padding: 0.18rem 0.55rem;
 			border-radius: 999px;
 		}
-		.status.is-ok {
-			background: #ecfdf5;
-			color: #047857;
-			border-color: #a7f3d0;
-		}
-		.ok {
-			color: #047857;
-			font-size: 0.9rem;
-			font-weight: 700;
-			margin-top: 0.75rem;
-			min-height: 1.1em;
-		}
 		.pay-btn {
 			width: 100%;
 			margin-top: 1.2rem;
 			padding: 0.9rem;
 			border: none;
 			border-radius: 10px;
-			background: #f59e0b;
-			color: #111827;
+			background: #2563eb;
+			color: #ffffff;
 			font-family: inherit;
 			font-size: 1rem;
 			font-weight: 800;
@@ -90,33 +91,232 @@
 		}
 		.pay-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 		.back {
-			display: block;
-			text-align: center;
-			margin-top: 0.9rem;
-			color: #64748b;
-			font-size: 0.85rem;
-			font-weight: 600;
+			display: none;
+		}
+		.header-back-btn {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 0.35rem;
+			height: 2.4rem;
+			padding: 0 0.9rem 0 0.65rem;
+			margin-bottom: 1rem;
+			border: 1px solid #e2e8f0;
+			background: #ffffff;
+			color: #0f172a;
+			border-radius: 999px;
+			font-size: 0.875rem;
+			font-weight: 700;
+			font-family: inherit;
 			text-decoration: none;
+			width: fit-content;
 		}
+		.header-back-btn svg { width: 1.05rem; height: 1.05rem; display: block; }
 		.err { color: #b91c1c; font-size: 0.85rem; margin-top: 0.75rem; min-height: 1.1em; }
-		@media (max-width: 1024px) {
-			body { padding: 1.25rem 1rem; }
-			.wrap { max-width: 100%; }
+		.ok { color: #166534; font-size: 0.9rem; margin-top: 0.75rem; font-weight: 700; }
+		#payFormPanel { display: block; margin-top: 1.2rem; }
+		#payFormPanel.is-hidden { display: none; }
+		.pay-wait {
+			display: none;
+			margin-top: 1.1rem;
+			background: #fff7ed;
+			border: 1px solid #fdba74;
+			border-radius: 16px;
+			padding: 1rem 1.1rem;
+			color: #9a3412;
+			font-size: 0.92rem;
+			font-weight: 600;
+			line-height: 1.45;
 		}
-		@media (max-width: 768px) {
+		.pay-wait.is-visible { display: block; }
+		.qr-missing {
+			display: none;
+			margin: 0.6rem 0 0;
+			color: #b91c1c;
+			font-size: 0.86rem;
+			font-weight: 700;
+		}
+		.qr-missing.is-visible { display: block; }
+		.qr-pay-card {
+			background: #ffffff;
+			border: 1px solid #e2e8f0;
+			border-radius: 16px;
+			padding: 1.1rem 1.15rem 1.2rem;
+			text-align: center;
+			margin-bottom: 1rem;
+		}
+		.qr-pay-card h2 {
+			font-size: 0.78rem;
+			letter-spacing: 0.07em;
+			text-transform: uppercase;
+			color: #64748b;
+			margin-bottom: 0.35rem;
+		}
+		.qr-pay-card p {
+			color: #475569;
+			font-size: 0.88rem;
+			margin-bottom: 0.85rem;
+		}
+		.qr-pay-card img {
+			width: min(260px, 100%);
+			height: auto;
+			border-radius: 12px;
+			background: #fff;
+			padding: 8px;
+			border: 1px solid #e2e8f0;
+		}
+		.proof-card {
+			background: #ffffff;
+			border: 1px solid #e2e8f0;
+			border-radius: 16px;
+			padding: 1.15rem 1.2rem 1.25rem;
+		}
+		.proof-card label {
+			display: block;
+			font-size: 0.78rem;
+			font-weight: 700;
+			color: #334155;
+			margin: 0.75rem 0 0.3rem;
+		}
+		.proof-card input[type="text"],
+		.proof-card input[type="email"],
+		.proof-card input[type="tel"],
+		.proof-card input[type="file"] {
+			width: 100%;
+			border: 1px solid #cbd5e1;
+			border-radius: 10px;
+			padding: 0.7rem 0.8rem;
+			font: inherit;
+		}
+		.shot-preview {
+			margin-top: 0.55rem;
+			max-width: 100%;
+			border-radius: 10px;
+			display: none;
+		}
+		html[data-theme="dark"] body {
+			background: #0e0c0a !important;
+			color: #f6f0e8 !important;
+		}
+		html[data-theme="dark"] h1 {
+			color: #fff8f0 !important;
+		}
+		html[data-theme="dark"] .sub,
+		html[data-theme="dark"] .back,
+		html[data-theme="dark"] .bill-card h2,
+		html[data-theme="dark"] .qr-pay-card h2,
+		html[data-theme="dark"] .qr-pay-card p,
+		html[data-theme="dark"] .bill-card .row > span:first-child,
+		html[data-theme="dark"] .proof-card label {
+			color: #b8aea2 !important;
+		}
+		html[data-theme="dark"] .bill-card,
+		html[data-theme="dark"] .qr-pay-card,
+		html[data-theme="dark"] .proof-card {
+			background: #1c1814 !important;
+			border-color: rgba(255, 138, 31, 0.28) !important;
+			box-shadow: none !important;
+			color: #f6f0e8 !important;
+		}
+		html[data-theme="dark"] .bill-card .row {
+			border-bottom-color: rgba(255, 248, 240, 0.1) !important;
+		}
+		html[data-theme="dark"] .bill-card .row > span:last-child {
+			color: #fff8f0 !important;
+		}
+		html[data-theme="dark"] .bill-card .row.is-total > span:last-child {
+			color: #60a5fa !important;
+		}
+		html[data-theme="dark"] .status {
+			background: rgba(194, 65, 12, 0.28) !important;
+			color: #fdba74 !important;
+			border-color: rgba(253, 186, 116, 0.4) !important;
+		}
+		html[data-theme="dark"] .proof-card input[type="text"],
+		html[data-theme="dark"] .proof-card input[type="email"],
+		html[data-theme="dark"] .proof-card input[type="tel"],
+		html[data-theme="dark"] .proof-card input[type="file"] {
+			background: #0e0c0a !important;
+			color: #f6f0e8 !important;
+			border-color: rgba(255, 138, 31, 0.35) !important;
+		}
+		html[data-theme="dark"] .err { color: #fca5a5 !important; }
+		html[data-theme="dark"] .ok { color: #86efac !important; }
+		.pay-modal {
+			position: fixed;
+			inset: 0;
+			z-index: 80;
+			display: none;
+			align-items: center;
+			justify-content: center;
+			padding: 1.25rem;
+			background: rgba(15, 23, 42, 0.62);
+		}
+		.pay-modal.is-open { display: flex; }
+		.pay-modal-card {
+			width: min(420px, 100%);
+			background: #ffffff;
+			border-radius: 16px;
+			padding: 1.4rem 1.3rem 1.25rem;
+			box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+			text-align: center;
+		}
+		.pay-modal-card h2 {
+			font-size: 1.15rem;
+			font-weight: 800;
+			margin-bottom: 0.65rem;
+			color: #0f172a;
+		}
+		.pay-modal-card p {
+			color: #334155;
+			font-size: 0.95rem;
+			line-height: 1.55;
+			margin-bottom: 0.55rem;
+		}
+		.pay-modal-card .wait-note {
+			color: #166534;
+			font-weight: 700;
+		}
+		.pay-modal-timer {
+			color: #64748b;
+			font-size: 0.82rem;
+			font-weight: 600;
+			margin: 0.85rem 0 0;
+			min-height: 1.2em;
+		}
+		.pay-modal-exit {
+			display: none;
+			width: 100%;
+			margin-top: 1rem;
+			padding: 0.8rem;
+		}
+		.pay-modal-exit.is-visible { display: block; }
+		html[data-theme="dark"] .pay-modal { background: rgba(0, 0, 0, 0.72); }
+		html[data-theme="dark"] .pay-modal-card {
+			background: #1c1814 !important;
+			border: 1px solid rgba(255, 138, 31, 0.28);
+		}
+		html[data-theme="dark"] .pay-modal-card h2 { color: #fff8f0 !important; }
+		html[data-theme="dark"] .pay-modal-card p { color: #d4cbbf !important; }
+		html[data-theme="dark"] .pay-modal-card .wait-note { color: #86efac !important; }
+		html[data-theme="dark"] .pay-modal-timer { color: #b8aea2 !important; }
+
+		@media (max-width: 520px) {
 			body { padding: 1rem 0.85rem 1.5rem; align-items: flex-start; }
+			h1 { font-size: 1.22rem; }
 			.wrap { max-width: 100%; }
-			h1 { font-size: 1.25rem; }
-			.bill-card { padding: 1rem 0.9rem 0.4rem; }
-			.row { flex-wrap: wrap; font-size: 0.88rem; }
-			.pay-btn { width: 100%; min-height: 48px; font-size: 16px; }
+			.pay-modal { padding: 0.85rem; }
 		}
 	</style>
 </head>
 <body>
 	<div class="wrap">
+		<a class="header-back-btn" id="payBack" href="index.html" data-header-back>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+			<span>Back</span>
+		</a>
 		<h1>Ticket bill</h1>
-		<p class="sub">Complete payment to finish your registration.</p>
+		<p class="sub">For payment use QR. Your ticket is held until support verifies this form.</p>
 		<div class="bill-card">
 			<h2>Selected ticket</h2>
 			<div class="row"><span>Event</span><span id="payEvent">Loading…</span></div>
@@ -126,16 +326,45 @@
 			<div class="row is-total"><span>Amount</span><span id="payAmount">—</span></div>
 			<div class="row"><span>Status</span><span><span class="status" id="payStatus">Payment pending</span></span></div>
 		</div>
-		<button type="button" class="pay-btn" id="payBtn">Pay Now</button>
-		<p class="ok" id="paySuccess"></p>
+		<div class="pay-wait" id="payWaitNote">Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.</div>
+		<div id="payFormPanel">
+			<div class="qr-pay-card">
+				<h2>Pay with this QR</h2>
+				<p id="payQrCaption">For payment use QR. Scan the QR for this ticket, then fill the details below.</p>
+				<img id="payQrImage" alt="Payment QR for selected ticket" hidden />
+				<p class="qr-missing" id="payQrMissing">Payment QR for this ticket is not available. Ask the host to upload the ticket QR.</p>
+			</div>
+			<form class="proof-card" id="payProofForm">
+				<h2 style="font-size:0.95rem;margin-bottom:0.2rem;">Payment details</h2>
+				<p class="sub" style="margin-bottom:0.2rem;">For payment use QR. After submit, support verifies and then issues your ticket.</p>
+				<label for="payName">Name</label>
+				<input type="text" id="payName" name="attendee_name" required autocomplete="name" />
+				<label for="payEmail">Email</label>
+				<input type="email" id="payEmail" name="attendee_email" required autocomplete="email" />
+				<label for="payNumber">Phone number</label>
+				<input type="tel" id="payNumber" name="attendee_phone" required autocomplete="tel" />
+				<label for="payTxn">Transaction ID</label>
+				<input type="text" id="payTxn" name="transaction_id" required />
+				<label for="payShot">Payment screenshot</label>
+				<input type="file" id="payShot" name="screenshot" accept="image/*" required />
+				<img class="shot-preview" id="payShotPreview" alt="Payment screenshot preview" />
+				<button type="submit" class="pay-btn" id="paySubmitBtn">Submit payment details</button>
+			</form>
+		</div>
 		<p class="err" id="payError"></p>
-		<a class="back" id="payBack" href="index.html">Back to event</a>
+	</div>
+	<div class="pay-modal" id="paySuccessModal" role="dialog" aria-modal="true" aria-labelledby="paySuccessTitle">
+		<div class="pay-modal-card">
+			<h2 id="paySuccessTitle">Registration process completed</h2>
+			<p id="paySuccessText">Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.</p>
+			<p class="wait-note">Admin will generate your QR ticket after verification. You will get it on the website, email, and WhatsApp.</p>
+			<p class="pay-modal-timer" id="paySuccessTimer">Exit available in 5s</p>
+			<button type="button" class="pay-btn pay-modal-exit" id="paySuccessExit">Exit</button>
+		</div>
 	</div>
 
-	<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=24"></script>
-	<script src="js/razorpay-checkout.js?v=1"></script>
+	<script src="js/health.js?v=2"></script>
+	<script src="js/auth.js?v=25"></script>
 	<script>
 		(function () {
 			const params = new URLSearchParams(window.location.search);
@@ -148,11 +377,71 @@
 				try { return decodeURIComponent(value); } catch (_) { return value; }
 			}
 
+			function normalizeTicketKey(raw) {
+				return prettyTicket(raw).replace(/\s+/g, " ").toLowerCase();
+			}
+
+			function ticketQrFromTypes(types, ticketName) {
+				if (!Array.isArray(types)) return "";
+				const key = normalizeTicketKey(ticketName);
+				const match = types.find((item) => {
+					const name = normalizeTicketKey(item && (item.name || item.ticket_name || item.type || ""));
+					return name && name === key;
+				}) || types.find((item) => {
+					const name = normalizeTicketKey(item && (item.name || item.ticket_name || item.type || ""));
+					return key && name && (name.includes(key) || key.includes(name));
+				});
+				if (!match) return "";
+				return String(match.payment_qr_url || match.qr_url || match.payment_qr || "").trim();
+			}
+
+			function resolveMediaUrl(url) {
+				const raw = String(url || "").trim();
+				if (!raw) return "";
+				if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+				if (raw.startsWith("/")) return apiBase + raw;
+				return raw;
+			}
+
+			function applyPaymentQr(url, ticketName) {
+				const img = document.getElementById("payQrImage");
+				const caption = document.getElementById("payQrCaption");
+				const missing = document.getElementById("payQrMissing");
+				const resolved = resolveMediaUrl(url);
+				if (caption) {
+					caption.textContent = ticketName
+						? ("For payment use QR. Scan this QR for " + ticketName + ", then fill the form.")
+						: "For payment use QR. Scan the ticket QR, then fill the form.";
+				}
+				if (!resolved) {
+					if (img) {
+						img.removeAttribute("src");
+						img.hidden = true;
+					}
+					if (missing) missing.classList.add("is-visible");
+					return false;
+				}
+				if (missing) missing.classList.remove("is-visible");
+				if (img) {
+					img.hidden = false;
+					img.onerror = function () {
+						img.hidden = true;
+						img.removeAttribute("src");
+						if (missing) missing.classList.add("is-visible");
+					};
+					img.src = resolved;
+					img.alt = ticketName ? ("Payment QR for " + ticketName) : "Payment QR";
+				}
+				return true;
+			}
+
 			const eventId = params.get("eventId") || saved.eventId || "";
 			const ticket = prettyTicket(params.get("ticket") || saved.ticket || "General Admission");
 			const price = Number(params.get("price") || saved.price || 0);
-			const qty = Number(saved.quantity || params.get("qty") || 1) || 1;
-			const apiBase = ((window.JodAuth && window.JodAuth.API_BASE) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || "http://127.0.0.1:8001").replace(/\/$/, "");
+			const qrFromUrl = params.get("qr") || saved.paymentQrUrl || "";
+			const qty = Number(saved.quantity || 1) || 1;
+			const apiBase = ((window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, "");
+			const SUCCESS_COPY = "Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.";
 
 			const eventEl = document.getElementById("payEvent");
 			const venueRow = document.getElementById("venueRow");
@@ -161,10 +450,17 @@
 			const qtyEl = document.getElementById("payQty");
 			const amountEl = document.getElementById("payAmount");
 			const backEl = document.getElementById("payBack");
-			const btn = document.getElementById("payBtn");
 			const errEl = document.getElementById("payError");
-			const okEl = document.getElementById("paySuccess");
+			const formPanel = document.getElementById("payFormPanel");
+			const waitNote = document.getElementById("payWaitNote");
 			const statusEl = document.getElementById("payStatus");
+			const proofForm = document.getElementById("payProofForm");
+			const submitBtn = document.getElementById("paySubmitBtn");
+			const successModal = document.getElementById("paySuccessModal");
+			const successText = document.getElementById("paySuccessText");
+			const successTimer = document.getElementById("paySuccessTimer");
+			const successExit = document.getElementById("paySuccessExit");
+			let successCountdown = null;
 
 			if (ticketEl) ticketEl.textContent = ticket;
 			if (qtyEl) qtyEl.textContent = String(qty);
@@ -175,18 +471,20 @@
 				venueRow.hidden = false;
 			}
 			if (eventId && backEl) backEl.href = "event-details.html?id=" + encodeURIComponent(eventId);
+			applyPaymentQr(qrFromUrl, ticket);
 
-			function getToken() {
-				let token = "";
-				if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
-					token = window.JodAuth.getToken() || "";
+			function isSessionUser() {
+				if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function") {
+					return window.JodAuth.isLoggedIn();
 				}
-				if (!token) {
-					token = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token") || "";
+				try {
+					const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+					if (!raw || raw === "null" || raw === "undefined") return false;
+					const user = JSON.parse(raw);
+					return Boolean(user && (user.email || user.id || user.customer_id));
+				} catch (_) {
+					return false;
 				}
-				token = String(token || "").replace(/^Bearer\s+/i, "").replace(/^["']|["']$/g, "").trim();
-				if (token === "null" || token === "undefined") return "";
-				return token;
 			}
 
 			function currentReturnUrl() {
@@ -198,7 +496,20 @@
 				const returnUrl = currentReturnUrl();
 				try { sessionStorage.setItem("jod_redirect_after_login", returnUrl); } catch (_) {}
 				if (errEl) errEl.textContent = message || "Please log in to complete payment.";
-				window.location.href = "login.html?redirect=" + encodeURIComponent(returnUrl);
+				if (window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function") {
+					window.JodAuth.requireAuthOrRedirect({ redirectTo: returnUrl });
+					return;
+				}
+				window.location.replace("login.html?redirect=" + encodeURIComponent(returnUrl));
+			}
+
+			async function ensureSession() {
+				if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+					const user = await window.JodAuth.validateSession();
+					if (user) return user;
+					return null;
+				}
+				return isSessionUser() ? (window.JodAuth && window.JodAuth.getUser ? window.JodAuth.getUser() : {}) : null;
 			}
 
 			function apiErrorMessage(data, fallback) {
@@ -215,24 +526,21 @@
 			}
 
 			async function authFetch(url, options) {
-				const token = getToken();
 				const headers = Object.assign({}, (options && options.headers) || {});
-				if (token) headers.Authorization = "Bearer " + token;
 				if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
 					return window.JodAuth.fetchAuth(url, Object.assign({}, options || {}, { headers: headers }));
 				}
-				return fetch(url, Object.assign({}, options || {}, { headers: headers, redirect: "follow" }));
+				return fetch(url, Object.assign({}, options || {}, { headers: headers, credentials: "include", redirect: "follow" }));
 			}
 
 			async function fetchRegistrationStatus() {
-				const token = getToken();
-				if (!token || !eventId) return { state: "new" };
+				if (!eventId) return { state: "new" };
 				try {
 					const res = await authFetch(apiBase + "/api/bookings/registration-status?event_id=" + encodeURIComponent(eventId), {
 						cache: "no-store",
 						headers: { Accept: "application/json" }
 					});
-					if (res.status === 401 || res.status === 403) return { state: "auth_required" };
+					if (res.status === 401) return { state: "auth_required" };
 					if (!res.ok) return { state: "new" };
 					const data = await res.json();
 					return data && data.state ? data : { state: "new" };
@@ -256,143 +564,149 @@
 						venueEl.textContent = venue;
 						venueRow.hidden = false;
 					}
+					applyPaymentQr(ticketQrFromTypes(data.ticket_types, ticket) || qrFromUrl, ticket);
 				} catch (_) {
 					if (eventEl && !eventEl.textContent) eventEl.textContent = saved.eventTitle || "Event";
+					applyPaymentQr(qrFromUrl, ticket);
 				}
 			}
 
-			function goToTicket(bookingId) {
-				try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
-				window.location.href = bookingId
-					? ("ticket-details.html?id=" + encodeURIComponent(bookingId))
-					: "orders.html";
-			}
-
-			async function completeFreeBooking(token, user) {
-				const res = await fetch(apiBase + "/api/bookings", {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						"Authorization": "Bearer " + token
-					},
-					body: JSON.stringify({
-						event_id: eventId,
-						ticket_type: ticket,
-						quantity: qty,
-						total_price: 0,
-						payment_mode: "Free",
-						receiver_name: user.full_name || user.username || "",
-						receiver_email: user.email || "",
-						receiver_phone: user.phone || ""
-					})
-				});
-				const data = await res.json().catch(() => ({}));
-				if (!res.ok) throw new Error(data.detail || "Booking could not be completed.");
-				if (okEl) okEl.textContent = "Ticket confirmed. No payment required.";
-				if (statusEl) {
-					statusEl.textContent = "Confirmed";
-					statusEl.classList.add("is-ok");
+			function closeSuccessModal() {
+				if (successCountdown) {
+					clearInterval(successCountdown);
+					successCountdown = null;
 				}
-				goToTicket(data.booking_id);
+				window.location.href = "index.html";
 			}
 
-			async function completePayment() {
-				if (errEl) errEl.textContent = "";
-				if (okEl) okEl.textContent = "";
+			function showSuccessModal(message) {
+				if (!successModal) return;
+				if (successCountdown) {
+					clearInterval(successCountdown);
+					successCountdown = null;
+				}
+				if (successText) {
+					successText.textContent = message || SUCCESS_COPY;
+				}
+				if (successExit) successExit.classList.remove("is-visible");
+				let remaining = 5;
+				if (successTimer) successTimer.textContent = "Exit available in 5s";
+				successModal.classList.add("is-open");
+				successCountdown = setInterval(() => {
+					remaining -= 1;
+					if (remaining <= 0) {
+						clearInterval(successCountdown);
+						successCountdown = null;
+						if (successTimer) successTimer.textContent = "";
+						if (successExit) successExit.classList.add("is-visible");
+						return;
+					}
+					if (successTimer) successTimer.textContent = "Exit available in " + remaining + "s";
+				}, 1000);
+			}
+
+			function prefillUser() {
+				const user = window.JodAuth && window.JodAuth.getUser ? (window.JodAuth.getUser() || {}) : {};
+				const nameEl = document.getElementById("payName");
+				const emailEl = document.getElementById("payEmail");
+				const phoneEl = document.getElementById("payNumber");
+				if (nameEl && !nameEl.value) nameEl.value = user.full_name || user.username || "";
+				if (emailEl && !emailEl.value) emailEl.value = user.email || "";
+				if (phoneEl && !phoneEl.value) phoneEl.value = user.phone || user.mobile || "";
+			}
+
+			function showHoldState() {
+				if (statusEl) statusEl.textContent = "Waiting for support verification";
+				if (waitNote) waitNote.classList.add("is-visible");
+				if (formPanel) formPanel.classList.add("is-hidden");
+			}
+
+			async function submitProof(event) {
+				event.preventDefault();
+				errEl.textContent = "";
 				if (!eventId) {
 					errEl.textContent = "Missing event. Go back and book again.";
 					return;
 				}
-				const token = getToken();
-				if (!token) {
+				const sessionUser = await ensureSession();
+				if (!sessionUser) {
 					redirectToLogin("Please log in to complete payment.");
 					return;
 				}
-				const user = window.JodAuth.getUser ? (window.JodAuth.getUser() || {}) : {};
-				btn.disabled = true;
-				btn.textContent = "Processing…";
+				const shot = document.getElementById("payShot");
+				if (!shot || !shot.files || !shot.files[0]) {
+					errEl.textContent = "Please upload a payment screenshot.";
+					return;
+				}
+				const body = new FormData();
+				body.append("event_id", eventId);
+				body.append("ticket_type", ticket);
+				body.append("amount", String(price || 0));
+				body.append("quantity", String(qty || 1));
+				body.append("attendee_name", document.getElementById("payName").value.trim());
+				body.append("attendee_email", document.getElementById("payEmail").value.trim());
+				body.append("attendee_phone", document.getElementById("payNumber").value.trim());
+				body.append("bank_name", "");
+				body.append("transaction_id", document.getElementById("payTxn").value.trim());
+				body.append("screenshot", shot.files[0]);
+				submitBtn.disabled = true;
+				submitBtn.textContent = "Submitting…";
 				try {
-					const existing = await fetchRegistrationStatus();
-					if (existing.state === "auth_required") {
+					const res = await authFetch(apiBase + "/api/payments/proof", {
+						method: "POST",
+						body: body
+					});
+					const data = await res.json().catch(() => ({}));
+					if (res.status === 401) {
 						redirectToLogin("Your session expired. Please log in again to complete payment.");
 						return;
 					}
-					if (existing.state === "ticket" && existing.booking_id) {
-						try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
-						window.location.replace("ticket-details.html?id=" + encodeURIComponent(existing.booking_id));
-						return;
+					if (!res.ok) {
+						throw new Error(apiErrorMessage(data, "Could not submit payment details."));
 					}
-					if (price <= 0) {
-						await completeFreeBooking(token, user);
-						return;
-					}
-					if (!window.JodRazorpay) throw new Error("Payment module failed to load.");
-					const verified = await window.JodRazorpay.payForEvent({
-						eventId: eventId,
-						ticketType: ticket,
-						quantity: qty,
-						user: user
-					});
-					if (!verified || verified.status !== "Payment Verified") {
-						throw new Error("Verification Failed");
-					}
-					if (okEl) okEl.textContent = "Payment Verified. Your ticket is confirmed.";
-					if (statusEl) {
-						statusEl.textContent = "Payment Verified";
-						statusEl.classList.add("is-ok");
-					}
-					try {
-						const key = window.JodAuth && typeof window.JodAuth.bookingsCacheKey === "function"
-							? window.JodAuth.bookingsCacheKey()
-							: null;
-						if (key && verified) {
-							const cache = JSON.parse(localStorage.getItem(key) || "[]");
-							const next = Array.isArray(cache) ? cache : [];
-							const idx = next.findIndex((row) => row && row.booking_id === verified.booking_id);
-							if (idx >= 0) next[idx] = Object.assign({}, next[idx], verified);
-							else next.unshift(verified);
-							localStorage.setItem(key, JSON.stringify(next));
-						}
-					} catch (_) {}
-					goToTicket(verified.booking_id);
+					try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
+					showSuccessModal(data.message || SUCCESS_COPY);
+					submitBtn.textContent = "Submitted";
 				} catch (err) {
-					const message = (err && err.message) || "Payment failed. Try again.";
-					if (/cancel/i.test(message)) {
-						btn.disabled = false;
-						btn.textContent = "Pay Now";
-						return;
-					}
-					if (/free or below/i.test(message)) {
-						try {
-							await completeFreeBooking(token, user);
-							return;
-						} catch (freeErr) {
-							errEl.textContent = freeErr.message || message;
-						}
-					} else {
-						errEl.textContent = message;
-					}
-					btn.disabled = false;
-					btn.textContent = "Pay Now";
+					errEl.textContent = err.message || "Could not submit payment details.";
+					submitBtn.disabled = false;
+					submitBtn.textContent = "Submit payment details";
 				}
 			}
 
-			if (btn) btn.addEventListener("click", completePayment);
+			if (proofForm) proofForm.addEventListener("submit", submitProof);
+			if (successExit) successExit.addEventListener("click", closeSuccessModal);
+			const shotInput = document.getElementById("payShot");
+			const shotPreview = document.getElementById("payShotPreview");
+			if (shotInput && shotPreview) {
+				shotInput.addEventListener("change", () => {
+					const file = shotInput.files && shotInput.files[0];
+					if (!file) {
+						shotPreview.style.display = "none";
+						shotPreview.removeAttribute("src");
+						return;
+					}
+					shotPreview.src = URL.createObjectURL(file);
+					shotPreview.style.display = "block";
+				});
+			}
 			(async function bootPaymentPage() {
-				if (!getToken()) {
+				const sessionUser = await ensureSession();
+				if (!sessionUser) {
 					redirectToLogin("Please log in to complete payment.");
 					return;
 				}
+				try { sessionStorage.removeItem("jod_auth_bounce"); } catch (_) {}
+				prefillUser();
 				const status = await fetchRegistrationStatus();
 				if (status.state === "auth_required") {
 					redirectToLogin("Your session expired. Please log in again to complete payment.");
 					return;
 				}
-				if (status.state === "ticket" && status.booking_id) {
-					window.location.replace("ticket-details.html?id=" + encodeURIComponent(status.booking_id));
-					return;
-				}
 				await loadEvent();
+				if (status.state === "payment_submitted") {
+					showHoldState();
+				}
 			})();
 		})();
 	</script>

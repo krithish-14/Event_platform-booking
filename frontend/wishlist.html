@@ -1,15 +1,16 @@
 <!doctype html>
 <html lang="en">
 <head>
-		<script src="js/theme.js?v=3"></script>
+		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Your saved events and wishlist on JOD Events." />
 	<title>Your Wishlist | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=23" />
-	<link rel="stylesheet" href="css/responsive.css?v=24" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="stylesheet" href="css/style.css?v=27" />
+	<link rel="stylesheet" href="css/responsive.css?v=30" />
 	<style>
 		.page-hero {
 			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
@@ -36,6 +37,16 @@
 		}
 
 		.wishlist-section { padding: 3rem 0 4rem; }
+
+		@media (max-width: 640px) {
+			.wishlist-grid {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 0.85rem;
+			}
+			.page-hero { padding: calc(4.75rem + 1.1rem) 0 1.6rem; }
+			.wishlist-section { padding: 1.75rem 0 3rem; }
+			.card-media { height: 120px; }
+		}
 
 		.wishlist-grid {
 			display: grid;
@@ -163,13 +174,13 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=19"></script>
-	<script src="js/health.js?v=1"></script>
+	<script src="js/include.js?v=24"></script>
+	<script src="js/health.js?v=2"></script>
 	<script src="js/auth.js?v=24"></script>
-	<script src="js/profile.js?v=6"></script>
+	<script src="js/profile.js?v=10"></script>
 	<script src="js/location.js?v=12"></script>
-	<script src="js/script.js?v=28"></script>
-	<script src="js/events-public.js?v=8"></script>
+	<script src="js/script.js?v=27"></script>
+	<script src="js/events-public.js?v=20260822_v12"></script>
 	<script src="js/wishlist.js?v=1"></script>
 	<script>
 		(async function loadWishlistPage() {
@@ -204,7 +215,11 @@
 				const ev = item.event || { id: item.event_id };
 				const id = ev.id || item.event_id;
 				const url = EP ? EP.eventDetailsUrl(ev) : `event-details.html?id=${encodeURIComponent(id)}`;
-				const img = EP ? EP.resolveImage(ev.image_url) : "images/hero-event.jpg";
+				const img = EP
+					? EP.resolveImage(ev.image_url)
+					: ((window.JodConfig && window.JodConfig.assetUrl)
+						? window.JodConfig.assetUrl("images/hero-event.jpg")
+						: "https://assets.jodevents.com/images/hero-event.jpg");
 				const title = EP ? EP.escapeHtml(ev.title || "Saved event") : (ev.title || "Saved event");
 				const dateStr = EP ? EP.formatDateIST(ev.start_date) : "";
 				const venue = EP ? EP.escapeHtml(ev.venue || ev.location || "Venue TBA") : (ev.venue || "Venue TBA");

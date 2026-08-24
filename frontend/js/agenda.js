@@ -5,12 +5,14 @@
 	"use strict";
 
 	function getApiBase() {
-		if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
+		}
+		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 			return window.JodHealth.getApiBaseUrl();
 		}
-		const host = (window.location.hostname && window.location.hostname !== "localhost")
-			? window.location.hostname : "127.0.0.1";
-		return `http://${host}:8001`;
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 	function getQueryParam(name) {
@@ -46,14 +48,37 @@
 		}
 	}
 
-	async function loadBooking(bookingId) {
-		const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
-		if (!token) return { _error: "signin" };
+	async function authFetch(url, options) {
+		const opts = Object.assign({ cache: "no-store" }, options || {});
+		opts.headers = Object.assign({ Accept: "application/json" }, opts.headers || {});
+		if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+			return window.JodAuth.fetchAuth(url, opts);
+		}
+		return fetch(url, Object.assign({ credentials: "include" }, opts));
+	}
+
+	function isSignedIn() {
+		if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function") {
+			return window.JodAuth.isLoggedIn();
+		}
 		try {
-			const res = await fetch(`${getApiBase()}/api/bookings/${bookingId}`, {
-				headers: { Authorization: `Bearer ${token}` },
-				cache: "no-store"
-			});
+			const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+			return Boolean(raw && raw !== "null" && raw !== "undefined");
+		} catch (_) {
+			return false;
+		}
+	}
+
+	async function loadBooking(bookingId) {
+		if (!bookingId) return { _error: "notfound" };
+		try {
+			if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+				const sessionUser = await window.JodAuth.validateSession();
+				if (!sessionUser && !isSignedIn()) return { _error: "signin" };
+			} else if (!isSignedIn()) {
+				return { _error: "signin" };
+			}
+			const res = await authFetch(`${getApiBase()}/api/bookings/${bookingId}`);
 			if (res.ok) return await res.json();
 			if (res.status === 401) return { _error: "signin" };
 			if (res.status === 403) return { _error: "forbidden" };

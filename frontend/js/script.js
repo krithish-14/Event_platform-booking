@@ -264,11 +264,7 @@
 			if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
 				return window.JodAuth.getToken();
 			}
-			try {
-				let tok = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token");
-				if (tok === "null" || tok === "undefined") tok = null;
-				return tok || null;
-			} catch (_) { return null; }
+			return null;
 		},
 		getUser: () => {
 			if (window.JodAuth && typeof window.JodAuth.getUser === "function") {
@@ -290,9 +286,8 @@
 				return window.JodAuth.isLoggedIn();
 			}
 			try {
-				const token = DefaultAuth.getToken();
 				const user = DefaultAuth.getUser();
-				return Boolean(token && user && (user.id || user.customer_id || user.email));
+				return Boolean(user && (user.id || user.customer_id || user.email));
 			} catch (_) { return false; }
 		},
 		logout: async () => {
@@ -339,7 +334,7 @@
 			is_authenticated: isAuth,
 			user_id: currentUser?.id || "N/A",
 			email: currentUser?.email || "N/A",
-			token_present: Boolean(auth.getToken ? auth.getToken() : localStorage.getItem("jod_access_token")),
+			token_present: Boolean(auth.isLoggedIn ? auth.isLoggedIn() : false),
 			body_data_user: isAuth ? "authenticated" : "guest"
 		});
 
@@ -361,6 +356,18 @@
 		const loggedIn = auth.isLoggedIn ? auth.isLoggedIn() : false;
 
 		if (loggedIn) {
+			if (desktopGroup) {
+				desktopGroup.classList.add("has-session");
+				desktopGroup.querySelectorAll(":scope > a.button-login, :scope > a.button-primary, #nav-login-btn, #nav-signup-btn").forEach((btn) => {
+					btn.hidden = true;
+					btn.setAttribute("aria-hidden", "true");
+					btn.style.setProperty("display", "none", "important");
+				});
+			}
+			if (mobileGroup) {
+				mobileGroup.hidden = true;
+				mobileGroup.innerHTML = "";
+			}
 			if (window.JodProfile) {
 				if (desktopGroup) window.JodProfile.renderProfileWidget(desktopGroup);
 				if (mobileGroup) window.JodProfile.renderMobileAuthGroup(mobileGroup);
@@ -386,31 +393,36 @@
 				}
 
 				if (mobileGroup) {
-					mobileGroup.innerHTML = `
-						<div style="padding:1rem .5rem .5rem;">
-							<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem;">
-								<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff7508,#ffab36);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${initials}</div>
-								<div style="line-height:1.15;">
-									<div style="font-weight:600;color:var(--foreground);">${displayName}</div>
-									<div style="font-size:.75rem;color:#94a3b8;">${user.email || ""}</div>
-								</div>
-							</div>
-							<button class="button button-login" id="mobile-logout-btn" type="button" style="width:100%;background:#fef2e6;color:#ff7508;border:1px solid #ffcd9a;">Logout</button>
-						</div>`;
-					const btn = mobileGroup.querySelector("#mobile-logout-btn");
-					if (btn) btn.addEventListener("click", onLogoutClick);
+					mobileGroup.hidden = true;
+					mobileGroup.innerHTML = "";
 				}
 			}
 		} else {
-			if (desktopGroup && !desktopGroup.querySelector("#nav-login-btn")) {
-				desktopGroup.innerHTML = `
+			if (desktopGroup) {
+				desktopGroup.classList.remove("has-session");
+				const sessionWidget = desktopGroup.querySelector(".profile-wrap, .auth-user-block");
+				if (sessionWidget) sessionWidget.remove();
+				const loginBtn = desktopGroup.querySelector("#nav-login-btn");
+				const signupBtn = desktopGroup.querySelector("#nav-signup-btn");
+				if (loginBtn && signupBtn) {
+					[loginBtn, signupBtn].forEach((btn) => {
+						btn.hidden = false;
+						btn.removeAttribute("aria-hidden");
+						btn.style.removeProperty("display");
+					});
+				} else if (!loginBtn) {
+					desktopGroup.innerHTML = `
 					<a class="button button-sm button-login" href="login.html" id="nav-login-btn">Login</a>
-					<a class="button button-sm button-primary" href="signup.html" id="nav-signup-btn">Sign Up<span class="signup-arrow"> &#8599;</span></a>`;
+					<a class="button button-sm button-primary" href="signup.html" id="nav-signup-btn">Sign Up &#8599;</a>`;
+				}
 			}
 			if (mobileGroup && !mobileGroup.querySelector('a[href="login.html"]')) {
+				mobileGroup.hidden = false;
 				mobileGroup.innerHTML = `
 					<a class="button button-login" href="login.html">Login</a>
 					<a class="button button-primary" href="signup.html">Sign Up</a>`;
+			} else if (mobileGroup) {
+				mobileGroup.hidden = false;
 			}
 		}
 	}
@@ -520,37 +532,16 @@
 
 	const menuToggle = document.querySelector("[data-menu-toggle]");
 	const mobileNav = document.querySelector("[data-mobile-nav]");
-	const navOverlay = document.querySelector("[data-nav-overlay]");
-
-	function setMobileNav(open) {
-		menuToggle?.classList.toggle("is-open", open);
+	menuToggle?.addEventListener("click", () => {
+		const open = menuToggle.classList.toggle("is-open");
 		mobileNav?.classList.toggle("is-open", open);
-		navOverlay?.classList.toggle("is-open", open);
-		if (navOverlay) navOverlay.hidden = false;
-		menuToggle?.setAttribute("aria-expanded", String(open));
-		document.body.classList.toggle("nav-open", open);
-	}
-
-	menuToggle?.addEventListener("click", (event) => {
-		event.stopPropagation();
-		setMobileNav(!menuToggle.classList.contains("is-open"));
+		menuToggle.setAttribute("aria-expanded", String(open));
 	});
-	navOverlay?.addEventListener("click", (event) => {
-		if (event.target !== navOverlay) return;
-		setMobileNav(false);
-	});
-	mobileNav?.addEventListener("click", (event) => {
-		event.stopPropagation();
-		const link = event.target.closest("a");
-		if (!link || !mobileNav.contains(link)) return;
-		window.setTimeout(() => setMobileNav(false), 180);
-	});
-	window.addEventListener("resize", () => {
-		if (window.innerWidth > 1024) setMobileNav(false);
-	});
-	document.addEventListener("keydown", (event) => {
-		if (event.key === "Escape") setMobileNav(false);
-	});
+	mobileNav?.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
+		menuToggle?.classList.remove("is-open");
+		mobileNav.classList.remove("is-open");
+		menuToggle?.setAttribute("aria-expanded", "false");
+	}));
 
 	document.querySelectorAll(".faq-item").forEach((item) => item.addEventListener("click", () => {
 		const wasOpen = item.classList.contains("is-open");
@@ -665,32 +656,6 @@
 		return Math.max(1, Math.round(viewport.clientWidth / step));
 	}
 
-	function bindSwipe(el, onSwipeLeft, onSwipeRight) {
-		if (!el) return;
-		let startX = null;
-		let startY = null;
-		el.addEventListener("pointerdown", (event) => {
-			if (event.pointerType === "mouse" && event.button !== 0) return;
-			startX = event.clientX;
-			startY = event.clientY;
-			try { el.setPointerCapture(event.pointerId); } catch (_) {}
-		});
-		el.addEventListener("pointerup", (event) => {
-			if (startX == null) return;
-			const dx = event.clientX - startX;
-			const dy = event.clientY - startY;
-			startX = null;
-			startY = null;
-			if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
-			if (dx < 0) onSwipeLeft();
-			else onSwipeRight();
-		});
-		el.addEventListener("pointercancel", () => {
-			startX = null;
-			startY = null;
-		});
-	}
-
 	function initCarousel(carousel) {
 		const viewport = carousel.querySelector("[data-carousel-viewport]");
 		const track = carousel.querySelector("[data-carousel-track]");
@@ -725,7 +690,6 @@
 			carousel.dataset.carouselBound = "1";
 			prevBtn.addEventListener("click", () => step(-1));
 			nextBtn.addEventListener("click", () => step(1));
-			bindSwipe(viewport, () => step(1), () => step(-1));
 			let resizeTimer = null;
 			window.addEventListener("resize", () => {
 				clearTimeout(resizeTimer);
@@ -780,7 +744,6 @@
 			carousel.dataset.carouselBound = "1";
 			prevBtn.addEventListener("click", () => step(-1));
 			nextBtn.addEventListener("click", () => step(1));
-			bindSwipe(viewport, () => step(1), () => step(-1));
 			let resizeTimer = null;
 			window.addEventListener("resize", () => {
 				clearTimeout(resizeTimer);

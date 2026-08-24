@@ -6,6 +6,7 @@ API endpoints for Host Event Creation Workflow — Live Auto-Save & UPSERT for:
 """
 
 import os
+import re
 import uuid
 import uuid as uuid_mod
 from datetime import datetime, date, timedelta, timezone
@@ -34,17 +35,19 @@ from Models import (
     EventVolunteer,
 )
 from APIs.organizers import to_public_verification_status, is_organizer_verified
-from Authentication.dependencies import get_current_user_optional
+from Authentication.dependencies import get_current_user
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
 from Utils.categories import (
-    normalize_category,
-    is_allowed_image_filename,
-    is_allowed_image_bytes,
+    CANONICAL_CATEGORIES,
     INVALID_IMAGE_MESSAGE,
     INVALID_IMAGE_TYPE_MESSAGE,
     INVALID_IMAGE_SIZE_MESSAGE,
     MAX_IMAGE_BYTES,
+    is_allowed_image_bytes,
+    is_allowed_image_filename,
+    normalize_category,
 )
+from Utils.text_sanitize import sanitize_text
 
 router = APIRouter()
 
@@ -53,10 +56,13 @@ ORGANIZER_VERIFICATION_REQUIRED = os.getenv("ORGANIZER_VERIFICATION_REQUIRED", "
 
 
 def _bound_email(email: Optional[str], current_user: Optional[User] = None) -> str:
-    """Always prefer the authenticated user's email over a client-supplied value."""
-    if current_user and getattr(current_user, "email", None):
-        return current_user.email.lower().strip()
-    return (email or "").lower().strip()
+    """Bind host actions to the authenticated JWT principal. Client emails are ignored."""
+    if not current_user or not getattr(current_user, "email", None):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+    return current_user.email.lower().strip()
 
 ACTIVE_EVENT_BLOCK_MESSAGE = (
     "You already have an active event. You can create and publish a new event "
@@ -123,6 +129,38 @@ def _event_owned(
     return False
 
 
+def _reject_foreign_event(
+    event: Optional[EventManagement],
+    email_clean: str,
+    customer_id: Optional[str],
+    host_id: Optional[str],
+    current_user: Optional[User],
+) -> Optional[EventManagement]:
+    if event is None:
+        return None
+    if not _event_owned(event, email_clean, customer_id, host_id, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this event.",
+        )
+    return event
+
+
+def _require_owned_event(db: Session, event_id, current_user: User) -> EventManagement:
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    event = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    email_clean = (current_user.email or "").lower().strip()
+    if not _event_owned(event, email_clean, current_user.customer_id, None, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this event.",
+        )
+    return event
+
+
 def _lookup_event_by_id(db: Session, event_id: Optional[str]) -> Optional[EventManagement]:
     if not event_id:
         return None
@@ -145,7 +183,10 @@ def resolve_or_create_event(
 
     event = _lookup_event_by_id(db, event_id)
     if event and not _event_owned(event, email_clean, customer_id, host_id, current_user):
-        event = None
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this event.",
+        )
 
     if not event:
         event = find_working_event(db, email_clean, customer_id, host_id)
@@ -261,14 +302,12 @@ def _resolve_event_end_datetime(event_mgt: EventManagement):
 
 
 def _effective_end_datetime(event: EventManagement):
-    """End datetime used for one-event and lifecycle checks (UTC naive)."""
-    end = _resolve_event_end_datetime(event)
-    if end:
-        return end
-    start = _resolve_event_start_datetime(event)
-    if start:
-        return start + timedelta(hours=4)
-    return None
+    """End datetime used for one-event and lifecycle checks (UTC naive).
+
+    Never invent a short +4h end — that made live events look "ended" too early.
+    Missing end means the event stays open until an explicit end is saved.
+    """
+    return _resolve_event_end_datetime(event)
 
 
 def apply_host_schedule_to_public_events(db: Session, events) -> None:
@@ -291,8 +330,13 @@ def apply_host_schedule_to_public_events(db: Session, events) -> None:
         if start and public_event.start_date != start:
             public_event.start_date = start
             changed = True
-        if end is not None and public_event.end_date != end:
-            public_event.end_date = end
+        if end is not None:
+            if public_event.end_date != end:
+                public_event.end_date = end
+                changed = True
+        elif host.event_end_date is None and public_event.end_date is not None:
+            # Drop previously invented short ends when the host never set an end.
+            public_event.end_date = None
             changed = True
     if changed:
         try:
@@ -365,17 +409,20 @@ def find_working_event(
     customer_id: Optional[str],
     host_id: Optional[str],
 ) -> Optional[EventManagement]:
-    """Draft first, then the host's active event, then the most recent event."""
+    """Prefer live/published, then draft/ready, then ended, then newest."""
     events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
         EventManagement.created_at.desc()
     ).all()
     if not events:
         return None
     for ev in events:
+        if is_event_active(ev):
+            return ev
+    for ev in events:
         if compute_event_lifecycle(ev) in ("draft", "ready_to_publish"):
             return ev
     for ev in events:
-        if is_event_active(ev):
+        if compute_event_lifecycle(ev) == "ended":
             return ev
     return events[0]
 
@@ -1058,7 +1105,9 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
     description = design.about_event if (design and design.about_event) else None
 
     ticket_types = event_mgt.tickets_json
-    if ticket_types and not isinstance(ticket_types, str):
+    if ticket_types is None:
+        ticket_types = []
+    if not isinstance(ticket_types, str):
         ticket_types = json.dumps(ticket_types)
 
     public_event = db.query(Event).filter(Event.id == event_mgt.event_id).first()
@@ -1109,8 +1158,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
         elif design and design.card_image:
             public_event.card_image = design.card_image
         public_event.start_date = start_dt
-        if end_dt:
-            public_event.end_date = end_dt
+        public_event.end_date = end_dt
         public_event.price = min_price
         public_event.is_published = True
         public_event.is_cancelled = False
@@ -1123,11 +1171,31 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
         if highlights:
             public_event.highlights = json.dumps(highlights)
         public_event.gallery_images = json.dumps(gallery_images) if gallery_images else None
-        if ticket_types:
-            public_event.ticket_types = ticket_types
+        # Always overwrite so cleared / updated offer windows reach the catalog.
+        public_event.ticket_types = ticket_types
         public_event.terms = terms_text
 
     public_event.updated_at = datetime.utcnow()
+
+    # Keep registration form live whenever the event is published to the catalog.
+    try:
+        from Models.event_registration_forms import EventRegistrationForm
+        from Models.form_definitions import FormDefinition
+        reg = db.query(EventRegistrationForm).filter(
+            EventRegistrationForm.event_id == event_mgt.event_id
+        ).first()
+        if reg and reg.questions_json and not reg.published:
+            reg.published = True
+            reg.updated_at = datetime.utcnow()
+        form_def = db.query(FormDefinition).filter(
+            FormDefinition.event_id == str(event_mgt.event_id)
+        ).order_by(FormDefinition.version.desc(), FormDefinition.id.desc()).first()
+        if form_def and form_def.schema_json and not form_def.is_published:
+            form_def.is_published = True
+            form_def.updated_at = datetime.utcnow()
+    except Exception as exc:
+        print(f"[EVENT PUBLISH] form publish sync failed event_id={event_mgt.event_id}: {exc}", flush=True)
+
     db.commit()
 
     if not was_published:
@@ -1186,6 +1254,7 @@ class SaveEventDesignRequest(BaseModel):
     sponsor_details: Optional[List[Dict[str, Any]]] = None
     social_links: Optional[Dict[str, Any]] = None
     custom_sections: Optional[List[Dict[str, Any]]] = None
+    performers_title: Optional[str] = None
 
 
 class SaveRegistrationFormRequest(BaseModel):
@@ -1317,7 +1386,7 @@ class SaveCheckinRequest(BaseModel):
 def save_manage_event(
     payload: SaveManageEventRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """UPSERT endpoint for Manage Event step with VERIFIED-only publish gate."""
     customer_id, host_id = resolve_host_identifiers(db, payload.organizer_email, current_user)
@@ -1408,13 +1477,13 @@ def save_manage_event(
     # Update attributes in place (UPSERT)
     event.customer_id = customer_id
     event.host_id = host_id
-    if payload.event_title: event.event_title = payload.event_title
+    if payload.event_title: event.event_title = sanitize_text(payload.event_title, max_length=200)
     if payload.event_category:
         event.event_category = normalize_category(payload.event_category) or payload.event_category
-    if payload.event_type: event.event_type = payload.event_type
-    if payload.event_mode: event.event_mode = payload.event_mode
-    if payload.venue: event.venue = payload.venue
-    if payload.address: event.address = payload.address
+    if payload.event_type: event.event_type = sanitize_text(payload.event_type, max_length=80)
+    if payload.event_mode: event.event_mode = sanitize_text(payload.event_mode, max_length=80)
+    if payload.venue: event.venue = sanitize_text(payload.venue, max_length=200)
+    if payload.address: event.address = sanitize_text(payload.address, max_length=400)
     if payload.latitude is not None: event.latitude = payload.latitude
     if payload.longitude is not None: event.longitude = payload.longitude
     if payload.organizer_name: event.organizer_name = payload.organizer_name
@@ -1442,11 +1511,7 @@ def save_manage_event(
             event.event_end_date = _parse_incoming_datetime(payload.event_end_date)
         except Exception:
             pass
-    if event.event_start_date and not event.event_end_date:
-        try:
-            event.event_end_date = event.event_start_date + timedelta(hours=4)
-        except Exception:
-            pass
+    # Do not invent start+4h when end is blank — that prematurely ended live events.
     if payload.tickets_json is not None: event.tickets_json = payload.tickets_json
     if payload.agenda_json is not None: event.agenda_json = payload.agenda_json
     if payload.policies_json is not None: event.policies_json = payload.policies_json
@@ -1529,7 +1594,7 @@ def save_manage_event(
 def save_event_design(
     payload: SaveEventDesignRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """UPSERT endpoint for Event Design step."""
     customer_id, host_id = resolve_host_identifiers(db, payload.organizer_email, current_user)
@@ -1570,15 +1635,22 @@ def save_event_design(
     if payload.sponsor_details is not None: design.sponsor_details = payload.sponsor_details
     if payload.social_links is not None: design.social_links = payload.social_links
     if payload.custom_sections is not None: design.custom_sections = payload.custom_sections
+    if payload.performers_title is not None:
+        cleaned_title = str(payload.performers_title).strip()
+        design.performers_title = cleaned_title or None
     design.updated_at = datetime.utcnow()
 
     db.commit()
     db.refresh(design)
 
+    catalog_synced = False
+    catalog_sync_error = None
     if (event.event_status or "").lower() == "published":
         try:
             sync_published_event_to_public_catalog(db, event)
+            catalog_synced = True
         except Exception as exc:
+            catalog_sync_error = str(exc)
             print(f"[EVENT DESIGN] catalog resync failed event_id={event.event_id}: {exc}", flush=True)
 
     return {
@@ -1588,6 +1660,8 @@ def save_event_design(
         "event_id": str(event.event_id),
         "customer_id": design.customer_id,
         "host_id": design.host_id,
+        "catalog_synced": catalog_synced,
+        "catalog_sync_error": catalog_sync_error,
         "design": {
             "design_id": str(design.design_id),
             "theme_color": design.theme_color,
@@ -1596,6 +1670,7 @@ def save_event_design(
             "speaker_details": design.speaker_details,
             "sponsor_details": design.sponsor_details,
             "gallery_images": design.gallery_images,
+            "performers_title": design.performers_title,
             "updated_at": design.updated_at.isoformat() if design.updated_at else None
         }
     }
@@ -1606,16 +1681,17 @@ async def upload_design_asset(
     email: str = Form(...),
     asset_type: str = Form(...),
     file: UploadFile = File(...),
+    event_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
-    """Upload banner, sponsor logo, artist photo, or gallery image for event design."""
+    """Upload banner, card, sponsor logo, artist photo, or gallery image for event design."""
     email_clean = _bound_email(email, current_user)
 
     if current_user and current_user.email.lower() != email_clean:
         raise HTTPException(status_code=403, detail="You can only upload assets for your own account.")
 
-    allowed_types = {"banner", "card_image", "sponsor_logo", "artist_photo", "gallery", "logo"}
+    allowed_types = {"banner", "card_image", "sponsor_logo", "artist_photo", "gallery", "logo", "payment_qr"}
     if asset_type not in allowed_types:
         raise HTTPException(status_code=400, detail=f"Invalid asset_type. Allowed: {', '.join(sorted(allowed_types))}")
 
@@ -1628,22 +1704,23 @@ async def upload_design_asset(
     if not is_allowed_image_bytes(contents, file.content_type or ""):
         raise HTTPException(status_code=400, detail=INVALID_IMAGE_TYPE_MESSAGE)
 
-    from Services.file_storage import public_url, store_bytes
+    from Services.file_storage import store_public_image
 
     try:
-        stored = store_bytes(
+        file_url = store_public_image(
             db,
             data=contents,
             filename=file.filename or f"{asset_type}.jpg",
             content_type=file.content_type,
-            kind="event_media",
             purpose=asset_type,
             owner_customer_id=current_user.customer_id if current_user else None,
             owner_email=email_clean,
+            event_id=event_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    file_url = public_url(stored)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
     db.commit()
     return {
         "message": f"{asset_type.replace('_', ' ').title()} uploaded successfully.",
@@ -1656,7 +1733,7 @@ async def upload_design_asset(
 def save_registration_form(
     payload: SaveRegistrationFormRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """UPSERT endpoint for Registration Form Builder step."""
     customer_id, host_id = resolve_host_identifiers(db, payload.organizer_email, current_user)
@@ -1690,7 +1767,12 @@ def save_registration_form(
     if payload.required_fields is not None: reg_form.required_fields = payload.required_fields
     if payload.field_order is not None: reg_form.field_order = payload.field_order
     if payload.settings_json is not None: reg_form.settings_json = payload.settings_json
-    if payload.published is not None: reg_form.published = payload.published
+    if payload.published is not None:
+        reg_form.published = payload.published
+    # If the event is already live, keep the registration form live too.
+    if (event.event_status or "").lower() == "published":
+        if reg_form.questions_json:
+            reg_form.published = True
     reg_form.updated_at = datetime.utcnow()
 
     db.commit()
@@ -1723,7 +1805,7 @@ def save_registration_form(
 def get_current_host_event(
     email: str = Query(..., description="Organizer email address"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Retrieve full event data across all 3 steps for the host."""
     email_clean = _bound_email(email, current_user)
@@ -1794,6 +1876,7 @@ def get_current_host_event(
             "speaker_details": design.speaker_details if design else [],
             "sponsor_details": design.sponsor_details if design else [],
             "gallery_images": design.gallery_images if design else [],
+            "performers_title": design.performers_title if design else None,
         } if design else None,
         "registration_form": {
             "form_id": str(reg_form.form_id) if reg_form else None,
@@ -1811,7 +1894,7 @@ def get_registration_module_data(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Return registration settings, ticket inventory, attendee registrations, and summary counts."""
     event, customer_id, host_id = resolve_or_create_event(
@@ -1918,7 +2001,7 @@ def get_registration_module_data(
 def save_registration_settings(
     payload: SaveRegistrationSettingsRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update registration settings for an event."""
     event, customer_id, host_id = resolve_or_create_event(db, payload.organizer_email, payload.event_id, current_user)
@@ -1970,7 +2053,7 @@ def save_registration_settings(
 def save_registration_ticket(
     payload: SaveRegistrationTicketRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update a registration ticket for an event."""
     event, customer_id, host_id = resolve_or_create_event(db, payload.organizer_email, payload.event_id, current_user)
@@ -2003,9 +2086,17 @@ def save_registration_ticket(
     if payload.price is not None: ticket.price = payload.price
     if payload.quantity is not None: ticket.quantity = payload.quantity
     if payload.sales_start is not None:
-        ticket.sales_start = date.fromisoformat(payload.sales_start) if isinstance(payload.sales_start, str) and payload.sales_start else None
+        raw_start = payload.sales_start
+        if isinstance(raw_start, str) and raw_start:
+            ticket.sales_start = date.fromisoformat(raw_start[:10])
+        else:
+            ticket.sales_start = None
     if payload.sales_end is not None:
-        ticket.sales_end = date.fromisoformat(payload.sales_end) if isinstance(payload.sales_end, str) and payload.sales_end else None
+        raw_end = payload.sales_end
+        if isinstance(raw_end, str) and raw_end:
+            ticket.sales_end = date.fromisoformat(raw_end[:10])
+        else:
+            ticket.sales_end = None
     if payload.description is not None: ticket.description = payload.description
     if payload.available_seats is not None: ticket.available_seats = payload.available_seats
     if payload.status is not None: ticket.status = payload.status
@@ -2018,13 +2109,18 @@ def save_registration_ticket(
 
 
 @router.delete("/registrations/tickets/{ticket_id}")
-def delete_registration_ticket(ticket_id: str, db: Session = Depends(get_db)):
-    """Soft-delete a registration ticket."""
+def delete_registration_ticket(
+    ticket_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete a registration ticket owned by the authenticated host."""
     try:
         ticket_uuid = uuid.UUID(ticket_id)
         ticket = db.query(EventRegistrationTicket).filter(EventRegistrationTicket.id == ticket_uuid).first()
         if not ticket:
             raise HTTPException(status_code=404, detail="Ticket not found")
+        _require_owned_event(db, ticket.event_id, current_user)
         ticket.deleted_at = datetime.utcnow()
         ticket.status = "inactive"
         db.commit()
@@ -2038,7 +2134,7 @@ def get_registration_attendees(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Retrieve attendee registration records."""
     event, _, _ = resolve_or_create_event(db, email, event_id, current_user, create_if_missing=False)
@@ -2067,7 +2163,7 @@ def get_registration_attendees(
 def save_registration_attendee(
     payload: SaveRegistrationRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update an attendee registration record."""
     event, customer_id, host_id = resolve_or_create_event(db, payload.organizer_email, payload.event_id, current_user)
@@ -2117,7 +2213,7 @@ def save_registration_attendee(
 def save_registration_checkin(
     payload: SaveCheckinRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Validate a ticket QR/code or attendee email and record a live check-in."""
     event, customer_id, host_id = resolve_or_create_event(
@@ -2268,7 +2364,7 @@ def get_event_attendance(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Checked-in vs yet-to-check-in attendees for the host sidebar Attendance tab."""
     event, customer_id, host_id = resolve_or_create_event(
@@ -2296,23 +2392,32 @@ def get_event_attendance(
 
 
 # ── Communication Endpoints ────────────────────────────────────────────────
+def _norm_ticket_key(label: Optional[str]) -> str:
+    text = re.sub(r"[+/_]+", " ", str(label or ""))
+    text = re.sub(r"\s+", " ", text).strip().lower()
+    text = text.replace("women's", "women").replace("womens", "women")
+    return text
+
+
+def _add_ticket_count(counts: Dict[str, Dict[str, Any]], label: Optional[str], qty: int = 1) -> None:
+    display = str(label or "").strip() or "General Admission"
+    key = _norm_ticket_key(display) or "general admission"
+    qty = max(1, int(qty or 1))
+    if key not in counts:
+        counts[key] = {"label": display, "count": 0, "key": key}
+    counts[key]["count"] += qty
+
+
 def _ticket_holder_counts(db: Session, event_mgt: EventManagement) -> Tuple[Dict[str, Dict[str, Any]], int]:
-    """Group sold ticket holders by ticket type — active tickets/bookings only."""
+    """Group holders by ticket type, including expired timed offers that already sold."""
+    counts: Dict[str, Dict[str, Any]] = {}
     tickets = _tickets_for_event(db, event_mgt)
     active_tickets = [
         t for t in tickets
         if (t.ticket_status or "").upper() not in _CANCELLED_STATUSES
     ]
-    counts: Dict[str, Dict[str, Any]] = {}
     for ticket in active_tickets:
-        label = (ticket.ticket_type or "Standard Access").strip() or "Standard Access"
-        key = label.lower()
-        if key not in counts:
-            counts[key] = {"label": label, "count": 0}
-        counts[key]["count"] += 1
-
-    if active_tickets:
-        return counts, len(active_tickets)
+        _add_ticket_count(counts, ticket.ticket_type, 1)
 
     from Models.booking import Booking
 
@@ -2331,14 +2436,31 @@ def _ticket_holder_counts(db: Session, event_mgt: EventManagement) -> Tuple[Dict
             b for b in booking_rows
             if (b.status or "").upper() not in _CANCELLED_STATUSES
         ]
-    for booking in active_bookings:
-        label = (booking.ticket_type or "Standard Access").strip() or "Standard Access"
-        key = label.lower()
-        qty = max(1, int(booking.quantity or 1))
-        if key not in counts:
-            counts[key] = {"label": label, "count": 0}
-        counts[key]["count"] += qty
-    total = sum(max(1, int(b.quantity or 1)) for b in active_bookings)
+    if not active_tickets:
+        for booking in active_bookings:
+            _add_ticket_count(counts, booking.ticket_type, booking.quantity or 1)
+
+    if not counts:
+        try:
+            submissions = _form_submissions_for_event(db, event_mgt)
+        except Exception:
+            db.rollback()
+            submissions = []
+        for row in submissions:
+            answers = row.answers_json if isinstance(row.answers_json, dict) else {}
+            label = (
+                row.ticket_type
+                or answers.get("_ticket_type")
+                or answers.get("ticket_type")
+                or "General Admission"
+            )
+            _add_ticket_count(counts, label, 1)
+
+    total = sum(int(info.get("count") or 0) for info in counts.values())
+    if not total and active_tickets:
+        total = len(active_tickets)
+    if not total and active_bookings:
+        total = sum(max(1, int(b.quantity or 1)) for b in active_bookings)
     return counts, total
 
 
@@ -2346,89 +2468,65 @@ def _count_for_ticket_label(counts: Dict[str, Dict[str, Any]], *labels: Optional
     for label in labels:
         if not label:
             continue
-        entry = counts.get(label.strip().lower())
+        entry = counts.get(_norm_ticket_key(label))
         if entry:
             return int(entry.get("count") or 0)
     return 0
 
 
 def _communication_audience_options(db: Session, event_mgt: EventManagement) -> List[Dict[str, Any]]:
-    """Build communicate-tab audience choices from configured ticket tiers and live sales."""
+    """Audience list from people who already hold tickets, even if that offer later expired."""
     import json
 
     counts, total_sold = _ticket_holder_counts(db, event_mgt)
     catalog: List[Dict[str, Any]] = []
-    seen_values = set()
+    seen_keys = set()
 
-    reg_tickets = (
-        db.query(EventRegistrationTicket)
-        .filter(
-            EventRegistrationTicket.event_id == event_mgt.event_id,
-            EventRegistrationTicket.deleted_at.is_(None),
-        )
-        .order_by(EventRegistrationTicket.created_at.asc())
-        .all()
-    )
-    for ticket in reg_tickets:
-        label = (ticket.ticket_name or ticket.ticket_type or "Ticket").strip()
-        value = f"ticket:{ticket.id}"
-        if value in seen_values:
-            continue
-        seen_values.add(value)
-        holder_count = _count_for_ticket_label(counts, ticket.ticket_name, ticket.ticket_type, label)
+    def append_option(label: str, count: int) -> None:
+        key = _norm_ticket_key(label)
+        if not key or key in seen_keys:
+            if key in seen_keys and count:
+                for opt in catalog:
+                    if opt.get("key") == key:
+                        opt["count"] = max(int(opt.get("count") or 0), int(count or 0))
+                        break
+            return
+        seen_keys.add(key)
+        slug = re.sub(r"[^a-z0-9]+", "_", key).strip("_") or "ticket"
         catalog.append({
-            "value": value,
+            "value": f"ticket_type:{slug}",
             "label": label,
-            "count": holder_count,
-            "ticket_id": str(ticket.id),
-            "ticket_type": ticket.ticket_type or label,
+            "count": int(count or 0),
+            "ticket_type": label,
+            "key": key,
         })
 
-    if not catalog:
-        raw_tickets = event_mgt.tickets_json
-        if isinstance(raw_tickets, str):
-            try:
-                raw_tickets = json.loads(raw_tickets)
-            except Exception:
-                raw_tickets = []
-        if isinstance(raw_tickets, list):
-            for idx, item in enumerate(raw_tickets):
-                if not isinstance(item, dict):
-                    continue
-                label = (item.get("name") or item.get("ticket_name") or item.get("type") or "").strip()
-                if not label:
-                    continue
-                value = f"ticket_type:{label.lower().replace(' ', '_')}"
-                if value in seen_values:
-                    continue
-                seen_values.add(value)
-                catalog.append({
-                    "value": value,
-                    "label": label,
-                    "count": _count_for_ticket_label(counts, label),
-                    "ticket_type": label,
-                })
-
-    if not catalog:
-        for key, info in counts.items():
-            value = f"ticket_type:{key.replace(' ', '_')}"
-            if value in seen_values:
+    raw_tickets = event_mgt.tickets_json
+    if isinstance(raw_tickets, str):
+        try:
+            raw_tickets = json.loads(raw_tickets)
+        except Exception:
+            raw_tickets = []
+    if isinstance(raw_tickets, list):
+        for item in raw_tickets:
+            if not isinstance(item, dict):
                 continue
-            seen_values.add(value)
-            catalog.append({
-                "value": value,
-                "label": info["label"],
-                "count": int(info.get("count") or 0),
-                "ticket_type": info["label"],
-            })
+            label = (item.get("name") or item.get("ticket_name") or item.get("type") or "").strip()
+            if not label:
+                continue
+            append_option(label, _count_for_ticket_label(counts, label))
 
+    for info in counts.values():
+        append_option(info.get("label") or "Ticket", int(info.get("count") or 0))
+
+    catalog.sort(key=lambda opt: (-int(opt.get("count") or 0), str(opt.get("label") or "").lower()))
     total = total_sold if total_sold else sum(int(opt.get("count") or 0) for opt in catalog)
     options = [{
         "value": "all_tickets",
         "label": "All Ticket Holders",
         "count": total,
     }]
-    options.extend(catalog)
+    options.extend([{k: v for k, v in opt.items() if k != "key"} for opt in catalog])
     return options
 
 
@@ -2437,7 +2535,7 @@ def get_communications(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Return saved communications and ticket-based audience options for the organizer's event."""
     event, _, _ = resolve_or_create_event(db, email, event_id, current_user, create_if_missing=False)
@@ -2471,7 +2569,7 @@ def get_communications(
 def save_communication(
     payload: SaveCommunicationRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update a communication message."""
     event, customer_id, host_id = resolve_or_create_event(db, payload.organizer_email, payload.event_id, current_user)
@@ -2734,7 +2832,7 @@ def get_reports_summary(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Return financial and engagement metrics for the reports tab."""
     event, _, _ = resolve_or_create_event(db, email, event_id, current_user, create_if_missing=False)
@@ -2816,7 +2914,7 @@ def get_dashboard_summary(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None, description="Optional specific event ID"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Returns dynamic KPI metrics, counts, and stats for the selected event."""
     email_clean = _bound_email(email, current_user)
@@ -2829,11 +2927,10 @@ def get_dashboard_summary(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
 
     if not event:
-        event = db.query(EventManagement).filter(
-            EventManagement.organizer_email == email_clean
-        ).order_by(EventManagement.created_at.desc()).first()
+        event = find_working_event(db, email_clean, customer_id, host_id)
 
     if not event:
         return {
@@ -2854,10 +2951,11 @@ def get_dashboard_summary(
             "registration_trend": []
         }
 
-    # Calculate days to event start
+    # Calculate days to event start (compare resolved UTC clocks)
     days_left = 0
-    if event.event_start_date:
-        delta = event.event_start_date - datetime.utcnow()
+    start_utc = _resolve_event_start_datetime(event) if event.event_start_date else None
+    if start_utc:
+        delta = start_utc - datetime.utcnow()
         days_left = max(0, delta.days)
 
     # Speakers & Sponsors count from EventDesign
@@ -2931,7 +3029,7 @@ def get_exhibitors(
     email: str = Query(..., description="Organizer email"),
     event_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Retrieve all exhibitors for an event."""
     email_clean = _bound_email(email, current_user)
@@ -2944,11 +3042,10 @@ def get_exhibitors(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
 
     if not event:
-        event = db.query(EventManagement).filter(
-            EventManagement.organizer_email == email_clean
-        ).order_by(EventManagement.created_at.desc()).first()
+        event = find_working_event(db, email_clean, customer_id, host_id)
 
     if not event:
         return {"exhibitors": [], "total": 0, "confirmed": 0, "pending": 0}
@@ -2984,7 +3081,7 @@ def get_exhibitors(
 def create_or_update_exhibitor(
     payload: SaveExhibitorRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update an exhibitor record."""
     email_clean = _bound_email(payload.organizer_email, current_user)
@@ -2997,11 +3094,10 @@ def create_or_update_exhibitor(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
 
     if not event:
-        event = db.query(EventManagement).filter(
-            EventManagement.organizer_email == email_clean
-        ).order_by(EventManagement.created_at.desc()).first()
+        event = find_working_event(db, email_clean, customer_id, host_id)
 
     if not event:
         event = EventManagement(
@@ -3057,14 +3153,16 @@ def create_or_update_exhibitor(
 @router.delete("/exhibitors/{exhibitor_id}")
 def delete_exhibitor(
     exhibitor_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Delete an exhibitor record."""
+    """Delete an exhibitor record owned by the authenticated host."""
     try:
         ex_uuid = uuid.UUID(exhibitor_id)
         exhibitor = db.query(Exhibitor).filter(Exhibitor.exhibitor_id == ex_uuid).first()
         if not exhibitor:
             raise HTTPException(status_code=404, detail="Exhibitor not found")
+        _require_owned_event(db, exhibitor.event_id, current_user)
         db.delete(exhibitor)
         db.commit()
         return {"status": "success", "message": "Exhibitor deleted"}
@@ -3077,7 +3175,7 @@ def clear_host_events(
     email: str = Query(..., description="Organizer email address"),
     event_id: Optional[str] = Query(None, description="Optional event id to cancel"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Cancel the host event, hide it from public pages, then clear host dashboard data."""
     email_clean = _bound_email(email, current_user)
@@ -3156,10 +3254,11 @@ def get_gates(
     organizer_email: str,
     event_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Retrieve all gates for an event."""
     email_clean = _bound_email(organizer_email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
     event = None
     if event_id:
         try:
@@ -3167,10 +3266,9 @@ def get_gates(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
-        event = db.query(EventManagement).filter(
-            EventManagement.organizer_email == email_clean
-        ).order_by(EventManagement.created_at.desc()).first()
+        event = find_working_event(db, email_clean, customer_id, host_id)
 
     if not event:
         return {"event_id": None, "gates": []}
@@ -3195,7 +3293,7 @@ def get_gates(
 def save_gate(
     payload: SaveGateRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Create or update an entry gate."""
     email_clean = _bound_email(payload.organizer_email, current_user)
@@ -3208,10 +3306,9 @@ def save_gate(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
-        event = db.query(EventManagement).filter(
-            EventManagement.organizer_email == email_clean
-        ).order_by(EventManagement.created_at.desc()).first()
+        event = find_working_event(db, email_clean, customer_id, host_id)
 
     if not event:
         event = EventManagement(
@@ -3276,7 +3373,8 @@ def save_gate(
 @router.delete("/gates/{gate_id}")
 def delete_gate(
     gate_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a gate if not assigned to any scanners."""
     try:
@@ -3284,6 +3382,7 @@ def delete_gate(
         gate = db.query(EventEntryGate).filter(EventEntryGate.gate_id == g_uuid).first()
         if not gate:
             raise HTTPException(status_code=404, detail="Gate not found")
+        _require_owned_event(db, gate.event_id, current_user)
 
         # Check if any staff/scanners are assigned to this gate
         assigned_scanners = db.query(EventStaffScanner).filter(EventStaffScanner.gate_id == g_uuid).first()
@@ -3317,10 +3416,11 @@ def get_scanners(
     organizer_email: str,
     event_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Retrieve all volunteer scanners for an event."""
     email_clean = _bound_email(organizer_email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
     event = None
     if event_id:
         try:
@@ -3328,10 +3428,9 @@ def get_scanners(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
-        event = db.query(EventManagement).filter(
-            EventManagement.organizer_email == email_clean
-        ).order_by(EventManagement.created_at.desc()).first()
+        event = find_working_event(db, email_clean, customer_id, host_id)
 
     if not event:
         return {"event_id": None, "scanners": []}
@@ -3357,10 +3456,12 @@ def get_scanners(
 @router.post("/scanners")
 def save_scanner(
     payload: SaveScannerRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Create or update a volunteer scanner."""
     email_clean = _bound_email(payload.organizer_email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
     event = None
     if payload.event_id:
         try:
@@ -3368,10 +3469,9 @@ def save_scanner(
             event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
         except ValueError:
             pass
+        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
-        event = db.query(EventManagement).filter(
-            EventManagement.organizer_email == email_clean
-        ).order_by(EventManagement.created_at.desc()).first()
+        event = find_working_event(db, email_clean, customer_id, host_id)
 
     if not event:
         raise HTTPException(status_code=404, detail="No active event found to attach scanner to")
@@ -3425,7 +3525,8 @@ def save_scanner(
 @router.delete("/scanners/{scanner_id}")
 def delete_scanner(
     scanner_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Revoke a volunteer scanner's access."""
     try:
@@ -3433,6 +3534,7 @@ def delete_scanner(
         scanner = db.query(EventStaffScanner).filter(EventStaffScanner.scanner_id == s_uuid).first()
         if not scanner:
             raise HTTPException(status_code=404, detail="Scanner not found")
+        _require_owned_event(db, scanner.event_id, current_user)
         db.delete(scanner)
         db.commit()
         return {"status": "success", "message": "Scanner revoked successfully"}

@@ -1,5 +1,11 @@
 from sqlalchemy import create_engine, text
-engine = create_engine('postgresql+psycopg://jod_user:jod_password@localhost:5432/jod_event')
+import os
+from dotenv import load_dotenv
+load_dotenv()
+url = (os.getenv("DATABASE_URL") or "").strip()
+if not url:
+    raise SystemExit("DATABASE_URL is required")
+engine = create_engine(url)
 with engine.connect() as conn:
     cols = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'user_signups'")).fetchall()
     for c in cols:

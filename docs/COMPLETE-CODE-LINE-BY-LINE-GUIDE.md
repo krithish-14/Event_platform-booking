@@ -108,10 +108,10 @@ No database connections could be established. The entire FastAPI backend would t
 ```python
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg://jod_user:jod_password@localhost:5432/jod_event"
+    "postgresql+psycopg://USER:CHANGE_ME@localhost:5432/jod_events"
 )
 ```
-* **What it does:** Reads the `DATABASE_URL` environment variable, defaulting to PostgreSQL connection credentials (`postgresql+psycopg://...`).
+* **What it does:** Reads the `DATABASE_URL` environment variable. The default above is an obvious placeholder only — never use real credentials in docs. Copy `backend/.env.example` and set your own values.
 * **Why it exists:** Allows configuration via `.env` without hardcoding database credentials in python files.
 
 ```python

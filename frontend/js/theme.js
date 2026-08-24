@@ -10,7 +10,7 @@
 	var PREFS_KEY = "jod_theme_prefs";
 	var EVENT_NAME = "jod-theme-change";
 	var DARK_CSS_ID = "jod-theme-dark-css";
-	var DARK_CSS_HREF = "css/theme-dark.css?v=3";
+	var DARK_CSS_HREF = "css/theme-dark.css?v=8";
 	var AUTH_PAGES = {
 		"login.html": 1,
 		"signup.html": 1,
@@ -34,8 +34,6 @@
 
 	function readSessionUser() {
 		try {
-			var token = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token");
-			if (!token || token === "null" || token === "undefined") return null;
 			var raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
 			if (!raw || raw === "null" || raw === "undefined") return null;
 			var user = JSON.parse(raw);
@@ -243,4 +241,71 @@
 		apply: apply,
 		sync: sync,
 	};
+})(window);
+
+(function initJodHeaderBack(global) {
+	"use strict";
+	if (global.__jodHeaderBackBound) return;
+	global.__jodHeaderBackBound = true;
+
+	function pageFile() {
+		return (global.location.pathname.split("/").pop() || "index.html").toLowerCase();
+	}
+
+	function sameOriginReferrer() {
+		try {
+			if (!document.referrer) return false;
+			return new URL(document.referrer).origin === global.location.origin;
+		} catch (_) {
+			return false;
+		}
+	}
+
+	function fallbackHref(btn) {
+		var custom = btn && btn.getAttribute("data-back-fallback");
+		if (custom) return custom;
+		if (btn && btn.tagName === "A") {
+			var href = btn.getAttribute("href");
+			if (href && href !== "#") return href;
+		}
+		var page = pageFile();
+		var params = new URLSearchParams(global.location.search);
+		var eventId = params.get("id") || params.get("eventId") || params.get("event_id") || "";
+		if (page === "forgot-password.html") return "login.html";
+		if (page === "signup.html") return "login.html";
+		if (page === "ticket-details.html") return "orders.html";
+		if (page === "agenda.html") {
+			return eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "orders.html";
+		}
+		if (page === "payment.html" || page === "published-form.html") {
+			return eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "index.html";
+		}
+		if (page === "verify-email.html" || page === "account-setup.html") return "host-your-event.html";
+		if (page === "orders.html" || page === "settings.html" || page === "notifications.html") return "dashboard.html";
+		if (page === "volunteer-scanner.html") return "volunteer-portal.html";
+		return "index.html";
+	}
+
+	function goBack(btn) {
+		if (sameOriginReferrer() && global.history.length > 1) {
+			try {
+				var refPage = (new URL(document.referrer).pathname.split("/").pop() || "").toLowerCase();
+				// Never history.back() into auth pages after a successful login redirect.
+				if (refPage !== "login.html" && refPage !== "signup.html" && refPage !== "forgot-password.html") {
+					global.history.back();
+					return;
+				}
+			} catch (_) {}
+		}
+		global.location.href = fallbackHref(btn);
+	}
+
+	document.addEventListener("click", function (event) {
+		var btn = event.target && event.target.closest ? event.target.closest("[data-header-back]") : null;
+		if (!btn) return;
+		event.preventDefault();
+		goBack(btn);
+	});
+
+	global.JodGoBack = goBack;
 })(window);

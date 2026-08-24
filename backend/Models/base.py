@@ -10,12 +10,21 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg://jod_user:jod_password@localhost:5432/jod_event"
-)
+def get_database_url() -> str:
+    url = (os.getenv("DATABASE_URL") or "").strip()
+    if not url:
+        raise RuntimeError("DATABASE_URL is required. PostgreSQL is required.")
+    lowered = url.lower()
+    if "sqlite" in lowered:
+        raise RuntimeError("SQLite is not supported. Configure PostgreSQL via DATABASE_URL.")
+    if "postgresql" not in lowered:
+        raise RuntimeError("DATABASE_URL must be a PostgreSQL URL (postgresql+psycopg://...).")
+    return url
+
+
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 import uuid
 from sqlalchemy.types import TypeDecorator, CHAR
@@ -73,37 +82,25 @@ _init_lock = Lock()
 
 
 def _ensure_engine():
-    """Create engine + session factory on first actual DB access, falling back to SQLite if PostgreSQL is unreachable."""
+    """Create engine + session factory on first actual DB access. PostgreSQL is required."""
     global _engine, _SessionLocal
     if _engine is not None:
         return _engine
     with _init_lock:
         if _engine is None:
-            db_url = DATABASE_URL
-            connect_args = {}
-            if "sqlite" in db_url:
-                connect_args = {"check_same_thread": False}
-            elif "+psycopg" in db_url or "postgresql" in db_url:
-                connect_args = {"connect_timeout": 3}
-
+            db_url = get_database_url()
             engine_candidate = create_engine(
                 db_url,
                 pool_pre_ping=True,
-                connect_args=connect_args,
+                connect_args={"connect_timeout": 5},
             )
-            if "postgresql" in db_url:
-                try:
-                    with engine_candidate.connect() as conn:
-                        pass
-                except Exception as err:
-                    print(f"  [WARN] PostgreSQL unavailable ({err}). Falling back to SQLite database (jod_events.db)...", flush=True)
-                    db_url = "sqlite:///./jod_events.db"
-                    connect_args = {"check_same_thread": False}
-                    engine_candidate = create_engine(
-                        db_url,
-                        pool_pre_ping=True,
-                        connect_args=connect_args,
-                    )
+            try:
+                with engine_candidate.connect() as conn:
+                    pass
+            except Exception as err:
+                raise RuntimeError(
+                    f"PostgreSQL is unavailable. Start Postgres and check DATABASE_URL. ({err})"
+                ) from err
             _engine = engine_candidate
             _SessionLocal = sessionmaker(
                 autocommit=False, autoflush=False, bind=_engine
@@ -143,70 +140,8 @@ def get_db():
 
 
 def _sync_databases():
-    """Sync user accounts between SQLite and PostgreSQL so logins never fail due to DB switching."""
-    try:
-        import sqlite3
-        from sqlalchemy import text
-        project_backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        sqlite_path = os.path.join(project_backend, "jod_events.db")
-        
-        # Connect to SQLite if it exists
-        sqlite_users = []
-        if os.path.exists(sqlite_path):
-            try:
-                s_conn = sqlite3.connect(sqlite_path)
-                s_cur = s_conn.cursor()
-                # Ensure customer_id column exists in SQLite
-                s_cur.execute("PRAGMA table_info(users)")
-                cols = [c[1] for c in s_cur.fetchall()]
-                if "customer_id" not in cols:
-                    s_cur.execute("ALTER TABLE users ADD COLUMN customer_id VARCHAR(100)")
-                    s_conn.commit()
-                s_cur.execute("SELECT id, customer_id, email, username, full_name, hashed_password, is_active, is_admin FROM users")
-                sqlite_users = s_cur.fetchall()
-                s_conn.close()
-            except Exception:
-                pass
-
-        # Try connecting to PostgreSQL
-        pg_engine = None
-        try:
-            db_url = DATABASE_URL
-            if "postgresql" in db_url:
-                pg_engine = create_engine(db_url, connect_args={"connect_timeout": 3})
-                with pg_engine.connect() as conn:
-                    pass
-        except Exception:
-            pg_engine = None
-
-        if pg_engine and sqlite_users:
-            with pg_engine.connect() as pg_conn:
-                for row in sqlite_users:
-                    u_id, u_cust_id, u_email, u_name, u_full, u_hash, u_act, u_adm = row
-                    if not u_cust_id or not str(u_cust_id).startswith("CUST-"):
-                        import random
-                        u_cust_id = f"CUST-{random.randint(100000, 999999)}"
-
-                    pg_conn.execute(
-                        text("""
-                            INSERT INTO users (id, customer_id, email, username, full_name, hashed_password, is_active, is_admin, created_at, updated_at)
-                            VALUES (:id, :customer_id, :email, :username, :full_name, :hashed_password, :is_active, :is_admin, NOW(), NOW())
-                            ON CONFLICT (email) DO NOTHING
-                        """),
-                        {
-                            "id": str(u_id),
-                            "customer_id": str(u_cust_id),
-                            "email": u_email,
-                            "username": u_name,
-                            "full_name": u_full,
-                            "hashed_password": u_hash,
-                            "is_active": bool(u_act),
-                            "is_admin": bool(u_adm),
-                        }
-                    )
-                pg_conn.commit()
-    except Exception as exc:
-        pass
+    """No-op. SQLite fallback and cross-DB user sync were removed."""
+    return
 
 
 def _migrate_tables(engine=None):
@@ -233,7 +168,6 @@ def _migrate_tables(engine=None):
                 ("location_lon", "DOUBLE PRECISION" if is_pg else "FLOAT"),
                 ("bio", "TEXT"),
                 ("avatar_url", "VARCHAR(500)"),
-                ("phone", "VARCHAR(50)"),
                 ("notification_read_ids", "JSON" if is_pg else "TEXT"),
                 ("notification_cleared_ids", "JSON" if is_pg else "TEXT"),
             ]
@@ -488,6 +422,7 @@ def _migrate_tables(engine=None):
             existing_cols = {c["name"] for c in inspector.get_columns("event_design")}
             design_migrations = [
                 ("card_image", "VARCHAR(500)"),
+                ("performers_title", "VARCHAR(200)"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in design_migrations:
@@ -515,6 +450,35 @@ def _migrate_tables(engine=None):
                         print("  [DB MIGRATION] Added column event_volunteers.gate_id", flush=True)
                     except Exception as e:
                         print(f"  [DB MIGRATION WARN] Could not add column event_volunteers.gate_id: {e}", flush=True)
+                conn.commit()
+
+        if "email_otps" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("email_otps")}
+            with engine.connect() as conn:
+                if "purpose" not in existing_cols:
+                    try:
+                        if is_pg:
+                            conn.execute(text("ALTER TABLE email_otps ADD COLUMN IF NOT EXISTS purpose VARCHAR(50);"))
+                        else:
+                            conn.execute(text("ALTER TABLE email_otps ADD COLUMN purpose VARCHAR(50);"))
+                        print("  [DB MIGRATION] Added column email_otps.purpose", flush=True)
+                    except Exception as e:
+                        print(f"  [DB MIGRATION WARN] Could not add column email_otps.purpose: {e}", flush=True)
+                try:
+                    if is_pg:
+                        conn.execute(text("ALTER TABLE email_otps ALTER COLUMN otp_code TYPE VARCHAR(128);"))
+                    else:
+                        conn.execute(text("ALTER TABLE email_otps ALTER COLUMN otp_code TYPE VARCHAR(128);"))
+                except Exception as e:
+                    print(f"  [DB MIGRATION WARN] Could not widen email_otps.otp_code: {e}", flush=True)
+                if "attempt_count" not in existing_cols:
+                    try:
+                        if is_pg:
+                            conn.execute(text("ALTER TABLE email_otps ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 0 NOT NULL;"))
+                        else:
+                            conn.execute(text("ALTER TABLE email_otps ADD COLUMN attempt_count INTEGER DEFAULT 0 NOT NULL;"))
+                    except Exception as e:
+                        print(f"  [DB MIGRATION WARN] Could not add email_otps.attempt_count: {e}", flush=True)
                 conn.commit()
     except Exception as exc:
         print(f"  [WARN] Auto-migration check: {exc}", flush=True)

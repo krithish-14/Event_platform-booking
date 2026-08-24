@@ -11,6 +11,7 @@
 	const isHome = pageName === "index.html" || pageName === "";
 	const isAboutPage = pageName === "about.html";
 	const isCategoryPage = pageName === "category.html";
+	const isGalleryPage = pageName === "gallery.html";
 	const isLoginPage = pageName === "login.html";
 	const isSignupPage = pageName === "signup.html";
 	const isPolicyPage = ["privacy-policy.html", "terms-and-conditions.html", "return-and-refund-policy.html"].includes(pageName);
@@ -73,6 +74,12 @@
 				link.setAttribute("aria-current", "page");
 			});
 		}
+		if (isGalleryPage) {
+			header.querySelectorAll("a[href='gallery.html']").forEach((link) => {
+				link.classList.add("is-active");
+				link.setAttribute("aria-current", "page");
+			});
+		}
 		if (isLoginPage) {
 			header.querySelectorAll("a[href='login.html']").forEach((link) => {
 				link.classList.add("is-active");
@@ -107,9 +114,9 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=18"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=19"));
 	const footerEl = document.getElementById("footer");
-	if (footerEl) promises.push(loadComponent("footer", "components/footer.html"));
+	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=3"));
 
 	window.includesReady = Promise.all(promises).then(() => {
 		updateNavigation();

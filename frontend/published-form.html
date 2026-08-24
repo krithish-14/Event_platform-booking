@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-		<script src="js/theme.js?v=3"></script>
+		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Cache-Control" content="no-store" />
 	<title>Event Registration Form | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<!-- Google Fonts -->
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -319,30 +320,32 @@
 			font-weight: 700;
 		}
 
-		@media (max-width: 1024px) {
-			body { padding: 1.5rem 1rem; }
-			#pageContainer { max-width: 100%; }
+		.header-back-btn {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 0.35rem;
+			height: 2.4rem;
+			padding: 0 0.9rem 0 0.65rem;
+			margin: 0 0 1rem;
+			border: 1px solid #e2e8f0;
+			background: #ffffff;
+			color: #0f172a;
+			border-radius: 999px;
+			font-size: 0.875rem;
+			font-weight: 700;
+			font-family: inherit;
+			cursor: pointer;
+			text-decoration: none;
+			width: fit-content;
 		}
-
-		@media (max-width: 768px) {
-			body { padding: 1rem 0.75rem; }
-			.form-card-body { padding: 1.35rem 1rem; }
-			.form-title { font-size: 1.35rem; }
-			.form-input, .form-textarea, .form-select, .submit-btn, .success-btn {
-				min-height: 44px;
-				font-size: 16px;
-			}
-			.option-label { min-height: 44px; }
-			.success-btn { width: 100%; min-width: 0; }
-			.policy-modal { padding: 0.75rem; }
-			.policy-modal-card { max-height: min(92vh, 720px); }
-			.policy-modal-header, .policy-modal-body { padding-left: 1rem; padding-right: 1rem; }
-		}
+		.header-back-btn svg { width: 1.05rem; height: 1.05rem; display: block; }
 
 		@media (max-width: 640px) {
-			body { padding: 1rem 0.5rem; }
-			.form-card-body { padding: 1.5rem 1.25rem; }
-			.form-title { font-size: 1.4rem; }
+			body { padding: 0.85rem 0.7rem 1.5rem; }
+			.form-card-body { padding: 1.25rem 1rem 1.4rem; }
+			.form-title { font-size: 1.28rem; }
+			input, select, textarea { font-size: 16px; }
 		}
 
 		.policy-modal {
@@ -499,6 +502,10 @@
 	</div>
 
 	<div id="pageContainer">
+		<button type="button" class="header-back-btn" id="formPageBack" data-header-back data-back-fallback="index.html" aria-label="Go back">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+			<span>Back</span>
+		</button>
 		
 		<!-- ── LOADING STATE ─────────────────────────────────────────────────── -->
 		<div id="loadingState">
@@ -553,10 +560,10 @@
 		<div id="successState" aria-hidden="true">
 			<div class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="successTitle">
 				<div class="success-icon">✓</div>
-				<h2 id="successTitle">Registration form complete</h2>
-				<p class="success-lead">Still pending complete payment for full registration process to complete.</p>
+				<h2 id="successTitle">Registration form completed</h2>
+				<p class="success-lead">Move to payment to finish your full registration process.</p>
 				<div class="success-actions">
-					<button type="button" class="success-btn success-btn-next" id="successNextBtn">Next</button>
+					<button type="button" class="success-btn success-btn-next" id="successNextBtn">Continue to Payment</button>
 				</div>
 			</div>
 		</div>
@@ -571,7 +578,7 @@
 	<script>
 		(function () {
 			const localDev = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1") || window.location.hostname === "localhost";
-			const API_ROOT = localDev ? "http://127.0.0.1:8001/api" : "/api";
+			const API_ROOT = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api');
 			const API_BASE = `${API_ROOT}/forms`;
 			const EVENTS_API = `${API_ROOT}/events`;
 
@@ -582,6 +589,7 @@
 			const ticketPrice = urlParams.get("price") || "";
 			const mode = urlParams.get("mode");
 			const isHostReadOnly = mode === "readOnly" || mode === "preview" || mode === "host";
+			const resumePayment = String(urlParams.get("resume") || "").toLowerCase() === "payment";
 
 			const loadingState = document.getElementById("loadingState");
 			const errorState = document.getElementById("errorState");
@@ -618,12 +626,16 @@
 			let formData = null;
 			let hasEmailQuestionInSchema = false;
 			let policyAccepted = isHostReadOnly;
-			let eventMeta = { title: "", venue: "" };
+			let eventMeta = { title: "", venue: "", ticketTypes: [] };
 			let resolvedTicketName = ticketType;
 			let resolvedTicketPrice = ticketPrice;
 
 			if (eventId && policyBackLink) {
 				policyBackLink.href = `event-details.html?id=${encodeURIComponent(eventId)}`;
+			}
+			const formPageBack = document.getElementById("formPageBack");
+			if (formPageBack && eventId) {
+				formPageBack.setAttribute("data-back-fallback", `event-details.html?id=${encodeURIComponent(eventId)}`);
 			}
 
 			if (!formId && !eventId) {
@@ -646,6 +658,7 @@
 					const data = await res.json();
 					eventMeta.title = data.title || "";
 					eventMeta.venue = data.venue || data.location || "";
+					eventMeta.ticketTypes = Array.isArray(data.ticket_types) ? data.ticket_types : [];
 					if ((resolvedTicketPrice === "" || resolvedTicketPrice == null) && data.price != null) {
 						resolvedTicketPrice = String(data.price);
 					}
@@ -654,37 +667,66 @@
 
 			function prettyTicketName(raw) {
 				const value = String(raw || "").replace(/\+/g, " ").trim();
-				if (!value) return "General Admission";
+				if (!value) return "";
 				try { return decodeURIComponent(value); } catch (_) { return value; }
 			}
 
+			function canonicalTicketName(raw) {
+				const decoded = prettyTicketName(raw);
+				if (!decoded) return "";
+				const key = decoded.replace(/\s+/g, " ").toLowerCase();
+				const types = eventMeta.ticketTypes || [];
+				const match = types.find((item) => {
+					const itemName = prettyTicketName(item && (item.name || item.ticket_name || item.type || ""));
+					return itemName.replace(/\s+/g, " ").toLowerCase() === key;
+				});
+				if (!match) return decoded;
+				return prettyTicketName(match.name || match.ticket_name || match.type || decoded);
+			}
+
+			function paymentQrForTicket(name) {
+				const key = prettyTicketName(name).replace(/\s+/g, " ").toLowerCase();
+				if (!key) return "";
+				const types = eventMeta.ticketTypes || [];
+				const match = types.find((item) => {
+					const itemName = prettyTicketName(item && (item.name || item.ticket_name || item.type || ""));
+					return itemName.replace(/\s+/g, " ").toLowerCase() === key;
+				});
+				if (!match) return "";
+				return String(match.payment_qr_url || match.qr_url || match.payment_qr || "").trim();
+			}
+
 			function resolveTicketFromAnswers(answers) {
-				if (ticketType) return prettyTicketName(ticketType);
-				if (!answers || typeof answers !== "object") return "General Admission";
+				const fromUrl = canonicalTicketName(resolvedTicketName || ticketType);
+				if (fromUrl) return fromUrl;
+				if (!answers || typeof answers !== "object") return "";
 				const entries = Object.entries(answers);
 				for (const [key, val] of entries) {
-					if (/ticket/i.test(key) && val) {
-						return prettyTicketName(Array.isArray(val) ? val[0] : val);
+					const label = String(key || "");
+					if (/\bticket\b|\bpass\b/i.test(label) && !/price|qty|quantity|passport|password/i.test(label) && val) {
+						return canonicalTicketName(Array.isArray(val) ? val[0] : val);
 					}
 				}
-				return "General Admission";
+				return "";
 			}
 
 			function savePendingTicketBill() {
+				const ticketName = canonicalTicketName(resolvedTicketName || ticketType);
 				const bill = {
 					eventId: (formData && formData.event_id) || eventId || "",
 					eventTitle: eventMeta.title || (formData && formData.form_title) || "",
 					venue: eventMeta.venue || "",
-					ticket: prettyTicketName(resolvedTicketName || ticketType),
+					ticket: ticketName,
 					price: String(resolvedTicketPrice || ticketPrice || "0"),
-					quantity: 1
+					quantity: 1,
+					paymentQrUrl: paymentQrForTicket(ticketName)
 				};
 				try { sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify(bill)); } catch (_) {}
 				return bill;
 			}
 
 			function openSuccessPopup(answers) {
-				resolvedTicketName = resolveTicketFromAnswers(answers);
+				resolvedTicketName = resolveTicketFromAnswers(answers) || canonicalTicketName(resolvedTicketName || ticketType);
 				savePendingTicketBill();
 				if (!successState) return;
 				successState.classList.add("is-open");
@@ -788,11 +830,18 @@
 			async function fetchPublishedForm() {
 				try {
 					let res;
+					const token = (window.JodAuth && window.JodAuth.getToken && window.JodAuth.getToken())
+						|| localStorage.getItem("jod_access_token")
+						|| sessionStorage.getItem("jod_access_token");
+					const headers = {};
+					if (token && token !== "null" && token !== "undefined") {
+						headers["Authorization"] = `Bearer ${token}`;
+					}
 					if (eventId) {
-						res = await fetch(`${API_BASE}/get-form-by-event?event_id=${encodeURIComponent(eventId)}`);
+						res = await fetch(`${API_BASE}/get-form-by-event?event_id=${encodeURIComponent(eventId)}`, { headers, credentials: "include" });
 					} else {
 						const modeQuery = isHostReadOnly ? "&mode=readOnly" : "";
-						res = await fetch(`${API_BASE}/get-form-by-id?form_id=${encodeURIComponent(formId)}${modeQuery}`);
+						res = await fetch(`${API_BASE}/get-form-by-id?form_id=${encodeURIComponent(formId)}${modeQuery}`, { headers, credentials: "include" });
 					}
 					if (!res.ok) {
 						const errJson = await res.json().catch(() => ({}));
@@ -1081,12 +1130,23 @@
 					userEmail = "attendee@guest.com";
 				}
 
+				const chosenTicket = canonicalTicketName(resolvedTicketName || ticketType) || resolveTicketFromAnswers(answers);
+				if (chosenTicket) {
+					answers["_ticket_type"] = chosenTicket;
+				}
+				const priceVal = Number(resolvedTicketPrice || ticketPrice);
+				if (Number.isFinite(priceVal)) {
+					answers["_ticket_price"] = priceVal;
+				}
+
 				const payload = {
 					form_id: formData.form_id ? parseInt(formData.form_id, 10) : (formId ? parseInt(formId, 10) : null),
 					organizer_email: formData ? formData.organizer_email : "",
 					event_id: formData ? (formData.event_id || eventId) : eventId,
 					user_email: userEmail,
-					answers_json: answers
+					answers_json: answers,
+					ticket_type: chosenTicket || null,
+					ticket_price: Number.isFinite(priceVal) ? priceVal : null
 				};
 
 				// UI Loading state
@@ -1119,18 +1179,23 @@
 				if (bill.eventId) payUrl.searchParams.set("eventId", bill.eventId);
 				payUrl.searchParams.set("ticket", bill.ticket);
 				payUrl.searchParams.set("price", bill.price);
+				if (bill.paymentQrUrl) payUrl.searchParams.set("qr", bill.paymentQrUrl);
 				window.location.href = payUrl.toString();
 			}
 
 			const successNextBtn = document.getElementById("successNextBtn");
 			if (successNextBtn) successNextBtn.addEventListener("click", goToPaymentStep);
 
-			fetchPublishedForm();
+			if (resumePayment && !isHostReadOnly) {
+				goToPaymentStep();
+			} else {
+				fetchPublishedForm();
+			}
 		})();
 	</script>
-	<script src="js/include.js?v=19"></script>
+	<script src="js/include.js?v=24"></script>
 	<script src="js/auth.js?v=24"></script>
-	<script src="js/profile.js?v=6"></script>
-	<script src="js/script.js?v=28"></script>
+	<script src="js/profile.js?v=10"></script>
+	<script src="js/script.js?v=27"></script>
 </body>
 </html>

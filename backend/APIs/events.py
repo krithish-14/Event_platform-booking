@@ -111,6 +111,7 @@ class EventResponse(BaseModel):
     terms: Optional[str] = None
     policies: Optional[Any] = None
     agenda: Optional[Any] = None
+    performers_title: Optional[str] = None
     is_published: bool
     is_cancelled: bool
     customer_id: Optional[str] = None
@@ -275,10 +276,13 @@ def _host_design_for_event(db: Session, event_id) -> tuple:
                 design = None
 
     if not design:
-        return [], []
+        return [], [], None
+    title = getattr(design, "performers_title", None)
+    performers_title = str(title).strip() if title and str(title).strip() else None
     return (
         _normalize_gallery_images(design.gallery_images),
         _normalize_sponsors(design.sponsor_details),
+        performers_title,
     )
 
 
@@ -330,6 +334,32 @@ def _host_agenda_for_event(db: Session, event_id) -> list:
     return out
 
 
+def _host_tickets_for_event(db: Session, event_id) -> Optional[list]:
+    """Live ticket tiers + offer windows from host Manage (preferred over catalog snapshot)."""
+    from Models.event_management import EventManagement
+    host = None
+    for cand in _design_lookup_candidates(event_id):
+        try:
+            host = db.query(EventManagement).filter(EventManagement.event_id == cand).first()
+        except Exception:
+            host = None
+        if host:
+            break
+    if not host:
+        return None
+    raw = getattr(host, "tickets_json", None)
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return None
+    if not isinstance(raw, list):
+        return None
+    return raw
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 def _event_to_response(
     event: Event,
@@ -338,6 +368,8 @@ def _event_to_response(
     gallery_images: Optional[Any] = None,
     sponsors: Optional[Any] = None,
     agenda: Optional[Any] = None,
+    performers_title: Optional[str] = None,
+    ticket_types: Optional[Any] = None,
 ) -> EventResponse:
     terms = event.terms
     if not terms and policies:
@@ -349,6 +381,11 @@ def _event_to_response(
         gallery_images = stored_gallery
     if sponsors is None:
         sponsors = _normalize_sponsors(_parse_json_field(event.highlights))
+    resolved_tickets = ticket_types if ticket_types is not None else _parse_json_field(event.ticket_types)
+    if isinstance(resolved_tickets, str):
+        resolved_tickets = _parse_json_field(resolved_tickets)
+    if not isinstance(resolved_tickets, list):
+        resolved_tickets = []
     return EventResponse(
         id=str(event.id),
         title=event.title,
@@ -373,10 +410,11 @@ def _event_to_response(
         highlights=_parse_json_field(event.highlights),
         gallery_images=gallery_images or [],
         sponsors=sponsors or [],
-        ticket_types=_parse_json_field(event.ticket_types),
+        ticket_types=resolved_tickets,
         terms=terms,
         policies=policies or None,
         agenda=agenda or [],
+        performers_title=(str(performers_title).strip() if performers_title else None),
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
         customer_id=getattr(event, "customer_id", None) or "CUST-SYSTEM",
@@ -450,7 +488,7 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     print(f"[EVENT DETAILS] event_id={event_id} title={event.title!r} published={event.is_published}", flush=True)
     policies = _host_policies_for_event(db, event.id)
-    gallery_images, sponsors = _host_design_for_event(db, event.id)
+    gallery_images, sponsors, performers_title = _host_design_for_event(db, event.id)
     if not gallery_images:
         gallery_images = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
     if not sponsors:
@@ -464,12 +502,16 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
                 db.commit()
             except Exception:
                 db.rollback()
+    host_tickets = _host_tickets_for_event(db, event.id)
+    # Prefer live host Manage tickets so offer-window Save is visible without republish.
     return _event_to_response(
         event,
         policies=policies,
         gallery_images=gallery_images,
         sponsors=sponsors,
         agenda=_host_agenda_for_event(db, event.id),
+        performers_title=performers_title,
+        ticket_types=host_tickets,
     )
 
 
@@ -515,7 +557,7 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
     if not event:
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     policies = _host_policies_for_event(db, event.id)
-    gallery_images, sponsors = _host_design_for_event(db, event.id)
+    gallery_images, sponsors, performers_title = _host_design_for_event(db, event.id)
     if not gallery_images:
         gallery_images = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
     if not sponsors:
@@ -526,6 +568,7 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
         gallery_images=gallery_images,
         sponsors=sponsors,
         agenda=_host_agenda_for_event(db, event.id),
+        performers_title=performers_title,
     )
 
 

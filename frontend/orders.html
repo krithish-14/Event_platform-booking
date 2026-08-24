@@ -1,15 +1,16 @@
 <!doctype html>
 <html lang="en">
 <head>
-		<script src="js/theme.js?v=3"></script>
+		<script src="js/theme.js?v=6"></script>
+		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Manage your event bookings, tickets, and order history on JOD Events." />
 	<title>Your Orders | JOD Events</title>
-	<link rel="icon" type="image/png" href="images/JOD Logo.png" />
-	<link rel="apple-touch-icon" href="images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=23" />
-	<link rel="stylesheet" href="css/responsive.css?v=24" />
+	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
+	<link rel="stylesheet" href="css/style.css?v=27" />
+	<link rel="stylesheet" href="css/responsive.css?v=30" />
 	<style>
 		/* ── Orders Page ─────────────────────────────────────── */
 		.page-hero {
@@ -76,41 +77,50 @@
 			margin-bottom: 1.25rem;
 			box-shadow: 0 2px 12px rgba(38,35,31,.04);
 			display: grid;
-			grid-template-columns: 100px 1fr auto;
+			grid-template-columns: 100px minmax(0, 1fr) auto;
+			grid-template-areas: "thumb details action";
 			gap: 1.5rem;
 			align-items: center;
 			transition: transform .2s, box-shadow .2s;
+			overflow: hidden;
 		}
 		.order-card:hover {
 			transform: translateY(-2px);
 			box-shadow: 0 8px 24px rgba(38,35,31,.08);
 		}
-		@media (max-width: 768px) {
-			.order-card {
-				grid-template-columns: 1fr;
-				gap: 1rem;
-			}
-			.order-thumb {
-				width: 100%;
-				height: 140px;
-			}
-		}
 
 		.order-thumb {
-			width: 100px;
+			grid-area: thumb;
+			width: 100%;
 			height: 80px;
+			max-width: 100%;
 			border-radius: 12px;
 			overflow: hidden;
 			background: #f4efea;
-			flex-shrink: 0;
+			align-self: start;
 		}
 		.order-thumb img {
-			width: 100%; height: 100%; object-fit: cover;
+			display: block;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			position: static;
+		}
+		.order-details {
+			grid-area: details;
+			min-width: 0;
+			position: relative;
+			z-index: 1;
+		}
+		.order-details .badge {
+			position: static;
+			margin: 0 0 0.3rem;
 		}
 		.order-details h3 {
 			font-size: 1.1rem;
 			margin: 0 0 .35rem;
 			color: var(--foreground);
+			overflow-wrap: anywhere;
 		}
 		.order-meta {
 			display: flex;
@@ -121,7 +131,7 @@
 			margin-bottom: .5rem;
 		}
 		.order-meta span { display: flex; align-items: center; gap: .35rem; }
-		.order-id { font-size: .78rem; color: #9ca3af; font-family: monospace; }
+		.order-id { font-size: .78rem; color: #9ca3af; font-family: monospace; overflow-wrap: anywhere; }
 
 		.badge {
 			display: inline-flex;
@@ -180,19 +190,80 @@
 		}
 
 		.order-action {
+			grid-area: action;
 			display: flex;
 			flex-direction: column;
 			align-items: flex-end;
 			gap: .75rem;
-		}
-		@media (max-width: 768px) {
-			.order-action { align-items: stretch; width: 100%; }
-			.order-action .button { width: 100%; min-height: 44px; justify-content: center; }
+			min-width: 0;
 		}
 		.order-price {
 			font-size: 1.25rem;
 			font-weight: 700;
 			color: var(--foreground);
+		}
+
+		@media (max-width: 800px) {
+			.order-card {
+				grid-template-columns: 72px minmax(0, 1fr);
+				grid-template-areas:
+					"thumb details"
+					"action action";
+				gap: 0.55rem 0.7rem;
+				padding: 0.75rem;
+				align-items: start;
+			}
+			.order-card:hover { transform: none; }
+			.order-thumb {
+				width: 100%;
+				height: 72px;
+			}
+			.order-details h3 {
+				font-size: 0.92rem;
+				line-height: 1.25;
+				margin-bottom: 0.2rem;
+			}
+			.order-details .badge {
+				padding: 0.12rem 0.45rem;
+				font-size: 0.62rem;
+			}
+			.order-meta {
+				flex-direction: column;
+				flex-wrap: nowrap;
+				gap: 0.12rem;
+				margin-bottom: 0.2rem;
+				font-size: 0.75rem;
+			}
+			.order-meta span {
+				min-width: 0;
+				overflow-wrap: anywhere;
+				word-break: break-word;
+			}
+			.order-id { font-size: 0.7rem; }
+			.order-action {
+				flex-direction: row;
+				flex-wrap: wrap;
+				align-items: center;
+				justify-content: space-between;
+				gap: 0.4rem;
+				width: 100%;
+			}
+			.order-price { font-size: 0.98rem; }
+			.order-action-btns {
+				justify-content: flex-end;
+				flex: 1 1 auto;
+				min-width: 0;
+				gap: 0.35rem;
+			}
+			.order-action-btns .button,
+			.order-action-btns .btn-cancel-order {
+				flex: 0 1 auto;
+				white-space: nowrap;
+				font-size: 0.68rem;
+				padding: 0.32rem 0.55rem;
+			}
+			.page-hero { padding: calc(4.75rem + 1.1rem) 0 1.6rem; }
+			.orders-section { padding: 1.75rem 0 3rem; }
 		}
 	</style>
 </head>
@@ -233,30 +304,36 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=19"></script>
-	<script src="js/health.js?v=1"></script>
-	<script src="js/auth.js?v=24"></script>
-	<script src="js/profile.js?v=6"></script>
+	<script src="js/include.js?v=24"></script>
+	<script src="js/health.js?v=2"></script>
+	<script src="js/auth.js?v=25"></script>
+	<script src="js/profile.js?v=10"></script>
 	<script src="js/location.js?v=12"></script>
-	<script src="js/script.js?v=28"></script>
+	<script src="js/script.js?v=27"></script>
 	<script>
-		// Auth check & filter tabs logic
-		if (!localStorage.getItem("jod_access_token") && !sessionStorage.getItem("jod_access_token")) {
+		// Auth check & filter tabs logic — confirm cookie session before rendering
+		(async function guardOrdersPage() {
 			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
-			try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-			window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
-		}
+			if (!(window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function")) {
+				try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+				window.location.replace(`login.html?redirect=${encodeURIComponent(currentTarget)}`);
+				return;
+			}
+			const user = await window.JodAuth.requireAuthOrRedirect({ redirectTo: currentTarget });
+			if (!user) return;
+		})();
 
 		let allBookingsData = [];
 		let activeOrdersFilter = "all";
 
 		function getApiBase() {
+			if (window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+				return window.JodConfig.getApiOrigin();
+			}
 			if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 				return window.JodHealth.getApiBaseUrl();
 			}
-			const host = (window.location.hostname && window.location.hostname !== "localhost")
-				? window.location.hostname : "127.0.0.1";
-			return `http://${host}:8001`;
+			return "";
 		}
 
 		function escapeHtml(str) {
@@ -268,9 +345,16 @@
 		}
 
 		function resolveOrderImage(url) {
-			if (!url) return "images/hero-event.jpg";
+			const fallback = (window.JodConfig && window.JodConfig.assetUrl)
+				? window.JodConfig.assetUrl("images/hero-event.jpg")
+				: "https://assets.jodevents.com/images/hero-event.jpg";
+			if (!url) return fallback;
 			if (/^(https?:|data:|blob:)/i.test(url)) return url;
-			if (url.startsWith("images/")) return url;
+			if (url.startsWith("images/") || url.startsWith("./images/") || url.startsWith("/images/")) {
+				return (window.JodConfig && window.JodConfig.assetUrl)
+					? window.JodConfig.assetUrl(url)
+					: fallback;
+			}
 			const cleaned = String(url).replace(/^\//, "");
 			if (
 				cleaned.startsWith("api/media") ||
@@ -294,8 +378,7 @@
 		function hasGeneratedTicket(b) {
 			const status = (b.status || "").toUpperCase();
 			if (status === "CANCELLED" || status === "CANCELED") return false;
-			if (b.ticket_id || b.qr_token) return true;
-			return ["CONFIRMED", "PAID", "COMPLETED", "SUCCESS"].includes(status);
+			return Boolean(b.qr_token || b.has_qr);
 		}
 
 		function isCompletedBooking(b) {
@@ -370,10 +453,11 @@
 				if (confirmBtn) confirmBtn.disabled = true;
 				if (statusEl) statusEl.textContent = "Cancelling your ticket…";
 				try {
-					const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
-					const res = await fetch(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}/cancel`, {
-						method: "POST",
-						headers: { Authorization: `Bearer ${token}` }
+					const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+						? window.JodAuth.fetchAuth.bind(window.JodAuth)
+						: fetch;
+					const res = await fetchFn(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}/cancel`, {
+						method: "POST"
 					});
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(data.detail || "Could not cancel this ticket.");
@@ -460,7 +544,7 @@
 				html += `
 					<div class="order-card" data-status="${cancelled ? 'cancelled' : 'completed'}">
 						<div class="order-thumb">
-							<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(b.event_title || 'Event Ticket')}" onerror="this.onerror=null;this.src='images/hero-event.jpg'" />
+							<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(b.event_title || 'Event Ticket')}" onerror="this.onerror=null;this.src=(window.JodConfig&&window.JodConfig.assetUrl?window.JodConfig.assetUrl('images/hero-event.jpg'):'https://assets.jodevents.com/images/hero-event.jpg')" />
 						</div>
 						<div class="order-details" style="cursor:pointer;" onclick="window.location.href='ticket-details.html?id=${encodeURIComponent(b.booking_id)}'">
 							${statusBadge}
@@ -500,12 +584,12 @@
 
 			try {
 				const apiBase = getApiBase();
-				const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
-				if (!token) return;
-
-				const res = await fetch(`${apiBase}/api/bookings/my-bookings`, {
-					headers: { "Authorization": `Bearer ${token}` },
-					cache: "no-store"
+				const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+					? window.JodAuth.fetchAuth.bind(window.JodAuth)
+					: fetch;
+				const res = await fetchFn(`${apiBase}/api/bookings/my-bookings?include_all=true`, {
+					cache: "no-store",
+					headers: { Accept: "application/json" }
 				});
 				if (res.ok) {
 					const remoteData = await res.json();

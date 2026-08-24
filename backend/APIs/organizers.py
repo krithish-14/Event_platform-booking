@@ -2,21 +2,24 @@
 API endpoints for Event Organizer onboarding — Email OTP verification & Account setup with bank details.
 """
 
-import random
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import or_
 
 from Models import get_db, EmailOTP, OrganizerAccount, User, HostRegistrationLog
-from Authentication.dependencies import get_current_user, get_current_user_optional
-from Authentication.jwt_handler import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from Authentication.dependencies import get_current_user
+from Services.rate_limit import limit_otp
+from Services import otp as otp_service
 
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
 from Services.email import send_email
+from Services.runtime_env import smtp_configured
+from Utils.categories import is_allowed_kyc_bytes
 
 router = APIRouter()
 
@@ -48,6 +51,14 @@ def to_public_verification_status(internal_status: Optional[str]) -> str:
 
 def is_organizer_verified(internal_status: Optional[str]) -> bool:
     return to_public_verification_status(internal_status) == "VERIFIED"
+
+
+def _organizer_otp_purpose():
+    return or_(
+        EmailOTP.purpose.is_(None),
+        EmailOTP.purpose == "",
+        EmailOTP.purpose == "organizer",
+    )
 
 
 def has_payout_bank(acc: Optional[OrganizerAccount]) -> bool:
@@ -160,29 +171,32 @@ def _mask_mobile(phone: str) -> str:
 
 
 @router.post("/send-otp")
-def send_otp(payload: SendOTPRequest, db: Session = Depends(get_db)):
-    """Generate and send a 6-digit OTP to the user's email (and confirm a mobile channel when requested)."""
+def send_otp(
+    payload: SendOTPRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate and send a 6-digit OTP to the logged-in user's email."""
     email = payload.email.lower().strip()
+    limit_otp(request, email)
+    if current_user.email.lower().strip() != email:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only request a verification code for your own account.",
+        )
     channel = (payload.channel or "email").strip().lower()
     if channel not in ("email", "phone"):
         channel = "email"
 
-    otp_code = f"{random.randint(100000, 999999)}"
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    if not smtp_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Email delivery is not configured. You can still publish events from the host dashboard.",
+        )
 
-    db.query(EmailOTP).filter(
-        EmailOTP.email == email,
-        EmailOTP.is_verified == False
-    ).delete()
-
-    otp_record = EmailOTP(
-        email=email,
-        otp_code=otp_code,
-        expires_at=expires_at,
-        is_verified=False
-    )
-    db.add(otp_record)
-    db.commit()
+    otp_code = otp_service.generate_otp()
+    otp_service.store_otp(db, email, "organizer", otp_code)
 
     org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email).first()
     phone = ""
@@ -214,7 +228,11 @@ def send_otp(payload: SendOTPRequest, db: Session = Depends(get_db)):
         )
 
     emailed = send_email(email, subject, text_body, html_body)
-    safe_print(f"  [OTP SERVICE] Generated 6-digit OTP [{otp_code}] for {email} channel={channel} smtp={emailed}")
+    if not emailed:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not send the verification email. Try again later.",
+        )
 
     if channel == "phone":
         message = f"6-digit verification code sent to your registered email to confirm mobile {destination}."
@@ -226,37 +244,26 @@ def send_otp(payload: SendOTPRequest, db: Session = Depends(get_db)):
         "email": email,
         "channel": channel,
         "destination": destination,
-        "email_delivered": emailed,
-        "dev_otp": otp_code
+        "email_delivered": True,
     }
 
 
 @router.post("/verify-otp")
-def verify_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
+def verify_otp(
+    payload: VerifyOTPRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Verify the 6-digit OTP sent to the user's email."""
     email = payload.email.lower().strip()
-    code = payload.otp_code.strip()
-
-    otp_record = db.query(EmailOTP).filter(
-        EmailOTP.email == email,
-        EmailOTP.otp_code == code,
-        EmailOTP.is_verified == False
-    ).order_by(EmailOTP.created_at.desc()).first()
-
-    if not otp_record:
+    limit_otp(request, email)
+    if current_user.email.lower().strip() != email:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid OTP verification code. Please check and try again."
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only verify a code for your own account.",
         )
-
-    if datetime.utcnow() > otp_record.expires_at:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OTP code has expired. Please request a new verification code."
-        )
-
-    # Mark OTP as verified
-    otp_record.is_verified = True
+    otp_service.verify_otp(db, email, payload.otp_code, "organizer")
 
     user = db.query(User).filter(User.email == email).first()
 
@@ -291,19 +298,6 @@ def verify_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
         "is_completed": is_completed,
     }
 
-    if user:
-        token = create_access_token(
-            data={
-                "sub": str(user.customer_id or user.email),
-                "customer_id": str(user.customer_id) if user.customer_id else None,
-                "email": user.email,
-                "username": user.username,
-            },
-            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-        )
-        result["access_token"] = token
-        result["token_type"] = "bearer"
-
     return result
 
 
@@ -311,29 +305,15 @@ def verify_otp(payload: VerifyOTPRequest, db: Session = Depends(get_db)):
 def save_account_setup(
     payload: AccountSetupRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Save or update organizer account details and bank information."""
-    email = payload.email.lower().strip()
-
-    if current_user and current_user.email.lower() != email:
+    email = current_user.email.lower().strip()
+    if payload.email and payload.email.lower().strip() != email:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only save host account details for your logged-in account."
         )
-
-    # Check if email is verified (not required if user is already authenticated via JWT)
-    if not current_user:
-        verified_otp = db.query(EmailOTP).filter(
-            EmailOTP.email == email,
-            EmailOTP.is_verified == True
-        ).first()
-
-        if not verified_otp:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Email ID must be verified via OTP before setting up account details."
-            )
 
     org_acc = None
     if current_user:
@@ -544,13 +524,13 @@ def upload_document(
     doc_type: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Upload PAN card or Cancelled Cheque image/PDF (<= 2MB)."""
     import os
-    email_clean = _bound_organizer_email(email, current_user)
+    email_clean = current_user.email.lower().strip()
 
-    if current_user and current_user.email.lower() != email_clean:
+    if email and email.lower().strip() != email_clean:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only upload documents for your logged-in account."
@@ -576,6 +556,11 @@ def upload_document(
         raise HTTPException(
             status_code=400,
             detail="File size should not be greater than 2MB."
+        )
+    if not is_allowed_kyc_bytes(contents, file.filename or "", file.content_type or ""):
+        raise HTTPException(
+            status_code=400,
+            detail="Upload a real JPG, PNG, or PDF file. The file contents do not match the extension.",
         )
 
     from Services.file_storage import public_url, store_bytes
@@ -629,7 +614,7 @@ def upload_document(
 def get_organizer_dashboard(
     email: str = Query(..., description="Organizer email address"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """Fetch organizer dashboard data, stats, and event metrics matching dashboard screenshot."""
     email_clean = _bound_organizer_email(email, current_user)
@@ -707,11 +692,60 @@ def get_organizer_dashboard(
     }
 
 
+def _is_admin_user(user: Optional[User]) -> bool:
+    return bool(user and getattr(user, "is_admin", False))
+
+
+def _organizer_account_for_viewer(db: Session, current_user: User, requested_email: Optional[str]) -> tuple[str, Optional[OrganizerAccount], bool]:
+    """Resolve which organizer the caller may view. Non-admins are bound to their JWT email."""
+    own_email = (current_user.email or "").lower().strip()
+    requested = (requested_email or "").lower().strip()
+    is_admin = _is_admin_user(current_user)
+    if requested and requested != own_email and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to view another user's verification status.",
+        )
+    email_clean = requested if (is_admin and requested) else own_email
+    if not email_clean:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Organizer email is required.")
+
+    org_acc = None
+    if is_admin and requested and requested != own_email:
+        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()
+    else:
+        org_acc = db.query(OrganizerAccount).filter(
+            (OrganizerAccount.customer_id == current_user.customer_id) |
+            (OrganizerAccount.email == own_email)
+        ).first()
+    return email_clean, org_acc, is_admin
+
+
+def _verification_account_payload(org_acc: OrganizerAccount, *, include_sensitive: bool) -> dict:
+    if not include_sensitive:
+        return {
+            "org_name": org_acc.org_name,
+        }
+    return {
+        "beneficiary_name": org_acc.beneficiary_name,
+        "account_type": org_acc.account_type,
+        "bank_name": org_acc.bank_name,
+        "account_number": org_acc.account_number,
+        "bank_ifsc": org_acc.bank_ifsc,
+        "pan_number": org_acc.pan_number,
+        "pan_card_url": org_acc.pan_card_url,
+        "cancelled_cheque_url": org_acc.cancelled_cheque_url,
+        "org_name": org_acc.org_name,
+        "contact_full_name": org_acc.contact_full_name,
+        "contact_mobile": org_acc.contact_mobile,
+    }
+
+
 # ── Schemas for additional verification endpoints ────────────────────────────
 class ResubmitVerificationRequest(BaseModel):
-    email: EmailStr
-    rejection_reason: Optional[str] = None  # admin-use only via flag
-    new_status: Optional[str] = None        # admin-use: rejected / verified
+    email: Optional[EmailStr] = None
+    rejection_reason: Optional[str] = None
+    new_status: Optional[str] = None
 
 
 class PublishEventRequest(BaseModel):
@@ -722,30 +756,16 @@ class PublishEventRequest(BaseModel):
 # ── Dedicated verification status endpoint ────────────────────────────────────
 @router.get("/verification-status")
 def get_verification_status(
-    email: str = Query(..., description="Organizer email address"),
+    email: Optional[str] = Query(None, description="Organizer email (admin only; ignored for organizers)"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user),
 ):
     """Return the organizer's public verification status + KYC readiness."""
-    email_clean = _bound_organizer_email(email, current_user)
-
-    if current_user and current_user.email.lower() != email_clean:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not authorized to view another user's verification status."
-        )
-
-    org_acc = None
-    if current_user:
-        org_acc = db.query(OrganizerAccount).filter(
-            (OrganizerAccount.customer_id == current_user.customer_id) |
-            (OrganizerAccount.email == email_clean)
-        ).first()
-    else:
-        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()
+    email_clean, org_acc, is_admin = _organizer_account_for_viewer(db, current_user, email)
+    own_email = (current_user.email or "").lower().strip()
+    include_sensitive = is_admin or (email_clean == own_email)
 
     if not org_acc:
-        # No record = NOT_SUBMITTED (fresh organizer)
         return {
             "verification_status": "NOT_SUBMITTED",
             "internal_status": None,
@@ -794,19 +814,7 @@ def get_verification_status(
         "submitted_at": org_acc.submitted_at.isoformat() if org_acc.submitted_at else None,
         "verified_at": org_acc.verified_at.isoformat() if org_acc.verified_at else None,
         "required_fields": required,
-        "account": {
-            "beneficiary_name": org_acc.beneficiary_name,
-            "account_type": org_acc.account_type,
-            "bank_name": org_acc.bank_name,
-            "account_number": org_acc.account_number,
-            "bank_ifsc": org_acc.bank_ifsc,
-            "pan_number": org_acc.pan_number,
-            "pan_card_url": org_acc.pan_card_url,
-            "cancelled_cheque_url": org_acc.cancelled_cheque_url,
-            "org_name": org_acc.org_name,
-            "contact_full_name": org_acc.contact_full_name,
-            "contact_mobile": org_acc.contact_mobile
-        }
+        "account": _verification_account_payload(org_acc, include_sensitive=include_sensitive),
     }
 
 
@@ -814,37 +822,48 @@ def get_verification_status(
 def resubmit_verification(
     payload: ResubmitVerificationRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user),
 ):
-    """Resubmit KYC for review when previously REJECTED (or set admin status)."""
-    email_clean = payload.email.lower().strip()
+    """Organizers resubmit their own KYC as submitted. Only admins may verify or reject."""
+    wanted = (payload.new_status or "").strip().lower()
+    own_email = (current_user.email or "").lower().strip()
 
-    if current_user and current_user.email.lower() != email_clean:
-        raise HTTPException(status_code=403, detail="Unauthorized.")
-
-    org_acc = None
-    if current_user:
+    if wanted in ("verified", "rejected"):
+        if not _is_admin_user(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required.",
+            )
+        target_email = str(payload.email or "").lower().strip()
+        if not target_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Organizer email is required.",
+            )
+        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == target_email).first()
+        if not org_acc:
+            raise HTTPException(status_code=404, detail="Organizer account not found.")
+        if wanted == "verified":
+            org_acc.status = "verified"
+            org_acc.verified_at = datetime.utcnow()
+            org_acc.rejection_reason = None
+        else:
+            org_acc.status = "rejected"
+            org_acc.rejection_reason = payload.rejection_reason
+            org_acc.verified_at = None
+    else:
+        requested = str(payload.email or "").lower().strip()
+        if requested and requested != own_email:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only resubmit your own verification.",
+            )
         org_acc = db.query(OrganizerAccount).filter(
             (OrganizerAccount.customer_id == current_user.customer_id) |
-            (OrganizerAccount.email == email_clean)
+            (OrganizerAccount.email == own_email)
         ).first()
-    else:
-        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()
-
-    if not org_acc:
-        raise HTTPException(status_code=404, detail="Organizer account not found.")
-
-    # Allow admin status override only via existing (non-end-user) trusted flow marker;
-    # otherwise always move back to PENDING / submitted.
-    if payload.new_status == "verified" and current_user:
-        org_acc.status = "verified"
-        org_acc.verified_at = datetime.utcnow()
-    elif payload.new_status == "rejected" and current_user:
-        org_acc.status = "rejected"
-        org_acc.rejection_reason = payload.rejection_reason
-        org_acc.verified_at = None
-    else:
-        # Standard end-user resubmission
+        if not org_acc:
+            raise HTTPException(status_code=404, detail="Organizer account not found.")
         missing = missing_setup_steps(org_acc)
         if missing:
             raise HTTPException(

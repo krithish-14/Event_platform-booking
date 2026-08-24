@@ -7,11 +7,14 @@
 	"use strict";
 
 	function getApiBase() {
+		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			return window.JodConfig.getApiOrigin();
+		}
 		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
 			return window.JodHealth.getApiBaseUrl();
 		}
-		const host = (window.location && window.location.hostname && window.location.hostname !== "localhost") ? window.location.hostname : "127.0.0.1";
-		return window.JOD_API_BASE_OVERRIDE || `http://${host}:8001`;
+		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+		return "";
 	}
 
 	function getQueryParam(name) {
@@ -61,20 +64,56 @@
 		}
 	}
 
-	async function loadBookingData(bookingId) {
-		if (!bookingId) return null;
-		const apiBase = getApiBase();
-		const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+	async function authFetch(url, options) {
+		const opts = Object.assign({ cache: "no-store" }, options || {});
+		opts.headers = Object.assign({ Accept: "application/json" }, opts.headers || {});
+		if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+			return window.JodAuth.fetchAuth(url, opts);
+		}
+		return fetch(url, Object.assign({ credentials: "include" }, opts));
+	}
 
-		if (!token) return { _error: "signin" };
+	function isSignedIn() {
+		if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function") {
+			return window.JodAuth.isLoggedIn();
+		}
+		try {
+			const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+			return Boolean(raw && raw !== "null" && raw !== "undefined");
+		} catch (_) {
+			return false;
+		}
+	}
+
+	async function loadBookingData(bookingId) {
+		const apiBase = getApiBase();
+		const qrToken = getQueryParam("token") || getQueryParam("qr");
+		if (qrToken) {
+			try {
+				const res = await fetch(`${apiBase}/api/tickets/public/${encodeURIComponent(qrToken)}`, { cache: "no-store" });
+				if (res.ok) {
+					const data = await res.json();
+					saveLocalBookingCache(data);
+					return data;
+				}
+				if (res.status === 404) return { _error: "notfound" };
+			} catch (_) {}
+			return { _error: "unavailable" };
+		}
+		if (!bookingId) return null;
+		if (!isSignedIn() && !(window.JodAuth && typeof window.JodAuth.validateSession === "function")) {
+			return { _error: "signin" };
+		}
 
 		try {
-			const res = await fetch(`${apiBase}/api/bookings/${bookingId}`, {
-				headers: { "Authorization": `Bearer ${token}` },
-				cache: "no-store"
-			});
+			if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+				const sessionUser = await window.JodAuth.validateSession();
+				if (!sessionUser && !isSignedIn()) return { _error: "signin" };
+			}
+			const res = await authFetch(`${apiBase}/api/bookings/${bookingId}`);
 			if (res.ok) {
 				const data = await res.json();
+				if (!data.qr_token) return { _error: "pending" };
 				saveLocalBookingCache(data);
 				return data;
 			}
@@ -91,6 +130,7 @@
 			signin: "Please sign in to view this ticket.",
 			forbidden: "This ticket belongs to another account.",
 			notfound: "This ticket could not be found.",
+			pending: "Your QR ticket is not ready yet. After JOD Events admin verifies your payment and clicks Generate QR, the unique ticket will appear here, in email, and on WhatsApp.",
 			unavailable: "This ticket is not available."
 		};
 		const area = document.getElementById("printableTicketArea");
@@ -105,12 +145,28 @@
 
 	function resolveTicketImage(url) {
 		if (!url) return "";
+		if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
+			return window.JodConfig.safeMediaUrl(url, "images/hero-event.jpg");
+		}
 		if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("blob:") || url.startsWith("data:")) return url;
 		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			const base = getApiBase().replace(/\/$/, "");
 			return `${base}/${url.replace(/^\//, "")}`;
 		}
+		if (url.startsWith("images/") || url.startsWith("./images/") || url.startsWith("/images/")) {
+			if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
+				return window.JodConfig.assetUrl(url);
+			}
+			return "https://assets.jodevents.com/images/" + url.replace(/^(\.\/)?\/?images\//, "");
+		}
 		return url;
+	}
+
+	function heroFallback() {
+		if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
+			return window.JodConfig.assetUrl("images/hero-event.jpg");
+		}
+		return "https://assets.jodevents.com/images/hero-event.jpg";
 	}
 
 	function renderTicketDOM(data) {
@@ -177,10 +233,10 @@
 				imgEl.src = resolveTicketImage(ticketImg);
 				imgEl.onerror = function onTicketImgError() {
 					this.onerror = null;
-					this.src = "images/hero-event.jpg";
+					this.src = heroFallback();
 				};
 			} else {
-				imgEl.src = "images/hero-event.jpg";
+				imgEl.src = heroFallback();
 			}
 		}
 
@@ -201,8 +257,14 @@
 		const qrToken = data.qr_token || "";
 
 		if (bookingIdText) bookingIdText.textContent = `BOOKING ID: ${bookingIdDisplay}`;
-		if (qrImg && qrToken) {
-			qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrToken)}`;
+		if (qrImg) {
+			if (qrToken) {
+				qrImg.alt = "Unique entry QR code";
+				qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrToken)}`;
+			} else {
+				qrImg.removeAttribute("src");
+				qrImg.alt = "QR ticket not issued yet. Admin will generate it after payment verification.";
+			}
 		}
 
 		// Bill & Pricing Summary

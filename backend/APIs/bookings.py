@@ -3,6 +3,7 @@ Booking routes — ticket bookings & event host tracking.
 """
 
 import json
+import re
 from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
@@ -20,12 +21,11 @@ from Models.user import User
 router = APIRouter()
 
 
-import random
-import secrets
 from sqlalchemy import func, or_
 
-from Models.ticket import Ticket, generate_qr_token
+from Models.ticket import Ticket
 from Models.form_submissions import FormSubmission
+from Models.payment_proof import PaymentProof
 
 
 class PendingPaymentResponse(BaseModel):
@@ -198,6 +198,7 @@ class BookingResponse(BaseModel):
     event_end_date: Optional[datetime] = None
     language: Optional[str] = None
     event_format: Optional[str] = None
+    has_qr: bool = False
 
     class Config:
         from_attributes = True
@@ -258,75 +259,38 @@ def _booking_event_agenda(event_id, db: Session = None) -> list:
         return []
 
 
-def _ensure_tickets_exist(b: Booking, db: Session = None) -> List[Ticket]:
-    """Ensure at least one Ticket with a secure QR token exists for the given Booking."""
-    tickets = getattr(b, "tickets", []) or []
+def _booking_tickets(b: Booking, db: Session = None) -> List[Ticket]:
+    """Return issued tickets only. Never mint QR codes here — admin Generate QR does that."""
+    tickets = list(getattr(b, "tickets", None) or [])
     if tickets:
         return tickets
-
-    if db is None:
-        from Models.base import get_session_factory
-        db_factory = get_session_factory()
-        db = db_factory()
-        close_on_exit = True
-    else:
-        close_on_exit = False
-
-    try:
-        existing = db.query(Ticket).filter(Ticket.booking_id == b.booking_id).all()
-        if existing:
-            return existing
-
-        qty = max(1, b.quantity or 1)
-        created_tickets = []
-        is_cancelled = (b.status or "").upper() == "CANCELLED"
-        t_status = "CANCELLED" if is_cancelled else "VALID"
-
-        for i in range(qty):
-            t = Ticket(
-                booking_id=b.booking_id,
-                event_id=b.event_id,
-                customer_id=b.customer_id,
-                ticket_type=b.ticket_type or "Standard Access",
-                seat_number=None,
-                qr_token=generate_qr_token(),
-                ticket_status=t_status,
-            )
-            db.add(t)
-            created_tickets.append(t)
-
-        db.commit()
-        for t in created_tickets:
-            db.refresh(t)
-        return created_tickets
-    except Exception as err:
-        print(f"  [WARN] Ticket auto-generation fallback notice: {err}")
+    if db is None or not getattr(b, "booking_id", None):
         return []
-    finally:
-        if close_on_exit:
-            db.close()
+    try:
+        return db.query(Ticket).filter(Ticket.booking_id == b.booking_id).all()
+    except Exception:
+        return []
 
 
 def _serialize_booking(b: Booking, db: Session = None) -> dict:
     event_title = b.event.title if b.event else "Event"
     event_venue = (b.event.venue or b.event.location) if b.event else None
     event_start = b.event.start_date if b.event else None
-    user_name = (b.receiver_name or (b.customer.full_name if b.customer else None) or (b.customer.username if b.customer else None) or "Guest Customer")
-    user_email = (b.receiver_email or (b.customer.email if b.customer else None) or "customer@jodevents.com")
-    user_phone = (b.receiver_phone or "+91 98765 43210")
-    user_city = b.customer.city if b.customer else "Chennai"
+    user_name = (b.receiver_name or (b.customer.full_name if b.customer else None) or (b.customer.username if b.customer else None) or "Guest")
+    user_email = (b.receiver_email or (b.customer.email if b.customer else None) or "")
+    user_phone = b.receiver_phone or (getattr(b.customer, "phone", None) if b.customer else None) or ""
+    user_city = b.customer.city if b.customer else None
 
-    pid = getattr(b, "payment_id", None) or f"PAY-JOD-{str(b.booking_id)[:8].upper()}"
-    pmode = getattr(b, "payment_mode", None) or "UPI / Card"
-    gst = float(getattr(b, "gst_amount", 0.0) or round(float(b.total_price or 0.0) * 0.18, 2))
-    seat = getattr(b, "seat_number", None) or "Row B, Seat 12-14"
+    pid = getattr(b, "payment_id", None)
+    pmode = getattr(b, "payment_mode", None) or "UPI"
+    gst = float(getattr(b, "gst_amount", 0.0) or 0.0)
+    seat = getattr(b, "seat_number", None) or ""
 
-    # Get linked Ticket records
-    tickets = _ensure_tickets_exist(b, db=db)
+    tickets = _booking_tickets(b, db=db)
     primary_ticket = tickets[0] if tickets else None
-    ticket_id = str(primary_ticket.ticket_id) if primary_ticket else f"TKT-JOD-{str(b.booking_id)[:8].upper()}"
+    ticket_id = str(primary_ticket.ticket_id) if primary_ticket else None
     qr_token = primary_ticket.qr_token if primary_ticket else None
-    ticket_status = primary_ticket.ticket_status if primary_ticket else (b.status or "VALID")
+    ticket_status = primary_ticket.ticket_status if primary_ticket else (b.status or None)
     used_at = primary_ticket.used_at if primary_ticket else None
     ticket_image, card_image, hero_image = _booking_event_images(b, db=db)
 
@@ -334,6 +298,7 @@ def _serialize_booking(b: Booking, db: Session = None) -> dict:
         "booking_id": str(b.booking_id),
         "ticket_id": ticket_id,
         "qr_token": qr_token,
+        "has_qr": bool(qr_token),
         "ticket_status": ticket_status,
         "used_at": used_at,
         "customer_id": str(b.customer_id),
@@ -373,94 +338,49 @@ def create_ticket_booking(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new ticket booking for the logged-in user using their customer_id."""
+    """Public self-booking is disabled. Admin Generate QR is the only ticket-issue path."""
+    existing = None
     try:
-        ev_uuid = UUID(payload.event_id)
+        existing = _active_booking_for_event(db, current_user, payload.event_id)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid event ID format.")
-
-    event = db.query(Event).filter(
-        Event.id == ev_uuid,
-        Event.is_published == True,
-        Event.is_cancelled == False,
-    ).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="This event is currently unavailable.")
-
-    existing = _active_booking_for_event(db, current_user, event.id)
-    if existing:
-        try:
-            _mark_form_submission_paid(db, event.id, current_user, booking_id=existing.booking_id)
-        except Exception:
-            pass
+        existing = None
+    if existing and _booking_tickets(existing, db=db):
         return _serialize_booking(existing, db=db)
-
-    qty = max(1, payload.quantity)
-    calculated_price = payload.total_price if payload.total_price is not None else (event.price * qty)
-
-    payment_id = payload.payment_id or f"PAY-JOD-{secrets.token_hex(4).upper()}"
-    gst_calc = round(calculated_price * 0.18, 2)
-
-    booking = Booking(
-        customer_id=current_user.customer_id,
-        event_id=event.id,
-        ticket_type=payload.ticket_type or "Standard Access",
-        quantity=qty,
-        total_price=calculated_price,
-        status="CONFIRMED",
-        payment_id=payment_id,
-        payment_mode=payload.payment_mode or "UPI / Card",
-        gst_amount=gst_calc,
-        seat_number=payload.seat_number,
-        receiver_name=payload.receiver_name or current_user.full_name or current_user.username,
-        receiver_email=payload.receiver_email or current_user.email,
-        receiver_phone=payload.receiver_phone or getattr(current_user, "phone", None),
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Tickets are issued by JOD Events admin after payment verification. Complete the registration form and UPI payment, then wait for Generate QR.",
     )
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
-
-    for _ in range(qty):
-        t = Ticket(
-            booking_id=booking.booking_id,
-            event_id=event.id,
-            customer_id=current_user.customer_id,
-            ticket_type=booking.ticket_type,
-            seat_number=None,
-            qr_token=generate_qr_token(),
-            ticket_status="VALID",
-        )
-        db.add(t)
-    db.commit()
-
-    try:
-        _mark_form_submission_paid(db, event.id, current_user, booking_id=booking.booking_id)
-    except Exception:
-        pass
-
-    b_full = (
-        db.query(Booking)
-        .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-        .filter(Booking.booking_id == booking.booking_id)
-        .first()
-    )
-    return _serialize_booking(b_full or booking, db=db)
 
 
 @router.get("/my-bookings", response_model=List[BookingResponse])
 def get_my_bookings(
+    include_all: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Fetch all bookings for the currently authenticated user by customer_id."""
+    """Fetch the current user's bookings. Issued QR tickets by default; include_all adds awaiting-ticket rows."""
+    email = (current_user.email or "").lower().strip()
+    owner_filters = [Booking.customer_id == current_user.customer_id]
+    if email:
+        owner_filters.append(func.lower(Booking.receiver_email) == email)
     bookings = (
         db.query(Booking)
         .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-        .filter(Booking.customer_id == current_user.customer_id)
+        .filter(or_(*owner_filters))
         .order_by(Booking.booked_at.desc())
         .all()
     )
-    return [_serialize_booking(b, db=db) for b in bookings]
+    issued = []
+    seen = set()
+    for b in bookings:
+        key = str(b.booking_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        data = _serialize_booking(b, db=db)
+        if include_all or data.get("qr_token") or data.get("ticket_id"):
+            issued.append(data)
+    return issued
 
 
 @router.get("/my-pending", response_model=List[PendingPaymentResponse])
@@ -565,6 +485,21 @@ def _ticket_from_answers(answers: Any) -> tuple:
         or answers.get("Ticket Type")
         or ""
     )
+    generic = {
+        "general admission", "general pass", "general", "ga",
+        "standard access", "standard access pass", "standard", "access pass", "ticket",
+    }
+    ticket_text = str(ticket or "").strip()
+    if not ticket_text or ticket_text.lower() in generic:
+        for key, val in answers.items():
+            label = str(key or "").strip().lower()
+            if any(skip in label for skip in ("price", "qty", "quantity", "amount", "passport", "password")):
+                continue
+            if "ticket" in label or re.search(r"\bpass(es)?\b", label):
+                text = str(val or "").strip()
+                if text and text.lower() not in generic:
+                    ticket_text = text
+                    break
     price = answers.get("_ticket_price")
     if price is None:
         price = answers.get("ticket_price")
@@ -572,7 +507,7 @@ def _ticket_from_answers(answers: Any) -> tuple:
         price_val = float(price) if price is not None and str(price).strip() != "" else None
     except (TypeError, ValueError):
         price_val = None
-    return str(ticket or "").strip(), price_val
+    return ticket_text, price_val
 
 
 @router.get("/registration-status", response_model=RegistrationStatusResponse)
@@ -581,10 +516,37 @@ def get_registration_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Return whether this user already has a ticket or a payment-pending registration."""
+    """Return registration/payment hold state. Tickets exist only after admin Generate QR."""
     event_candidates = _event_id_matches(event_id)
+    email = (current_user.email or "").lower().strip()
+    customer_id = str(current_user.customer_id or "").strip()
+
+    proof = None
+    if email or customer_id:
+        proofs = db.query(PaymentProof).order_by(PaymentProof.created_at.desc()).all()
+        for row in proofs:
+            if not _same_event_id(row.event_id, event_id):
+                continue
+            row_email = (row.attendee_email or "").lower().strip()
+            row_cust = str(row.customer_id or "").strip()
+            if email and row_email == email:
+                proof = row
+                break
+            if customer_id and row_cust and row_cust == customer_id:
+                proof = row
+                break
+
     booking = _active_booking_for_event(db, current_user, event_id)
-    if booking:
+    if proof and proof.booking_id and not booking:
+        booking = (
+            db.query(Booking)
+            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
+            .filter(Booking.booking_id == proof.booking_id)
+            .first()
+        )
+    issued_tickets = _booking_tickets(booking, db=db) if booking else []
+    # Admin Generate QR is the only mint path — issued tickets mean the CTA can switch.
+    if booking and issued_tickets:
         try:
             _mark_form_submission_paid(db, event_id, current_user, booking_id=booking.booking_id)
         except Exception:
@@ -593,14 +555,28 @@ def get_registration_status(
         return RegistrationStatusResponse(
             state="ticket",
             booking_id=str(booking.booking_id),
-            ticket_type=booking.ticket_type,
-            price=float(booking.total_price or 0),
+            ticket_type=booking.ticket_type or (proof.ticket_type if proof else None),
+            price=float(booking.total_price or (proof.amount if proof else 0) or 0),
             event_title=getattr(event, "title", None),
             venue=getattr(event, "venue", None) or getattr(event, "location", None),
         )
 
-    email = (current_user.email or "").lower().strip()
-    customer_id = str(current_user.customer_id or "").strip()
+    if proof and (proof.status or "").lower() != "qr_ready":
+        event_row = None
+        for cand in event_candidates:
+            try:
+                event_row = db.query(Event).filter(Event.id == cand).first()
+            except Exception:
+                event_row = None
+            if event_row:
+                break
+        return RegistrationStatusResponse(
+            state="payment_submitted",
+            ticket_type=proof.ticket_type or None,
+            price=float(proof.amount or 0) if proof.amount is not None else getattr(event_row, "price", None),
+            event_title=getattr(event_row, "title", None),
+            venue=getattr(event_row, "venue", None) or getattr(event_row, "location", None),
+        )
     owner_filters = [func.lower(FormSubmission.user_email) == email]
     if customer_id:
         owner_filters.append(FormSubmission.customer_id == customer_id)
@@ -668,11 +644,19 @@ def get_host_tracking_analytics(
 
 
 def _assert_booking_owner(booking: Booking, current_user: User) -> None:
-    if str(booking.customer_id) != str(current_user.customer_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only access your own bookings.",
-        )
+    if str(booking.customer_id) == str(current_user.customer_id):
+        return
+    email = (getattr(current_user, "email", None) or "").lower().strip()
+    recv = (booking.receiver_email or "").lower().strip()
+    cust_email = ""
+    if getattr(booking, "customer", None):
+        cust_email = (booking.customer.email or "").lower().strip()
+    if email and (recv == email or cust_email == email):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="You can only access your own bookings.",
+    )
 
 
 @router.get("/{booking_id}", response_model=BookingResponse)
@@ -719,8 +703,7 @@ def cancel_booking(
 
     if not b:
         raise HTTPException(status_code=404, detail="Booking not found.")
-    if str(b.customer_id) != str(current_user.customer_id):
-        raise HTTPException(status_code=403, detail="You can only cancel your own tickets.")
+    _assert_booking_owner(b, current_user)
 
     if (b.status or "").upper() in ("CANCELLED", "CANCELED"):
         b_full = (

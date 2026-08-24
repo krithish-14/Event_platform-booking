@@ -32,6 +32,13 @@ ENV/
 .env
 .env.*
 !.env.example
+!.env.production.example
+!.env.staging.example
+*.pem
+*.key
+credentials.json
+service-account.json
+deploy/certs/
 
 # Logs
 *.log

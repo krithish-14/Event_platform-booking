@@ -1,54 +1,92 @@
 """
 Database inspection script — runs against the live PostgreSQL database.
+Development/admin utility only. Excluded from production Docker images.
 """
-import os, sys
-os.chdir('d:/JOD-Events/backend')
-sys.path.insert(0, 'd:/JOD-Events/backend')
+import os
+import sys
+import re
+
+_BACKEND = os.path.dirname(os.path.abspath(__file__))
+os.chdir(_BACKEND)
+sys.path.insert(0, _BACKEND)
 from dotenv import load_dotenv
 load_dotenv()
 from sqlalchemy import create_engine, text
 
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql+psycopg://jod_user:jod_password@localhost:5432/jod_events')
-engine = create_engine(DATABASE_URL, connect_args={'connect_timeout': 5})
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+if not DATABASE_URL:
+    raise SystemExit("DATABASE_URL is required")
+engine = create_engine(DATABASE_URL, connect_args={"connect_timeout": 5})
+
+_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _safe_ident(name: str) -> str:
+    if not _IDENT.match(name or ""):
+        raise SystemExit(f"Refusing unsafe identifier: {name!r}")
+    return name
+
 
 with engine.connect() as conn:
-    # All tables
-    tables = conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;")).fetchall()
+    tables = conn.execute(
+        text("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
+    ).fetchall()
     print("=== ALL TABLES ===")
     for t in tables:
         print(f"  {t[0]}")
 
     print()
 
-    # For each table: columns + primary keys
     for (tname,) in tables:
-        cols = conn.execute(text(f"""
-            SELECT column_name, data_type, is_nullable, column_default
-            FROM information_schema.columns
-            WHERE table_schema='public' AND table_name='{tname}'
-            ORDER BY ordinal_position;
-        """)).fetchall()
-        pks = conn.execute(text(f"""
-            SELECT kcu.column_name
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
-            WHERE tc.table_schema='public' AND tc.table_name='{tname}' AND tc.constraint_type='PRIMARY KEY';
-        """)).fetchall()
-        fks = conn.execute(text(f"""
-            SELECT kcu.column_name, ccu.table_name AS foreign_table, ccu.column_name AS foreign_column
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
-            JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
-            WHERE tc.table_schema='public' AND tc.table_name='{tname}' AND tc.constraint_type='FOREIGN KEY';
-        """)).fetchall()
-        row_count = conn.execute(text(f"SELECT COUNT(*) FROM {tname};")).scalar()
-        print(f"=== TABLE: {tname} (rows: {row_count}) ===")
-        pk_cols = [r[0] for r in pks]
+        tname = _safe_ident(tname)
+        cols = conn.execute(
+            text(
+                """
+                SELECT column_name, data_type, is_nullable, column_default
+                FROM information_schema.columns
+                WHERE table_schema='public' AND table_name=:tname
+                ORDER BY ordinal_position
+                """
+            ),
+            {"tname": tname},
+        ).fetchall()
+        pks = conn.execute(
+            text(
+                """
+                SELECT kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON tc.constraint_name = kcu.constraint_name
+                 AND tc.table_schema = kcu.table_schema
+                WHERE tc.table_schema='public'
+                  AND tc.table_name=:tname
+                  AND tc.constraint_type='PRIMARY KEY'
+                """
+            ),
+            {"tname": tname},
+        ).fetchall()
+        fks = conn.execute(
+            text(
+                """
+                SELECT kcu.column_name, ccu.table_name AS foreign_table, ccu.column_name AS foreign_column
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON tc.constraint_name = kcu.constraint_name
+                 AND tc.table_schema = kcu.table_schema
+                JOIN information_schema.constraint_column_usage ccu
+                  ON ccu.constraint_name = tc.constraint_name
+                 AND ccu.table_schema = tc.table_schema
+                WHERE tc.table_schema='public'
+                  AND tc.table_name=:tname
+                  AND tc.constraint_type='FOREIGN KEY'
+                """
+            ),
+            {"tname": tname},
+        ).fetchall()
+        print(f"=== {tname} ===")
+        print(f"  PK: {[p[0] for p in pks]}")
         for c in cols:
-            pk_flag = " [PK]" if c[0] in pk_cols else ""
-            print(f"  {c[0]:<35} {c[1]:<30} nullable={c[2]}{pk_flag}")
-        if fks:
-            print("  FOREIGN KEYS:")
-            for f in fks:
-                print(f"    {f[0]} -> {f[1]}.{f[2]}")
+            print(f"  - {c[0]}: {c[1]} null={c[2]} default={c[3]}")
+        for fk in fks:
+            print(f"  FK: {fk[0]} -> {fk[1]}.{fk[2]}")
         print()

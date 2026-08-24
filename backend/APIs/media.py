@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from Authentication.dependencies import get_current_user_optional
+from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.base import get_db
 from Models.user import User
 from Services.file_storage import can_access, decrypt_bytes, get_by_id, get_by_legacy_path
@@ -47,15 +47,15 @@ def get_public_media(file_id: str, db: Session = Depends(get_db)):
 def get_private_media(
     file_id: str,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     stored = get_by_id(db, file_id)
     if not stored:
         raise HTTPException(status_code=404, detail="File not found.")
     if not can_access(stored, current_user):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Sign in to view this document.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to view this document.",
         )
     return _file_response(stored, private=True)
 
@@ -70,9 +70,13 @@ def get_legacy_upload(
     stored = get_by_legacy_path(db, filename)
     if not stored:
         raise HTTPException(status_code=404, detail="File not found.")
-    if stored.is_private and not can_access(stored, current_user):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Sign in to view this document.",
-        )
-    return _file_response(stored, private=stored.is_private)
+    if stored.is_private:
+        if current_user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in to view this document.")
+        if not can_access(stored, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to view this document.",
+            )
+        return _file_response(stored, private=True)
+    return _file_response(stored, private=False)
