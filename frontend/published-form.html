@@ -1139,8 +1139,17 @@
 					answers["_ticket_price"] = priceVal;
 				}
 
+				function integerFormId(value) {
+					if (value == null || value === "") return null;
+					const raw = String(value).trim();
+					const n = Number.parseInt(raw, 10);
+					if (!Number.isFinite(n) || n <= 0) return null;
+					if (String(n) !== raw) return null;
+					return n;
+				}
+
 				const payload = {
-					form_id: formData.form_id ? parseInt(formData.form_id, 10) : (formId ? parseInt(formId, 10) : null),
+					form_id: integerFormId(formData && formData.form_id) || integerFormId(formId),
 					organizer_email: formData ? formData.organizer_email : "",
 					event_id: formData ? (formData.event_id || eventId) : eventId,
 					user_email: userEmail,
@@ -1154,14 +1163,20 @@
 				submitBtn.textContent = "Submitting...";
 
 				try {
+					const headers = { "Content-Type": "application/json", "Accept": "application/json" };
 					const res = await fetch(`${API_BASE}/submissions`, {
 						method: "POST",
-						headers: { "Content-Type": "application/json" },
+						headers,
+						credentials: "include",
 						body: JSON.stringify(payload)
 					});
 
-					const data = await res.json();
-					if (!res.ok) throw new Error(data.detail || "Submission failed.");
+					let data = {};
+					try { data = await res.json(); } catch (_) {}
+					if (!res.ok) {
+						const detail = data && data.detail;
+						throw new Error(typeof detail === "string" && detail.trim() ? detail : "Submission failed.");
+					}
 
 					formCard.style.display = "block";
 					openSuccessPopup(answers);

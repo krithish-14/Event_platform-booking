@@ -3,17 +3,21 @@ FastAPI Router for Dynamic Registration Form Builder & Attendee Submissions.
 """
 import io
 import csv
+import logging
 import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, or_
+from sqlalchemy import func, insert as sa_insert, or_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 from Models import get_db, FormDefinition, FormSubmission, EventRegistrationForm
 from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.user import User
+
+logger = logging.getLogger("jod")
 
 router = APIRouter(prefix="/api/forms", tags=["Dynamic Form Builder"])
 
@@ -35,6 +39,90 @@ class SubmissionRequest(BaseModel):
 	answers_json: Dict[str, Any]
 	ticket_type: Optional[str] = None
 	ticket_price: Optional[float] = None
+
+	@field_validator("form_id", mode="before")
+	@classmethod
+	def coerce_form_id(cls, value: Any) -> Optional[int]:
+		"""Host forms use UUID ids; submissions.form_id is an integer. Ignore non-integers."""
+		if value is None or value == "":
+			return None
+		if isinstance(value, bool):
+			return None
+		if isinstance(value, int):
+			return value if value > 0 else None
+		if isinstance(value, float) and value.is_integer() and value > 0:
+			return int(value)
+		text = str(value).strip()
+		if text.isdigit():
+			parsed = int(text)
+			return parsed if parsed > 0 else None
+		return None
+
+	@field_validator("ticket_type", mode="before")
+	@classmethod
+	def coerce_ticket_type(cls, value: Any) -> Optional[str]:
+		if value is None:
+			return None
+		text = str(value).strip()
+		return text[:100] if text else None
+
+
+def _integer_form_id_for_event(db: Session, event_id: Optional[str], requested: Optional[int] = None) -> Optional[int]:
+	"""Map an event (and optional client form_id) onto form_definitions.id."""
+	if requested:
+		exists = db.query(FormDefinition.id).filter(FormDefinition.id == requested).first()
+		if exists:
+			return requested
+	event_key = str(event_id or "").strip()
+	if not event_key:
+		return requested
+	form = (
+		db.query(FormDefinition)
+		.filter(FormDefinition.event_id == event_key)
+		.order_by(
+			FormDefinition.is_published.desc(),
+			FormDefinition.version.desc(),
+			FormDefinition.id.desc(),
+		)
+		.first()
+	)
+	if form:
+		return form.id
+	compact = event_key.replace("-", "").lower()
+	for row in (
+		db.query(FormDefinition)
+		.filter(FormDefinition.event_id.isnot(None))
+		.order_by(FormDefinition.id.desc())
+		.all()
+	):
+		stored = str(row.event_id or "").strip()
+		if stored.lower() == event_key.lower() or stored.replace("-", "").lower() == compact:
+			return row.id
+	return requested
+
+
+def _submission_payload(row: FormSubmission, message: str) -> dict:
+	return {
+		"message": message,
+		"submission_id": row.id,
+		"status": row.status or "payment_pending",
+		"submitted_at": row.submission_time.isoformat() if row.submission_time else None,
+	}
+
+
+def _insert_form_submission(db: Session, values: Dict[str, Any]) -> FormSubmission:
+	"""Insert without booking_id so PostgreSQL never receives VARCHAR into a UUID column."""
+	table = FormSubmission.__table__
+	optional_omit_if_none = {"customer_id", "ticket_type", "ticket_price", "event_id"}
+	clean = {
+		key: val
+		for key, val in values.items()
+		if key != "booking_id" and (val is not None or key not in optional_omit_if_none)
+	}
+	result = db.execute(sa_insert(table).values(**clean).returning(table.c.id))
+	new_id = result.scalar_one()
+	db.commit()
+	return db.query(FormSubmission).filter(FormSubmission.id == new_id).one()
 
 
 @router.post("/save-draft")
@@ -300,10 +388,12 @@ def get_form_by_event(
 			title = str(meta.get("form_title"))
 		if meta.get("form_description"):
 			desc = str(meta.get("form_description"))
+		int_form_id = _integer_form_id_for_event(db, eid)
 		return {
 			"exists": True,
 			"source": "event_registration_forms",
-			"form_id": str(reg.form_id),
+			"form_id": int_form_id if int_form_id is not None else str(reg.form_id),
+			"registration_form_id": str(reg.form_id),
 			"event_id": eid,
 			"form_title": title,
 			"form_description": desc,
@@ -459,9 +549,21 @@ def submit_attendee_response(
 	current_user: Optional[User] = Depends(get_current_user_optional),
 ):
 	"""Submit an attendee registration response. Marks payment as pending until booking is paid."""
-	user_email = (current_user.email if current_user else payload.user_email).lower().strip()
+	raw_email = ""
+	if current_user and getattr(current_user, "email", None):
+		raw_email = current_user.email
+	elif payload.user_email:
+		raw_email = str(payload.user_email)
+	user_email = raw_email.lower().strip()
+	if not user_email or "@" not in user_email:
+		raise HTTPException(status_code=400, detail="A valid email is required to book this ticket.")
+
 	customer_id = getattr(current_user, "customer_id", None) if current_user else None
-	form_id = payload.form_id or 1
+	if customer_id:
+		customer_id = str(customer_id).strip() or None
+	event_id_str = str(payload.event_id).strip() if payload.event_id else None
+	form_id = _integer_form_id_for_event(db, event_id_str, payload.form_id) or 1
+
 	answers = dict(payload.answers_json or {})
 	ticket_type = (payload.ticket_type or "").strip() or None
 	ticket_price = payload.ticket_price
@@ -474,78 +576,74 @@ def submit_attendee_response(
 			or ""
 		).strip() or None
 	if ticket_type:
+		ticket_type = ticket_type[:100]
 		answers["_ticket_type"] = ticket_type
 	if ticket_price is not None:
 		answers["_ticket_price"] = ticket_price
 
-	existing = None
-	if payload.event_id:
-		event_id_val = str(payload.event_id).strip()
-		event_keys = {event_id_val.lower(), event_id_val.lower().replace("-", "")}
-		owner_filters = [func.lower(FormSubmission.user_email) == user_email]
-		if customer_id:
-			owner_filters.append(FormSubmission.customer_id == customer_id)
-		candidates = (
-			db.query(FormSubmission)
-			.filter(or_(*owner_filters))
-			.order_by(FormSubmission.submission_time.desc())
-			.all()
+	try:
+		existing = None
+		if event_id_str:
+			event_keys = {event_id_str.lower(), event_id_str.lower().replace("-", "")}
+			owner_filters = [func.lower(FormSubmission.user_email) == user_email]
+			if customer_id:
+				owner_filters.append(FormSubmission.customer_id == customer_id)
+			candidates = (
+				db.query(FormSubmission)
+				.filter(or_(*owner_filters))
+				.order_by(FormSubmission.submission_time.desc())
+				.all()
+			)
+			for row in candidates:
+				stored = str(row.event_id or "").strip().lower()
+				if stored in event_keys or stored.replace("-", "") in event_keys:
+					existing = row
+					break
+
+		if existing:
+			status_val = (existing.status or "").lower()
+			if status_val == "paid":
+				return _submission_payload(existing, "Registration already completed.")
+			existing.answers_json = answers
+			existing.status = "payment_pending"
+			existing.form_id = form_id
+			if event_id_str:
+				existing.event_id = event_id_str
+			if customer_id:
+				existing.customer_id = customer_id
+			if ticket_type:
+				existing.ticket_type = ticket_type
+			if ticket_price is not None:
+				existing.ticket_price = ticket_price
+			db.commit()
+			db.refresh(existing)
+			return _submission_payload(existing, "Registration submitted successfully!")
+
+		sub = _insert_form_submission(
+			db,
+			{
+				"form_id": form_id,
+				"event_id": event_id_str,
+				"customer_id": customer_id,
+				"user_email": user_email,
+				"ticket_type": ticket_type,
+				"ticket_price": ticket_price,
+				"form_version": 1,
+				"answers_json": answers,
+				"status": "payment_pending",
+				"submission_time": datetime.utcnow(),
+			},
 		)
-		for row in candidates:
-			stored = str(row.event_id or "").strip().lower()
-			if stored in event_keys or stored.replace("-", "") in event_keys:
-				existing = row
-				break
-
-	if existing:
-		status_val = (existing.status or "").lower()
-		if status_val == "paid":
-			return {
-				"message": "Registration already completed.",
-				"submission_id": existing.id,
-				"status": "paid",
-				"submitted_at": existing.submission_time.isoformat() if existing.submission_time else None,
-			}
-		existing.answers_json = answers
-		existing.status = "payment_pending"
-		if payload.event_id:
-			existing.event_id = str(payload.event_id)
-		if customer_id:
-			existing.customer_id = customer_id
-		if ticket_type:
-			existing.ticket_type = ticket_type
-		if ticket_price is not None:
-			existing.ticket_price = ticket_price
-		db.commit()
-		db.refresh(existing)
-		return {
-			"message": "Registration submitted successfully!",
-			"submission_id": existing.id,
-			"status": "payment_pending",
-			"submitted_at": existing.submission_time.isoformat() if existing.submission_time else None,
-		}
-
-	sub = FormSubmission(
-		form_id=form_id,
-		event_id=str(payload.event_id) if payload.event_id else None,
-		customer_id=customer_id,
-		user_email=user_email,
-		ticket_type=ticket_type,
-		ticket_price=ticket_price,
-		form_version=1,
-		answers_json=answers,
-		status="payment_pending",
-	)
-	db.add(sub)
-	db.commit()
-	db.refresh(sub)
-
-	return {
-		"message": "Registration submitted successfully!",
-		"submission_id": sub.id,
-		"status": "payment_pending",
-		"submitted_at": sub.submission_time.isoformat() if sub.submission_time else None,
-	}
+		return _submission_payload(sub, "Registration submitted successfully!")
+	except HTTPException:
+		raise
+	except SQLAlchemyError:
+		db.rollback()
+		logger.exception("form_submission_failed")
+		raise HTTPException(
+			status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+			detail="Could not save your registration. Please try again.",
+		)
 
 
 INTERNAL_ANSWER_KEYS = {

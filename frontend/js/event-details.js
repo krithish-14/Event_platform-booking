@@ -1006,7 +1006,7 @@ async function triggerBookingModal() {
     regUrl.searchParams.set("eventId", eventId);
     regUrl.searchParams.set("ticket", pendingTicket);
     regUrl.searchParams.set("price", String(pendingPrice));
-    regUrl.searchParams.set("v", "20");
+    regUrl.searchParams.set("v", "21");
     if (status.state === "payment_pending") {
         regUrl.searchParams.set("resume", "payment");
     }
