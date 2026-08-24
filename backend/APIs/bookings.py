@@ -467,11 +467,7 @@ def _mark_form_submission_paid(db: Session, event_id, user, booking_id=None) -> 
             row.customer_id = customer_id
             changed = True
         if booking_id is not None and not getattr(row, "booking_id", None):
-            try:
-                import uuid as _uuid
-                row.booking_id = booking_id if isinstance(booking_id, _uuid.UUID) else _uuid.UUID(str(booking_id))
-            except (TypeError, ValueError, AttributeError):
-                row.booking_id = booking_id
+            row.booking_id = booking_id
             changed = True
     if changed:
         db.commit()

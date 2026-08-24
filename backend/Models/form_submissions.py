@@ -3,10 +3,10 @@ FormSubmission SQLAlchemy model — attendee registration answers linked to user
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Float, Sequence, ForeignKey, Uuid
+from sqlalchemy import Column, Integer, String, DateTime, Float, Sequence, ForeignKey
 from sqlalchemy.orm import relationship
 
-from Models.base import Base, JSONType
+from Models.base import Base, JSONType, GUID
 
 
 class FormSubmission(Base):
@@ -16,8 +16,7 @@ class FormSubmission(Base):
     form_id         = Column(Integer, nullable=False, index=True)
     event_id        = Column(String(255), nullable=True, index=True)
     customer_id     = Column(String(50), ForeignKey("users.customer_id"), nullable=True, index=True)
-    # Native UUID so PostgreSQL is not sent VARCHAR (NULL VARCHAR into uuid is a 500).
-    booking_id      = Column(Uuid(as_uuid=True), ForeignKey("bookings.booking_id"), nullable=True, index=True)
+    booking_id      = Column(GUID, ForeignKey("bookings.booking_id"), nullable=True, index=True)
     user_email      = Column(String(255), nullable=False, index=True)
     ticket_type     = Column(String(100), nullable=True)
     ticket_price    = Column(Float, nullable=True)
