@@ -435,19 +435,6 @@
 			if (eventId && backEl) backEl.href = "event-details.html?id=" + encodeURIComponent(eventId);
 			applyPaymentQr(saved.paymentQrUrl, ticket);
 
-			function getToken() {
-				let token = "";
-				if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
-					token = window.JodAuth.getToken() || "";
-				}
-				if (!token) {
-					token = localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token") || "";
-				}
-				token = String(token || "").replace(/^Bearer\s+/i, "").replace(/^["']|["']$/g, "").trim();
-				if (token === "null" || token === "undefined") return "";
-				return token;
-			}
-
 			function currentReturnUrl() {
 				const file = (window.location.pathname.split("/").pop() || "payment.html");
 				return file + window.location.search + window.location.hash;
@@ -474,18 +461,15 @@
 			}
 
 			async function authFetch(url, options) {
-				const token = getToken();
 				const headers = Object.assign({}, (options && options.headers) || {});
-				if (token) headers.Authorization = "Bearer " + token;
 				if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
 					return window.JodAuth.fetchAuth(url, Object.assign({}, options || {}, { headers: headers }));
 				}
-				return fetch(url, Object.assign({}, options || {}, { headers: headers, redirect: "follow" }));
+				return fetch(url, Object.assign({}, options || {}, { headers: headers, credentials: "include", redirect: "follow" }));
 			}
 
 			async function fetchRegistrationStatus() {
-				const token = getToken();
-				if (!token || !eventId) return { state: "new" };
+				if (!eventId) return { state: "new" };
 				try {
 					const res = await authFetch(apiBase + "/api/bookings/registration-status?event_id=" + encodeURIComponent(eventId), {
 						cache: "no-store",
@@ -562,11 +546,6 @@
 					errEl.textContent = "Missing event. Go back and book again.";
 					return;
 				}
-				const token = getToken();
-				if (!token) {
-					redirectToLogin("Please log in to complete payment.");
-					return;
-				}
 				if (formPanel) formPanel.classList.add("is-open");
 				if (btn) btn.style.display = "none";
 				const user = window.JodAuth && window.JodAuth.getUser ? (window.JodAuth.getUser() || {}) : {};
@@ -582,11 +561,6 @@
 				errEl.textContent = "";
 				if (!eventId) {
 					errEl.textContent = "Missing event. Go back and book again.";
-					return;
-				}
-				const token = getToken();
-				if (!token) {
-					redirectToLogin("Please log in to complete payment.");
 					return;
 				}
 				const shot = document.getElementById("payShot");
@@ -614,7 +588,7 @@
 						body: body
 					});
 					const data = await res.json().catch(() => ({}));
-					if (res.status === 401 || res.status === 403) {
+					if (res.status === 401) {
 						redirectToLogin("Your session expired. Please log in again to complete payment.");
 						return;
 					}
@@ -649,7 +623,12 @@
 				});
 			}
 			(async function bootPaymentPage() {
-				if (!getToken()) {
+				if (window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function") {
+					const user = await window.JodAuth.requireAuthOrRedirect({
+						redirectTo: currentReturnUrl()
+					});
+					if (!user) return;
+				} else {
 					redirectToLogin("Please log in to complete payment.");
 					return;
 				}

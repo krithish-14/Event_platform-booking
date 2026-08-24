@@ -33,6 +33,7 @@ EXEMPT_PATHS = {
     "/api/auth/reset-password",
     "/api/auth/logout",
     "/api/forms/submissions",
+    "/api/payments/proof",
 }
 
 
