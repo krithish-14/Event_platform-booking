@@ -319,13 +319,11 @@
 				<input type="text" id="payName" name="attendee_name" required autocomplete="name" />
 				<label for="payEmail">Email</label>
 				<input type="email" id="payEmail" name="attendee_email" required autocomplete="email" />
-				<label for="payNumber">Number</label>
+				<label for="payNumber">Phone number</label>
 				<input type="tel" id="payNumber" name="attendee_phone" required autocomplete="tel" />
-				<label for="payBank">Bank name</label>
-				<input type="text" id="payBank" name="bank_name" required />
 				<label for="payTxn">Transaction ID</label>
 				<input type="text" id="payTxn" name="transaction_id" required />
-				<label for="payShot">Screenshot of the payment</label>
+				<label for="payShot">Payment screenshot</label>
 				<input type="file" id="payShot" name="screenshot" accept="image/*" required />
 				<img class="shot-preview" id="payShotPreview" alt="Payment screenshot preview" />
 				<button type="submit" class="pay-btn" id="paySubmitBtn">Submit payment details</button>
@@ -604,7 +602,8 @@
 				body.append("attendee_name", document.getElementById("payName").value.trim());
 				body.append("attendee_email", document.getElementById("payEmail").value.trim());
 				body.append("attendee_phone", document.getElementById("payNumber").value.trim());
-				body.append("bank_name", document.getElementById("payBank").value.trim());
+				const bankEl = document.getElementById("payBank");
+				body.append("bank_name", (bankEl && bankEl.value.trim()) || "UPI");
 				body.append("transaction_id", document.getElementById("payTxn").value.trim());
 				body.append("screenshot", shot.files[0]);
 				submitBtn.disabled = true;

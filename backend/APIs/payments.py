@@ -30,7 +30,7 @@ async def submit_payment_proof(
     attendee_name: str = Form(...),
     attendee_email: str = Form(...),
     attendee_phone: str = Form(...),
-    bank_name: str = Form(...),
+    bank_name: str = Form(""),
     transaction_id: str = Form(...),
     screenshot: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -40,10 +40,10 @@ async def submit_payment_proof(
     name = sanitize_text(attendee_name, max_length=120)
     email = sanitize_text(attendee_email or current_user.email or "", max_length=255).lower()
     phone = sanitize_text(attendee_phone, max_length=40)
-    bank = sanitize_text(bank_name, max_length=120)
+    bank = sanitize_text(bank_name, max_length=120) or "UPI"
     txn = sanitize_text(transaction_id, max_length=80)
-    if not name or not email or not phone or not bank or not txn:
-        raise HTTPException(status_code=400, detail="Please fill name, email, number, bank name, and transaction ID.")
+    if not name or not email or not phone or not txn:
+        raise HTTPException(status_code=400, detail="Please fill name, email, number, and transaction ID.")
 
     data = await screenshot.read()
     if not data:
