@@ -40,7 +40,6 @@
 		layout: photo.layout,
 		highlight: photo.layout === "feature" || photo.layout === "tall" || photo.layout === "wide",
 		title: "Singapenn Marathon 2026",
-		caption: photo.layout === "tall" ? "Portrait still from race day." : "Race day still.",
 		src: photoUrl(photo.file)
 	}));
 
@@ -60,12 +59,6 @@
 			.replace(/</g, "&lt;")
 			.replace(/>/g, "&gt;")
 			.replace(/"/g, "&quot;");
-	}
-
-	function layoutLabel(item) {
-		if (item.type === "video") return "Video · " + (item.layout === "feature" ? "Feature" : "Reel");
-		const names = { feature: "Feature", wide: "Wide", tall: "Tall", square: "Square" };
-		return "Photo · " + (names[item.layout] || "Frame");
 	}
 
 	function thumb(item) {
@@ -107,7 +100,6 @@
 				<span class="gallery-tile-shade"></span>
 				${play}
 				<span class="gallery-tile-copy">
-					<small>${escapeHtml(layoutLabel(item))}</small>
 					<strong>${escapeHtml(item.title)}</strong>
 				</span>
 			</button>`;
@@ -160,12 +152,8 @@
 		const item = visible[lightboxIndex];
 		if (!item || !stage) return;
 		stage.innerHTML = mediaHtml(item);
-		const kicker = document.getElementById("galleryLbKicker");
 		const title = document.getElementById("galleryLbTitle");
-		const caption = document.getElementById("galleryLbCaption");
-		if (kicker) kicker.textContent = layoutLabel(item);
 		if (title) title.textContent = item.title || "";
-		if (caption) caption.textContent = item.caption || "";
 	}
 
 	function openLightbox(index) {

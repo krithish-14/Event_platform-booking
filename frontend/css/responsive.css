@@ -38,6 +38,10 @@
 		gap: 0.35rem;
 		overflow: visible;
 		flex-wrap: nowrap;
+		min-height: 3.5rem;
+	}
+	#header {
+		min-height: 3.5rem;
 	}
 	.site-header {
 		overflow: visible;
@@ -123,7 +127,8 @@
 	}
 	.menu-toggle { display: flex; flex-direction: column; justify-content: center; gap: .3rem; width: 2.35rem; height: 2.35rem; padding: .4rem; border: 0; border-radius: .375rem; background: transparent; cursor: pointer; flex-shrink: 0; }
 	.menu-toggle span { display: block; width: 100%; height: 2px; background: var(--foreground); transition: transform .2s, opacity .2s; }
-	.site-header .brand img { height: 40px; }
+	.site-header .brand img,
+	.site-header .brand-logo { height: 3.15rem; max-width: min(10rem, 42vw); }
 
 	body:not(.home-page) .site-header .brand {
 		display: none;
@@ -148,17 +153,26 @@
 	.hero {
 		min-height: 0;
 	}
+	body.home-page {
+		--hero-header-offset: 5.25rem;
+		--hero-banner-height: min(530px, calc(100vw * 530 / 1200));
+	}
 	body.home-page .hero {
-		padding-top: 6.25rem;
-		padding-bottom: 0.75rem;
+		padding-top: var(--hero-header-offset);
+		padding-bottom: 0;
+		height: calc(var(--hero-header-offset) + var(--hero-banner-height));
+		max-height: none;
 	}
 	.hero-grid {
-		grid-template-columns: minmax(0, 0.62fr) minmax(172px, 1.55fr);
-		gap: 0.55rem;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0;
 		align-items: center;
-		padding-top: 0.7rem;
-		padding-bottom: 0.75rem;
+		padding-top: 0.35rem;
+		padding-bottom: 1.1rem;
 		min-height: 0;
+	}
+	.hero .featured-event {
+		display: none;
 	}
 	.hero-copy {
 		min-width: 0;
@@ -167,38 +181,38 @@
 	}
 	.hero h1,
 	.hero-event-title {
-		font-size: 0.92rem;
+		font-size: 1.28rem;
 		line-height: 1.16;
 		max-width: none;
-		margin: 0.06rem 0 0;
+		margin: 0.1rem 0 0;
 	}
-	.hero-lead { font-size: 0.74rem; }
+	.hero-lead { font-size: 0.82rem; }
 	.hero-category {
-		font-size: 0.5rem;
-		margin-bottom: 0.08rem;
+		font-size: 0.62rem;
+		margin-bottom: 0.12rem;
 		letter-spacing: 0.14em;
 	}
 	.hero .inline-featured-label {
-		margin-bottom: 0.14rem;
-		padding: 0.06rem 0.32rem;
-		font-size: 0.38rem;
+		margin-bottom: 0.22rem;
+		padding: 0.18rem 0.5rem;
+		font-size: 0.55rem;
 		letter-spacing: 0.1em;
 		gap: 0.22rem;
 	}
 	.hero .inline-featured-label .pulse-dot {
-		width: 0.28rem;
-		height: 0.28rem;
+		width: 0.35rem;
+		height: 0.35rem;
 	}
 	.hero-countdown {
 		max-width: none;
-		margin-top: 0.32rem;
-		padding: 0.22rem 0.16rem;
+		margin-top: 0.45rem;
+		padding: 0.4rem 0.28rem;
 		gap: 0.16rem;
 		border-radius: 0.5rem;
 	}
-	.hero-countdown > div { padding: 0.14rem 0.04rem; }
-	.hero-countdown strong { font-size: 0.6rem; }
-	.hero-countdown span { font-size: 0.4rem; }
+	.hero-countdown > div { padding: 0.2rem 0.08rem; }
+	.hero-countdown strong { font-size: 0.85rem; }
+	.hero-countdown span { font-size: 0.48rem; }
 	.hero-event-meta { margin-top: 0.28rem; gap: 0.04rem; }
 	.hero-event-meta p {
 		font-size: 0.58rem;
@@ -209,41 +223,7 @@
 		overflow: hidden;
 	}
 	.featured-event {
-		min-width: 0;
-		width: 100%;
-		border-radius: 0.9rem;
-		height: auto;
-		display: block;
-	}
-	.featured-image-wrap.hero-featured-image {
-		position: relative;
-		aspect-ratio: 16 / 9;
-		width: 100%;
-		height: auto;
-		min-height: 0;
-		max-height: 11.25rem;
-		overflow: hidden;
-		background: #0c0a08;
-	}
-	.featured-image-wrap.hero-featured-image > a {
-		position: absolute;
-		inset: 0;
-		display: block;
-		width: 100%;
-		height: 100%;
-	}
-	.featured-image-wrap.hero-featured-image img {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-		object-position: left center;
-	}
-	.featured-image-wrap.hero-featured-image .image-gradient {
-		inset: auto 0 0;
-		height: 32%;
-		background: linear-gradient(transparent, rgba(0, 0, 0, 0.42));
+		display: none;
 	}
 	.hero-grid .button-row {
 		margin-top: 0.32rem;
@@ -252,13 +232,13 @@
 	.hero .button-gold {
 		width: auto;
 		min-height: 0;
-		padding: 0.22rem 0.46rem;
-		font-size: 0.5rem;
+		padding: 0.4rem 0.75rem;
+		font-size: 0.72rem;
 		line-height: 1.15;
 		gap: 0.2rem;
 	}
 	.split-grid { grid-template-columns: 1fr; }
-	.stats-grid { grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+	.stats-grid { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
 	.stats-section { padding: 1.5rem 0 1.25rem; }
 	.section { padding: 2rem 0; }
 	.carousel-viewport { margin: 0 2.75rem; }
@@ -408,9 +388,19 @@
 @media (max-width: 520px) {
 	.nav-inner {
 		gap: 0.25rem;
+		min-height: 3.15rem;
 	}
-	.site-header .brand img {
-		height: 34px;
+	#header {
+		min-height: 3.15rem;
+	}
+	.site-header .brand img,
+	.site-header .brand-logo {
+		height: 2.75rem;
+		max-width: min(8.75rem, 40vw);
+	}
+	body.home-page {
+		--hero-header-offset: 4.85rem;
+		--hero-banner-height: min(530px, calc(100vw * 530 / 1200));
 	}
 	.header-search {
 		max-width: min(8.25rem, 26vw);
@@ -445,34 +435,29 @@
 	.hero {
 		min-height: 0;
 	}
+	body.home-page .hero {
+		height: calc(var(--hero-header-offset) + var(--hero-banner-height));
+		max-height: none;
+	}
 	.hero-grid {
-		grid-template-columns: minmax(0, 0.55fr) minmax(164px, 1.7fr);
-		gap: 0.45rem;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0;
 		min-height: 0;
 	}
 	.hero h1,
-	.hero-event-title { font-size: 0.88rem; }
-	.hero-countdown { padding: 0.18rem 0.14rem; }
-	.hero-countdown strong { font-size: 0.58rem; }
-	.hero-countdown span { font-size: 0.4rem; }
-	.hero-event-meta p { font-size: 0.56rem; }
+	.hero-event-title { font-size: 1.1rem; }
+	.hero-countdown { padding: 0.32rem 0.22rem; }
+	.hero-countdown strong { font-size: 0.78rem; }
+	.hero-countdown span { font-size: 0.46rem; }
+	.hero-event-meta p { font-size: 0.72rem; }
 	.hero-grid .button-row .button,
 	.hero .button-gold {
 		width: auto;
-		font-size: 0.46rem;
-		padding: 0.18rem 0.4rem;
+		font-size: 0.68rem;
+		padding: 0.32rem 0.7rem;
 	}
-	.featured-image-wrap.hero-featured-image {
-		aspect-ratio: 16 / 9;
-		width: 100%;
-		height: auto;
-		min-height: 0;
-		max-height: 10rem;
-		background: #0c0a08;
-	}
-	.featured-image-wrap.hero-featured-image img {
-		object-fit: contain;
-		object-position: left center;
+	.hero .featured-event {
+		display: none;
 	}
 	.button-row .button { width: 100%; }
 	.hero-grid .button-row .button { width: auto; }

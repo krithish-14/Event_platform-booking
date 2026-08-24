@@ -7,6 +7,10 @@
 	color: var(--ink);
 }
 
+.category-main {
+	padding-top: 76px;
+}
+
 /* ── Hero Section ─────────────────────────────────────────── */
 .category-hero-section {
 	padding: 2.5rem 0 1.5rem;
@@ -16,11 +20,12 @@
 }
 
 .category-header-info {
-	margin-bottom: 1.5rem;
+	margin-bottom: 0;
+	text-align: center;
 }
 
 .category-title {
-	margin: .5rem 0 .4rem;
+	margin: 0;
 	font-size: 2.25rem;
 	font-weight: 800;
 	letter-spacing: -0.02em;

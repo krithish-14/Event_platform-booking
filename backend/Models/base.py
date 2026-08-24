@@ -393,6 +393,7 @@ def _migrate_tables(engine=None):
                 ("event_end_date", "TIMESTAMP" if is_pg else "DATETIME"),
                 ("event_start_time", "VARCHAR(50)"),
                 ("event_end_time", "VARCHAR(50)"),
+                ("duration", "VARCHAR(20)"),
                 ("venue", "VARCHAR(300)"),
                 ("address", "TEXT"),
                 ("latitude", "DOUBLE PRECISION" if is_pg else "FLOAT"),

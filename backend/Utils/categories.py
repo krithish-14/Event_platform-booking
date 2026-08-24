@@ -8,6 +8,7 @@ CANONICAL_CATEGORIES = (
     "Experiences",
     "Expositions",
     "Parties",
+    "Workshops",
 )
 
 _CANONICAL_LOOKUP = {name.lower(): name for name in CANONICAL_CATEGORIES}

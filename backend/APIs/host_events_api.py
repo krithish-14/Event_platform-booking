@@ -1128,6 +1128,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             end_date=end_dt,
             price=min_price,
             event_format=event_mgt.event_mode or "In-person",
+            duration=getattr(event_mgt, "duration", None),
             is_published=True,
             is_cancelled=False,
             customer_id=event_mgt.customer_id,
@@ -1151,6 +1152,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             public_event.longitude = event_mgt.longitude
         public_event.category = normalize_category(event_mgt.event_category) or event_mgt.event_category or public_event.category
         public_event.event_format = event_mgt.event_mode or public_event.event_format
+        public_event.duration = getattr(event_mgt, "duration", None)
         if image_url:
             public_event.image_url = image_url
         if card_image:
@@ -1226,6 +1228,7 @@ class SaveManageEventRequest(BaseModel):
     event_end_date: Optional[str] = None
     event_start_time: Optional[str] = None
     event_end_time: Optional[str] = None
+    duration: Optional[str] = None
     venue: Optional[str] = None
     address: Optional[str] = None
     latitude: Optional[float] = None
@@ -1501,6 +1504,8 @@ def save_manage_event(
             event.event_status = "draft"
     if payload.event_start_time is not None: event.event_start_time = payload.event_start_time
     if payload.event_end_time is not None: event.event_end_time = payload.event_end_time
+    if payload.duration is not None:
+        event.duration = sanitize_text(payload.duration, max_length=20) or None
     if payload.event_start_date:
         try:
             event.event_start_date = _parse_incoming_datetime(payload.event_start_date)
@@ -1582,6 +1587,7 @@ def save_manage_event(
             "latitude": getattr(event, "latitude", None),
             "longitude": getattr(event, "longitude", None),
             "event_status": event.event_status,
+            "duration": getattr(event, "duration", None),
             "tickets": event.tickets_json,
             "agenda": event.agenda_json,
             "policies": event.policies_json,
@@ -1862,6 +1868,7 @@ def get_current_host_event(
             "event_end_date": end_local,
             "event_start_time": event.event_start_time,
             "event_end_time": event.event_end_time,
+            "duration": getattr(event, "duration", None),
             "tickets": event.tickets_json,
             "agenda": event.agenda_json,
             "policies": event.policies_json,

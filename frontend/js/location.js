@@ -1393,7 +1393,21 @@ if (typeof document !== "undefined") {
       window.JodLocation.applyCachedRecommendations();
       return;
     }
-    window.JodLocation.initLocationFlow().catch(() => {});
+    // Let the featured event popup show first after login.
+    let delayMs = 0;
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      if (
+        params.get("show_featured") === "1" ||
+        sessionStorage.getItem("jod-show-featured-modal-after-login") === "1" ||
+        localStorage.getItem("jod-show-featured-modal-after-login") === "1"
+      ) {
+        delayMs = 3500;
+      }
+    } catch (_) {}
+    window.setTimeout(() => {
+      window.JodLocation.initLocationFlow().catch(() => {});
+    }, delayMs);
   });
 }
 

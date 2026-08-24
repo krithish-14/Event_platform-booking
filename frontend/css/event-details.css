@@ -202,24 +202,24 @@ body.category-theme-workshop .performer-avatar {
 /* ── Main Content Area (Left Column) ───────────────────────────────────────── */
 .event-hero-banner {
     position: relative;
+    width: 100%;
+    aspect-ratio: 1200 / 600;
     border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
     border: 1px solid #e2e8f0;
     margin-bottom: 2rem;
-    background: #ffffff;
+    background: #0a0806;
 }
 
 .event-hero-banner img {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    height: 440px;
+    height: 100%;
     object-fit: cover;
+    object-position: center center;
     display: block;
-    transition: transform 0.5s ease;
-}
-
-.event-hero-banner:hover img {
-    transform: scale(1.02);
 }
 
 .banner-overlay-tags {
@@ -1235,8 +1235,12 @@ html[data-theme="dark"] .ticket-unavailable {
         font-size: 1.45rem;
     }
 
+    .event-hero-banner {
+        aspect-ratio: 1200 / 600;
+    }
+
     .event-hero-banner img {
-        height: 240px;
+        height: 100%;
     }
 
     .category-badge-list {

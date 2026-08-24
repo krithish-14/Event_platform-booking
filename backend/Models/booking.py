@@ -15,11 +15,10 @@ from Models.base import Base, GUID
 class Booking(Base):
     __tablename__ = "bookings"
 
-    booking_id = Column(PG_UUID(as_uuid=True), ForeignKey("bookings.booking_id"), nullable=True, index=True,
-)
+    booking_id  = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     customer_id = Column(String(100), ForeignKey("users.customer_id"), nullable=False, index=True)
     event_id    = Column(GUID, ForeignKey("events.id"), nullable=False, index=True)
-    ticket_type = Column(String(100), default="Standard Access")  
+    ticket_type = Column(String(100), default="Standard Access")
     quantity    = Column(Integer, default=1)
     total_price = Column(Float, default=0.0)
     status      = Column(String(50), default="CONFIRMED")

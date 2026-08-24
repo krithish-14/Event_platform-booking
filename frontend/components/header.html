@@ -1,4 +1,4 @@
-<div class="announcement-bar" data-auth-only="true" hidden>
+<div class="announcement-bar" hidden>
 	<div class="glow-layer"></div>
 	<div class="container announcement-inner">
 		<div class="announcement-copy">
@@ -17,7 +17,13 @@
 	<div class="container nav-inner">
 		<div class="header-leading">
 			<a class="brand" href="index.html" aria-label="JOD Events home">
-				<img src="https://assets.jodevents.com/images/JOD Events Logo.png" alt="JOD Events" />
+				<img
+					class="brand-logo"
+					src="https://assets.jodevents.com/images/JOD%20Events%20Logo.png"
+					data-logo-light="images/JOD Events Logo.png"
+					data-logo-dark="images/Jod_log_Dark.webp"
+					alt="JOD Events"
+				/>
 			</a>
 			<button type="button" class="header-back-btn" data-header-back aria-label="Go back">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
@@ -39,7 +45,7 @@
 			<a href="host-your-event.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, 'account-setup.html', 'host');}">Host Your Event</a>
 			<a href="gallery.html">Gallery</a>
 		</nav>
-		<button type="button" class="theme-toggle" data-theme-toggle hidden aria-label="Switch to dark mode" title="Dark mode"></button>
+		<button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Dark mode"></button>
 		<div class="nav-auth" id="navAuth">
 			<a class="button button-sm button-login" href="login.html" id="nav-login-btn">Login</a>
 			<a class="button button-sm button-primary" href="signup.html" id="nav-signup-btn">Sign Up &#8599;</a>
@@ -54,6 +60,7 @@
 		<a href="category.html">Category</a>
 		<a href="host-your-event.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, 'account-setup.html', 'host');}">Host Your Event</a>
 		<a href="gallery.html">Gallery</a>
+		<button type="button" class="theme-toggle mobile-theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Dark mode"></button>
 		<div class="mobile-auth-group">
 			<a class="button button-login" href="login.html">Login</a>
 			<a class="button button-primary" href="signup.html">Sign Up</a>

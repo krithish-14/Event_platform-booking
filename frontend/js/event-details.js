@@ -181,6 +181,13 @@ function getCategoryThemeConfig(category) {
             performersTitle: 'Artists',
             highlightsTitle: 'Sponsors',
             icon: '🎉'
+        },
+        Workshops: {
+            themeClass: 'category-theme-workshop',
+            heroBadge: '🛠️ Workshop',
+            performersTitle: 'Instructors',
+            highlightsTitle: 'Sponsors',
+            icon: '🛠️'
         }
     };
     return themes[cat] || {
@@ -290,10 +297,10 @@ function renderEventDOM(event) {
     }
 
     const durationEl = document.getElementById('infoDuration');
-    if (durationEl) durationEl.textContent = event.duration || 'See event schedule';
-
-    const ageLangEl = document.getElementById('infoAgeLang');
-    if (ageLangEl) ageLangEl.textContent = `${event.age_limit || 'All ages'} | ${event.language || 'English'}`;
+    if (durationEl) {
+        const durationText = String(event.duration || '').trim();
+        durationEl.textContent = durationText || '—';
+    }
 
     const infoVenueEl = document.getElementById('infoVenue');
     const venueLabel = String(event.venue || event.location || '').trim();

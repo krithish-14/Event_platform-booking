@@ -210,6 +210,51 @@ window.JodAuth = (() => {
 		} catch (_) {}
 	}
 
+	function queueFeaturedModalAfterLogin() {
+		try {
+			sessionStorage.setItem("jod-show-featured-modal-after-login", "1");
+			localStorage.setItem("jod-show-featured-modal-after-login", "1");
+			const stores = [sessionStorage, localStorage];
+			stores.forEach((store) => {
+				const keys = [];
+				for (let i = 0; i < store.length; i++) {
+					const key = store.key(i);
+					if (key && key.indexOf("jod-upcoming-modal-shown-") === 0) keys.push(key);
+				}
+				keys.forEach((key) => store.removeItem(key));
+			});
+		} catch (_) {}
+	}
+
+	function homeUrlWithFeaturedPopup() {
+		return "index.html?show_featured=1";
+	}
+
+	async function redirectAfterAuth(preferredUrl) {
+		const targetUrl = preferredUrl || getRedirectTarget();
+		let dest = "index.html";
+		try {
+			dest = await resolvePostAuthDestination(targetUrl);
+		} catch (_) {
+			dest = targetUrl || "index.html";
+		}
+		// Featured popup only exists on the home page. After every login, land
+		// on home with show_featured=1 so the modal always appears. Admins keep
+		// going straight to the admin portal.
+		if (isAdminUser(getUser()) || String(dest).toLowerCase().includes("admin-portal")) {
+			window.location.replace(dest);
+			return;
+		}
+		try {
+			if (dest && !/index\.html\/?$/i.test(String(dest).split("?")[0]) && String(dest) !== "/" && String(dest) !== "") {
+				sessionStorage.setItem("jod_after_featured_redirect", dest);
+			} else {
+				sessionStorage.removeItem("jod_after_featured_redirect");
+			}
+		} catch (_) {}
+		window.location.replace(homeUrlWithFeaturedPopup());
+	}
+
 	function persistAuthSession(tokenOrUser, maybeUser) {
 		try {
 			localStorage.removeItem("jod_access_token");
@@ -549,15 +594,12 @@ window.JodAuth = (() => {
 
 					showAlert(alertEl, "success", "Login successful! Redirecting…");
 					queueLocationPrompt(data.user);
+					queueFeaturedModalAfterLogin();
 
-					setTimeout(async () => {
-						const targetUrl = getRedirectTarget();
-						try {
-							window.location.replace(await resolvePostAuthDestination(targetUrl));
-						} catch (e) {
-							console.warn("[Auth Debug] Host destination check failed:", e);
-							window.location.replace(targetUrl || "index.html");
-						}
+					setTimeout(() => {
+						redirectAfterAuth(getRedirectTarget()).catch(() => {
+							window.location.replace(homeUrlWithFeaturedPopup());
+						});
 					}, 900);
 				}
 			} catch (err) {
@@ -1030,13 +1072,11 @@ window.JodAuth = (() => {
 
 			showAlert(alertEl, "success", "Account created! Redirecting…");
 			queueLocationPrompt(data && data.user);
-			const targetUrl = getRedirectTarget();
-			setTimeout(async () => {
-				try {
-					window.location.replace(await resolvePostAuthDestination(targetUrl));
-				} catch (_) {
-					window.location.replace(targetUrl || "index.html");
-				}
+			queueFeaturedModalAfterLogin();
+			setTimeout(() => {
+				redirectAfterAuth(getRedirectTarget()).catch(() => {
+					window.location.replace(homeUrlWithFeaturedPopup());
+				});
 			}, 900);
 		}
 
@@ -1230,14 +1270,12 @@ window.JodAuth = (() => {
 
 				if (alertEl) showAlert(alertEl, "success", "Google Sign-In successful! Redirecting…");
 				queueLocationPrompt(data.user);
+				queueFeaturedModalAfterLogin();
 
-				const targetUrl = getRedirectTarget();
-				setTimeout(async () => {
-					try {
-						window.location.replace(await resolvePostAuthDestination(targetUrl));
-					} catch (_) {
-						window.location.replace(targetUrl || "index.html");
-					}
+				setTimeout(() => {
+					redirectAfterAuth(getRedirectTarget()).catch(() => {
+						window.location.replace(homeUrlWithFeaturedPopup());
+					});
 				}, 900);
 			}
 		} catch (err) {
@@ -1432,16 +1470,11 @@ window.JodAuth = (() => {
 		(async () => {
 			const verified = await validateSession();
 			if (!verified) return;
-			const targetUrl = getRedirectTarget();
+			queueFeaturedModalAfterLogin();
 			try {
-				const dest = await resolvePostAuthDestination(targetUrl);
-				if (dest && dest !== pageFile) {
-					window.location.replace(dest);
-				}
+				await redirectAfterAuth(getRedirectTarget());
 			} catch (_) {
-				if (targetUrl && targetUrl !== pageFile) {
-					window.location.replace(targetUrl);
-				}
+				window.location.replace(homeUrlWithFeaturedPopup());
 			}
 		})();
 	}

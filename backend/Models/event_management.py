@@ -24,6 +24,7 @@ class EventManagement(Base):
     event_end_date   = Column(DateTime, nullable=True)
     event_start_time = Column(String(50), nullable=True)
     event_end_time   = Column(String(50), nullable=True)
+    duration         = Column(String(20), nullable=True)
     venue            = Column(String(300), nullable=True)
     address          = Column(Text, nullable=True)
     latitude         = Column(Float, nullable=True)

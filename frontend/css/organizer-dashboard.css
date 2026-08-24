@@ -783,7 +783,8 @@ canvas#trendChartCanvas {
 
 .event-page-banner-wrap {
 	position: relative;
-	height: 140px;
+	height: auto;
+	aspect-ratio: 1200 / 530;
 	overflow: hidden;
 	background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
 }
