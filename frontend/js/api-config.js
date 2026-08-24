@@ -1,6 +1,6 @@
 /**
  * Single API origin + Cloudflare assets base for every page.
- * Production (Cloudflare frontend): https://api.jodevents.com
+ * Production (nginx same origin): "" so fetch("/api/...") works.
  * Local split (:5500): http://127.0.0.1:8001
  * Static images: https://assets.jodevents.com/images/...
  * Override: window.JOD_API_BASE_OVERRIDE / window.JOD_ASSETS_BASE_OVERRIDE
@@ -8,7 +8,6 @@
 (function (global) {
 	"use strict";
 
-	var PRODUCTION_API_ORIGIN = "https://api.jodevents.com";
 	var DEFAULT_ASSETS_IMAGE_BASE = "https://assets.jodevents.com/images";
 
 	function stripSlash(value) {
@@ -29,17 +28,7 @@
 	function getApiOrigin() {
 		if (global.JOD_API_BASE_OVERRIDE) return stripSlash(global.JOD_API_BASE_OVERRIDE);
 		if (isLocalSplitFrontend()) return "http://127.0.0.1:8001";
-		return PRODUCTION_API_ORIGIN;
-	}
-
-	function isRelativeApiPath(url) {
-		return (
-			url === "/api" ||
-			url.indexOf("/api/") === 0 ||
-			url === "/health" ||
-			url.indexOf("/health?") === 0 ||
-			url.indexOf("/health/") === 0
-		);
+		return "";
 	}
 
 	function getApiBase() {
@@ -50,24 +39,6 @@
 	function getAssetsImageBase() {
 		if (global.JOD_ASSETS_BASE_OVERRIDE) return stripSlash(global.JOD_ASSETS_BASE_OVERRIDE);
 		return DEFAULT_ASSETS_IMAGE_BASE;
-	}
-
-	function isAppMediaPath(path) {
-		var p = String(path || "");
-		return (
-			p.indexOf("/api/media") === 0 ||
-			p.indexOf("api/media") === 0 ||
-			p.indexOf("/uploads/") === 0 ||
-			p.indexOf("uploads/") === 0
-		);
-	}
-
-	function prefixApiPath(path) {
-		var p = String(path || "").trim();
-		if (!p) return "";
-		if (!p.startsWith("/")) p = "/" + p;
-		var origin = getApiOrigin();
-		return origin ? origin + p : p;
 	}
 
 	function escapeHtml(value) {
@@ -119,7 +90,7 @@
 		if (/^https?:\/\//i.test(trimmed)) {
 			try {
 				var abs = new URL(trimmed);
-				if (isAppMediaPath(abs.pathname)) return prefixApiPath(abs.pathname + abs.search);
+				if (abs.hostname === "assets.jodevents.com") return trimmed;
 				return trimmed;
 			} catch (_) {
 				return trimmed;
@@ -127,16 +98,9 @@
 		}
 
 		var rel = trimmed.replace(/^\.\//, "");
-		if (rel.startsWith("/api/") || rel.startsWith("api/")) {
-			return prefixApiPath(rel.startsWith("/") ? rel : "/" + rel);
-		}
-		if (rel.startsWith("/uploads/") || rel.startsWith("uploads/")) {
-			return prefixApiPath(rel.startsWith("/") ? rel : "/" + rel);
-		}
-		if (rel.indexOf("/api/media") !== -1) {
-			var mediaPath = rel.indexOf("/api/media") >= 0 ? rel.slice(rel.indexOf("/api/media")) : "/api/media";
-			return prefixApiPath(mediaPath);
-		}
+		if (rel.startsWith("/api/") || rel.startsWith("api/")) return trimmed;
+		if (rel.startsWith("/uploads/") || rel.startsWith("uploads/")) return trimmed;
+		if (rel.indexOf("/api/media") !== -1) return trimmed;
 
 		if (rel.startsWith("/images/")) rel = rel.slice("/images/".length);
 		else if (rel.startsWith("images/")) rel = rel.slice("images/".length);
@@ -161,22 +125,21 @@
 		) {
 			return placeholder;
 		}
-		if (/^https?:\/\//i.test(trimmed)) {
+		if (lower.startsWith("https://")) return trimmed;
+		if (lower.startsWith("http://")) {
 			try {
 				var parsed = new URL(trimmed);
-				if (isAppMediaPath(parsed.pathname)) {
-					return prefixApiPath(parsed.pathname + parsed.search);
-				}
-				if (lower.startsWith("https://")) return trimmed;
 				if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") return trimmed;
-			} catch (_) {
-				if (lower.startsWith("https://")) return trimmed;
-			}
+			} catch (_) {}
 			return placeholder;
 		}
-		if (isAppMediaPath(trimmed) || trimmed.startsWith("/api/") || trimmed.startsWith("api/")) {
-			var path = trimmed.startsWith("/") ? trimmed : "/" + trimmed;
-			return prefixApiPath(path);
+		if (
+			trimmed.startsWith("/api/") ||
+			trimmed.startsWith("api/") ||
+			trimmed.startsWith("/uploads/") ||
+			trimmed.startsWith("uploads/")
+		) {
+			return trimmed;
 		}
 		if (
 			trimmed.startsWith("/") ||
@@ -263,19 +226,15 @@
 	if (nativeFetch) {
 		global.fetch = function (input, init) {
 			var initObj = Object.assign({}, init || {});
-			var origin = getApiOrigin();
 			var url = "";
 			if (typeof input === "string") url = input;
 			else if (input && typeof input.url === "string") url = input.url;
-			if (typeof input === "string" && origin && isRelativeApiPath(url)) {
-				url = origin + url;
-				input = url;
-			}
+			var origin = getApiOrigin();
 			var isApi =
-				isRelativeApiPath(url) ||
-				(origin && url.indexOf(origin + "/") === 0) ||
+				url.startsWith("/") ||
+				url.startsWith(origin + "/") ||
 				url.indexOf("/api/") !== -1 ||
-				/127\.0\.0\.1:8001|localhost:8001|api\.jodevents\.com/.test(url);
+				/127\.0\.0\.1:8001|localhost:8001/.test(url);
 			if (isApi) {
 				initObj.credentials = initObj.credentials || "include";
 				var method = String(
@@ -303,7 +262,6 @@
 		assetUrl: assetUrl,
 		escapeHtml: escapeHtml,
 		safeMediaUrl: safeMediaUrl,
-		prefixApiPath: prefixApiPath,
 	};
 	global.escHtml = escapeHtml;
 	global.getApiBaseUrl = getApiOrigin;

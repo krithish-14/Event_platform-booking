@@ -30,7 +30,7 @@ async def submit_payment_proof(
     attendee_name: str = Form(...),
     attendee_email: str = Form(...),
     attendee_phone: str = Form(...),
-    bank_name: str = Form(""),
+    bank_name: str = Form(...),
     transaction_id: str = Form(...),
     screenshot: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -42,8 +42,8 @@ async def submit_payment_proof(
     phone = sanitize_text(attendee_phone, max_length=40)
     bank = sanitize_text(bank_name, max_length=120)
     txn = sanitize_text(transaction_id, max_length=80)
-    if not name or not email or not phone or not txn:
-        raise HTTPException(status_code=400, detail="Please fill name, email, phone number, and transaction ID.")
+    if not name or not email or not phone or not bank or not txn:
+        raise HTTPException(status_code=400, detail="Please fill name, email, number, bank name, and transaction ID.")
 
     data = await screenshot.read()
     if not data:
@@ -109,7 +109,7 @@ async def submit_payment_proof(
         db.refresh(row)
 
     return {
-        "message": "Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.",
+        "message": "Payment details submitted. Admin will generate your QR ticket after verification.",
         "payment_id": row.id,
         "status": row.status,
     }

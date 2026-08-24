@@ -93,36 +93,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
 origins = cors_origins() + ["https://jodevents.com"]
-
-# Keep these two middlewares
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(CookieCsrfMiddleware)
-
-# Consolidated single CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],   # allow all methods
-    allow_headers=["*"],   # allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
-
-
-'''origins = cors_origins()
-app.add_middleware(RequestContextMiddleware)
-app.add_middleware(CookieCsrfMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID", "X-CSRF-Token"],
-)'''
-
-# Keep proxy and host middleware
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 _hosts = allowed_hosts()
 if is_production() and _hosts and _hosts != ["*"]:
@@ -227,13 +207,7 @@ def root():
 
 @app.get("/health", tags=["Root"])
 def health_check():
-    from Services.r2_storage import is_configured as r2_configured
-
-    return {
-        "status": "healthy",
-        "version": APP_VERSION,
-        "r2_configured": r2_configured(),
-    }
+    return {"status": "healthy", "version": APP_VERSION}
 
 
 @app.get("/health/ready", tags=["Root"])

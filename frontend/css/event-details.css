@@ -746,21 +746,6 @@ body.category-theme-workshop .performer-avatar {
     box-shadow: 0 4px 12px var(--theme-glow);
 }
 
-.ticket-type-option.is-upcoming {
-    opacity: 0.72;
-    cursor: not-allowed;
-    background: #f8fafc;
-}
-
-.ticket-type-option.is-upcoming:hover {
-    border-color: #e2e8f0;
-    box-shadow: none;
-}
-
-.ticket-type-option.is-upcoming .ticket-status {
-    color: var(--theme-accent, #ff8a1f);
-}
-
 .ticket-name {
     font-size: 0.95rem;
     font-weight: 600;

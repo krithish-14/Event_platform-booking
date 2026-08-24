@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
-		<script src="js/api-config.js?v=4"></script>
+		<script src="js/api-config.js?v=2"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Cache-Control" content="no-store" />
@@ -560,10 +560,10 @@
 		<div id="successState" aria-hidden="true">
 			<div class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="successTitle">
 				<div class="success-icon">✓</div>
-				<h2 id="successTitle">Registration form completed</h2>
-				<p class="success-lead">Move to payment to finish your full registration process.</p>
+				<h2 id="successTitle">Registration form complete</h2>
+				<p class="success-lead">Still pending complete payment for full registration process to complete.</p>
 				<div class="success-actions">
-					<button type="button" class="success-btn success-btn-next" id="successNextBtn">Continue to Payment</button>
+					<button type="button" class="success-btn success-btn-next" id="successNextBtn">Next</button>
 				</div>
 			</div>
 		</div>
@@ -589,7 +589,6 @@
 			const ticketPrice = urlParams.get("price") || "";
 			const mode = urlParams.get("mode");
 			const isHostReadOnly = mode === "readOnly" || mode === "preview" || mode === "host";
-			const resumePayment = String(urlParams.get("resume") || "").toLowerCase() === "payment";
 
 			const loadingState = document.getElementById("loadingState");
 			const errorState = document.getElementById("errorState");
@@ -1179,23 +1178,18 @@
 				if (bill.eventId) payUrl.searchParams.set("eventId", bill.eventId);
 				payUrl.searchParams.set("ticket", bill.ticket);
 				payUrl.searchParams.set("price", bill.price);
-				if (bill.paymentQrUrl) payUrl.searchParams.set("qr", bill.paymentQrUrl);
 				window.location.href = payUrl.toString();
 			}
 
 			const successNextBtn = document.getElementById("successNextBtn");
 			if (successNextBtn) successNextBtn.addEventListener("click", goToPaymentStep);
 
-			if (resumePayment && !isHostReadOnly) {
-				goToPaymentStep();
-			} else {
-				fetchPublishedForm();
-			}
+			fetchPublishedForm();
 		})();
 	</script>
-	<script src="js/include.js?v=24"></script>
+	<script src="js/include.js?v=21"></script>
 	<script src="js/auth.js?v=24"></script>
-	<script src="js/profile.js?v=10"></script>
-	<script src="js/script.js?v=27"></script>
+	<script src="js/profile.js?v=8"></script>
+	<script src="js/script.js?v=26"></script>
 </body>
 </html>

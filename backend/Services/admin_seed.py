@@ -60,15 +60,6 @@ def seed_admin_user(db: Session) -> None:
         if not (user.full_name or "").strip():
             user.full_name = DEFAULT_ADMIN_NAME
             changed = True
-        wanted = (username or "").strip()
-        if wanted and (user.username or "").lower() != wanted.lower():
-            taken = db.query(User).filter(func.lower(User.username) == wanted.lower()).first()
-            if taken and taken.id != user.id:
-                taken.username = f"{taken.username}_{random.randint(100, 999)}"
-                db.flush()
-                changed = True
-            user.username = wanted
-            changed = True
         if sync_password and not verify_password(password, user.hashed_password or ""):
             user.hashed_password = get_password_hash(password)
             changed = True

@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
 		<script src="js/theme.js?v=6"></script>
-		<script src="js/api-config.js?v=4"></script>
+		<script src="js/api-config.js?v=2"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Manage your event bookings, tickets, and order history on JOD Events." />
 	<title>Your Orders | JOD Events</title>
 	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=27" />
-	<link rel="stylesheet" href="css/responsive.css?v=30" />
+	<link rel="stylesheet" href="css/style.css?v=24" />
+	<link rel="stylesheet" href="css/responsive.css?v=25" />
 	<style>
 		/* ── Orders Page ─────────────────────────────────────── */
 		.page-hero {
@@ -304,12 +304,12 @@
 		<div id="footer"></div>
 	</div>
 
-	<script src="js/include.js?v=24"></script>
-	<script src="js/health.js?v=2"></script>
+	<script src="js/include.js?v=21"></script>
+	<script src="js/health.js?v=1"></script>
 	<script src="js/auth.js?v=25"></script>
-	<script src="js/profile.js?v=10"></script>
+	<script src="js/profile.js?v=8"></script>
 	<script src="js/location.js?v=12"></script>
-	<script src="js/script.js?v=27"></script>
+	<script src="js/script.js?v=26"></script>
 	<script>
 		// Auth check & filter tabs logic — confirm cookie session before rendering
 		(async function guardOrdersPage() {
@@ -453,11 +453,10 @@
 				if (confirmBtn) confirmBtn.disabled = true;
 				if (statusEl) statusEl.textContent = "Cancelling your ticket…";
 				try {
-					const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
-						? window.JodAuth.fetchAuth.bind(window.JodAuth)
-						: fetch;
-					const res = await fetchFn(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}/cancel`, {
-						method: "POST"
+					const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+					const res = await fetch(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}/cancel`, {
+						method: "POST",
+						headers: { Authorization: `Bearer ${token}` }
 					});
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(data.detail || "Could not cancel this ticket.");
@@ -584,12 +583,12 @@
 
 			try {
 				const apiBase = getApiBase();
-				const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
-					? window.JodAuth.fetchAuth.bind(window.JodAuth)
-					: fetch;
-				const res = await fetchFn(`${apiBase}/api/bookings/my-bookings?include_all=true`, {
-					cache: "no-store",
-					headers: { Accept: "application/json" }
+				const token = window.JodAuth ? window.JodAuth.getToken() : (localStorage.getItem("jod_access_token") || sessionStorage.getItem("jod_access_token"));
+				if (!token) return;
+
+				const res = await fetch(`${apiBase}/api/bookings/my-bookings`, {
+					headers: { "Authorization": `Bearer ${token}` },
+					cache: "no-store"
 				});
 				if (res.ok) {
 					const remoteData = await res.json();

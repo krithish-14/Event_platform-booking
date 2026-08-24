@@ -10,7 +10,7 @@ window.JodAuth = (() => {
 			return window.JodHealth.getApiBaseUrl();
 		}
 		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
-		return "https://api.jodevents.com";
+		return "";
 	}
 
 
@@ -366,15 +366,6 @@ window.JodAuth = (() => {
 
 		const verified = await validateSession();
 		if (verified) return verified;
-		const bounceKey = "jod_auth_bounce";
-		try {
-			const last = sessionStorage.getItem(bounceKey) || "";
-			const now = Date.now();
-			if (last && now - Number(last) < 8000) {
-				return null;
-			}
-			sessionStorage.setItem(bounceKey, String(now));
-		} catch (_) {}
 		window.location.replace(loginUrl);
 		return null;
 	}
@@ -1430,8 +1421,6 @@ window.JodAuth = (() => {
 	const pageFile = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 	if ((pageFile === "login.html" || pageFile === "signup.html") && isLoggedIn()) {
 		(async () => {
-			const verified = await validateSession();
-			if (!verified) return;
 			const targetUrl = getRedirectTarget();
 			try {
 				const dest = await resolvePostAuthDestination(targetUrl);

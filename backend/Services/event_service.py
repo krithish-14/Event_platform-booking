@@ -76,12 +76,13 @@ def is_ticket_on_sale(ticket, now=None) -> bool:
 
 
 def event_currently_visible(event, now=None) -> bool:
-    """Public catalog visibility is based on event end only — not ticket offer windows."""
     now = now or datetime.utcnow()
-    end = getattr(event, "end_date", None)
-    if end and end <= now:
+    if getattr(event, "end_date", None) and event.end_date <= now:
         return False
-    return True
+    tickets = _parse_json_maybe(getattr(event, "ticket_types", None))
+    if not isinstance(tickets, list) or not tickets:
+        return True
+    return any(is_ticket_on_sale(item, now) for item in tickets)
 
 
 def _heal_host_schedule(db: Session, events):

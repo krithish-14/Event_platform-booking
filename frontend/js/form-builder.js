@@ -33,9 +33,6 @@ function initFormBuilder() {
 	function resolveUploadUrl(url) {
 		if (!url) return "";
 		if (url.startsWith("blob:") || url.startsWith("data:")) return url;
-		if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
-			return window.JodConfig.safeMediaUrl(url, "images/hero-event.jpg");
-		}
 		if (url.startsWith("http://") || url.startsWith("https://")) return url;
 		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
@@ -909,16 +906,12 @@ function initFormBuilder() {
 			if (!res.ok) throw new Error(data.detail || "Failed to save draft.");
 
 			formId = data.form_id;
+			await syncRegistrationFormToHost(resolveActiveEventId(), payload.schema_json, payload.theme_json, false);
+
 			const lifecycle = window.JodOrganizer && typeof window.JodOrganizer.getLifecycle === "function"
 				? window.JodOrganizer.getLifecycle()
 				: "draft";
 			const updated = lifecycle === "published" || lifecycle === "live" || lifecycle === "ended";
-			await syncRegistrationFormToHost(
-				resolveActiveEventId(),
-				payload.schema_json,
-				payload.theme_json,
-				updated === true
-			);
 			if (formStatusBadge) {
 				formStatusBadge.textContent = updated ? "Form Updated" : "Draft Saved";
 				formStatusBadge.style.background = updated ? "#f0fdf4" : "#fef3c7";
@@ -996,7 +989,7 @@ function initFormBuilder() {
 		try {
 			const res = await fetch(`${API_BASE}/publish`, {
 				method: "POST",
-				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload)
 			});
 			const data = await res.json();
@@ -1075,7 +1068,7 @@ function initFormBuilder() {
 		};
 		const res = await fetch(`${API_BASE}/publish`, {
 			method: "POST",
-			headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(payload)
 		});
 		const data = await res.json();
@@ -1130,9 +1123,7 @@ function initFormBuilder() {
 			console.log("Host registration form not loaded, trying forms API.");
 		}
 		try {
-			const activeEventId = typeof resolveActiveEventId === "function" ? resolveActiveEventId() : "";
-			const eventQs = activeEventId ? `&event_id=${encodeURIComponent(activeEventId)}` : "";
-			const res = await fetch(`${API_BASE}/get-form?email=${encodeURIComponent(email)}${eventQs}`, {
+			const res = await fetch(`${API_BASE}/get-form?email=${encodeURIComponent(email)}`, {
 				headers: getAuthHeaders()
 			});
 			if (res.ok) {

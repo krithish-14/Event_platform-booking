@@ -202,10 +202,7 @@
 		modal.hidden = false;
 		if (!shot) return;
 		try {
-			const res = await fetch(mediaUrl(shot), {
-				credentials: "include",
-				headers: token() ? { Authorization: `Bearer ${token()}` } : {},
-			});
+			const res = await fetch(mediaUrl(shot), { headers: { Authorization: `Bearer ${token()}` } });
 			if (!res.ok) return;
 			const blob = await res.blob();
 			const img = body.querySelector("#proofShot");
@@ -251,12 +248,12 @@
 			const path = kind === "payment"
 				? `/api/admin/payments/${id}/generate-qr`
 				: `/api/admin/submissions/${id}/generate-qr`;
-			const headers = { "Content-Type": "application/json" };
-			if (token()) headers.Authorization = `Bearer ${token()}`;
 			const res = await fetch(`${apiBase()}${path}`, {
 				method: "POST",
-				credentials: "include",
-				headers,
+				headers: {
+					Authorization: `Bearer ${token()}`,
+					"Content-Type": "application/json",
+				},
 				body: JSON.stringify({ resend: true }),
 			});
 			const data = await res.json().catch(() => ({}));

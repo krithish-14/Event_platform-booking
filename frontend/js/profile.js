@@ -125,19 +125,6 @@
 	pointer-events: none;
 }
 .profile-notif-badge.is-visible { display: inline-flex; }
-.pd-item .pd-item-label { min-width: 0; }
-.pd-item .profile-notif-badge {
-	position: static;
-	top: auto;
-	right: auto;
-	margin-left: .4rem;
-	min-width: 1.2rem;
-	height: 1.2rem;
-	border: 0;
-	box-shadow: none;
-	flex-shrink: 0;
-	font-size: .68rem;
-}
 
 .profile-avatar {
 	width: 2.375rem;
@@ -689,13 +676,11 @@
 		// Prevent duplicate insertion
 		if (navAuth.querySelector(".profile-wrap")) return;
 
-		// Hide login/signup buttons (mobile CSS used to force these visible)
-		navAuth.classList.add("has-session");
-		navAuth.querySelectorAll(":scope > a.button-login, :scope > a.button-primary, #nav-login-btn, #nav-signup-btn").forEach((btn) => {
-			btn.hidden = true;
-			btn.setAttribute("aria-hidden", "true");
-			btn.style.setProperty("display", "none", "important");
-		});
+		// Hide login/signup buttons
+		const loginBtn = navAuth.querySelector("#nav-login-btn") || navAuth.querySelector(".button-login");
+		const signupBtn = navAuth.querySelector("#nav-signup-btn") || navAuth.querySelector(".button-primary");
+		if (loginBtn) loginBtn.style.display = "none";
+		if (signupBtn) signupBtn.style.display = "none";
 
 		// Wrap
 		const wrap = document.createElement("div");
@@ -813,7 +798,7 @@
 			{ label: "Your Orders",    href: "orders.html",                     icon: ordersIcon() },
 			{ label: "Your Wishlist",  href: "wishlist.html",                   icon: wishlistIcon() },
 			{ label: "Settings",       href: "settings.html",                   icon: settingsIcon() },
-			{ label: "Notifications",  href: "notifications.html",              icon: notificationsIcon(), badge: true },
+			{ label: "Notifications",  href: "notifications.html",              icon: notificationsIcon() },
 			{ label: "Help & Support", href: "help.html",                       icon: helpIcon() },
 		];
 
@@ -836,7 +821,7 @@
 			return true;
 		}
 
-		items.forEach(({ label, href, icon, badge }) => {
+		items.forEach(({ label, href, icon }) => {
 			const li = document.createElement("li");
 			const a = document.createElement("a");
 			a.className = "pd-item";
@@ -845,10 +830,7 @@
 			}
 			a.href = href;
 			a.setAttribute("role", "menuitem");
-			const countBadge = badge
-				? `<span class="profile-notif-badge pd-notif-count" hidden aria-hidden="true"></span>`
-				: "";
-			a.innerHTML = `<span class="pd-icon">${icon}</span><span class="pd-item-label">${escHtml(label)}</span>${countBadge}`;
+			a.innerHTML = `<span class="pd-icon">${icon}</span>${escHtml(label)}`;
 
 			a.addEventListener("click", () => {
 				menu.querySelectorAll("a.pd-item").forEach(item => item.classList.remove("is-active"));
@@ -990,7 +972,7 @@
 			return;
 		}
 		const script = document.createElement("script");
-		script.src = "js/notifications-inbox.js?v=7";
+		script.src = "js/notifications-inbox.js?v=5";
 		script.dataset.jodInbox = "1";
 		script.onload = run;
 		document.head.appendChild(script);

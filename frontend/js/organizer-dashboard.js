@@ -192,21 +192,19 @@ async function initOrganizerDashboard() {
 		}
 		if (trimmed.startsWith("blob:") || lower.startsWith("data:image/")) return trimmed;
 		if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
-			return window.JodConfig.safeMediaUrl(trimmed, "images/hero-event.jpg");
+			const safe = window.JodConfig.safeMediaUrl(trimmed, "");
+			if (safe) return safe;
 		}
 		if (trimmed.startsWith("https://")) return trimmed;
 		if (trimmed.startsWith("http://")) {
 			try {
 				const parsed = new URL(trimmed);
-				if (parsed.pathname.indexOf("/api/media") === 0 || parsed.pathname.indexOf("/uploads/") === 0) {
-					return `${getUploadOrigin()}${parsed.pathname}${parsed.search || ""}`;
-				}
 				if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") return trimmed;
 			} catch (_) {}
 			return "";
 		}
-		if (trimmed.startsWith("/api/media") || trimmed.startsWith("/uploads/") || trimmed.startsWith("uploads/")) {
-			return `${getUploadOrigin()}/${String(trimmed).replace(/^\//, "")}`;
+		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
+			return `${getUploadOrigin()}/${String(url).replace(/^\//, "")}`;
 		}
 		if (trimmed.startsWith("images/") || trimmed.startsWith("./images/") || trimmed.startsWith("/images/")) {
 			if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
@@ -284,25 +282,7 @@ async function initOrganizerDashboard() {
 
 	function isoToDatetimeLocal(value) {
 		if (!value) return "";
-		const s = String(value).trim();
-		if (!s) return "";
-		// Already a datetime-local / IST wall-clock string without offset
-		if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s) && !/[zZ]|[+-]\d{2}:\d{2}$/.test(s)) {
-			return s.slice(0, 16);
-		}
-		const d = new Date(s.includes("T") || s.includes("Z") || s.includes("+") ? s : s.replace(" ", "T"));
-		if (Number.isNaN(d.getTime())) return s.slice(0, 16);
-		const parts = new Intl.DateTimeFormat("en-CA", {
-			timeZone: "Asia/Kolkata",
-			year: "numeric",
-			month: "2-digit",
-			day: "2-digit",
-			hour: "2-digit",
-			minute: "2-digit",
-			hour12: false
-		}).formatToParts(d);
-		const get = (type) => (parts.find((p) => p.type === type) || {}).value || "00";
-		return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+		return String(value).slice(0, 16);
 	}
 
 	function attrEscape(value) {
@@ -343,11 +323,12 @@ async function initOrganizerDashboard() {
 			const item = {
 				name,
 				price: Number(row.querySelector(".ticket-price-input")?.value || 0),
-				qty: Number(row.querySelector(".ticket-qty-input")?.value || 0),
-				// Always include keys so clearing offer windows updates the public page.
-				sales_start: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-start-input")?.value || "") || null,
-				sales_end: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-end-input")?.value || "") || null
+				qty: Number(row.querySelector(".ticket-qty-input")?.value || 0)
 			};
+			const offerStart = toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-start-input")?.value || "");
+			const offerEnd = toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-end-input")?.value || "");
+			if (offerStart) item.sales_start = offerStart;
+			if (offerEnd) item.sales_end = offerEnd;
 			const qrUrl = (row.dataset.paymentQrUrl || "").trim();
 			if (qrUrl) item.payment_qr_url = qrUrl;
 			out.push(item);
@@ -466,7 +447,6 @@ async function initOrganizerDashboard() {
 		fd.append("email", email);
 		fd.append("asset_type", assetType);
 		fd.append("file", file);
-		if (activeEventId) fd.append("event_id", String(activeEventId));
 		let res;
 		try {
 			res = await fetch(`${HOST_EVENTS_API_BASE}/upload-asset`, {
@@ -2911,14 +2891,6 @@ async function initOrganizerDashboard() {
 					const el = document.getElementById("badgeHostId");
 					if (el) el.textContent = `HOST: ${data.host_id}`;
 				}
-				if (isPublishedLifecycle() && data.catalog_synced === false) {
-					const syncMsg = data.catalog_sync_error
-						? `Saved, but public page sync failed: ${data.catalog_sync_error}`
-						: "Saved, but public page sync failed. Retry Save.";
-					if (notifyError) showNotification(syncMsg);
-					else console.warn(syncMsg);
-					return false;
-				}
 				return true;
 			}
 			if (notifyError) showNotification(apiErrorMessage(data, "Could not save Manage details."));
@@ -2958,14 +2930,6 @@ async function initOrganizerDashboard() {
 			const data = await res.json().catch(() => ({}));
 			if (res.ok) {
 				if (data.event_id) activeEventId = data.event_id;
-				if (isPublishedLifecycle() && data.catalog_synced === false) {
-					const syncMsg = data.catalog_sync_error
-						? `Design saved, but public page sync failed: ${data.catalog_sync_error}`
-						: "Design saved, but public page sync failed. Retry Save.";
-					if (notifyError) showNotification(syncMsg);
-					else console.warn(syncMsg);
-					return false;
-				}
 				return true;
 			}
 			if (notifyError) showNotification(apiErrorMessage(data, "Could not save Design details."));
@@ -3782,12 +3746,12 @@ async function initOrganizerDashboard() {
 			pill.classList.toggle("active", pill.getAttribute("data-value") === mode);
 		});
 		const dateInput = document.getElementById("eventDateInput");
-		if (dateInput && (event.event_start_date_local || event.event_start_date)) {
-			dateInput.value = isoToDatetimeLocal(event.event_start_date_local || event.event_start_date);
+		if (dateInput && event.event_start_date) {
+			dateInput.value = String(event.event_start_date).slice(0, 16);
 		}
 		const endDateInput = document.getElementById("eventEndDateInput");
-		if (endDateInput && (event.event_end_date_local || event.event_end_date)) {
-			endDateInput.value = isoToDatetimeLocal(event.event_end_date_local || event.event_end_date);
+		if (endDateInput && event.event_end_date) {
+			endDateInput.value = String(event.event_end_date).slice(0, 16);
 		}
 		const locationInput = document.getElementById("eventLocationInput");
 		if (locationInput) locationInput.value = event.venue || event.address || "";
@@ -4214,60 +4178,11 @@ async function initOrganizerDashboard() {
 	const bannerPreviewImg = document.getElementById("bannerPreviewImg");
 	const btnClearBanner = document.getElementById("btnClearBanner");
 
-	function bindImageDropzone(dropzone, fileInput, skipIds) {
-		if (!dropzone || !fileInput) return;
-		const skip = skipIds || [];
-		dropzone.addEventListener("dragover", (event) => {
-			event.preventDefault();
-			dropzone.style.borderColor = "#2563eb";
-		});
-		dropzone.addEventListener("dragleave", () => {
-			dropzone.style.borderColor = "";
-		});
-		dropzone.addEventListener("drop", (event) => {
-			event.preventDefault();
-			dropzone.style.borderColor = "";
-			const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
-			if (!file) return;
-			try {
-				const dt = new DataTransfer();
-				dt.items.add(file);
-				fileInput.files = dt.files;
-			} catch (_) {
-				return;
-			}
-			fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-		});
-		dropzone.addEventListener("click", (e) => {
-			if (skip.includes(e.target && e.target.id)) return;
-			fileInput.click();
-		});
-	}
-
-	function showLocalThenRemotePreview(imgEl, file, remoteUrl) {
-		if (!imgEl) return resolveUploadUrl(remoteUrl);
-		let localUrl = "";
-		if (file) {
-			try {
-				localUrl = URL.createObjectURL(file);
-				imgEl.src = localUrl;
-			} catch (_) {}
-		}
-		const resolved = resolveUploadUrl(remoteUrl);
-		if (resolved) {
-			imgEl.onload = function onPreviewLoad() {
-				imgEl.onload = null;
-				if (localUrl) {
-					try { URL.revokeObjectURL(localUrl); } catch (_) {}
-				}
-			};
-			imgEl.src = resolved;
-		}
-		return resolved;
-	}
-
 	if (bannerDropzone && bannerFileInput) {
-		bindImageDropzone(bannerDropzone, bannerFileInput, ["btnClearBanner"]);
+		bannerDropzone.addEventListener("click", (e) => {
+			if (e.target.id !== "btnClearBanner") bannerFileInput.click();
+		});
+
 		bannerFileInput.addEventListener("change", async (e) => {
 			const file = e.target.files && e.target.files[0];
 			if (!file) return;
@@ -4275,16 +4190,11 @@ async function initOrganizerDashboard() {
 			setInlineUploadError(host, "");
 			try {
 				bannerDropzoneContent.style.opacity = "0.6";
-				if (bannerPreviewImg && file) {
-					bannerPreviewImg.src = URL.createObjectURL(file);
-					bannerDropzoneContent.style.display = "none";
-					bannerPreviewBox.style.display = "block";
-				}
 				const url = await uploadDesignAsset(file, "banner");
 				bannerImageUrl = url;
-				showLocalThenRemotePreview(bannerPreviewImg, null, url);
-				bannerDropzoneContent.style.display = "none";
-				bannerPreviewBox.style.display = "block";
+				bannerPreviewImg.src = resolveUploadUrl(url);
+					bannerDropzoneContent.style.display = "none";
+					bannerPreviewBox.style.display = "block";
 				updateEventPagePreview({ event_id: activeEventId, banner_image: url });
 				triggerLiveAutoSave();
 			} catch (err) {
@@ -4332,7 +4242,10 @@ async function initOrganizerDashboard() {
 	const btnClearCardImage = document.getElementById("btnClearCardImage");
 
 	if (cardImageDropzone && cardImageFileInput) {
-		bindImageDropzone(cardImageDropzone, cardImageFileInput, ["btnClearCardImage"]);
+		cardImageDropzone.addEventListener("click", (e) => {
+			if (e.target.id !== "btnClearCardImage") cardImageFileInput.click();
+		});
+
 		cardImageFileInput.addEventListener("change", async (e) => {
 			const file = e.target.files && e.target.files[0];
 			if (!file) return;
@@ -4346,14 +4259,9 @@ async function initOrganizerDashboard() {
 			}
 			try {
 				cardImageDropzoneContent.style.opacity = "0.6";
-				if (cardImagePreviewImg && file) {
-					cardImagePreviewImg.src = URL.createObjectURL(file);
-					cardImageDropzoneContent.style.display = "none";
-					cardImagePreviewBox.style.display = "block";
-				}
 				const url = await uploadDesignAsset(file, "card_image");
 				cardImageUrl = url;
-				showLocalThenRemotePreview(cardImagePreviewImg, null, url);
+				cardImagePreviewImg.src = resolveUploadUrl(url);
 				cardImageDropzoneContent.style.display = "none";
 				cardImagePreviewBox.style.display = "block";
 				triggerLiveAutoSave();
@@ -4694,15 +4602,13 @@ async function initOrganizerDashboard() {
 				const cardPreviewImg = document.getElementById("cardImagePreviewImg");
 				const cardDropzoneContent = document.getElementById("cardImageDropzoneContent");
 				const cardPreviewBox = document.getElementById("cardImagePreviewBox");
-				const cardSrc = resolveUploadUrl(d.card_image);
-				if (cardPreviewImg && cardSrc) cardPreviewImg.src = cardSrc;
+				if (cardPreviewImg) cardPreviewImg.src = resolveUploadUrl(d.card_image);
 				if (cardDropzoneContent) cardDropzoneContent.style.display = "none";
 				if (cardPreviewBox) cardPreviewBox.style.display = "block";
 			}
 			if (d.banner_image) {
 				bannerImageUrl = d.banner_image;
-				const bannerSrc = resolveUploadUrl(d.banner_image);
-				if (bannerPreviewImg && bannerSrc) bannerPreviewImg.src = bannerSrc;
+				if (bannerPreviewImg) bannerPreviewImg.src = resolveUploadUrl(d.banner_image);
 				if (bannerDropzoneContent) bannerDropzoneContent.style.display = "none";
 				if (bannerPreviewBox) bannerPreviewBox.style.display = "block";
 				updateEventPagePreview({ event_id: activeEventId, banner_image: d.banner_image });
@@ -5672,17 +5578,6 @@ async function initOrganizerDashboard() {
 					_publishEventId = data.event_id;
 					sessionStorage.setItem(`active_event_id_${email}`, String(data.event_id));
 				}
-
-					// Publish registration form so Buy Ticket can load published-form.html
-					if (window.JodFormBuilder && typeof window.JodFormBuilder.saveAndPublishForEvent === "function") {
-						try {
-							await window.JodFormBuilder.saveAndPublishForEvent();
-						} catch (formPublishErr) {
-							console.warn("Registration form publish warning:", formPublishErr);
-							showNotification("Event is live, but the registration form could not be published. Open Form Builder and publish the form.");
-						}
-					}
-
 					currentLifecycle = data.lifecycle || "published";
 				hasEvent = true;
 				sessionStorage.setItem(`has_event_${email}`, "true");

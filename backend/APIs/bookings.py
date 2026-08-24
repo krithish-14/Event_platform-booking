@@ -25,7 +25,6 @@ from sqlalchemy import func, or_
 
 from Models.ticket import Ticket
 from Models.form_submissions import FormSubmission
-from Models.payment_proof import PaymentProof
 
 
 class PendingPaymentResponse(BaseModel):
@@ -354,11 +353,10 @@ def create_ticket_booking(
 
 @router.get("/my-bookings", response_model=List[BookingResponse])
 def get_my_bookings(
-    include_all: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Fetch the current user's bookings. Issued QR tickets by default; include_all adds awaiting-ticket rows."""
+    """Fetch issued QR tickets for the currently authenticated user."""
     email = (current_user.email or "").lower().strip()
     owner_filters = [Booking.customer_id == current_user.customer_id]
     if email:
@@ -378,7 +376,7 @@ def get_my_bookings(
             continue
         seen.add(key)
         data = _serialize_booking(b, db=db)
-        if include_all or data.get("qr_token") or data.get("ticket_id"):
+        if data.get("qr_token") or data.get("ticket_id"):
             issued.append(data)
     return issued
 
@@ -516,37 +514,10 @@ def get_registration_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Return registration/payment hold state. Tickets exist only after admin Generate QR."""
+    """Return whether this user already has a ticket or a payment-pending registration."""
     event_candidates = _event_id_matches(event_id)
-    email = (current_user.email or "").lower().strip()
-    customer_id = str(current_user.customer_id or "").strip()
-
-    proof = None
-    if email or customer_id:
-        proofs = db.query(PaymentProof).order_by(PaymentProof.created_at.desc()).all()
-        for row in proofs:
-            if not _same_event_id(row.event_id, event_id):
-                continue
-            row_email = (row.attendee_email or "").lower().strip()
-            row_cust = str(row.customer_id or "").strip()
-            if email and row_email == email:
-                proof = row
-                break
-            if customer_id and row_cust and row_cust == customer_id:
-                proof = row
-                break
-
     booking = _active_booking_for_event(db, current_user, event_id)
-    if proof and proof.booking_id and not booking:
-        booking = (
-            db.query(Booking)
-            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-            .filter(Booking.booking_id == proof.booking_id)
-            .first()
-        )
-    issued_tickets = _booking_tickets(booking, db=db) if booking else []
-    # Admin Generate QR is the only mint path — issued tickets mean the CTA can switch.
-    if booking and issued_tickets:
+    if booking and _booking_tickets(booking, db=db):
         try:
             _mark_form_submission_paid(db, event_id, current_user, booking_id=booking.booking_id)
         except Exception:
@@ -555,28 +526,14 @@ def get_registration_status(
         return RegistrationStatusResponse(
             state="ticket",
             booking_id=str(booking.booking_id),
-            ticket_type=booking.ticket_type or (proof.ticket_type if proof else None),
-            price=float(booking.total_price or (proof.amount if proof else 0) or 0),
+            ticket_type=booking.ticket_type,
+            price=float(booking.total_price or 0),
             event_title=getattr(event, "title", None),
             venue=getattr(event, "venue", None) or getattr(event, "location", None),
         )
 
-    if proof and (proof.status or "").lower() != "qr_ready":
-        event_row = None
-        for cand in event_candidates:
-            try:
-                event_row = db.query(Event).filter(Event.id == cand).first()
-            except Exception:
-                event_row = None
-            if event_row:
-                break
-        return RegistrationStatusResponse(
-            state="payment_submitted",
-            ticket_type=proof.ticket_type or None,
-            price=float(proof.amount or 0) if proof.amount is not None else getattr(event_row, "price", None),
-            event_title=getattr(event_row, "title", None),
-            venue=getattr(event_row, "venue", None) or getattr(event_row, "location", None),
-        )
+    email = (current_user.email or "").lower().strip()
+    customer_id = str(current_user.customer_id or "").strip()
     owner_filters = [func.lower(FormSubmission.user_email) == email]
     if customer_id:
         owner_filters.append(FormSubmission.customer_id == customer_id)
@@ -647,11 +604,7 @@ def _assert_booking_owner(booking: Booking, current_user: User) -> None:
     if str(booking.customer_id) == str(current_user.customer_id):
         return
     email = (getattr(current_user, "email", None) or "").lower().strip()
-    recv = (booking.receiver_email or "").lower().strip()
-    cust_email = ""
-    if getattr(booking, "customer", None):
-        cust_email = (booking.customer.email or "").lower().strip()
-    if email and (recv == email or cust_email == email):
+    if email and (booking.receiver_email or "").lower().strip() == email:
         return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
