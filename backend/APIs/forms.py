@@ -3,13 +3,17 @@ FastAPI Router for Dynamic Registration Form Builder & Attendee Submissions.
 """
 import io
 import csv
+import logging
 import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, or_
+from sqlalchemy import func, insert as sa_insert, or_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+
+logger = logging.getLogger("jod")
 
 from Models import get_db, FormDefinition, FormSubmission, EventRegistrationForm
 from Authentication.dependencies import get_current_user, get_current_user_optional
@@ -35,6 +39,21 @@ class SubmissionRequest(BaseModel):
 	answers_json: Dict[str, Any]
 	ticket_type: Optional[str] = None
 	ticket_price: Optional[float] = None
+
+
+def _insert_form_submission(db: Session, values: Dict[str, Any]) -> FormSubmission:
+	"""Insert without booking_id. ORM insert sends VARCHAR null into a UUID column and 500s."""
+	table = FormSubmission.__table__
+	optional_omit_if_none = {"customer_id", "ticket_type", "ticket_price", "event_id"}
+	clean = {
+		key: val
+		for key, val in values.items()
+		if key != "booking_id" and (val is not None or key not in optional_omit_if_none)
+	}
+	result = db.execute(sa_insert(table).values(**clean).returning(table.c.id))
+	new_id = result.scalar_one()
+	db.commit()
+	return db.query(FormSubmission).filter(FormSubmission.id == new_id).one()
 
 
 @router.post("/save-draft")
@@ -317,7 +336,14 @@ def submit_attendee_response(
 	current_user: Optional[User] = Depends(get_current_user_optional),
 ):
 	"""Submit an attendee registration response. Marks payment as pending until booking is paid."""
-	user_email = (current_user.email if current_user else payload.user_email).lower().strip()
+	raw_email = ""
+	if current_user and getattr(current_user, "email", None):
+		raw_email = current_user.email
+	elif payload.user_email:
+		raw_email = str(payload.user_email)
+	user_email = raw_email.lower().strip()
+	if not user_email or "@" not in user_email:
+		raise HTTPException(status_code=400, detail="A valid email is required to book this ticket.")
 	customer_id = getattr(current_user, "customer_id", None) if current_user else None
 	form_id = payload.form_id or 1
 	answers = dict(payload.answers_json or {})
@@ -383,20 +409,29 @@ def submit_attendee_response(
 			"submitted_at": existing.submission_time.isoformat() if existing.submission_time else None,
 		}
 
-	sub = FormSubmission(
-		form_id=form_id,
-		event_id=str(payload.event_id) if payload.event_id else None,
-		customer_id=customer_id,
-		user_email=user_email,
-		ticket_type=ticket_type,
-		ticket_price=ticket_price,
-		form_version=1,
-		answers_json=answers,
-		status="payment_pending",
-	)
-	db.add(sub)
-	db.commit()
-	db.refresh(sub)
+	try:
+		sub = _insert_form_submission(
+			db,
+			{
+				"form_id": form_id,
+				"event_id": str(payload.event_id) if payload.event_id else None,
+				"customer_id": customer_id,
+				"user_email": user_email,
+				"ticket_type": ticket_type,
+				"ticket_price": ticket_price,
+				"form_version": 1,
+				"answers_json": answers,
+				"status": "payment_pending",
+				"submission_time": datetime.utcnow(),
+			},
+		)
+	except SQLAlchemyError:
+		db.rollback()
+		logger.exception("form_submission_failed")
+		raise HTTPException(
+			status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+			detail="Could not save your registration. Please try again.",
+		)
 
 	return {
 		"message": "Registration submitted successfully!",

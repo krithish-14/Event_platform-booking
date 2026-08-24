@@ -32,6 +32,7 @@ EXEMPT_PATHS = {
     "/api/auth/verify-reset-otp",
     "/api/auth/reset-password",
     "/api/auth/logout",
+    "/api/forms/submissions",
 }
 
 
