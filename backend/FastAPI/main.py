@@ -93,15 +93,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-origins = cors_origins() + ["https://jodevents.com"]
+origins = cors_origins()
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(CookieCsrfMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID", "X-CSRF-Token"],
 )
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 _hosts = allowed_hosts()
