@@ -116,6 +116,8 @@ def get_engine():
 def get_session_factory():
     """Public accessor for the session factory."""
     _ensure_engine()
+    if _SessionLocal is None:
+        raise RuntimeError("Database session factory is not initialized.")
     return _SessionLocal
 
 
