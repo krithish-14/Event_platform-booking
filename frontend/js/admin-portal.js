@@ -37,6 +37,24 @@
 		return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 	}
 
+	function authHeaders(extra) {
+		const headers = Object.assign({}, extra || {});
+		const tok = token();
+		if (tok && tok !== "null" && tok !== "undefined") {
+			headers.Authorization = "Bearer " + tok;
+		}
+		return headers;
+	}
+
+	async function adminFetch(url, options) {
+		const opts = Object.assign({ credentials: "include" }, options || {});
+		opts.headers = authHeaders(opts.headers);
+		if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+			return window.JodAuth.fetchAuth(url, opts);
+		}
+		return fetch(url, opts);
+	}
+
 	async function requireAdmin() {
 		const current = user();
 		if (!token() && !(window.JodAuth && window.JodAuth.isLoggedIn && window.JodAuth.isLoggedIn()) && !current) {
@@ -44,17 +62,14 @@
 			return null;
 		}
 		try {
-			const res = await fetch(`${apiBase()}/api/admin/me`, {
-				credentials: "include",
-				headers: token() ? { Authorization: `Bearer ${token()}` } : {},
-			});
+			const res = await adminFetch(`${apiBase()}/api/admin/me`);
 			if (!res.ok) {
 				window.location.href = "login.html";
 				return null;
 			}
 			const me = await res.json();
 			const label = document.getElementById("adminUserLabel");
-			if (label) label.textContent = me.email || current.email || "Admin";
+			if (label) label.textContent = me.email || (current && current.email) || "Admin";
 			return me;
 		} catch (_) {
 			window.location.href = "login.html";
@@ -64,15 +79,16 @@
 
 	async function loadRows(query) {
 		const qs = query ? `?q=${encodeURIComponent(query)}` : "";
-		const res = await fetch(`${apiBase()}/api/admin/submissions${qs}`, {
-			credentials: "include",
-			headers: token() ? { Authorization: `Bearer ${token()}` } : {},
-		});
+		const res = await adminFetch(`${apiBase()}/api/admin/submissions${qs}`);
 		if (res.status === 401 || res.status === 403) {
 			window.location.href = "login.html";
 			return null;
 		}
-		if (!res.ok) throw new Error("Could not load submissions.");
+		if (!res.ok) {
+			const data = await res.json().catch(() => ({}));
+			const detail = data && data.detail;
+			throw new Error(typeof detail === "string" ? detail : "Could not load submissions.");
+		}
 		return res.json();
 	}
 
@@ -202,7 +218,7 @@
 		modal.hidden = false;
 		if (!shot) return;
 		try {
-			const res = await fetch(mediaUrl(shot), { headers: { Authorization: `Bearer ${token()}` } });
+			const res = await adminFetch(mediaUrl(shot));
 			if (!res.ok) return;
 			const blob = await res.blob();
 			const img = body.querySelector("#proofShot");
@@ -248,12 +264,9 @@
 			const path = kind === "payment"
 				? `/api/admin/payments/${id}/generate-qr`
 				: `/api/admin/submissions/${id}/generate-qr`;
-			const res = await fetch(`${apiBase()}${path}`, {
+			const res = await adminFetch(`${apiBase()}${path}`, {
 				method: "POST",
-				headers: {
-					Authorization: `Bearer ${token()}`,
-					"Content-Type": "application/json",
-				},
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ resend: true }),
 			});
 			const data = await res.json().catch(() => ({}));

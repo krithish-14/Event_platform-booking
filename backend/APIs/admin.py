@@ -10,8 +10,8 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import String, cast, func, text
+from sqlalchemy.orm import Session, defer, joinedload
 
 from Authentication.dependencies import get_current_admin
 from Services.rate_limit import limit_admin
@@ -29,7 +29,6 @@ from Services.whatsapp import send_whatsapp
 
 from APIs.bookings import (
     _active_booking_for_event,
-    _event_id_matches,
     _mark_form_submission_paid,
     _same_event_id,
     _serialize_booking,
@@ -90,17 +89,51 @@ def _pretty_answers(answers: Any) -> Dict[str, Any]:
     return out
 
 
-def _lookup_event(db: Session, event_id) -> Optional[Event]:
-    if not event_id:
+def _db_safe_rollback(db: Session) -> None:
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
+
+def _text_or_none(value) -> Optional[str]:
+    text_val = str(value or "").strip()
+    if not text_val or text_val.lower() in ("none", "null"):
         return None
-    for cand in _event_id_matches(event_id):
-        try:
-            row = db.query(Event).filter(Event.id == cand).first()
-        except Exception:
-            row = None
+    return text_val
+
+
+def _column_as_text(db: Session, table: str, pk_col: str, pk_val, col: str) -> Optional[str]:
+    if pk_val is None:
+        return None
+    try:
+        row = db.execute(
+            text(f"SELECT CAST({col} AS TEXT) FROM {table} WHERE {pk_col} = :pk"),
+            {"pk": pk_val},
+        ).first()
+        return _text_or_none(row[0] if row else None)
+    except Exception:
+        _db_safe_rollback(db)
+        return None
+
+
+def _lookup_event(db: Session, event_id) -> Optional[Event]:
+    eid = _text_or_none(event_id)
+    if not eid:
+        return None
+    compact = eid.replace("-", "").lower()
+    try:
+        row = db.query(Event).filter(cast(Event.id, String) == eid).first()
         if row:
             return row
-    return None
+        return (
+            db.query(Event)
+            .filter(func.lower(func.replace(cast(Event.id, String), "-", "")) == compact)
+            .first()
+        )
+    except Exception:
+        _db_safe_rollback(db)
+        return None
 
 
 def _unique_customer_id(db: Session) -> str:
@@ -149,14 +182,23 @@ def _ensure_attendee_user(db: Session, email: str, name: str, customer_id: Optio
 
 
 def _reload_booking(db: Session, booking_id) -> Optional[Booking]:
-    if not booking_id:
+    bid = _text_or_none(booking_id)
+    if not bid:
         return None
-    return (
-        db.query(Booking)
-        .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-        .filter(Booking.booking_id == booking_id)
-        .first()
-    )
+    try:
+        return (
+            db.query(Booking)
+            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
+            .filter(cast(Booking.booking_id, String) == bid)
+            .first()
+        )
+    except Exception:
+        _db_safe_rollback(db)
+        try:
+            return db.query(Booking).filter(cast(Booking.booking_id, String) == bid).first()
+        except Exception:
+            _db_safe_rollback(db)
+            return None
 
 
 def _mint_unique_tickets(db: Session, booking: Booking, qty: int, ticket_type: str) -> list:
@@ -199,7 +241,7 @@ def _matching_payment(db: Session, email: str, event_id) -> Optional[PaymentProo
     return None
 
 
-def _serialize_submission(db: Session, row: FormSubmission) -> dict:
+def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Optional[str] = None) -> dict:
     answers = row.answers_json if isinstance(row.answers_json, dict) else {}
     ticket_type, price = _ticket_from_answers(answers)
     if not ticket_type:
@@ -208,16 +250,9 @@ def _serialize_submission(db: Session, row: FormSubmission) -> dict:
         price = row.ticket_price
     event = _lookup_event(db, row.event_id)
     name = _answer_value(answers, NAME_KEYS) or (row.customer.full_name if row.customer else None) or ""
-    phone = _answer_value(answers, PHONE_KEYS) or (getattr(row.booking, "receiver_phone", None) if row.booking else None) or ""
+    booking = _reload_booking(db, booking_id_text if booking_id_text is not None else getattr(row, "booking_id", None))
+    phone = _answer_value(answers, PHONE_KEYS) or (getattr(booking, "receiver_phone", None) if booking else None) or ""
     tickets = []
-    booking = None
-    if row.booking_id:
-        booking = (
-            db.query(Booking)
-            .options(joinedload(Booking.tickets), joinedload(Booking.event))
-            .filter(Booking.booking_id == row.booking_id)
-            .first()
-        )
     if booking:
         tickets = [
             {
@@ -247,7 +282,7 @@ def _serialize_submission(db: Session, row: FormSubmission) -> dict:
         "status": "qr_ready" if has_qr else status_val,
         "submitted_at": row.submission_time.isoformat() if row.submission_time else None,
         "answers": _pretty_answers(answers),
-        "booking_id": str(booking.booking_id) if booking else (str(row.booking_id) if row.booking_id else None),
+        "booking_id": str(booking.booking_id) if booking else booking_id_text,
         "has_qr": has_qr,
         "qr_token": primary["qr_token"] if primary else None,
         "qr_image_url": primary["qr_image_url"] if primary else None,
@@ -279,17 +314,10 @@ def _screenshot_url(file_id) -> Optional[str]:
     return f"/api/media/private/{file_id}"
 
 
-def _serialize_payment_proof(db: Session, row: PaymentProof) -> dict:
+def _serialize_payment_proof(db: Session, row: PaymentProof, booking_id_text: Optional[str] = None, screenshot_id_text: Optional[str] = None) -> dict:
     event = _lookup_event(db, row.event_id)
     tickets = []
-    booking = None
-    if row.booking_id:
-        booking = (
-            db.query(Booking)
-            .options(joinedload(Booking.tickets), joinedload(Booking.event))
-            .filter(Booking.booking_id == row.booking_id)
-            .first()
-        )
+    booking = _reload_booking(db, booking_id_text if booking_id_text is not None else getattr(row, "booking_id", None))
     if booking:
         tickets = [
             {
@@ -303,7 +331,7 @@ def _serialize_payment_proof(db: Session, row: PaymentProof) -> dict:
         ]
     primary = tickets[0] if tickets else None
     has_qr = bool(primary)
-    shot = _screenshot_url(row.screenshot_file_id)
+    shot = _screenshot_url(screenshot_id_text if screenshot_id_text is not None else getattr(row, "screenshot_file_id", None))
     answers = {
         "Name": row.attendee_name,
         "Email": row.attendee_email,
@@ -331,7 +359,7 @@ def _serialize_payment_proof(db: Session, row: PaymentProof) -> dict:
         "screenshot_url": shot,
         "bank_name": row.bank_name,
         "transaction_id": row.transaction_id,
-        "booking_id": str(booking.booking_id) if booking else (str(row.booking_id) if row.booking_id else None),
+        "booking_id": str(booking.booking_id) if booking else booking_id_text,
         "has_qr": has_qr,
         "qr_token": primary["qr_token"] if primary else None,
         "qr_image_url": primary["qr_image_url"] if primary else None,
@@ -354,7 +382,7 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
     qty = max(1, int(row.quantity or 1))
     user = _ensure_attendee_user(db, email, name, row.customer_id)
 
-    booking = _reload_booking(db, row.booking_id)
+    booking = _reload_booking(db, _column_as_text(db, "payment_proofs", "id", row.id, "booking_id"))
     if not booking:
         booking = _active_booking_for_event(db, user, event.id)
 
@@ -388,9 +416,17 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
         db.commit()
 
     _mint_unique_tickets(db, booking, qty, booking.ticket_type or ticket_type)
-    row.booking_id = booking.booking_id
-    row.status = "qr_ready"
-    db.commit()
+    try:
+        row.booking_id = booking.booking_id
+        row.status = "qr_ready"
+        db.commit()
+    except Exception:
+        _db_safe_rollback(db)
+        db.execute(
+            text("UPDATE payment_proofs SET booking_id = :bid, status = :st WHERE id = :id"),
+            {"bid": str(booking.booking_id), "st": "qr_ready", "id": row.id},
+        )
+        db.commit()
     try:
         _mark_form_submission_paid(db, event.id, user, booking_id=booking.booking_id)
     except Exception:
@@ -500,15 +536,120 @@ def list_form_submissions(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
-    pay_rows = db.query(PaymentProof).order_by(PaymentProof.created_at.desc()).all()
-    form_rows = (
-        db.query(FormSubmission)
-        .options(joinedload(FormSubmission.customer), joinedload(FormSubmission.booking))
-        .order_by(FormSubmission.submission_time.desc())
-        .all()
-    )
-    items = [_serialize_payment_proof(db, row) for row in pay_rows]
-    items.extend(_serialize_submission(db, row) for row in form_rows)
+    pay_rows = []
+    form_rows = []
+    try:
+        pay_rows = (
+            db.query(PaymentProof)
+            .options(defer(PaymentProof.booking_id), defer(PaymentProof.screenshot_file_id))
+            .order_by(PaymentProof.created_at.desc())
+            .all()
+        )
+    except Exception:
+        _db_safe_rollback(db)
+        try:
+            pay_rows = db.query(PaymentProof).order_by(PaymentProof.created_at.desc()).all()
+        except Exception:
+            _db_safe_rollback(db)
+            pay_rows = []
+    try:
+        form_rows = (
+            db.query(FormSubmission)
+            .options(joinedload(FormSubmission.customer), defer(FormSubmission.booking_id))
+            .order_by(FormSubmission.submission_time.desc())
+            .all()
+        )
+    except Exception:
+        _db_safe_rollback(db)
+        try:
+            form_rows = (
+                db.query(FormSubmission)
+                .options(defer(FormSubmission.booking_id))
+                .order_by(FormSubmission.submission_time.desc())
+                .all()
+            )
+        except Exception:
+            _db_safe_rollback(db)
+            form_rows = []
+
+    items = []
+    for row in pay_rows:
+        try:
+            items.append(
+                _serialize_payment_proof(
+                    db,
+                    row,
+                    booking_id_text=_column_as_text(db, "payment_proofs", "id", row.id, "booking_id"),
+                    screenshot_id_text=_column_as_text(db, "payment_proofs", "id", row.id, "screenshot_file_id"),
+                )
+            )
+        except Exception:
+            _db_safe_rollback(db)
+            items.append({
+                "kind": "payment",
+                "id": row.id,
+                "submission_id": row.id,
+                "event_id": str(getattr(row, "event_id", "") or ""),
+                "event_title": "Event",
+                "event_venue": None,
+                "user_email": getattr(row, "attendee_email", "") or "",
+                "attendee_name": getattr(row, "attendee_name", None) or getattr(row, "attendee_email", "") or "Attendee",
+                "attendee_phone": getattr(row, "attendee_phone", "") or "",
+                "ticket_type": getattr(row, "ticket_type", None) or "General Admission",
+                "ticket_price": float(getattr(row, "amount", 0) or 0),
+                "status": getattr(row, "status", None) or "payment_submitted",
+                "submitted_at": row.created_at.isoformat() if getattr(row, "created_at", None) else None,
+                "answers": {
+                    "Name": getattr(row, "attendee_name", None),
+                    "Email": getattr(row, "attendee_email", None),
+                    "Number": getattr(row, "attendee_phone", None),
+                    "Bank name": getattr(row, "bank_name", None),
+                    "Transaction ID": getattr(row, "transaction_id", None),
+                },
+                "screenshot_url": None,
+                "bank_name": getattr(row, "bank_name", None),
+                "transaction_id": getattr(row, "transaction_id", None),
+                "booking_id": None,
+                "has_qr": False,
+                "qr_token": None,
+                "qr_image_url": None,
+                "ticket_url": None,
+                "tickets": [],
+            })
+    for row in form_rows:
+        try:
+            items.append(
+                _serialize_submission(
+                    db,
+                    row,
+                    booking_id_text=_column_as_text(db, "form_submissions", "id", row.id, "booking_id"),
+                )
+            )
+        except Exception:
+            _db_safe_rollback(db)
+            answers = row.answers_json if isinstance(getattr(row, "answers_json", None), dict) else {}
+            items.append({
+                "kind": "form",
+                "id": row.id,
+                "submission_id": row.id,
+                "event_id": str(getattr(row, "event_id", "") or ""),
+                "event_title": "Event",
+                "event_venue": None,
+                "user_email": getattr(row, "user_email", "") or "",
+                "attendee_name": _answer_value(answers, NAME_KEYS) or getattr(row, "user_email", "") or "Attendee",
+                "attendee_phone": _answer_value(answers, PHONE_KEYS),
+                "ticket_type": getattr(row, "ticket_type", None) or "General Admission",
+                "ticket_price": float(getattr(row, "ticket_price", 0) or 0),
+                "status": getattr(row, "status", None) or "payment_pending",
+                "submitted_at": row.submission_time.isoformat() if getattr(row, "submission_time", None) else None,
+                "answers": _pretty_answers(answers),
+                "booking_id": None,
+                "has_qr": False,
+                "qr_token": None,
+                "qr_image_url": None,
+                "ticket_url": None,
+                "tickets": [],
+            })
     needle = (q or "").strip().lower()
     if needle:
         items = [
@@ -539,7 +680,7 @@ def generate_submission_qr(
 ):
     row = (
         db.query(FormSubmission)
-        .options(joinedload(FormSubmission.customer), joinedload(FormSubmission.booking))
+        .options(joinedload(FormSubmission.customer), defer(FormSubmission.booking_id))
         .filter(FormSubmission.id == submission_id)
         .first()
     )

@@ -127,7 +127,13 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     detail = "Internal server error."
     if not is_production() and not is_staging():
         detail = str(exc) or detail
-    return JSONResponse(status_code=500, content={"detail": detail})
+    response = JSONResponse(status_code=500, content={"detail": detail})
+    origin = request.headers.get("origin")
+    if origin and origin in origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Vary"] = "Origin"
+    return response
 
 
 # Pragmatic production CSP for the static MPA (inline scripts still required).
