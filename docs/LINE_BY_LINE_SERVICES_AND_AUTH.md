@@ -78,13 +78,12 @@ This document provides a line-by-line and block-by-block educational walkthrough
 6: from datetime import datetime, timedelta
 7: from typing import Optional
 8: 
-9: from jwt.exceptions import InvalidTokenError
-10: import jwt
+9: from jose import JWTError, jwt
 10: from dotenv import load_dotenv
 11: 
 12: load_dotenv()
 13: 
-14: SECRET_KEY = os.getenv("SECRET_KEY")  # required; never commit a real value
+14: SECRET_KEY = os.getenv("SECRET_KEY", "change-this-to-a-strong-secret-key-in-production")
 15: ALGORITHM  = os.getenv("JWT_ALGORITHM", "HS256")
 16: ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 17: 
@@ -105,8 +104,8 @@ This document provides a line-by-line and block-by-block educational walkthrough
 
 ### Detailed Line-by-Line Breakdown
 
-* **Line 9: `import jwt`**
-  * **What it does:** Uses the maintained PyJWT library to sign and verify access tokens.
+* **Line 9: `from jose import JWTError, jwt`**
+  * **What it does:** Imports `jose` (JavaScript Object Signing and Encryption) library functions for JWT creation and decoding.
 * **Lines 14-16:**
   * `SECRET_KEY`: Private cryptographic key used to sign tokens so clients cannot tamper with user IDs.
   * `ALGORITHM`: `HS256` (HMAC with SHA-256 hash algorithm).
@@ -115,7 +114,7 @@ This document provides a line-by-line and block-by-block educational walkthrough
   * **What it does:** Copies the payload dictionary (e.g. `{"sub": "CUST-102948"}`), adds an expiration timestamp (`exp`), and signs it using `SECRET_KEY`.
   * **Output:** Encoded string like `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`.
 * **Lines 26-30: `decode_access_token(token: str)`**
-  * **What it does:** Verifies the cryptographic signature of an incoming token string. If signature is valid and token is not expired, returns the decoded dictionary payload. If invalid or expired, catches `InvalidTokenError` and returns `None`.
+  * **What it does:** Verifies the cryptographic signature of an incoming token string. If signature is valid and token is not expired, returns the decoded dictionary payload. If invalid or expired, catches `JWTError` and returns `None`.
 
 ---
 

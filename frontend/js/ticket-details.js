@@ -64,6 +64,27 @@
 		}
 	}
 
+	async function authFetch(url, options) {
+		const opts = Object.assign({ cache: "no-store" }, options || {});
+		opts.headers = Object.assign({ Accept: "application/json" }, opts.headers || {});
+		if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+			return window.JodAuth.fetchAuth(url, opts);
+		}
+		return fetch(url, Object.assign({ credentials: "include" }, opts));
+	}
+
+	function isSignedIn() {
+		if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function") {
+			return window.JodAuth.isLoggedIn();
+		}
+		try {
+			const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+			return Boolean(raw && raw !== "null" && raw !== "undefined");
+		} catch (_) {
+			return false;
+		}
+	}
+
 	async function loadBookingData(bookingId) {
 		const apiBase = getApiBase();
 		const qrToken = getQueryParam("token") || getQueryParam("qr");
@@ -80,17 +101,16 @@
 			return { _error: "unavailable" };
 		}
 		if (!bookingId) return null;
-		const token = window.JodAuth && typeof window.JodAuth.getToken === "function"
-			? window.JodAuth.getToken()
-			: null;
-
-		if (!token) return { _error: "signin" };
+		if (!isSignedIn() && !(window.JodAuth && typeof window.JodAuth.validateSession === "function")) {
+			return { _error: "signin" };
+		}
 
 		try {
-			const res = await fetch(`${apiBase}/api/bookings/${bookingId}`, {
-				headers: { "Authorization": `Bearer ${token}` },
-				cache: "no-store"
-			});
+			if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+				const sessionUser = await window.JodAuth.validateSession();
+				if (!sessionUser && !isSignedIn()) return { _error: "signin" };
+			}
+			const res = await authFetch(`${apiBase}/api/bookings/${bookingId}`);
 			if (res.ok) {
 				const data = await res.json();
 				if (!data.qr_token) return { _error: "pending" };
@@ -125,6 +145,9 @@
 
 	function resolveTicketImage(url) {
 		if (!url) return "";
+		if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
+			return window.JodConfig.safeMediaUrl(url, "images/hero-event.jpg");
+		}
 		if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("blob:") || url.startsWith("data:")) return url;
 		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			const base = getApiBase().replace(/\/$/, "");

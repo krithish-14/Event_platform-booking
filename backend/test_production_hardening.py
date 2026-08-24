@@ -137,6 +137,7 @@ class HealthPayloadTests(unittest.TestCase):
         payload = appmod.health_check()
         self.assertEqual(payload.get("status"), "healthy")
         self.assertIn("version", payload)
+        self.assertIsInstance(payload.get("r2_configured"), bool)
         self.assertNotIn("DATABASE_URL", payload)
         self.assertNotIn("SECRET_KEY", payload)
 
@@ -508,6 +509,45 @@ class LowSecurityFixesTests(unittest.TestCase):
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
         self.assertNotIn("puppeteer", text)
+
+
+class CloudflareR2UrlTests(unittest.TestCase):
+    def test_public_url_matches_existing_logo_pattern(self):
+        from Services import r2_storage
+
+        with patch.dict(os.environ, {
+            "R2_PUBLIC_BASE_URL": "https://assets.jodevents.com/images",
+        }, clear=False):
+            url = r2_storage.encode_key_url("JOD Logo.png")
+        self.assertEqual(url, "https://assets.jodevents.com/images/JOD%20Logo.png")
+
+    def test_upload_keys_sit_beside_static_images(self):
+        from Services import r2_storage
+
+        with patch.dict(os.environ, {"R2_OBJECT_PREFIX": "images"}, clear=False):
+            rel = r2_storage.relative_object_key(
+                purpose="banner",
+                filename="hero.jpg",
+                event_id="evt1",
+                file_id="abc123",
+            )
+            self.assertEqual(rel, "uploads/banner/evt1/abc123.jpg")
+            self.assertEqual(
+                r2_storage.object_key_for(rel),
+                "images/uploads/banner/evt1/abc123.jpg",
+            )
+
+    def test_not_configured_without_keys(self):
+        from Services import r2_storage
+
+        with patch.dict(os.environ, {
+            "R2_ACCOUNT_ID": "",
+            "R2_ACCESS_KEY_ID": "",
+            "R2_SECRET_ACCESS_KEY": "",
+            "R2_BUCKET_NAME": "",
+            "R2_BUCKET": "",
+        }, clear=False):
+            self.assertFalse(r2_storage.is_configured())
 
 
 if __name__ == "__main__":

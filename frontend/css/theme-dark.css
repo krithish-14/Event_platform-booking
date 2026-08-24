@@ -415,6 +415,16 @@ html[data-theme="dark"] .ticket-type-option.selected {
 	background: rgba(255, 117, 8, 0.12) !important;
 }
 
+html[data-theme="dark"] .ticket-type-option.is-upcoming {
+	opacity: 0.75;
+	background: rgba(255, 255, 255, 0.03) !important;
+	cursor: not-allowed;
+}
+
+html[data-theme="dark"] .ticket-type-option.is-upcoming:hover {
+	background: rgba(255, 255, 255, 0.03) !important;
+}
+
 html[data-theme="dark"] .info-header {
 	border-bottom-color: rgba(255, 138, 31, 0.22) !important;
 }

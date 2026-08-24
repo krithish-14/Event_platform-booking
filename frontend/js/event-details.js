@@ -37,6 +37,12 @@ async function initEventDetailsPage() {
             applyBookingCtaState(eventId);
         }
     });
+    window.addEventListener("focus", () => applyBookingCtaState(eventId));
+    setInterval(() => {
+        if (document.visibilityState === "visible") {
+            applyBookingCtaState(eventId);
+        }
+    }, 12000);
 }
 
 function showLoadingState() {
@@ -508,6 +514,9 @@ function closeGalleryLightbox() {
 
 function liveTickets(event) {
     const EP = window.JodEventsPublic;
+    if (EP && typeof EP.listableTicketTypes === "function") {
+        return EP.listableTicketTypes(event);
+    }
     if (EP && typeof EP.visibleTicketTypes === "function") {
         return EP.visibleTicketTypes(event);
     }
@@ -531,6 +540,9 @@ function paintTicketTypes(event) {
     const escape = (EP && typeof EP.escapeHtml === "function")
         ? EP.escapeHtml
         : (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const phaseOf = (t) => (EP && typeof EP.ticketOfferPhase === "function")
+        ? EP.ticketOfferPhase(t)
+        : "always";
     const ended = EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(event) === "ended";
     if (ended) {
         tList.innerHTML = '<p class="ticket-unavailable">This event has ended.</p>';
@@ -539,38 +551,84 @@ function paintTicketTypes(event) {
         return;
     }
     const types = liveTickets(event);
+    const purchasable = types.filter((t) => {
+        const p = phaseOf(t);
+        return p === "always" || p === "live";
+    });
     if (!types.length) {
-        const hadTimed = Array.isArray(event.ticket_types) && event.ticket_types.length > 0;
-        tList.innerHTML = `<p class="ticket-unavailable">${hadTimed ? "This ticket offer is not on sale right now." : "Tickets will be announced soon."}</p>`;
-        setBuyTicketEnabled(false, hadTimed ? "Offer closed" : "Unavailable");
+        const hadAny = Array.isArray(event.ticket_types) && event.ticket_types.length > 0;
+        tList.innerHTML = `<p class="ticket-unavailable">${hadAny ? "Ticket offers for this event have ended." : "Tickets will be announced soon."}</p>`;
+        setBuyTicketEnabled(false, hadAny ? "Offer closed" : "Unavailable");
         return;
     }
-    setBuyTicketEnabled(true, "Buy Ticket");
+    const firstBuyableIdx = types.findIndex((t) => {
+        const p = phaseOf(t);
+        return p === "always" || p === "live";
+    });
+    const defaultIdx = firstBuyableIdx >= 0 ? firstBuyableIdx : 0;
+    setBuyTicketEnabled(purchasable.length > 0, purchasable.length ? "Buy Ticket" : "Opens soon");
+    const enc = (v) => encodeURIComponent(String(v || ""));
     tList.innerHTML = types.map((t, idx) => {
         const start = EP && EP.ticketSaleStart ? EP.ticketSaleStart(t) : (t.sales_start || "");
         const end = EP && EP.ticketSaleEnd ? EP.ticketSaleEnd(t) : (t.sales_end || "");
         const timed = Boolean(start || end);
+        const phase = phaseOf(t);
+        const upcoming = phase === "upcoming";
         const name = escape(t.name || "Ticket");
         const price = Number(t.price) || 0;
         const qrUrl = escape(t.payment_qr_url || t.qr_url || t.payment_qr || "");
-        return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}">
+        const statusText = upcoming
+            ? "Opens soon"
+            : escape(t.availability || (timed ? "Limited-time offer" : "Available"));
+        const selectedClass = idx === defaultIdx && !upcoming ? "selected" : "";
+        const disabledClass = upcoming ? "is-upcoming" : "";
+        return `<div class="ticket-type-option ${selectedClass} ${disabledClass}" data-ticket-option data-ticket-phase="${phase}" data-sales-start="${enc(start)}" data-sales-end="${enc(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" ${upcoming ? 'aria-disabled="true"' : ""}>
             <div>
-                ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${escape(start)}" data-ticket-end="${escape(end)}"></div>` : ""}
+                ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${enc(start)}" data-ticket-end="${enc(end)}"></div>` : ""}
                 <div class="ticket-name">${name}</div>
-                <div class="ticket-status">${escape(t.availability || (timed ? "Limited-time offer" : "Available"))}</div>
+                <div class="ticket-status">${statusText}</div>
             </div>
             <div class="ticket-price">${price <= 0 ? "Free" : "₹" + Number(price).toLocaleString("en-IN")}</div>
         </div>`;
     }).join("");
     tList.querySelectorAll("[data-ticket-option]").forEach((opt) => {
-        opt.addEventListener("click", () => selectTicketOption(opt, Number(opt.dataset.price), opt.dataset.name));
+        opt.addEventListener("click", () => {
+            const start = EP && EP.decodeTicketTimeAttr
+                ? EP.decodeTicketTimeAttr(opt.dataset.salesStart || "")
+                : decodeURIComponent(opt.dataset.salesStart || "");
+            const end = EP && EP.decodeTicketTimeAttr
+                ? EP.decodeTicketTimeAttr(opt.dataset.salesEnd || "")
+                : decodeURIComponent(opt.dataset.salesEnd || "");
+            const phase = EP && typeof EP.ticketOfferPhase === "function"
+                ? EP.ticketOfferPhase({ sales_start: start, sales_end: end })
+                : (opt.dataset.ticketPhase || "live");
+            if (phase === "upcoming") {
+                showToast("This ticket offer has not opened yet.");
+                return;
+            }
+            if (phase === "ended") {
+                showToast("This ticket offer has ended.");
+                return;
+            }
+            selectTicketOption(opt, Number(opt.dataset.price), opt.dataset.name);
+        });
     });
-    const first = types[0];
-    currentSelectedTicketType = first.name || "General Admission";
-    currentSelectedPrice = Number(first.price) || 0;
-    currentSelectedPaymentQr = first.payment_qr_url || first.qr_url || first.payment_qr || "";
-    updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+    const first = types[defaultIdx] || types[0];
+    const firstPhase = phaseOf(first);
+    if (firstPhase === "always" || firstPhase === "live") {
+        currentSelectedTicketType = first.name || "General Admission";
+        currentSelectedPrice = Number(first.price) || 0;
+        currentSelectedPaymentQr = first.payment_qr_url || first.qr_url || first.payment_qr || "";
+        updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+    } else {
+        currentSelectedTicketType = "";
+        currentSelectedPrice = 0;
+        currentSelectedPaymentQr = "";
+        const minUpcoming = Math.min(...types.map((t) => Number(t.price) || 0));
+        setStartingPriceDisplay(Number.isFinite(minUpcoming) ? minUpcoming : 0);
+    }
     if (EP && typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
+    if (EP && typeof EP.syncTicketPurchaseAvailability === "function") EP.syncTicketPurchaseAvailability();
 }
 
 let ticketPruneBound = false;
@@ -722,32 +780,33 @@ function findCachedBookingForEvent(eventId) {
     }
 }
 
+async function authJson(url) {
+    const options = { cache: "no-store", headers: { Accept: "application/json" } };
+    if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+        return window.JodAuth.fetchAuth(url, options);
+    }
+    return fetch(url, Object.assign({ credentials: "include" }, options));
+}
+
 async function fetchMyBookingForEvent(eventId) {
-    const token = getAccessToken();
-    if (!token || !eventId) return null;
+    if (!eventId) return null;
     try {
-        const res = await fetch(`${getApiRoot()}/api/bookings/my-bookings`, {
-            cache: "no-store",
-            headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
-        });
+        const res = await authJson(`${getApiRoot()}/api/bookings/my-bookings`);
         if (!res.ok) return null;
         const rows = await res.json();
         if (!Array.isArray(rows)) return null;
-        return rows.find((row) => row && row.booking_id && sameEventId(row.event_id, eventId) && isActiveBookingRow(row)) || null;
+        return rows.find((row) => row && row.booking_id && sameEventId(row.event_id, eventId) && isActiveBookingRow(row) && (row.qr_token || row.ticket_id)) || null;
     } catch (_) {
         return null;
     }
 }
 
 async function fetchRegistrationStatus(eventId) {
-    const token = getAccessToken();
-    if (!token || !eventId) return { state: "new" };
+    if (!eventId) return { state: "new" };
     let status = { state: "new" };
     try {
-        const res = await fetch(`${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`, {
-            cache: "no-store",
-            headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
-        });
+        const url = `${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`;
+        const res = await authJson(url);
         if (res.ok) {
             const data = await res.json();
             if (data && data.state) status = data;
@@ -756,8 +815,6 @@ async function fetchRegistrationStatus(eventId) {
     if (status.state === "ticket" && status.booking_id) return status;
     const mine = await fetchMyBookingForEvent(eventId);
     if (mine) return ticketStateFromBooking(mine);
-    const cached = findCachedBookingForEvent(eventId);
-    if (cached) return ticketStateFromBooking(cached);
     return status;
 }
 
@@ -819,7 +876,13 @@ async function applyBookingCtaState(eventId) {
         showPostPurchaseActions(status.booking_id);
     } else {
         hidePostPurchaseActions();
-        setBookNowLabels("Buy Ticket");
+        if (status.state === "payment_submitted") {
+            setBookNowLabels("Payment under review");
+        } else if (window.JodEventsPublic && typeof window.JodEventsPublic.syncTicketPurchaseAvailability === "function") {
+            window.JodEventsPublic.syncTicketPurchaseAvailability();
+        } else {
+            setBookNowLabels("Buy Ticket");
+        }
     }
     return status;
 }
@@ -840,8 +903,19 @@ async function triggerBookingModal() {
     if (EP && typeof EP.visibleTicketTypes === "function") {
         const live = EP.visibleTicketTypes(currentEventData);
         if (!live.length && Array.isArray(currentEventData.ticket_types) && currentEventData.ticket_types.length) {
-            showToast("This ticket offer is not on sale right now.");
+            showToast("No ticket is on sale right now. Check offer start/end times.");
             return;
+        }
+    }
+    // Prefer an explicitly selected live ticket; otherwise use the first live offer.
+    if (!currentSelectedTicketType || !currentSelectedPrice) {
+        const live = (EP && typeof EP.visibleTicketTypes === "function")
+            ? EP.visibleTicketTypes(currentEventData)
+            : [];
+        if (live.length) {
+            currentSelectedTicketType = live[0].name || "General Admission";
+            currentSelectedPrice = Number(live[0].price) || 0;
+            currentSelectedPaymentQr = live[0].payment_qr_url || live[0].qr_url || live[0].payment_qr || "";
         }
     }
 
@@ -885,6 +959,14 @@ async function triggerBookingModal() {
             return;
         }
         window.location.href = "orders.html";
+        return;
+    }
+    if (status.state === "payment_submitted") {
+        const waitUrl = new URL("payment.html", window.location.href);
+        waitUrl.searchParams.set("eventId", eventId);
+        if (status.ticket_type) waitUrl.searchParams.set("ticket", status.ticket_type);
+        if (status.price != null) waitUrl.searchParams.set("price", String(status.price));
+        window.location.href = waitUrl.toString();
         return;
     }
 

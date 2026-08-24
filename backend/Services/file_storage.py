@@ -65,6 +65,48 @@ def public_url(stored: StoredFile) -> str:
     return f"/api/media/{stored.id}"
 
 
+def store_public_image(
+    db: Session,
+    *,
+    data: bytes,
+    filename: str,
+    content_type: Optional[str] = None,
+    purpose: str = "file",
+    owner_customer_id: Optional[str] = None,
+    owner_email: Optional[str] = None,
+    event_id: Optional[str] = None,
+) -> str:
+    """
+    Store a public event image.
+
+    Uses Cloudflare R2 when configured so the saved URL is
+    https://assets.jodevents.com/images/uploads/...
+    Otherwise falls back to encrypted database storage at /api/media/{id}.
+    """
+    from Services import r2_storage
+
+    if r2_storage.is_configured():
+        return r2_storage.upload_public_image(
+            data=data,
+            filename=filename,
+            content_type=content_type,
+            purpose=purpose,
+            owner_customer_id=owner_customer_id,
+            event_id=event_id,
+        )
+    stored = store_bytes(
+        db,
+        data=data,
+        filename=filename,
+        content_type=content_type,
+        kind="event_media",
+        purpose=purpose,
+        owner_customer_id=owner_customer_id,
+        owner_email=owner_email,
+    )
+    return public_url(stored)
+
+
 def guess_content_type(filename: str, fallback: str = "application/octet-stream") -> str:
     ctype, _ = mimetypes.guess_type(filename or "")
     return ctype or fallback
