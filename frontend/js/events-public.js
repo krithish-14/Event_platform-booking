@@ -160,12 +160,6 @@
 		return phase === "always" || phase === "live";
 	}
 
-	function listableTicketTypes(event) {
-		const types = event && Array.isArray(event.ticket_types) ? event.ticket_types : [];
-		// Show live + upcoming offers; hide only fully ended windows.
-		return types.filter((t) => ticketOfferPhase(t) !== "ended");
-	}
-
 	function visibleTicketTypes(event) {
 		const types = event && Array.isArray(event.ticket_types) ? event.ticket_types : [];
 		return types.filter(isTicketOnSale);
@@ -173,8 +167,11 @@
 
 	function isEventCurrentlyVisible(event) {
 		if (!event) return false;
-		// Keep listing until the event itself ends — ticket offer windows only affect tickets.
-		return getEventPhase(event) !== "ended";
+		if (event.is_cancelled === true || event.is_published === false) return false;
+		if (getEventPhase(event) === "ended") return false;
+		const types = Array.isArray(event.ticket_types) ? event.ticket_types : [];
+		if (!types.length) return true;
+		return types.some(isTicketOnSale);
 	}
 
 	function liveEventAttr(event) {
@@ -520,24 +517,14 @@
 	function updateTicketCountdownElement(el) {
 		if (!el) return;
 		const option = el.closest("[data-ticket-option]");
-		const startRaw = el.dataset.ticketStart || (option && option.dataset.salesStart) || "";
-		const endRaw = el.dataset.ticketEnd || (option && option.dataset.salesEnd) || "";
-		const start = decodeTicketTimeAttr(startRaw);
-		const end = decodeTicketTimeAttr(endRaw);
+		const start = el.dataset.ticketStart || (option && option.dataset.salesStart) || "";
+		const end = el.dataset.ticketEnd || (option && option.dataset.salesEnd) || "";
 		const phase = ticketOfferPhase({ sales_start: start, sales_end: end });
-		if (option) syncTicketOptionPhase(option, phase);
-		if (phase === "ended") {
+		if (phase === "ended" || phase === "upcoming") {
 			if (option) option.remove();
 			try {
 				global.dispatchEvent(new CustomEvent("jod:tickets-pruned"));
 			} catch (_) {}
-			return;
-		}
-		if (phase === "upcoming") {
-			el.hidden = false;
-			const startMs = parseEventMs(start);
-			const parts = getCountdownParts(startMs);
-			el.textContent = `Offer opens in ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m : ${pad(parts.seconds)}s`;
 			return;
 		}
 		if (phase === "always") {
@@ -548,67 +535,6 @@
 		const endMs = parseEventMs(end);
 		const parts = getCountdownParts(endMs);
 		el.textContent = `Offer ends in ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m : ${pad(parts.seconds)}s`;
-	}
-
-	function decodeTicketTimeAttr(value) {
-		const raw = String(value || "").trim();
-		if (!raw) return "";
-		try {
-			// Values may be encodeURIComponent'd so "+" in +05:30 is preserved in HTML datasets.
-			if (raw.indexOf("%") !== -1) return decodeURIComponent(raw);
-		} catch (_) {}
-		return raw;
-	}
-
-	function syncTicketOptionPhase(option, phase) {
-		if (!option) return;
-		option.dataset.ticketPhase = phase || "";
-		const statusEl = option.querySelector(".ticket-status");
-		if (phase === "upcoming") {
-			option.classList.add("is-upcoming");
-			option.setAttribute("aria-disabled", "true");
-			option.classList.remove("selected");
-			if (statusEl) statusEl.textContent = "Opens soon";
-			return;
-		}
-		option.classList.remove("is-upcoming");
-		option.removeAttribute("aria-disabled");
-		if (statusEl && (statusEl.textContent || "").trim() === "Opens soon") {
-			statusEl.textContent = "Available";
-		}
-	}
-
-	function syncTicketPurchaseAvailability() {
-		const options = document.querySelectorAll("[data-ticket-option]");
-		if (!options.length) return;
-		let hasLive = false;
-		options.forEach((opt) => {
-			const start = decodeTicketTimeAttr(opt.dataset.salesStart || "");
-			const end = decodeTicketTimeAttr(opt.dataset.salesEnd || "");
-			const phase = ticketOfferPhase({ sales_start: start, sales_end: end });
-			syncTicketOptionPhase(opt, phase);
-			if (phase === "always" || phase === "live") hasLive = true;
-		});
-		const selected = document.querySelector("[data-ticket-option].selected:not(.is-upcoming)");
-		if (!selected && hasLive) {
-			const firstLive = Array.prototype.find.call(options, (opt) => !opt.classList.contains("is-upcoming"));
-			if (firstLive) {
-				try {
-					firstLive.click();
-				} catch (_) {
-					firstLive.classList.add("selected");
-				}
-			}
-		}
-		document.querySelectorAll(".btn-book-now").forEach((btn) => {
-			if (btn.classList.contains("btn-view-ticket") || btn.hidden) return;
-			btn.disabled = !hasLive;
-			btn.style.opacity = hasLive ? "" : "0.55";
-			btn.style.cursor = hasLive ? "" : "not-allowed";
-			if (!btn.classList.contains("btn-view-ticket")) {
-				btn.textContent = hasLive ? "Buy Ticket" : "Opens soon";
-			}
-		});
 	}
 
 	function startCountdownTicker() {
@@ -628,7 +554,6 @@
 			document.querySelectorAll("[data-ticket-countdown]").forEach((el) => {
 				updateTicketCountdownElement(el);
 			});
-			syncTicketPurchaseAvailability();
 			pruneExpiredPublicEvents();
 			if (global.__jodFeaturedEvent && !isEventCurrentlyVisible(global.__jodFeaturedEvent)) {
 				const key = String(global.__jodFeaturedEvent.id || "featured");
@@ -823,10 +748,7 @@
 		ticketSaleEnd,
 		ticketOfferPhase,
 		isTicketOnSale,
-		listableTicketTypes,
 		visibleTicketTypes,
-		decodeTicketTimeAttr,
-		syncTicketPurchaseAvailability,
 		isEventCurrentlyVisible,
 		fetchPublishedEvents,
 		fetchPublishedEventById,

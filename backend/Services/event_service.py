@@ -4,7 +4,7 @@ Event business logic service.
 
 from typing import List, Optional, Tuple
 from uuid import UUID
-from sqlalchemy import or_, extract, desc
+from sqlalchemy import String, cast, desc, extract, func, or_
 from sqlalchemy.orm import Session
 
 from Models.user import User
@@ -76,12 +76,13 @@ def is_ticket_on_sale(ticket, now=None) -> bool:
 
 
 def event_currently_visible(event, now=None) -> bool:
-    """Public catalog visibility is based on event end only — not ticket offer windows."""
     now = now or datetime.utcnow()
-    end = getattr(event, "end_date", None)
-    if end and end <= now:
+    if getattr(event, "end_date", None) and event.end_date <= now:
         return False
-    return True
+    tickets = _parse_json_maybe(getattr(event, "ticket_types", None))
+    if not isinstance(tickets, list) or not tickets:
+        return True
+    return any(is_ticket_on_sale(item, now) for item in tickets)
 
 
 def _heal_host_schedule(db: Session, events):
@@ -124,6 +125,14 @@ def list_events(
     location: Optional[str] = None,
 ) -> List[Event]:
     """Return published events, optionally filtered by category, format, price, date, and location."""
+    try:
+        from APIs.host_events_api import hide_cancelled_host_events_from_catalog
+        hide_cancelled_host_events_from_catalog(db)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
     query = _published_events_query(db)
     query = _apply_category_filter(query, category)
     if event_format and event_format.lower() != "all":
@@ -162,17 +171,37 @@ def list_events(
 
 
 
+def _event_id_matches(event_id):
+    compact = str(event_id or "").replace("-", "").lower()
+    return func.lower(func.replace(cast(Event.id, String), "-", "")) == compact
+
+
 def get_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
     """Return a single event by ID (any status — organizer/admin use)."""
-    return db.query(Event).filter(or_(Event.id == event_id, Event.id == str(event_id))).first()
+    try:
+        return db.query(Event).filter(_event_id_matches(event_id)).first()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return db.query(Event).filter(or_(Event.id == event_id, Event.id == str(event_id))).first()
 
 
 def get_public_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
     """Return a published, non-cancelled event for public pages."""
+    try:
+        from APIs.host_events_api import hide_cancelled_host_events_from_catalog
+        hide_cancelled_host_events_from_catalog(db)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
     event = (
         db.query(Event)
         .filter(
-            or_(Event.id == event_id, Event.id == str(event_id)),
+            _event_id_matches(event_id),
             Event.is_published == True,
             Event.is_cancelled == False,
         )

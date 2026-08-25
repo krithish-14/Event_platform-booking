@@ -12,7 +12,7 @@ import uuid as uuid_mod
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, String, cast, func, text
 from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 
@@ -164,11 +164,14 @@ def _require_owned_event(db: Session, event_id, current_user: User) -> EventMana
 def _lookup_event_by_id(db: Session, event_id: Optional[str]) -> Optional[EventManagement]:
     if not event_id:
         return None
-    try:
-        event_uuid = uuid.UUID(str(event_id))
-    except (ValueError, TypeError):
-        return None
-    return db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
+    for clause in _id_text_match_clauses(EventManagement.event_id, event_id):
+        try:
+            row = db.query(EventManagement).filter(clause).first()
+            if row:
+                return row
+        except Exception:
+            db.rollback()
+    return None
 
 
 def resolve_or_create_event(
@@ -335,7 +338,6 @@ def apply_host_schedule_to_public_events(db: Session, events) -> None:
                 public_event.end_date = end
                 changed = True
         elif host.event_end_date is None and public_event.end_date is not None:
-            # Drop previously invented short ends when the host never set an end.
             public_event.end_date = None
             changed = True
     if changed:
@@ -409,22 +411,26 @@ def find_working_event(
     customer_id: Optional[str],
     host_id: Optional[str],
 ) -> Optional[EventManagement]:
-    """Prefer live/published, then draft/ready, then ended, then newest."""
+    """Prefer live/published, then draft/ready, then ended. Skip cancelled."""
     events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
         EventManagement.created_at.desc()
     ).all()
-    if not events:
+    usable = [
+        ev for ev in events
+        if compute_event_lifecycle(ev) not in ("cancelled", "unpublished")
+    ]
+    if not usable:
         return None
-    for ev in events:
+    for ev in usable:
         if is_event_active(ev):
             return ev
-    for ev in events:
+    for ev in usable:
         if compute_event_lifecycle(ev) in ("draft", "ready_to_publish"):
             return ev
-    for ev in events:
+    for ev in usable:
         if compute_event_lifecycle(ev) == "ended":
             return ev
-    return events[0]
+    return usable[0]
 
 
 def assert_can_publish_event(
@@ -491,25 +497,57 @@ def _extract_min_ticket_price(event_mgt: EventManagement) -> float:
     return min(prices) if prices else 0.0
 
 
+def _id_text_match_clauses(column, event_id):
+    """Match UUID or CHAR ids via text so live Postgres never runs uuid = character."""
+    eid = str(event_id or "").strip()
+    if not eid:
+        return []
+    compact = eid.replace("-", "").lower()
+    return [
+        cast(column, String) == eid,
+        func.lower(func.replace(cast(column, String), "-", "")) == compact,
+    ]
+
+
 def _guid_equals_clauses(column, event_id):
-    """Match a UUID column without mixing uuid = text (which aborts PG sessions)."""
-    try:
-        return [column == uuid.UUID(str(event_id))]
-    except (ValueError, TypeError, AttributeError):
-        return [column == event_id]
+    return _id_text_match_clauses(column, event_id)
 
 
 def _public_event_id_matches(db, Event, event_id):
-    """Find public catalog rows by UUID or string id."""
+    """Find public catalog rows by UUID or CHAR id without mixing bind types."""
     found = {}
-    for clause in _guid_equals_clauses(Event.id, event_id):
+    for clause in _id_text_match_clauses(Event.id, event_id):
         try:
-            row = db.query(Event).filter(clause).first()
+            for row in db.query(Event).filter(clause).all():
+                found[str(row.id)] = row
         except Exception:
             db.rollback()
-            row = None
-        if row:
-            found[str(row.id)] = row
+    if found:
+        return list(found.values())
+    compact = str(event_id or "").replace("-", "").lower()
+    if not compact:
+        return []
+    try:
+        rows = db.execute(
+            text(
+                "SELECT CAST(id AS TEXT) FROM events "
+                "WHERE lower(replace(CAST(id AS TEXT), '-', '')) = :compact"
+            ),
+            {"compact": compact},
+        ).fetchall()
+        for row in rows:
+            eid = str(row[0] or "").strip()
+            if not eid:
+                continue
+            try:
+                ev = db.query(Event).filter(cast(Event.id, String) == eid).first()
+            except Exception:
+                db.rollback()
+                ev = None
+            if ev:
+                found[str(ev.id)] = ev
+    except Exception:
+        db.rollback()
     return list(found.values())
 
 
@@ -952,32 +990,93 @@ def hide_public_catalog_events(
     customer_id: Optional[str] = None,
     host_id: Optional[str] = None,
     cancel: bool = True,
+    titles=None,
+    hide_all_for_host: bool = False,
 ) -> int:
-    """Unpublish (and optionally cancel) matching public `events` rows."""
+    """Unpublish public `events` rows using text id matching (live CHAR and UUID)."""
     from Models.event import Event
 
-    clauses = []
-    for eid in event_ids or []:
-        clauses.append(Event.id == eid)
-        try:
-            clauses.append(Event.id == uuid.UUID(str(eid)))
-        except (ValueError, TypeError, AttributeError):
-            pass
-        clauses.append(Event.id == str(eid))
-    if customer_id:
-        clauses.append(Event.customer_id == customer_id)
-    if host_id:
-        clauses.append(Event.host_id == host_id)
-    if not clauses:
-        return 0
+    matched = {}
 
-    rows = db.query(Event).filter(or_(*clauses)).all()
-    for public_event in rows:
+    def remember(row):
+        if row is not None:
+            matched[str(row.id)] = row
+
+    for eid in event_ids or []:
+        for row in _public_event_id_matches(db, Event, eid):
+            remember(row)
+        compact = str(eid or "").replace("-", "").lower()
+        if not compact:
+            continue
+        try:
+            db.execute(
+                text(
+                    "UPDATE events SET is_published = FALSE, is_cancelled = :cnc, "
+                    "updated_at = CURRENT_TIMESTAMP "
+                    "WHERE lower(replace(CAST(id AS TEXT), '-', '')) = :compact"
+                ),
+                {"cnc": bool(cancel), "compact": compact},
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+
+    title_list = [str(t).strip() for t in (titles or []) if str(t or "").strip()]
+    owner_clauses = []
+    if host_id:
+        owner_clauses.append(Event.host_id == host_id)
+    if customer_id:
+        owner_clauses.append(Event.customer_id == customer_id)
+    if title_list and owner_clauses:
+        try:
+            title_clauses = [func.lower(Event.title) == t.lower() for t in title_list]
+            for row in db.query(Event).filter(or_(*title_clauses), or_(*owner_clauses)).all():
+                remember(row)
+        except Exception:
+            db.rollback()
+
+    if hide_all_for_host and owner_clauses:
+        try:
+            for row in db.query(Event).filter(or_(*owner_clauses)).all():
+                remember(row)
+        except Exception:
+            db.rollback()
+
+    hidden = 0
+    for public_event in matched.values():
         public_event.is_published = False
         if cancel:
             public_event.is_cancelled = True
         public_event.updated_at = datetime.utcnow()
-    return len(rows)
+        hidden += 1
+    if hidden:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            hidden = 0
+    return hidden
+
+
+def hide_cancelled_host_events_from_catalog(db: Session) -> int:
+    """Keep Home / Category / Details in sync with cancelled host rows."""
+    rows = (
+        db.query(EventManagement)
+        .filter(func.lower(EventManagement.event_status).in_(("cancelled", "unpublished")))
+        .all()
+    )
+    total = 0
+    for row in rows:
+        total += hide_public_catalog_events(
+            db,
+            event_ids=[row.event_id],
+            titles=[row.event_title],
+            customer_id=row.customer_id,
+            host_id=row.host_id,
+            cancel=True,
+            hide_all_for_host=False,
+        )
+    return total
 
 
 def sync_unpublished_event_from_catalog(db: Session, event_mgt: EventManagement, cancel: bool = False):
@@ -994,6 +1093,8 @@ def sync_unpublished_event_from_catalog(db: Session, event_mgt: EventManagement,
             customer_id=event_mgt.customer_id,
             host_id=event_mgt.host_id,
             cancel=should_cancel,
+            titles=[event_mgt.event_title],
+            hide_all_for_host=False,
         )
     else:
         for public_event in rows:
@@ -1105,9 +1206,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
     description = design.about_event if (design and design.about_event) else None
 
     ticket_types = event_mgt.tickets_json
-    if ticket_types is None:
-        ticket_types = []
-    if not isinstance(ticket_types, str):
+    if ticket_types and not isinstance(ticket_types, str):
         ticket_types = json.dumps(ticket_types)
 
     public_event = db.query(Event).filter(Event.id == event_mgt.event_id).first()
@@ -1160,7 +1259,8 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
         elif design and design.card_image:
             public_event.card_image = design.card_image
         public_event.start_date = start_dt
-        public_event.end_date = end_dt
+        if end_dt:
+            public_event.end_date = end_dt
         public_event.price = min_price
         public_event.is_published = True
         public_event.is_cancelled = False
@@ -1173,31 +1273,11 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
         if highlights:
             public_event.highlights = json.dumps(highlights)
         public_event.gallery_images = json.dumps(gallery_images) if gallery_images else None
-        # Always overwrite so cleared / updated offer windows reach the catalog.
-        public_event.ticket_types = ticket_types
+        if ticket_types:
+            public_event.ticket_types = ticket_types
         public_event.terms = terms_text
 
     public_event.updated_at = datetime.utcnow()
-
-    # Keep registration form live whenever the event is published to the catalog.
-    try:
-        from Models.event_registration_forms import EventRegistrationForm
-        from Models.form_definitions import FormDefinition
-        reg = db.query(EventRegistrationForm).filter(
-            EventRegistrationForm.event_id == event_mgt.event_id
-        ).first()
-        if reg and reg.questions_json and not reg.published:
-            reg.published = True
-            reg.updated_at = datetime.utcnow()
-        form_def = db.query(FormDefinition).filter(
-            FormDefinition.event_id == str(event_mgt.event_id)
-        ).order_by(FormDefinition.version.desc(), FormDefinition.id.desc()).first()
-        if form_def and form_def.schema_json and not form_def.is_published:
-            form_def.is_published = True
-            form_def.updated_at = datetime.utcnow()
-    except Exception as exc:
-        print(f"[EVENT PUBLISH] form publish sync failed event_id={event_mgt.event_id}: {exc}", flush=True)
-
     db.commit()
 
     if not was_published:
@@ -1649,14 +1729,10 @@ def save_event_design(
     db.commit()
     db.refresh(design)
 
-    catalog_synced = False
-    catalog_sync_error = None
     if (event.event_status or "").lower() == "published":
         try:
             sync_published_event_to_public_catalog(db, event)
-            catalog_synced = True
         except Exception as exc:
-            catalog_sync_error = str(exc)
             print(f"[EVENT DESIGN] catalog resync failed event_id={event.event_id}: {exc}", flush=True)
 
     return {
@@ -1666,8 +1742,6 @@ def save_event_design(
         "event_id": str(event.event_id),
         "customer_id": design.customer_id,
         "host_id": design.host_id,
-        "catalog_synced": catalog_synced,
-        "catalog_sync_error": catalog_sync_error,
         "design": {
             "design_id": str(design.design_id),
             "theme_color": design.theme_color,
@@ -1687,11 +1761,10 @@ async def upload_design_asset(
     email: str = Form(...),
     asset_type: str = Form(...),
     file: UploadFile = File(...),
-    event_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload banner, card, sponsor logo, artist photo, or gallery image for event design."""
+    """Upload banner, sponsor logo, artist photo, or gallery image for event design."""
     email_clean = _bound_email(email, current_user)
 
     if current_user and current_user.email.lower() != email_clean:
@@ -1710,23 +1783,22 @@ async def upload_design_asset(
     if not is_allowed_image_bytes(contents, file.content_type or ""):
         raise HTTPException(status_code=400, detail=INVALID_IMAGE_TYPE_MESSAGE)
 
-    from Services.file_storage import store_public_image
+    from Services.file_storage import public_url, store_bytes
 
     try:
-        file_url = store_public_image(
+        stored = store_bytes(
             db,
             data=contents,
             filename=file.filename or f"{asset_type}.jpg",
             content_type=file.content_type,
+            kind="event_media",
             purpose=asset_type,
             owner_customer_id=current_user.customer_id if current_user else None,
             owner_email=email_clean,
-            event_id=event_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+    file_url = public_url(stored)
     db.commit()
     return {
         "message": f"{asset_type.replace('_', ' ').title()} uploaded successfully.",
@@ -1773,12 +1845,7 @@ def save_registration_form(
     if payload.required_fields is not None: reg_form.required_fields = payload.required_fields
     if payload.field_order is not None: reg_form.field_order = payload.field_order
     if payload.settings_json is not None: reg_form.settings_json = payload.settings_json
-    if payload.published is not None:
-        reg_form.published = payload.published
-    # If the event is already live, keep the registration form live too.
-    if (event.event_status or "").lower() == "published":
-        if reg_form.questions_json:
-            reg_form.published = True
+    if payload.published is not None: reg_form.published = payload.published
     reg_form.updated_at = datetime.utcnow()
 
     db.commit()
@@ -2093,17 +2160,9 @@ def save_registration_ticket(
     if payload.price is not None: ticket.price = payload.price
     if payload.quantity is not None: ticket.quantity = payload.quantity
     if payload.sales_start is not None:
-        raw_start = payload.sales_start
-        if isinstance(raw_start, str) and raw_start:
-            ticket.sales_start = date.fromisoformat(raw_start[:10])
-        else:
-            ticket.sales_start = None
+        ticket.sales_start = date.fromisoformat(payload.sales_start) if isinstance(payload.sales_start, str) and payload.sales_start else None
     if payload.sales_end is not None:
-        raw_end = payload.sales_end
-        if isinstance(raw_end, str) and raw_end:
-            ticket.sales_end = date.fromisoformat(raw_end[:10])
-        else:
-            ticket.sales_end = None
+        ticket.sales_end = date.fromisoformat(payload.sales_end) if isinstance(payload.sales_end, str) and payload.sales_end else None
     if payload.description is not None: ticket.description = payload.description
     if payload.available_seats is not None: ticket.available_seats = payload.available_seats
     if payload.status is not None: ticket.status = payload.status
@@ -2937,7 +2996,9 @@ def get_dashboard_summary(
         event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
 
     if not event:
-        event = find_working_event(db, email_clean, customer_id, host_id)
+        event = db.query(EventManagement).filter(
+            EventManagement.organizer_email == email_clean
+        ).order_by(EventManagement.created_at.desc()).first()
 
     if not event:
         return {
@@ -2958,11 +3019,10 @@ def get_dashboard_summary(
             "registration_trend": []
         }
 
-    # Calculate days to event start (compare resolved UTC clocks)
+    # Calculate days to event start
     days_left = 0
-    start_utc = _resolve_event_start_datetime(event) if event.event_start_date else None
-    if start_utc:
-        delta = start_utc - datetime.utcnow()
+    if event.event_start_date:
+        delta = event.event_start_date - datetime.utcnow()
         days_left = max(0, delta.days)
 
     # Speakers & Sponsors count from EventDesign
@@ -3052,7 +3112,9 @@ def get_exhibitors(
         event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
 
     if not event:
-        event = find_working_event(db, email_clean, customer_id, host_id)
+        event = db.query(EventManagement).filter(
+            EventManagement.organizer_email == email_clean
+        ).order_by(EventManagement.created_at.desc()).first()
 
     if not event:
         return {"exhibitors": [], "total": 0, "confirmed": 0, "pending": 0}
@@ -3104,7 +3166,9 @@ def create_or_update_exhibitor(
         event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
 
     if not event:
-        event = find_working_event(db, email_clean, customer_id, host_id)
+        event = db.query(EventManagement).filter(
+            EventManagement.organizer_email == email_clean
+        ).order_by(EventManagement.created_at.desc()).first()
 
     if not event:
         event = EventManagement(
@@ -3200,14 +3264,15 @@ def clear_host_events(
     customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
     query = _host_events_query(db, email_clean, customer_id, host_id)
     if event_id:
-        try:
-            event_uuid = uuid.UUID(str(event_id))
-            query = query.filter(EventManagement.event_id == event_uuid)
-        except (ValueError, TypeError):
-            pass
+        id_clauses = _id_text_match_clauses(EventManagement.event_id, event_id)
+        if id_clauses:
+            query = query.filter(or_(*id_clauses))
     events = query.all()
     if event_id and not events:
-        events = _host_events_query(db, email_clean, customer_id, host_id).all()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="That event was not found on this organizer account.",
+        )
     cancelled_ids = [ev.event_id for ev in events]
 
     for ev in events:
@@ -3220,6 +3285,8 @@ def clear_host_events(
         customer_id=customer_id,
         host_id=host_id,
         cancel=True,
+        titles=[ev.event_title for ev in events],
+        hide_all_for_host=not bool(event_id),
     )
 
     try:
@@ -3232,14 +3299,6 @@ def clear_host_events(
         pass
 
     db.commit()
-
-    try:
-        for ev in events:
-            db.delete(ev)
-        db.commit()
-    except Exception as exc:
-        db.rollback()
-        print(f"[EVENT CANCEL] host row delete skipped: {exc}", flush=True)
 
     print(
         f"[EVENT CANCEL] email={email_clean} cancelled={len(cancelled_ids)} "
@@ -3275,7 +3334,9 @@ def get_gates(
             pass
         event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
-        event = find_working_event(db, email_clean, customer_id, host_id)
+        event = db.query(EventManagement).filter(
+            EventManagement.organizer_email == email_clean
+        ).order_by(EventManagement.created_at.desc()).first()
 
     if not event:
         return {"event_id": None, "gates": []}
@@ -3315,7 +3376,9 @@ def save_gate(
             pass
         event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
-        event = find_working_event(db, email_clean, customer_id, host_id)
+        event = db.query(EventManagement).filter(
+            EventManagement.organizer_email == email_clean
+        ).order_by(EventManagement.created_at.desc()).first()
 
     if not event:
         event = EventManagement(
@@ -3437,7 +3500,9 @@ def get_scanners(
             pass
         event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
-        event = find_working_event(db, email_clean, customer_id, host_id)
+        event = db.query(EventManagement).filter(
+            EventManagement.organizer_email == email_clean
+        ).order_by(EventManagement.created_at.desc()).first()
 
     if not event:
         return {"event_id": None, "scanners": []}
@@ -3478,7 +3543,9 @@ def save_scanner(
             pass
         event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
     if not event:
-        event = find_working_event(db, email_clean, customer_id, host_id)
+        event = db.query(EventManagement).filter(
+            EventManagement.organizer_email == email_clean
+        ).order_by(EventManagement.created_at.desc()).first()
 
     if not event:
         raise HTTPException(status_code=404, detail="No active event found to attach scanner to")
