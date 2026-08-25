@@ -32,6 +32,7 @@ from APIs.bookings import (
     _mark_form_submission_paid,
     _same_event_id,
     _serialize_booking,
+    _sql_set_booking_id,
     _ticket_from_answers,
 )
 
@@ -417,20 +418,23 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
 
     _mint_unique_tickets(db, booking, qty, booking.ticket_type or ticket_type)
     try:
-        row.booking_id = booking.booking_id
-        row.status = "qr_ready"
+        db.execute(
+            text("UPDATE payment_proofs SET status = :st WHERE id = :id"),
+            {"st": "qr_ready", "id": row.id},
+        )
         db.commit()
     except Exception:
         _db_safe_rollback(db)
-        db.execute(
-            text("UPDATE payment_proofs SET booking_id = :bid, status = :st WHERE id = :id"),
-            {"bid": str(booking.booking_id), "st": "qr_ready", "id": row.id},
-        )
-        db.commit()
+        try:
+            row.status = "qr_ready"
+            db.commit()
+        except Exception:
+            _db_safe_rollback(db)
+    _sql_set_booking_id(db, "payment_proofs", "id", row.id, booking.booking_id)
     try:
         _mark_form_submission_paid(db, event.id, user, booking_id=booking.booking_id)
     except Exception:
-        pass
+        _db_safe_rollback(db)
     issued = _reload_booking(db, booking.booking_id)
     if not issued or not (issued.tickets or []):
         raise HTTPException(status_code=500, detail="Could not create a unique QR ticket.")
@@ -691,7 +695,10 @@ def generate_submission_qr(
     if not booking:
         raise HTTPException(status_code=500, detail="Could not create the QR ticket.")
 
-    db.refresh(row)
+    try:
+        db.refresh(row)
+    except Exception:
+        _db_safe_rollback(db)
     phone = booking.receiver_phone or _answer_value(row.answers_json, PHONE_KEYS)
     delivery = _deliver_ticket(booking, phone)
     item = _serialize_submission(db, row)
@@ -713,7 +720,10 @@ def generate_payment_qr(
     booking = _issue_tickets_from_payment(db, row)
     if not booking:
         raise HTTPException(status_code=500, detail="Could not create the QR ticket.")
-    db.refresh(row)
+    try:
+        db.refresh(row)
+    except Exception:
+        _db_safe_rollback(db)
     delivery = _deliver_ticket(booking, row.attendee_phone)
     item = _serialize_payment_proof(db, row)
     item["delivery"] = delivery

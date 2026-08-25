@@ -271,7 +271,8 @@
 			});
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) {
-				alert(data.detail || "Could not generate QR.");
+				const detail = data && data.detail;
+				alert(typeof detail === "string" ? detail : "Could not generate QR.");
 				return;
 			}
 			showQrResult(data);

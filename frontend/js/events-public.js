@@ -167,6 +167,7 @@
 
 	function isEventCurrentlyVisible(event) {
 		if (!event) return false;
+		if (event.is_cancelled === true || event.is_published === false) return false;
 		if (getEventPhase(event) === "ended") return false;
 		const types = Array.isArray(event.ticket_types) ? event.ticket_types : [];
 		if (!types.length) return true;

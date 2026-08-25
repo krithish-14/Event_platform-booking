@@ -12,7 +12,7 @@ import uuid as uuid_mod
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, String, cast, func, text
 from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 
@@ -164,11 +164,14 @@ def _require_owned_event(db: Session, event_id, current_user: User) -> EventMana
 def _lookup_event_by_id(db: Session, event_id: Optional[str]) -> Optional[EventManagement]:
     if not event_id:
         return None
-    try:
-        event_uuid = uuid.UUID(str(event_id))
-    except (ValueError, TypeError):
-        return None
-    return db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
+    for clause in _id_text_match_clauses(EventManagement.event_id, event_id):
+        try:
+            row = db.query(EventManagement).filter(clause).first()
+            if row:
+                return row
+        except Exception:
+            db.rollback()
+    return None
 
 
 def resolve_or_create_event(
@@ -408,22 +411,26 @@ def find_working_event(
     customer_id: Optional[str],
     host_id: Optional[str],
 ) -> Optional[EventManagement]:
-    """Prefer live/published, then draft/ready, then ended, then newest."""
+    """Prefer live/published, then draft/ready, then ended. Skip cancelled."""
     events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
         EventManagement.created_at.desc()
     ).all()
-    if not events:
+    usable = [
+        ev for ev in events
+        if compute_event_lifecycle(ev) not in ("cancelled", "unpublished")
+    ]
+    if not usable:
         return None
-    for ev in events:
+    for ev in usable:
         if is_event_active(ev):
             return ev
-    for ev in events:
+    for ev in usable:
         if compute_event_lifecycle(ev) in ("draft", "ready_to_publish"):
             return ev
-    for ev in events:
+    for ev in usable:
         if compute_event_lifecycle(ev) == "ended":
             return ev
-    return events[0]
+    return usable[0]
 
 
 def assert_can_publish_event(
@@ -490,25 +497,57 @@ def _extract_min_ticket_price(event_mgt: EventManagement) -> float:
     return min(prices) if prices else 0.0
 
 
+def _id_text_match_clauses(column, event_id):
+    """Match UUID or CHAR ids via text so live Postgres never runs uuid = character."""
+    eid = str(event_id or "").strip()
+    if not eid:
+        return []
+    compact = eid.replace("-", "").lower()
+    return [
+        cast(column, String) == eid,
+        func.lower(func.replace(cast(column, String), "-", "")) == compact,
+    ]
+
+
 def _guid_equals_clauses(column, event_id):
-    """Match a UUID column without mixing uuid = text (which aborts PG sessions)."""
-    try:
-        return [column == uuid.UUID(str(event_id))]
-    except (ValueError, TypeError, AttributeError):
-        return [column == event_id]
+    return _id_text_match_clauses(column, event_id)
 
 
 def _public_event_id_matches(db, Event, event_id):
-    """Find public catalog rows by UUID or string id."""
+    """Find public catalog rows by UUID or CHAR id without mixing bind types."""
     found = {}
-    for clause in _guid_equals_clauses(Event.id, event_id):
+    for clause in _id_text_match_clauses(Event.id, event_id):
         try:
-            row = db.query(Event).filter(clause).first()
+            for row in db.query(Event).filter(clause).all():
+                found[str(row.id)] = row
         except Exception:
             db.rollback()
-            row = None
-        if row:
-            found[str(row.id)] = row
+    if found:
+        return list(found.values())
+    compact = str(event_id or "").replace("-", "").lower()
+    if not compact:
+        return []
+    try:
+        rows = db.execute(
+            text(
+                "SELECT CAST(id AS TEXT) FROM events "
+                "WHERE lower(replace(CAST(id AS TEXT), '-', '')) = :compact"
+            ),
+            {"compact": compact},
+        ).fetchall()
+        for row in rows:
+            eid = str(row[0] or "").strip()
+            if not eid:
+                continue
+            try:
+                ev = db.query(Event).filter(cast(Event.id, String) == eid).first()
+            except Exception:
+                db.rollback()
+                ev = None
+            if ev:
+                found[str(ev.id)] = ev
+    except Exception:
+        db.rollback()
     return list(found.values())
 
 
@@ -951,32 +990,93 @@ def hide_public_catalog_events(
     customer_id: Optional[str] = None,
     host_id: Optional[str] = None,
     cancel: bool = True,
+    titles=None,
+    hide_all_for_host: bool = False,
 ) -> int:
-    """Unpublish (and optionally cancel) matching public `events` rows."""
+    """Unpublish public `events` rows using text id matching (live CHAR and UUID)."""
     from Models.event import Event
 
-    clauses = []
-    for eid in event_ids or []:
-        clauses.append(Event.id == eid)
-        try:
-            clauses.append(Event.id == uuid.UUID(str(eid)))
-        except (ValueError, TypeError, AttributeError):
-            pass
-        clauses.append(Event.id == str(eid))
-    if customer_id:
-        clauses.append(Event.customer_id == customer_id)
-    if host_id:
-        clauses.append(Event.host_id == host_id)
-    if not clauses:
-        return 0
+    matched = {}
 
-    rows = db.query(Event).filter(or_(*clauses)).all()
-    for public_event in rows:
+    def remember(row):
+        if row is not None:
+            matched[str(row.id)] = row
+
+    for eid in event_ids or []:
+        for row in _public_event_id_matches(db, Event, eid):
+            remember(row)
+        compact = str(eid or "").replace("-", "").lower()
+        if not compact:
+            continue
+        try:
+            db.execute(
+                text(
+                    "UPDATE events SET is_published = FALSE, is_cancelled = :cnc, "
+                    "updated_at = CURRENT_TIMESTAMP "
+                    "WHERE lower(replace(CAST(id AS TEXT), '-', '')) = :compact"
+                ),
+                {"cnc": bool(cancel), "compact": compact},
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+
+    title_list = [str(t).strip() for t in (titles or []) if str(t or "").strip()]
+    owner_clauses = []
+    if host_id:
+        owner_clauses.append(Event.host_id == host_id)
+    if customer_id:
+        owner_clauses.append(Event.customer_id == customer_id)
+    if title_list and owner_clauses:
+        try:
+            title_clauses = [func.lower(Event.title) == t.lower() for t in title_list]
+            for row in db.query(Event).filter(or_(*title_clauses), or_(*owner_clauses)).all():
+                remember(row)
+        except Exception:
+            db.rollback()
+
+    if hide_all_for_host and owner_clauses:
+        try:
+            for row in db.query(Event).filter(or_(*owner_clauses)).all():
+                remember(row)
+        except Exception:
+            db.rollback()
+
+    hidden = 0
+    for public_event in matched.values():
         public_event.is_published = False
         if cancel:
             public_event.is_cancelled = True
         public_event.updated_at = datetime.utcnow()
-    return len(rows)
+        hidden += 1
+    if hidden:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            hidden = 0
+    return hidden
+
+
+def hide_cancelled_host_events_from_catalog(db: Session) -> int:
+    """Keep Home / Category / Details in sync with cancelled host rows."""
+    rows = (
+        db.query(EventManagement)
+        .filter(func.lower(EventManagement.event_status).in_(("cancelled", "unpublished")))
+        .all()
+    )
+    total = 0
+    for row in rows:
+        total += hide_public_catalog_events(
+            db,
+            event_ids=[row.event_id],
+            titles=[row.event_title],
+            customer_id=row.customer_id,
+            host_id=row.host_id,
+            cancel=True,
+            hide_all_for_host=False,
+        )
+    return total
 
 
 def sync_unpublished_event_from_catalog(db: Session, event_mgt: EventManagement, cancel: bool = False):
@@ -993,6 +1093,8 @@ def sync_unpublished_event_from_catalog(db: Session, event_mgt: EventManagement,
             customer_id=event_mgt.customer_id,
             host_id=event_mgt.host_id,
             cancel=should_cancel,
+            titles=[event_mgt.event_title],
+            hide_all_for_host=False,
         )
     else:
         for public_event in rows:
@@ -3162,14 +3264,15 @@ def clear_host_events(
     customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
     query = _host_events_query(db, email_clean, customer_id, host_id)
     if event_id:
-        try:
-            event_uuid = uuid.UUID(str(event_id))
-            query = query.filter(EventManagement.event_id == event_uuid)
-        except (ValueError, TypeError):
-            pass
+        id_clauses = _id_text_match_clauses(EventManagement.event_id, event_id)
+        if id_clauses:
+            query = query.filter(or_(*id_clauses))
     events = query.all()
     if event_id and not events:
-        events = _host_events_query(db, email_clean, customer_id, host_id).all()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="That event was not found on this organizer account.",
+        )
     cancelled_ids = [ev.event_id for ev in events]
 
     for ev in events:
@@ -3182,6 +3285,8 @@ def clear_host_events(
         customer_id=customer_id,
         host_id=host_id,
         cancel=True,
+        titles=[ev.event_title for ev in events],
+        hide_all_for_host=not bool(event_id),
     )
 
     try:
@@ -3194,14 +3299,6 @@ def clear_host_events(
         pass
 
     db.commit()
-
-    try:
-        for ev in events:
-            db.delete(ev)
-        db.commit()
-    except Exception as exc:
-        db.rollback()
-        print(f"[EVENT CANCEL] host row delete skipped: {exc}", flush=True)
 
     print(
         f"[EVENT CANCEL] email={email_clean} cancelled={len(cancelled_ids)} "

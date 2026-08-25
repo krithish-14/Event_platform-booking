@@ -10,7 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, defer
 
 from Authentication.dependencies import get_current_user
 from Models.base import get_db
@@ -21,7 +21,7 @@ from Models.user import User
 router = APIRouter()
 
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
 
 from Models.ticket import Ticket
 from Models.form_submissions import FormSubmission
@@ -443,6 +443,33 @@ def get_my_pending_payments(
     return pending
 
 
+def _safe_db_rollback(db: Session) -> None:
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
+
+def _sql_set_booking_id(db: Session, table: str, id_col: str, row_id, booking_id) -> bool:
+    """Set booking_id without GUID VARCHAR binds into a live UUID column."""
+    if row_id is None or booking_id is None:
+        return False
+    if table not in ("form_submissions", "payment_proofs") or id_col not in ("id",):
+        return False
+    bid = str(booking_id)
+    for sql in (
+        f"UPDATE {table} SET booking_id = CAST(:bid AS uuid) WHERE {id_col} = :id",
+        f"UPDATE {table} SET booking_id = CAST(:bid AS varchar) WHERE {id_col} = :id",
+    ):
+        try:
+            db.execute(text(sql), {"bid": bid, "id": row_id})
+            db.commit()
+            return True
+        except Exception:
+            _safe_db_rollback(db)
+    return False
+
+
 def _mark_form_submission_paid(db: Session, event_id, user, booking_id=None) -> None:
     if not event_id or not user:
         return
@@ -455,26 +482,34 @@ def _mark_form_submission_paid(db: Session, event_id, user, booking_id=None) -> 
         owner_filters.append(FormSubmission.customer_id == customer_id)
     if not owner_filters:
         return
-    rows = db.query(FormSubmission).filter(or_(*owner_filters)).all()
-    changed = False
+    try:
+        rows = (
+            db.query(FormSubmission)
+            .options(defer(FormSubmission.booking_id))
+            .filter(or_(*owner_filters))
+            .all()
+        )
+    except Exception:
+        _safe_db_rollback(db)
+        return
     for row in rows:
         if not _same_event_id(row.event_id, event_id):
             continue
-        if (row.status or "").lower() != "paid":
-            row.status = "paid"
-            changed = True
-        if customer_id and not row.customer_id:
-            row.customer_id = customer_id
-            changed = True
-        if booking_id is not None and not getattr(row, "booking_id", None):
-            try:
-                import uuid as _uuid
-                row.booking_id = booking_id if isinstance(booking_id, _uuid.UUID) else _uuid.UUID(str(booking_id))
-            except (TypeError, ValueError, AttributeError):
-                row.booking_id = booking_id
-            changed = True
-    if changed:
-        db.commit()
+        params = {"st": "paid", "id": row.id}
+        status_sql = "UPDATE form_submissions SET status = :st WHERE id = :id"
+        if customer_id:
+            status_sql = (
+                "UPDATE form_submissions SET status = :st, "
+                "customer_id = COALESCE(customer_id, :cid) WHERE id = :id"
+            )
+            params["cid"] = customer_id
+        try:
+            db.execute(text(status_sql), params)
+            db.commit()
+        except Exception:
+            _safe_db_rollback(db)
+        if booking_id is not None:
+            _sql_set_booking_id(db, "form_submissions", "id", row.id, booking_id)
 
 
 def _ticket_from_answers(answers: Any) -> tuple:
