@@ -274,6 +274,20 @@ def checkin_ticket_entry(
             }
 
 
+@router.get("/public/{qr_token}/pdf")
+def download_public_ticket_pdf(qr_token: str, db: Session = Depends(get_db)):
+    """Same M-ticket PDF attached to the confirmation email."""
+    from APIs.bookings import _lookup_booking_row, _ticket_pdf_http_response
+
+    ticket = _lookup_ticket(db, qr_token)
+    if not ticket or not ticket.booking_id:
+        raise HTTPException(status_code=404, detail="Ticket not found.")
+    booking = _lookup_booking_row(db, ticket.booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    return _ticket_pdf_http_response(booking, db, (ticket.qr_token or qr_token or "").strip())
+
+
 @router.get("/public/{qr_token}")
 def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
     """Open a ticket from the emailed / WhatsApp QR link without signing in.

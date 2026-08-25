@@ -364,7 +364,7 @@
 	</div>
 
 	<script src="js/health.js?v=2"></script>
-	<script src="js/auth.js?v=25"></script>
+	<script src="js/auth.js?v=31"></script>
 	<script>
 		(function () {
 			const params = new URLSearchParams(window.location.search);
@@ -538,6 +538,7 @@
 				try {
 					const res = await authFetch(apiBase + "/api/bookings/registration-status?event_id=" + encodeURIComponent(eventId), {
 						cache: "no-store",
+						allowGuest: true,
 						headers: { Accept: "application/json" }
 					});
 					if (res.status === 401) return { state: "auth_required" };

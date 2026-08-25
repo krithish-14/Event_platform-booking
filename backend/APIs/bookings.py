@@ -9,6 +9,7 @@ from typing import Any, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload, defer
 
@@ -79,6 +80,100 @@ def _same_event_id(stored_id, event_id) -> bool:
     return stored in keys or stored.replace("-", "") in keys
 
 
+def _norm_event_title(value) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+
+
+def _titles_match(left, right) -> bool:
+    a = _norm_event_title(left)
+    b = _norm_event_title(right)
+    if not a or not b:
+        return False
+    return a == b or a in b or b in a
+
+
+def _safe_db_rollback(db: Session) -> None:
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
+
+def _lookup_public_event(db: Session, event_id):
+    eid = str(event_id or "").strip()
+    if not eid:
+        return None
+    compact = eid.replace("-", "").lower()
+    try:
+        row = db.query(Event).filter(cast(Event.id, String) == eid).first()
+        if row:
+            return row
+        return db.query(Event).filter(
+            func.lower(func.replace(cast(Event.id, String), "-", "")) == compact
+        ).first()
+    except Exception:
+        _safe_db_rollback(db)
+        return None
+
+
+def _lookup_host_event(db: Session, event_id):
+    eid = str(event_id or "").strip()
+    if not eid:
+        return None
+    compact = eid.replace("-", "").lower()
+    try:
+        from Models.event_management import EventManagement
+        row = db.query(EventManagement).filter(cast(EventManagement.event_id, String) == eid).first()
+        if row:
+            return row
+        return db.query(EventManagement).filter(
+            func.lower(func.replace(cast(EventManagement.event_id, String), "-", "")) == compact
+        ).first()
+    except Exception:
+        _safe_db_rollback(db)
+        return None
+
+
+def _related_event_id_keys(db: Session, event_id) -> set:
+    keys = _event_id_keys(event_id)
+    public_event = _lookup_public_event(db, event_id)
+    host_event = _lookup_host_event(db, event_id)
+    if public_event is not None:
+        keys |= _event_id_keys(public_event.id)
+        host_match = _lookup_host_event(db, public_event.id)
+        if host_match is not None:
+            keys |= _event_id_keys(host_match.event_id)
+    if host_event is not None:
+        keys |= _event_id_keys(host_event.event_id)
+        public_match = _lookup_public_event(db, host_event.event_id)
+        if public_match is not None:
+            keys |= _event_id_keys(public_match.id)
+    return keys
+
+
+def _booking_matches_event(db: Session, booking, event_id) -> bool:
+    if _same_event_id(getattr(booking, "event_id", None), event_id):
+        return True
+    related = _related_event_id_keys(db, event_id)
+    stored = _event_id_keys(getattr(booking, "event_id", None))
+    if stored & related:
+        return True
+    public_event = _lookup_public_event(db, event_id)
+    host_event = _lookup_host_event(db, event_id)
+    booking_title = getattr(getattr(booking, "event", None), "title", None)
+    if public_event is not None and _titles_match(booking_title, public_event.title):
+        return True
+    if host_event is not None and _titles_match(booking_title, getattr(host_event, "event_title", None)):
+        return True
+    return False
+
+
+def _stored_event_matches(db: Session, stored_id, event_id) -> bool:
+    if _same_event_id(stored_id, event_id):
+        return True
+    return bool(_event_id_keys(stored_id) & _related_event_id_keys(db, event_id))
+
+
 def _user_identity_keys(user) -> set:
     keys = set()
     if not user:
@@ -118,7 +213,7 @@ def _active_booking_for_event(db: Session, user, event_id):
     for booking in bookings:
         if _booking_is_cancelled(booking):
             continue
-        if not _same_event_id(booking.event_id, event_id):
+        if not _booking_matches_event(db, booking, event_id):
             continue
         owner = str(booking.customer_id or "").strip()
         recv = (booking.receiver_email or "").lower().strip()
@@ -131,6 +226,7 @@ def _active_booking_for_event(db: Session, user, event_id):
             return booking
 
     if id_keys:
+        related = _related_event_id_keys(db, event_id)
         tickets = (
             db.query(Ticket)
             .filter(Ticket.customer_id.in_(list(id_keys)))
@@ -140,14 +236,9 @@ def _active_booking_for_event(db: Session, user, event_id):
         for ticket in tickets:
             if (ticket.ticket_status or "").upper() in ("CANCELLED", "CANCELED"):
                 continue
-            if not _same_event_id(ticket.event_id, event_id):
+            if not (_same_event_id(ticket.event_id, event_id) or (_event_id_keys(ticket.event_id) & related)):
                 continue
-            booking = (
-                db.query(Booking)
-                .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-                .filter(Booking.booking_id == ticket.booking_id)
-                .first()
-            )
+            booking = _lookup_booking_row(db, ticket.booking_id)
             if booking and not _booking_is_cancelled(booking):
                 return booking
     return None
@@ -435,14 +526,7 @@ def get_my_pending_payments(
             ticket = row.ticket_type or "General Admission"
         if price is None:
             price = row.ticket_price
-        event_row = None
-        for cand in _event_id_matches(event_id):
-            try:
-                event_row = db.query(Event).filter(Event.id == cand).first()
-            except Exception:
-                event_row = None
-            if event_row:
-                break
+        event_row = _lookup_public_event(db, event_id)
         pending.append(PendingPaymentResponse(
             event_id=event_id,
             event_title=getattr(event_row, "title", None),
@@ -456,13 +540,6 @@ def get_my_pending_payments(
             order_kind="pending",
         ))
     return pending
-
-
-def _safe_db_rollback(db: Session) -> None:
-    try:
-        db.rollback()
-    except Exception:
-        pass
 
 
 def _sql_set_booking_id(db: Session, table: str, id_col: str, row_id, booking_id) -> bool:
@@ -508,7 +585,7 @@ def _mark_form_submission_paid(db: Session, event_id, user, booking_id=None) -> 
         _safe_db_rollback(db)
         return
     for row in rows:
-        if not _same_event_id(row.event_id, event_id):
+        if not _stored_event_matches(db, row.event_id, event_id):
             continue
         params = {"st": "paid", "id": row.id}
         status_sql = "UPDATE form_submissions SET status = :st WHERE id = :id"
@@ -569,7 +646,6 @@ def get_registration_status(
     current_user: User = Depends(get_current_user),
 ):
     """Return whether this user already has a ticket or a payment-pending registration."""
-    event_candidates = _event_id_matches(event_id)
     booking = _active_booking_for_event(db, current_user, event_id)
     if booking and _booking_tickets(booking, db=db):
         try:
@@ -606,8 +682,9 @@ def get_registration_status(
         .all()
     )
     pending = None
+    related = _related_event_id_keys(db, event_id)
     for row in submissions:
-        if not _same_event_id(row.event_id, event_id):
+        if not (_same_event_id(row.event_id, event_id) or (_event_id_keys(row.event_id) & related)):
             continue
         status_val = (row.status or "").lower()
         if status_val == "paid":
@@ -621,14 +698,7 @@ def get_registration_status(
             ticket = pending.ticket_type or ""
         if price is None:
             price = pending.ticket_price
-        event_row = None
-        for cand in event_candidates:
-            try:
-                event_row = db.query(Event).filter(Event.id == cand).first()
-            except Exception:
-                event_row = None
-            if event_row:
-                break
+        event_row = _lookup_public_event(db, event_id)
         return RegistrationStatusResponse(
             state="payment_pending",
             ticket_type=ticket or None,
@@ -714,6 +784,43 @@ def get_single_booking(
         raise HTTPException(status_code=404, detail="Booking not found.")
     _assert_booking_owner(b, current_user)
     return _serialize_booking(b, db=db)
+
+
+def _ticket_pdf_http_response(booking: Booking, db: Session, qr_token: str = ""):
+    from Services.ticket_pdf import build_mticket_pdf_from_booking, ticket_pdf_filename
+
+    pdf = build_mticket_pdf_from_booking(booking, qr_token=qr_token, db=db)
+    if not pdf:
+        raise HTTPException(status_code=500, detail="Could not generate the ticket PDF.")
+    filename = ticket_pdf_filename(booking.booking_id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@router.get("/{booking_id}/pdf")
+def download_booking_ticket_pdf(
+    booking_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Same M-ticket PDF that is emailed after Generate QR."""
+    booking = _lookup_booking_row(db, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    _assert_booking_owner(booking, current_user)
+    tickets = _booking_tickets(booking, db=db)
+    token = ""
+    if tickets:
+        token = (getattr(tickets[0], "qr_token", None) or "").strip()
+    if not token:
+        raise HTTPException(status_code=404, detail="QR ticket is not ready yet.")
+    return _ticket_pdf_http_response(booking, db, token)
 
 
 @router.post("/{booking_id}/cancel", response_model=BookingResponse)

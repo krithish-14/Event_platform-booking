@@ -436,7 +436,7 @@
 }
 
 .mticket-savings-badge {
-	display: none;
+	display: none !important;
 }
 
 .mticket-total-price {
@@ -474,6 +474,10 @@
 	flex-wrap: wrap;
 	max-width: 480px;
 	margin: 0 auto;
+}
+
+.ticket-actions-bar[hidden] {
+	display: none !important;
 }
 
 .btn-action {

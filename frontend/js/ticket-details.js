@@ -72,9 +72,59 @@
 		return fetch(url, opts);
 	}
 
+	async function readyAuthSession() {
+		if (window.JodAuth && typeof window.JodAuth.ensureSession === "function") {
+			try { await window.JodAuth.ensureSession(); } catch (_) {}
+		} else if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+			try { await window.JodAuth.validateSession(); } catch (_) {}
+		}
+	}
+
+	function isLoggedIn() {
+		return Boolean(window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn());
+	}
+
+	function sameId(a, b) {
+		const x = String(a || "").trim().toLowerCase().replace(/-/g, "");
+		const y = String(b || "").trim().toLowerCase().replace(/-/g, "");
+		return Boolean(x && y && x === y);
+	}
+
+	async function fetchMyBookings() {
+		try {
+			const res = await authFetch(`${getApiBase()}/api/bookings/my-bookings`, { allowGuest: true });
+			if (!res.ok) return [];
+			const rows = await res.json();
+			return Array.isArray(rows) ? rows : [];
+		} catch (_) {
+			return [];
+		}
+	}
+
+	function pickIssuedBooking(rows, bookingId, qrToken, eventId) {
+		const issued = (rows || []).filter((row) => row && (row.qr_token || row.ticket_id) && row.booking_id);
+		if (!issued.length) return null;
+		if (bookingId) {
+			const byId = issued.find((row) => sameId(row.booking_id, bookingId));
+			if (byId) return byId;
+		}
+		if (qrToken) {
+			const byToken = issued.find((row) => String(row.qr_token || "") === String(qrToken));
+			if (byToken) return byToken;
+		}
+		if (eventId) {
+			const byEvent = issued.find((row) => sameId(row.event_id, eventId));
+			if (byEvent) return byEvent;
+		}
+		return issued[0];
+	}
+
 	async function loadBookingData(bookingId) {
+		await readyAuthSession();
 		const apiBase = getApiBase();
 		const qrToken = getQueryParam("token") || getQueryParam("qr");
+		const eventId = getQueryParam("event") || getQueryParam("eventId") || getQueryParam("event_id");
+
 		if (qrToken) {
 			try {
 				const res = await fetch(`${apiBase}/api/tickets/public/${encodeURIComponent(qrToken)}`, {
@@ -86,28 +136,42 @@
 					saveLocalBookingCache(data);
 					return data;
 				}
-				if (res.status === 404) return { _error: "notfound" };
 			} catch (_) {}
-			return { _error: "unavailable" };
 		}
-		if (!bookingId) return { _error: "signin" };
 
-		try {
-			const res = await authFetch(`${apiBase}/api/bookings/${encodeURIComponent(bookingId)}`, {
-				headers: { Accept: "application/json" },
-			});
-			if (res.ok) {
-				const data = await res.json();
-				if (!data.qr_token) return { _error: "pending" };
-				saveLocalBookingCache(data);
-				return data;
-			}
-			if (res.status === 401) return { _error: "signin" };
-			if (res.status === 403) return { _error: "forbidden" };
-			if (res.status === 404) return { _error: "notfound" };
-		} catch (_) {}
+		if (bookingId) {
+			try {
+				const res = await authFetch(`${apiBase}/api/bookings/${encodeURIComponent(bookingId)}`, {
+					allowGuest: true,
+					headers: { Accept: "application/json" },
+				});
+				if (res.ok) {
+					const data = await res.json();
+					if (!data.qr_token) return { _error: "pending" };
+					saveLocalBookingCache(data);
+					return data;
+				}
+				if (res.status === 403) return { _error: "forbidden" };
+			} catch (_) {}
+		}
 
-		return { _error: "unavailable" };
+		const mine = isLoggedIn() ? await fetchMyBookings() : [];
+		const fromMine = pickIssuedBooking(mine, bookingId, qrToken, eventId);
+		if (fromMine) {
+			if (!fromMine.qr_token) return { _error: "pending" };
+			saveLocalBookingCache(fromMine);
+			return fromMine;
+		}
+
+		const cached = getLocalBookingsCache();
+		const fromCache = pickIssuedBooking(cached, bookingId, qrToken, eventId);
+		if (fromCache && fromCache.qr_token) {
+			return fromCache;
+		}
+
+		if (qrToken && !bookingId) return { _error: "notfound" };
+		if (isLoggedIn()) return { _error: bookingId ? "notfound" : "notfound" };
+		return { _error: "signin" };
 	}
 
 	function setDownloadActionsVisible(visible) {
@@ -268,6 +332,8 @@
 		const totalEl = document.getElementById("billTotal");
 		const paymentIdEl = document.getElementById("billPaymentId");
 		const paymentModeEl = document.getElementById("billPaymentMode");
+		const savingsBadge = document.querySelector(".mticket-savings-badge");
+		if (savingsBadge) savingsBadge.remove();
 
 		if (unitPriceEl) unitPriceEl.textContent = `₹${unitPrice.toLocaleString("en-IN")}`;
 		if (qtyEl) qtyEl.textContent = `x${qty}`;
@@ -386,7 +452,7 @@
 
 		const doc = iframe.contentDocument || iframe.contentWindow.document;
 		const clone = source.cloneNode(true);
-		clone.querySelectorAll(".mticket-toggle-btn, .mticket-support-row, .mticket-notch").forEach((n) => n.remove());
+		clone.querySelectorAll(".mticket-toggle-btn, .mticket-support-row, .mticket-notch, .mticket-savings-badge").forEach((n) => n.remove());
 		const collapsed = clone.querySelector(".mticket-collapsible-content");
 		if (collapsed) collapsed.classList.remove("collapsed");
 
@@ -433,7 +499,7 @@
 		.mticket-qr-block { text-align: center; }
 		.mticket-stub-divider { border-top: 1px dashed #cbd5e1; margin: 0.25rem 0; }
 		.mticket-item-row, .mticket-total-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; }
-		.mticket-watermark { display: none; }
+		.mticket-savings-badge { display: none !important; }
 		.mticket-collapsible-content.collapsed { max-height: none !important; opacity: 1 !important; overflow: visible !important; }
 		.ticket-print-agenda-page, .ticket-print-agenda-page * {
 			visibility: visible !important;
@@ -478,6 +544,35 @@
 		});
 	}
 
+	async function downloadOfficialTicketPdf(bookingData) {
+		const apiBase = getApiBase();
+		const token = (bookingData && bookingData.qr_token) || getQueryParam("token") || getQueryParam("qr");
+		const id = (bookingData && bookingData.booking_id) || getQueryParam("id") || getQueryParam("booking_id");
+		const url = token
+			? `${apiBase}/api/tickets/public/${encodeURIComponent(token)}/pdf`
+			: `${apiBase}/api/bookings/${encodeURIComponent(id)}/pdf`;
+		try {
+			const res = token
+				? await fetch(url, { cache: "no-store", credentials: "include" })
+				: await authFetch(url, { allowGuest: true });
+			if (!res.ok) throw new Error("pdf");
+			const blob = await res.blob();
+			if (!blob || blob.size < 8) throw new Error("empty");
+			const short = String(id || "ticket").replace(/-/g, "").slice(0, 8).toUpperCase() || "TICKET";
+			const href = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = href;
+			a.download = `JOD-Ticket-${short}.pdf`;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			setTimeout(() => URL.revokeObjectURL(href), 2000);
+			return;
+		} catch (_) {
+			printTicketCardOnly(bookingData, { includeAgenda: false });
+		}
+	}
+
 	function bindActions(bookingData) {
 		const btnDownloadTicket = document.getElementById("btnDownloadTicket");
 		const btnDownloadInvoice = document.getElementById("btnDownloadInvoice");
@@ -507,7 +602,7 @@
 		});
 
 		btnDownloadTicket?.addEventListener("click", () => {
-			printTicketCardOnly(bookingData, { includeAgenda: true });
+			downloadOfficialTicketPdf(bookingData);
 		});
 
 		btnDownloadInvoice?.addEventListener("click", () => {

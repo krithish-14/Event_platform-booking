@@ -12,6 +12,19 @@ let currentEventData = null;
 let galleryImages = [];
 let galleryIndex = 0;
 let galleryLightboxBound = false;
+let hasIssuedTicket = false;
+
+async function readyAuthSession() {
+    if (window.JodAuth && typeof window.JodAuth.ensureSession === "function") {
+        try {
+            await window.JodAuth.ensureSession();
+        } catch (_) {}
+    } else if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+        try {
+            await window.JodAuth.validateSession();
+        } catch (_) {}
+    }
+}
 
 async function initEventDetailsPage() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -522,6 +535,7 @@ function liveTickets(event) {
 }
 
 function setBuyTicketEnabled(enabled, label) {
+    if (hasIssuedTicket) return;
     document.querySelectorAll(".btn-book-now").forEach((btn) => {
         if (btn.classList.contains("btn-view-ticket")) return;
         btn.disabled = !enabled;
@@ -695,29 +709,36 @@ function ticketPageHref(bookingId, qrToken) {
     return qs ? `ticket-details.html?${qs}` : "orders.html";
 }
 
-function getAccessToken() {
-    try {
-        if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
-            return window.JodAuth.getToken() || "";
-        }
-        return "";
-    } catch (_) {
-        return "";
-    }
-}
-
 function getApiRoot() {
+    if (window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+        return window.JodConfig.getApiOrigin().replace(/\/$/, "");
+    }
     if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE.replace(/\/$/, "");
     if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
         return window.JodHealth.getApiBaseUrl().replace(/\/$/, "");
     }
-    return (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "";
+    return (window.JOD_API_BASE_OVERRIDE || "").replace(/\/$/, "");
 }
 
 function sameEventId(a, b) {
     const x = String(a || "").trim().toLowerCase().replace(/-/g, "");
     const y = String(b || "").trim().toLowerCase().replace(/-/g, "");
     return Boolean(x && y && x === y);
+}
+
+function normEventTitle(value) {
+    return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function bookingMatchesEvent(row, eventId, eventData) {
+    if (!row) return false;
+    if (sameEventId(row.event_id, eventId)) return true;
+    const eventTitle = normEventTitle(eventData && eventData.title);
+    const bookingTitle = normEventTitle(row.event_title);
+    if (eventTitle && bookingTitle && (eventTitle === bookingTitle || eventTitle.includes(bookingTitle) || bookingTitle.includes(eventTitle))) {
+        return true;
+    }
+    return false;
 }
 
 function isActiveBookingRow(row) {
@@ -743,7 +764,7 @@ function findCachedBookingForEvent(eventId) {
         if (!key) return null;
         const cache = JSON.parse(localStorage.getItem(key) || "[]");
         if (!Array.isArray(cache)) return null;
-        return cache.find((row) => row && row.booking_id && sameEventId(row.event_id, eventId) && isActiveBookingRow(row)) || null;
+        return cache.find((row) => row && row.booking_id && bookingMatchesEvent(row, eventId, currentEventData) && isActiveBookingRow(row)) || null;
     } catch (_) {
         return null;
     }
@@ -752,11 +773,11 @@ function findCachedBookingForEvent(eventId) {
 async function fetchMyBookingForEvent(eventId) {
     if (!eventId) return null;
     try {
-        const res = await authFetch(`${getApiRoot()}/api/bookings/my-bookings`);
+        const res = await authFetch(`${getApiRoot()}/api/bookings/my-bookings`, { allowGuest: true });
         if (!res.ok) return null;
         const rows = await res.json();
         if (!Array.isArray(rows)) return null;
-        return rows.find((row) => row && row.booking_id && sameEventId(row.event_id, eventId) && isActiveBookingRow(row)) || null;
+        return rows.find((row) => row && row.booking_id && bookingMatchesEvent(row, eventId, currentEventData) && isActiveBookingRow(row)) || null;
     } catch (_) {
         return null;
     }
@@ -764,16 +785,25 @@ async function fetchMyBookingForEvent(eventId) {
 
 async function fetchRegistrationStatus(eventId) {
     if (!eventId) return { state: "new" };
+    await readyAuthSession();
+    const loggedIn = window.JodAuth && typeof window.JodAuth.isLoggedIn === "function"
+        ? window.JodAuth.isLoggedIn()
+        : false;
     let status = { state: "new" };
-    try {
-        const res = await authFetch(`${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`);
-        if (res.ok) {
-            const data = await res.json();
-            if (data && data.state) status = data;
-        }
-    } catch (_) {}
+    if (loggedIn) {
+        try {
+            const res = await authFetch(
+                `${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`,
+                { allowGuest: true }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.state) status = data;
+            }
+        } catch (_) {}
+    }
     if (status.state === "ticket" && status.booking_id) return status;
-    const mine = await fetchMyBookingForEvent(eventId);
+    const mine = loggedIn ? await fetchMyBookingForEvent(eventId) : null;
     if (mine) {
         const row = ticketStateFromBooking(mine);
         row.qr_token = mine.qr_token || null;
@@ -809,11 +839,12 @@ function setPostPurchaseLinks(bookingId, qrToken) {
 }
 
 function showPostPurchaseActions(bookingId, qrToken) {
+    hasIssuedTicket = true;
     setPostPurchaseLinks(bookingId, qrToken);
     document.querySelectorAll(".btn-book-now").forEach((btn) => {
         if (btn.classList.contains("btn-view-ticket")) return;
         btn.hidden = true;
-        btn.style.display = "none";
+        btn.style.setProperty("display", "none", "important");
     });
     document.querySelectorAll(".post-purchase-actions").forEach((el) => {
         el.hidden = false;
@@ -825,10 +856,11 @@ function showPostPurchaseActions(bookingId, qrToken) {
 }
 
 function hidePostPurchaseActions() {
+    hasIssuedTicket = false;
     document.querySelectorAll(".btn-book-now").forEach((btn) => {
         if (btn.classList.contains("btn-view-ticket")) return;
         btn.hidden = false;
-        btn.style.display = "";
+        btn.style.removeProperty("display");
     });
     document.querySelectorAll(".post-purchase-actions").forEach((el) => {
         el.hidden = true;

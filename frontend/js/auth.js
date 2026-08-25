@@ -137,7 +137,10 @@ window.JodAuth = (() => {
 		});
 	}
 
+	let sessionPromise = null;
+
 	function clearAuth() {
+		sessionPromise = Promise.resolve(null);
 		try {
 			wipeActiveSessionStore(localStorage);
 			wipeActiveSessionStore(sessionStorage);
@@ -277,6 +280,7 @@ window.JodAuth = (() => {
 				if (!existing) writeScopedCache("jod_profile_avatar", avatar, user);
 			}
 		} catch (_) {}
+		sessionPromise = Promise.resolve(user);
 		syncThemeAfterAuth();
 	}
 
@@ -400,6 +404,13 @@ window.JodAuth = (() => {
 		}
 	}
 
+	function ensureSession() {
+		if (!sessionPromise) {
+			sessionPromise = validateSession().catch(() => getUser());
+		}
+		return sessionPromise;
+	}
+
 	async function requireAuthOrRedirect(options = {}) {
 		const opts = options || {};
 		const currentTarget = opts.redirectTo
@@ -437,9 +448,12 @@ window.JodAuth = (() => {
 	}
 
 	async function fetchAuth(url, options = {}) {
-		const headers = Object.assign({}, options.headers || {});
-		const res = await fetch(url, Object.assign({}, options, { headers, credentials: "include" }));
-		if (res.status === 401) {
+		const opts = Object.assign({}, options || {});
+		const allowGuest = Boolean(opts.allowGuest);
+		delete opts.allowGuest;
+		const headers = Object.assign({}, opts.headers || {});
+		const res = await fetch(url, Object.assign({}, opts, { headers, credentials: "include" }));
+		if (res.status === 401 && !allowGuest) {
 			clearAuth();
 			syncThemeAfterAuth();
 			try {
@@ -1703,6 +1717,7 @@ window.JodAuth = (() => {
 
 			const bookTarget = e.target.closest(".btn-book-now");
 			if (bookTarget) {
+				if (bookTarget.classList.contains("btn-view-ticket") || bookTarget.getAttribute("data-action") === "view-ticket") return;
 				e.preventDefault();
 				e.stopPropagation();
 				e.stopImmediatePropagation();
@@ -1767,6 +1782,7 @@ window.JodAuth = (() => {
 
 	if (typeof window !== "undefined") {
 		window.handleGuestOrNavigate = handleGuestOrNavigate;
+		ensureSession();
 	}
 
 	/* ── Expose Public API ─────────────────────────────────── */
@@ -1789,6 +1805,7 @@ window.JodAuth = (() => {
 		bookingsCacheKey,
 		avatarCacheKey,
 		fetchAuth,
+		ensureSession,
 		navigateToHostFlow,
 		hasHostPayoutBank,
 		isHostSetupComplete,

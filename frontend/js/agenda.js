@@ -49,21 +49,46 @@
 	}
 
 	async function loadBooking(bookingId) {
+		if (window.JodAuth && typeof window.JodAuth.ensureSession === "function") {
+			try { await window.JodAuth.ensureSession(); } catch (_) {}
+		}
+		const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+			? window.JodAuth.fetchAuth.bind(window.JodAuth)
+			: fetch;
+		if (bookingId) {
+			try {
+				const res = await fetchFn(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}`, {
+					cache: "no-store",
+					credentials: "include",
+					allowGuest: true,
+					headers: { Accept: "application/json" }
+				});
+				if (res.ok) return await res.json();
+				if (res.status === 403) return { _error: "forbidden" };
+			} catch (_) {}
+		}
 		try {
-			const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
-				? window.JodAuth.fetchAuth.bind(window.JodAuth)
-				: fetch;
-			const res = await fetchFn(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}`, {
+			const res = await fetchFn(`${getApiBase()}/api/bookings/my-bookings`, {
 				cache: "no-store",
 				credentials: "include",
+				allowGuest: true,
 				headers: { Accept: "application/json" }
 			});
-			if (res.ok) return await res.json();
-			if (res.status === 401) return { _error: "signin" };
-			if (res.status === 403) return { _error: "forbidden" };
-			if (res.status === 404) return { _error: "notfound" };
+			if (res.ok) {
+				const rows = await res.json();
+				if (Array.isArray(rows) && rows.length) {
+					if (bookingId) {
+						const match = rows.find((row) => String(row.booking_id || "").replace(/-/g, "").toLowerCase() === String(bookingId).replace(/-/g, "").toLowerCase());
+						if (match) return match;
+					}
+					return rows[0];
+				}
+			}
 		} catch (_) {}
-		return { _error: "unavailable" };
+		if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn()) {
+			return { _error: "notfound" };
+		}
+		return { _error: "signin" };
 	}
 
 	async function loadPublicEvent(eventId) {

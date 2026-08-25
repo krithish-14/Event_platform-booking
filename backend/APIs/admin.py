@@ -493,14 +493,31 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
     """
     pdf_bytes = None
     try:
-        pdf_bytes = build_ticket_pdf_bytes(
-            booking_id=booking.booking_id,
-            event_name=event_title,
-            event_date=booking.event.start_date if booking.event else None,
-            qr_token=token,
-        )
+        from Services.ticket_pdf import build_mticket_pdf_from_booking
+        pdf_bytes = build_mticket_pdf_from_booking(booking, qr_token=token)
     except Exception:
         pdf_bytes = None
+    if not pdf_bytes:
+        try:
+            event = booking.event
+            pdf_bytes = build_ticket_pdf_bytes(
+                booking_id=booking.booking_id,
+                event_name=event_title,
+                event_date=event.start_date if event else None,
+                qr_token=token,
+                venue=(event.venue or event.location or "") if event else "",
+                language=getattr(event, "language", None) if event else "English",
+                event_format=getattr(event, "event_format", None) if event else "Live Event",
+                ticket_type=booking.ticket_type or "General Admission",
+                quantity=max(1, int(booking.quantity or 1)),
+                total_price=float(booking.total_price or 0),
+                gst_amount=float(getattr(booking, "gst_amount", 0) or 0),
+                poster_url=(getattr(event, "card_image", None) or getattr(event, "image_url", None) or "") if event else "",
+                seat_number=getattr(booking, "seat_number", None) or "General Admission",
+                payment_mode=getattr(booking, "payment_mode", None) or "",
+            )
+        except Exception:
+            pdf_bytes = None
     attachments = []
     if pdf_bytes:
         short = (str(booking.booking_id).replace("-", "")[:8] or "ticket").upper()
