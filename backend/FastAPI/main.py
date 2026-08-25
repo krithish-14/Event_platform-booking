@@ -44,10 +44,10 @@ from APIs.volunteers import router as volunteers_router
 from APIs.admin import router as admin_router
 from APIs.payments import router as payments_router
 from Models.base import create_tables
-from Models.user import User
-from Models.event import Event
-from Models.booking import Booking
-from Models.ticket import Ticket
+from Models.user import User  # noqa: F401 — registered with SQLAlchemy metadata
+from Models.event import Event  # noqa: F401
+from Models.booking import Booking  # noqa: F401
+from Models.ticket import Ticket  # noqa: F401
 
 
 def safe_print(msg: str) -> None:
@@ -93,7 +93,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-origins = cors_origins()
+
+def _cors_allow_origins() -> list[str]:
+    """Public site origins for credentialed browser requests. Apex + www both allowed."""
+    extra = ("https://jodevents.com", "https://www.jodevents.com")
+    seen: set[str] = set()
+    out: list[str] = []
+    for origin in [*cors_origins(), *extra]:
+        cleaned = origin.strip().rstrip("/")
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        out.append(cleaned)
+    return out
+
+
+origins = _cors_allow_origins()
+
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(CookieCsrfMiddleware)
 app.add_middleware(
@@ -103,7 +119,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID", "X-CSRF-Token"],
 )
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")  # type: ignore[arg-type]
 _hosts = allowed_hosts()
 if is_production() and _hosts and _hosts != ["*"]:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=_hosts)
@@ -278,7 +294,7 @@ async def render_event_details_page(request: Request, event_id: str):
                 except Exception:
                     return []
 
-            cat_info = get_category_theme(event_obj.category)
+            cat_info = get_category_theme(str(event_obj.category or ""))
             event_data = {
                 "id": str(event_obj.id),
                 "title": event_obj.title,
@@ -308,13 +324,15 @@ async def render_event_details_page(request: Request, event_id: str):
             recs = list_events(db, limit=4)
             for r in recs:
                 if str(r.id) != str(event_obj.id):
+                    start_dt = getattr(r, "start_date", None)
+                    start_label = start_dt.strftime("%b %d, %Y") if start_dt is not None else ""
                     recommended_events.append({
                         "id": str(r.id),
                         "title": r.title,
                         "category": r.category,
                         "image_url": r.image_url,
                         "venue": r.venue or r.location,
-                        "start_date": r.start_date.strftime("%b %d, %Y") if r.start_date else "",
+                        "start_date": start_label,
                         "price": r.price,
                     })
     finally:
@@ -332,7 +350,7 @@ async def render_event_details_page(request: Request, event_id: str):
     )
 
 
-def get_category_theme(category: str) -> dict:
+def get_category_theme(category: str | None) -> dict:
     cat = (category or "").lower()
     if "corporate" in cat or "conference" in cat or "business" in cat:
         return {
@@ -340,7 +358,7 @@ def get_category_theme(category: str) -> dict:
             "hero_badge": "💼 Executive Summit",
             "performers_title": "Keynote Speakers & Panelists",
             "highlights_title": "Summit Highlights & Key Takeaways",
-        }
+        } 
     elif "launch" in cat or "product" in cat or "tech" in cat:
         return {
             "theme_class": "category-theme-launch",

@@ -362,8 +362,8 @@ async function initOrganizerDashboard() {
 	const IMAGE_TYPE_MSG = "Your image is not in this standard file type. Please use JPG, JPEG, PNG, or WEBP.";
 	const IMAGE_SIZE_MSG = "Your image is not in this standard size. Maximum file size is 5MB.";
 	const BANNER_TARGET_W = 1200;
-	const BANNER_TARGET_H = 630;
-	const BANNER_DIM_MSG = "Your image is not in this standard size. Use 1200 × 630 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
+	const BANNER_TARGET_H = 530;
+	const BANNER_DIM_MSG = "Your image is not in this standard size. Use 1200 × 530 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
 
 	function hasAllowedImageMagicBytes(bytes) {
 		if (!bytes || bytes.length < 12) return false;
@@ -2791,6 +2791,8 @@ async function initOrganizerDashboard() {
 					const catSel = document.getElementById("eventCategorySelect");
 					if (catSel) catSel.value = hostData.event.event_category;
 				}
+				const durationInput = document.getElementById("eventDurationInput");
+				if (durationInput) durationInput.value = hostData.event.duration || "";
 				if (hostData.event.policies) {
 					populatePoliciesFromJson(hostData.event.policies);
 				}
@@ -2860,6 +2862,7 @@ async function initOrganizerDashboard() {
 			event_end_date: event_end_date,
 			event_start_time: timeFromDatetimeLocal(dateInput && dateInput.value),
 			event_end_time: timeFromDatetimeLocal(endDateInput && endDateInput.value),
+			duration: (document.getElementById("eventDurationInput")?.value || "").trim().slice(0, 20),
 			tickets_json: collectTicketsJson(),
 			agenda_json: collectAgendaJson(),
 			policies_json: collectPoliciesJson(),
@@ -3753,6 +3756,8 @@ async function initOrganizerDashboard() {
 		if (endDateInput && event.event_end_date) {
 			endDateInput.value = String(event.event_end_date).slice(0, 16);
 		}
+		const durationInput = document.getElementById("eventDurationInput");
+		if (durationInput) durationInput.value = event.duration || "";
 		const locationInput = document.getElementById("eventLocationInput");
 		if (locationInput) locationInput.value = event.venue || event.address || "";
 		const latEl = document.getElementById("eventVenueLat");
@@ -5551,6 +5556,7 @@ async function initOrganizerDashboard() {
 						event_end_date: toIstIsoFromDatetimeLocal(endDateInput && endDateInput.value),
 						event_start_time: timeFromDatetimeLocal(dateInput && dateInput.value),
 						event_end_time: timeFromDatetimeLocal(endDateInput && endDateInput.value),
+						duration: (document.getElementById("eventDurationInput")?.value || "").trim().slice(0, 20),
 						event_status: "published",
 						tickets_json: collectTicketsJson(),
 						agenda_json: collectAgendaJson(),

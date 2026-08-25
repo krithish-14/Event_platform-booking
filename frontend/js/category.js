@@ -58,18 +58,8 @@
 		})();
 
 		const titleEl = document.getElementById("categoryTitle");
-		const badgeEl = document.getElementById("categoryPillBadge");
-		const subtitleEl = document.getElementById("categorySubtitle");
-
 		if (titleEl) {
-			const displayCategory = initialCategory.charAt(0).toUpperCase() + initialCategory.slice(1);
-			titleEl.textContent = `${displayCategory} In ${userCity}`;
-		}
-		if (badgeEl) {
-			badgeEl.textContent = `✨ ${initialCategory} Category`;
-		}
-		if (subtitleEl) {
-			subtitleEl.textContent = `Discover top ${initialCategory.toLowerCase()} events, masterclasses, and curated experiences in ${userCity}.`;
+			titleEl.textContent = "Event Categories";
 		}
 
 		if (initialCategory && initialCategory.toLowerCase() !== "events") {

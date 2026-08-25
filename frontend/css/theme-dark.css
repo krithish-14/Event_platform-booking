@@ -195,6 +195,29 @@ html[data-theme="dark"] .faq-item p {
 	color: #c8bfb4 !important;
 }
 
+/* ── Stats section dark background ─────────────────────────── */
+html[data-theme="dark"] .stats-section {
+	background: #0e0c0a !important;
+	border-color: rgba(255, 138, 31, 0.12) !important;
+}
+
+html[data-theme="dark"] .stat-item span {
+	color: #a89880 !important;
+}
+
+/* ── Service card text fixes ────────────────────────────────── */
+html[data-theme="dark"] .service-card h3 {
+	color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .service-card p {
+	color: #a89880 !important;
+}
+
+html[data-theme="dark"] .service-card ul {
+	color: #8a7a68 !important;
+}
+
 /* ── Cards / forms / surfaces ──────────────────────────────── */
 html[data-theme="dark"] .event-card,
 html[data-theme="dark"] .service-card,

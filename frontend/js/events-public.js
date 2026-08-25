@@ -691,18 +691,43 @@
 		modal.dataset.eventId = event.id;
 		startCountdownTicker();
 
-		let dismissed = false;
+		let forceShow = false;
 		try {
-			dismissed = sessionStorage.getItem("jod-upcoming-modal-shown-" + event.id) === "1";
+			const params = new URLSearchParams(window.location.search || "");
+			forceShow = params.get("show_featured") === "1"
+				|| sessionStorage.getItem("jod-show-featured-modal-after-login") === "1"
+				|| localStorage.getItem("jod-show-featured-modal-after-login") === "1";
 		} catch (_) {}
+
+		let dismissed = false;
+		if (!forceShow) {
+			try {
+				dismissed = sessionStorage.getItem("jod-upcoming-modal-shown-" + event.id) === "1";
+			} catch (_) {}
+		}
 		if (dismissed) return;
-		if (modal.dataset.openedFor === String(event.id)) return;
+
+		if (forceShow) {
+			delete modal.dataset.openedFor;
+		} else if (modal.dataset.openedFor === String(event.id) && !modal.hidden) {
+			return;
+		}
+
 		modal.dataset.openedFor = String(event.id);
 		window.setTimeout(() => {
 			if (modal.dataset.openedFor !== String(event.id)) return;
+			try {
+				sessionStorage.removeItem("jod-show-featured-modal-after-login");
+				localStorage.removeItem("jod-show-featured-modal-after-login");
+				const url = new URL(window.location.href);
+				if (url.searchParams.has("show_featured")) {
+					url.searchParams.delete("show_featured");
+					window.history.replaceState({}, "", url.pathname + (url.search ? url.search : "") + url.hash);
+				}
+			} catch (_) {}
 			modal.hidden = false;
 			document.body.classList.add("modal-open");
-		}, 1400);
+		}, forceShow ? 600 : 1400);
 	}
 
 	global.JodEventsPublic = {

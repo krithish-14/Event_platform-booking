@@ -532,6 +532,13 @@
 		try {
 			const eid = modal.dataset.eventId;
 			if (eid) sessionStorage.setItem("jod-upcoming-modal-shown-" + eid, "1");
+			const next = sessionStorage.getItem("jod_after_featured_redirect");
+			if (next) {
+				sessionStorage.removeItem("jod_after_featured_redirect");
+				window.setTimeout(() => {
+					try { window.location.assign(next); } catch (_) {}
+				}, 120);
+			}
 		} catch (error) { void error; }
 	};
 	modal?.querySelectorAll("[data-modal-close]").forEach((button) => button.addEventListener("click", closeModal));

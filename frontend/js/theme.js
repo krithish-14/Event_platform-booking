@@ -1,7 +1,8 @@
 /**
- * JOD Events — per-user Light / Dark theme.
- * Guests, login, and signup always use light. A logged-in user's choice
- * is stored under their account and restored on the next login.
+ * JOD Events — Light / Dark theme.
+ * Guests and logged-in users can both toggle. Guest choice is stored as
+ * "guest"; a logged-in user's choice is stored under their account.
+ * Login / signup pages stay forced light.
  */
 (function initJodTheme(global) {
 	"use strict";
@@ -18,6 +19,7 @@
 	};
 	var SUN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>';
 	var MOON_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z"/></svg>';
+	var GUEST_KEY = "guest";
 	var clickBound = false;
 
 	function normalize(value) {
@@ -48,7 +50,7 @@
 	function userKey(user) {
 		var source = user || readSessionUser() || {};
 		var key = String(source.customer_id || source.id || source.email || "").trim().toLowerCase();
-		return key || null;
+		return key || GUEST_KEY;
 	}
 
 	function readPrefs() {
@@ -135,7 +137,7 @@
 	}
 
 	function paintToggles(theme) {
-		var canToggle = Boolean(userKey()) && !isForcedLightPage();
+		var canToggle = !isForcedLightPage();
 		var nextLabel = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
 		var icon = theme === "dark" ? SUN_ICON : MOON_ICON;
 		var buttons = document.querySelectorAll("[data-theme-toggle]");
@@ -149,6 +151,30 @@
 		}
 	}
 
+	function isLocalFrontend() {
+		if (!global.location) return false;
+		var host = global.location.hostname || "";
+		var port = String(global.location.port || "");
+		var localHost = host === "127.0.0.1" || host === "localhost";
+		return localHost && (port === "5500" || port === "5501" || port === "5173");
+	}
+
+	function syncBrandLogos() {
+		var theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+		var asset = global.JodConfig && global.JodConfig.assetUrl
+			? global.JodConfig.assetUrl.bind(global.JodConfig)
+			: function (path) { return path; };
+		document.querySelectorAll(".site-header .brand-logo, .site-header .brand img").forEach(function (img) {
+			var lightPath = img.getAttribute("data-logo-light") || "images/JOD Events Logo.png";
+			var darkPath = img.getAttribute("data-logo-dark") || "images/Jod_log_Dark.webp";
+			var next = theme === "dark" ? asset(darkPath) : asset(lightPath);
+			if (theme === "dark" && isLocalFrontend()) {
+				next = "Jod_log_Dark.webp";
+			}
+			if (img.getAttribute("src") !== next) img.setAttribute("src", next);
+		});
+	}
+
 	function apply(theme) {
 		var next = theme == null ? resolveTheme() : normalize(theme);
 		var root = document.documentElement;
@@ -158,18 +184,18 @@
 			document.body.setAttribute("data-theme", next);
 		}
 		ensureDarkStylesheet();
+		syncBrandLogos();
 		paintToggles(next);
 		return next;
 	}
 
 	function resolveTheme() {
 		var key = userKey();
-		if (!key) {
+		if (isForcedLightPage()) {
 			dropLegacyGlobal();
 			return "light";
 		}
 		var stored = readStoredTheme(key);
-		if (isForcedLightPage()) return "light";
 		return stored;
 	}
 
@@ -182,10 +208,10 @@
 	}
 
 	function set(theme) {
-		var key = userKey();
-		if (isForcedLightPage() || !key) {
+		if (isForcedLightPage()) {
 			return sync();
 		}
+		var key = userKey();
 		var next = apply(theme);
 		persistTheme(next, key);
 		try {
@@ -224,7 +250,12 @@
 
 	global.addEventListener("load", function () {
 		ensureDarkStylesheet();
+		syncBrandLogos();
 		paintToggles(resolveTheme());
+	});
+
+	global.addEventListener("includesLoaded", function () {
+		syncBrandLogos();
 	});
 
 	global.addEventListener("storage", function (event) {

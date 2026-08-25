@@ -302,14 +302,12 @@ def _resolve_event_end_datetime(event_mgt: EventManagement):
 
 
 def _effective_end_datetime(event: EventManagement):
-    """End datetime used for one-event and lifecycle checks (UTC naive)."""
-    end = _resolve_event_end_datetime(event)
-    if end:
-        return end
-    start = _resolve_event_start_datetime(event)
-    if start:
-        return start + timedelta(hours=4)
-    return None
+    """End datetime used for one-event and lifecycle checks (UTC naive).
+
+    Never invent a short +4h end — that made live events look "ended" too early.
+    Missing end means the event stays open until an explicit end is saved.
+    """
+    return _resolve_event_end_datetime(event)
 
 
 def apply_host_schedule_to_public_events(db: Session, events) -> None:
@@ -332,8 +330,12 @@ def apply_host_schedule_to_public_events(db: Session, events) -> None:
         if start and public_event.start_date != start:
             public_event.start_date = start
             changed = True
-        if end is not None and public_event.end_date != end:
-            public_event.end_date = end
+        if end is not None:
+            if public_event.end_date != end:
+                public_event.end_date = end
+                changed = True
+        elif host.event_end_date is None and public_event.end_date is not None:
+            public_event.end_date = None
             changed = True
     if changed:
         try:
@@ -406,17 +408,20 @@ def find_working_event(
     customer_id: Optional[str],
     host_id: Optional[str],
 ) -> Optional[EventManagement]:
-    """Draft first, then the host's active event, then the most recent event."""
+    """Prefer live/published, then draft/ready, then ended, then newest."""
     events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
         EventManagement.created_at.desc()
     ).all()
     if not events:
         return None
     for ev in events:
+        if is_event_active(ev):
+            return ev
+    for ev in events:
         if compute_event_lifecycle(ev) in ("draft", "ready_to_publish"):
             return ev
     for ev in events:
-        if is_event_active(ev):
+        if compute_event_lifecycle(ev) == "ended":
             return ev
     return events[0]
 
@@ -1120,6 +1125,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             end_date=end_dt,
             price=min_price,
             event_format=event_mgt.event_mode or "In-person",
+            duration=getattr(event_mgt, "duration", None),
             is_published=True,
             is_cancelled=False,
             customer_id=event_mgt.customer_id,
@@ -1143,6 +1149,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             public_event.longitude = event_mgt.longitude
         public_event.category = normalize_category(event_mgt.event_category) or event_mgt.event_category or public_event.category
         public_event.event_format = event_mgt.event_mode or public_event.event_format
+        public_event.duration = getattr(event_mgt, "duration", None)
         if image_url:
             public_event.image_url = image_url
         if card_image:
@@ -1199,6 +1206,7 @@ class SaveManageEventRequest(BaseModel):
     event_end_date: Optional[str] = None
     event_start_time: Optional[str] = None
     event_end_time: Optional[str] = None
+    duration: Optional[str] = None
     venue: Optional[str] = None
     address: Optional[str] = None
     latitude: Optional[float] = None
@@ -1474,6 +1482,8 @@ def save_manage_event(
             event.event_status = "draft"
     if payload.event_start_time is not None: event.event_start_time = payload.event_start_time
     if payload.event_end_time is not None: event.event_end_time = payload.event_end_time
+    if payload.duration is not None:
+        event.duration = sanitize_text(payload.duration, max_length=20) or None
     if payload.event_start_date:
         try:
             event.event_start_date = _parse_incoming_datetime(payload.event_start_date)
@@ -1484,11 +1494,7 @@ def save_manage_event(
             event.event_end_date = _parse_incoming_datetime(payload.event_end_date)
         except Exception:
             pass
-    if event.event_start_date and not event.event_end_date:
-        try:
-            event.event_end_date = event.event_start_date + timedelta(hours=4)
-        except Exception:
-            pass
+    # Do not invent start+4h when end is blank — that prematurely ended live events.
     if payload.tickets_json is not None: event.tickets_json = payload.tickets_json
     if payload.agenda_json is not None: event.agenda_json = payload.agenda_json
     if payload.policies_json is not None: event.policies_json = payload.policies_json
@@ -1559,6 +1565,7 @@ def save_manage_event(
             "latitude": getattr(event, "latitude", None),
             "longitude": getattr(event, "longitude", None),
             "event_status": event.event_status,
+            "duration": getattr(event, "duration", None),
             "tickets": event.tickets_json,
             "agenda": event.agenda_json,
             "policies": event.policies_json,
@@ -1826,6 +1833,7 @@ def get_current_host_event(
             "event_end_date": end_local,
             "event_start_time": event.event_start_time,
             "event_end_time": event.event_end_time,
+            "duration": getattr(event, "duration", None),
             "tickets": event.tickets_json,
             "agenda": event.agenda_json,
             "policies": event.policies_json,

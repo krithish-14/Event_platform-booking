@@ -114,9 +114,9 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=19"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=21"));
 	const footerEl = document.getElementById("footer");
-	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=2"));
+	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=4"));
 
 	window.includesReady = Promise.all(promises).then(() => {
 		updateNavigation();
