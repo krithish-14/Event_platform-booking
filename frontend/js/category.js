@@ -67,9 +67,8 @@
 				sports: "Sports",
 				conferences: "Conferences",
 				performances: "Performances",
-				experiences: "Experiences",
-				expositions: "Expositions",
-				parties: "Parties"
+				parties: "Parties",
+				workshops: "Workshops"
 			};
 			filterState.category = canonical[initialCategory.toLowerCase()] || initialCategory;
 			syncSidebarChipState("filterCategoriesList", filterState.category);

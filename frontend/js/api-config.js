@@ -191,6 +191,7 @@
 
 	function rewriteAssetAttribute(el, attr) {
 		if (!el || !el.getAttribute) return;
+		if (el.getAttribute("data-no-cdn") === "1") return;
 		var value = el.getAttribute(attr);
 		if (!value) return;
 		var trimmed = String(value).trim();

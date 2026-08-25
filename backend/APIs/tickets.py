@@ -275,8 +275,8 @@ def checkin_ticket_entry(
 
 
 @router.get("/public/{qr_token}/pdf")
-def download_public_ticket_pdf(qr_token: str, db: Session = Depends(get_db)):
-    """Same M-ticket PDF attached to the confirmation email."""
+def download_public_ticket_pdf(qr_token: str, kind: str = "ticket", db: Session = Depends(get_db)):
+    """Same M-ticket PDF attached to the confirmation email. Use kind=invoice to omit the QR."""
     from APIs.bookings import _lookup_booking_row, _ticket_pdf_http_response
 
     ticket = _lookup_ticket(db, qr_token)
@@ -285,7 +285,12 @@ def download_public_ticket_pdf(qr_token: str, db: Session = Depends(get_db)):
     booking = _lookup_booking_row(db, ticket.booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
-    return _ticket_pdf_http_response(booking, db, (ticket.qr_token or qr_token or "").strip())
+    return _ticket_pdf_http_response(
+        booking,
+        db,
+        (ticket.qr_token or qr_token or "").strip(),
+        kind=kind,
+    )
 
 
 @router.get("/public/{qr_token}")

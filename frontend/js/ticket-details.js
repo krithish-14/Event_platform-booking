@@ -431,6 +431,7 @@
 
 	function printTicketCardOnly(bookingData, options) {
 		const includeAgenda = Boolean(options && options.includeAgenda);
+		const mode = (options && options.mode) === "invoice" ? "invoice" : "ticket";
 		const source = document.getElementById("printableTicketArea");
 		if (!source) {
 			window.print();
@@ -442,7 +443,9 @@
 
 		const shortId = ((bookingData && bookingData.booking_id) || "ticket").substring(0, 8).toUpperCase();
 		const eventTitle = (bookingData && bookingData.event_title) || "JOD Ticket";
-		const printTitle = includeAgenda ? `JOD-Ticket-Agenda-${shortId}` : `JOD-Ticket-${shortId}`;
+		const printTitle = mode === "invoice"
+			? `JOD-Invoice-${shortId}`
+			: (includeAgenda ? `JOD-Ticket-Agenda-${shortId}` : `JOD-Ticket-${shortId}`);
 		const agendaHtml = includeAgenda ? buildPrintAgendaHtml(bookingData) : "";
 
 		const iframe = document.createElement("iframe");
@@ -453,6 +456,9 @@
 		const doc = iframe.contentDocument || iframe.contentWindow.document;
 		const clone = source.cloneNode(true);
 		clone.querySelectorAll(".mticket-toggle-btn, .mticket-support-row, .mticket-notch, .mticket-savings-badge").forEach((n) => n.remove());
+		if (mode === "invoice") {
+			clone.querySelectorAll(".mticket-qr-block").forEach((n) => n.remove());
+		}
 		const collapsed = clone.querySelector(".mticket-collapsible-content");
 		if (collapsed) collapsed.classList.remove("collapsed");
 
@@ -544,14 +550,17 @@
 		});
 	}
 
-	async function downloadOfficialTicketPdf(bookingData) {
+	async function downloadOfficialTicketPdf(bookingData, options) {
+		const kind = (options && options.kind) === "invoice" ? "invoice" : "ticket";
 		const apiBase = getApiBase();
 		const token = (bookingData && bookingData.qr_token) || getQueryParam("token") || getQueryParam("qr");
 		const id = (bookingData && bookingData.booking_id) || getQueryParam("id") || getQueryParam("booking_id");
+		const qs = kind === "invoice" ? "?kind=invoice" : "";
 		const url = token
-			? `${apiBase}/api/tickets/public/${encodeURIComponent(token)}/pdf`
-			: `${apiBase}/api/bookings/${encodeURIComponent(id)}/pdf`;
+			? `${apiBase}/api/tickets/public/${encodeURIComponent(token)}/pdf${qs}`
+			: `${apiBase}/api/bookings/${encodeURIComponent(id)}/pdf${qs}`;
 		try {
+			if (kind === "ticket" && !token && !id) throw new Error("missing");
 			const res = token
 				? await fetch(url, { cache: "no-store", credentials: "include" })
 				: await authFetch(url, { allowGuest: true });
@@ -562,14 +571,14 @@
 			const href = URL.createObjectURL(blob);
 			const a = document.createElement("a");
 			a.href = href;
-			a.download = `JOD-Ticket-${short}.pdf`;
+			a.download = kind === "invoice" ? `JOD-Invoice-${short}.pdf` : `JOD-Ticket-${short}.pdf`;
 			document.body.appendChild(a);
 			a.click();
 			a.remove();
 			setTimeout(() => URL.revokeObjectURL(href), 2000);
 			return;
 		} catch (_) {
-			printTicketCardOnly(bookingData, { includeAgenda: false });
+			printTicketCardOnly(bookingData, { includeAgenda: false, mode: kind });
 		}
 	}
 
@@ -602,11 +611,11 @@
 		});
 
 		btnDownloadTicket?.addEventListener("click", () => {
-			downloadOfficialTicketPdf(bookingData);
+			downloadOfficialTicketPdf(bookingData, { kind: "ticket" });
 		});
 
 		btnDownloadInvoice?.addEventListener("click", () => {
-			printTicketCardOnly(bookingData, { includeAgenda: false });
+			downloadOfficialTicketPdf(bookingData, { kind: "invoice" });
 		});
 	}
 

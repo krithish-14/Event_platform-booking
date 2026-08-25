@@ -150,8 +150,48 @@ def _add_address_part(parts: list, value: Optional[str]) -> None:
     parts.append(val)
 
 
-def format_street_area_pin(address: Optional[dict], display_name: str = "", namedetails: Optional[dict] = None) -> str:
-    """Build an English street / area / city / pincode line from Nominatim fields."""
+def _poi_from_hit(address: Optional[dict], namedetails: Optional[dict] = None, feature_name: str = "") -> str:
+    """Named building / place at the pin: Express Avenue, Phoenix, a hotel, etc."""
+    addr = address or {}
+    names = namedetails or {}
+    extra = addr.get("_extratags") if isinstance(addr.get("_extratags"), dict) else {}
+    return _pick_english(
+        names.get("name:en"),
+        extra.get("name:en"),
+        extra.get("building:name"),
+        names.get("name"),
+        extra.get("name"),
+        feature_name,
+        addr.get("building"),
+        addr.get("amenity"),
+        addr.get("shop"),
+        addr.get("office"),
+        addr.get("leisure"),
+        addr.get("club"),
+        addr.get("tourism"),
+        addr.get("hotel"),
+        addr.get("university"),
+        addr.get("college"),
+        addr.get("school"),
+        addr.get("hospital"),
+        addr.get("clinic"),
+        addr.get("railway"),
+        addr.get("public_building"),
+        addr.get("commercial"),
+        addr.get("retail"),
+        addr.get("industrial"),
+        addr.get("house_name"),
+        addr.get("place"),
+    )
+
+
+def format_street_area_pin(
+    address: Optional[dict],
+    display_name: str = "",
+    namedetails: Optional[dict] = None,
+    feature_name: str = "",
+) -> str:
+    """Building name, street, area, city, pincode — specific enough for a venue pin."""
     addr = address or {}
     house = _pick_english(addr.get("house_number"))
     road = _pick_english(
@@ -159,15 +199,12 @@ def format_street_area_pin(address: Optional[dict], display_name: str = "", name
         addr.get("pedestrian"),
         addr.get("residential"),
         addr.get("street"),
+        addr.get("footway"),
+        addr.get("path"),
     )
-    poi = _pick_english(
-        addr.get("building"),
-        addr.get("amenity"),
-        addr.get("shop"),
-        addr.get("tourism"),
-        addr.get("railway"),
-        addr.get("public_building"),
-    )
+    poi = _poi_from_hit(addr, namedetails, feature_name)
+    if poi and road and poi.lower() == road.lower():
+        poi = ""
     neighbourhood = _pick_english(
         addr.get("neighbourhood"),
         addr.get("quarter"),
@@ -252,6 +289,55 @@ async def _nearby_locality_name(lat: float, lon: float) -> str:
     return best_name
 
 
+async def _nearby_building_name(lat: float, lon: float) -> str:
+    """Nearest named building / shop / office within ~50m of the pin."""
+    query = (
+        "[out:json][timeout:6];"
+        "("
+        f'way["building"]["name"](around:50,{lat},{lon});'
+        f'node["building"]["name"](around:50,{lat},{lon});'
+        f'nwr["amenity"]["name"](around:40,{lat},{lon});'
+        f'nwr["shop"]["name"](around:40,{lat},{lon});'
+        f'nwr["office"]["name"](around:40,{lat},{lon});'
+        f'nwr["tourism"]["name"](around:40,{lat},{lon});'
+        f'nwr["leisure"]["name"](around:40,{lat},{lon});'
+        ");"
+        "out tags center 20;"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=7.0) as client:
+            resp = await client.post(
+                OVERPASS_URL,
+                data={"data": query},
+                headers=NOMINATIM_HEADERS,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+    except (httpx.RequestError, httpx.HTTPStatusError, ValueError):
+        return ""
+
+    best_name = ""
+    best_dist = None
+    for el in payload.get("elements") or []:
+        tags = el.get("tags") or {}
+        name = _clean_admin_label(tags.get("name:en") or tags.get("name"))
+        if not _is_english_part(name) or _is_admin_locality(name):
+            continue
+        if el.get("type") == "node":
+            elat, elon = el.get("lat"), el.get("lon")
+        else:
+            center = el.get("center") or {}
+            elat, elon = center.get("lat"), center.get("lon")
+        try:
+            dist = (float(elat) - lat) ** 2 + (float(elon) - lon) ** 2
+        except (TypeError, ValueError):
+            dist = 9.0
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_name = name
+    return best_name
+
+
 async def _nominatim_reverse(lat: float, lon: float, zoom: int = 18) -> dict:
     params = {
         "lat": lat,
@@ -259,6 +345,7 @@ async def _nominatim_reverse(lat: float, lon: float, zoom: int = 18) -> dict:
         "format": "jsonv2",
         "addressdetails": 1,
         "namedetails": 1,
+        "extratags": 1,
         "zoom": zoom,
         "accept-language": "en",
     }
@@ -300,18 +387,29 @@ async def _reverse_geocode(lat: float, lon: float) -> dict:
 
 
 async def _resolve_area_address(lat: float, lon: float) -> dict:
-    """Street-level English area address for a dropped pin."""
+    """Street-level English venue address for a dropped pin, including building name."""
     hit = await _nominatim_reverse(lat, lon, zoom=18)
     address = dict(hit.get("address") or {})
+    namedetails = dict(hit.get("namedetails") or {})
+    extra = dict(hit.get("extratags") or {})
+    if extra:
+        address["_extratags"] = extra
     neighbourhood = address.get("neighbourhood") or ""
     if _is_admin_locality(neighbourhood) or not _clean_admin_label(neighbourhood):
         nearby = await _nearby_locality_name(lat, lon)
         if nearby:
             address["neighbourhood"] = nearby
+    poi = _poi_from_hit(address, namedetails, hit.get("name") or "")
+    if not poi:
+        nearby_building = await _nearby_building_name(lat, lon)
+        if nearby_building:
+            address["building"] = nearby_building
+            poi = nearby_building
     formatted = format_street_area_pin(
         address,
         hit.get("display_name") or "",
-        hit.get("namedetails") or {},
+        namedetails,
+        feature_name=hit.get("name") or poi or "",
     )
     city = _friendly_city(
         _pick_english(
@@ -323,11 +421,12 @@ async def _resolve_area_address(lat: float, lon: float) -> dict:
         None,
     )
     pin = re.sub(r"\s+", "", str(address.get("postcode") or "")) or None
+    public_address = {k: v for k, v in address.items() if k != "_extratags"}
     return {
         "formatted": formatted,
         "city": city,
         "pincode": pin,
-        "address": address,
+        "address": public_address,
         "display_name": hit.get("display_name"),
         "boundingbox": _bbox_from_hit(hit),
     }
@@ -637,6 +736,7 @@ async def venue_search(q: str):
         address,
         hit.get("display_name") or hit.get("name") or "",
         hit.get("namedetails") or {},
+        feature_name=hit.get("name") or "",
     )
     return {
         "formatted": formatted,

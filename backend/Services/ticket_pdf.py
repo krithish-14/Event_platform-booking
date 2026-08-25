@@ -176,8 +176,9 @@ def _draw_image(name: str, x: float, y: float, w: float, h: float) -> str:
     return f"q {w:.1f} 0 0 {h:.1f} {x:.1f} {y:.1f} cm /{name} Do Q"
 
 
-def ticket_pdf_filename(booking_id) -> str:
-    return f"JOD-Ticket-{_short_booking_id(booking_id)}.pdf"
+def ticket_pdf_filename(booking_id, kind: str = "ticket") -> str:
+    prefix = "JOD-Invoice" if str(kind).strip().lower() == "invoice" else "JOD-Ticket"
+    return f"{prefix}-{_short_booking_id(booking_id)}.pdf"
 
 
 def build_mticket_pdf_bytes(
@@ -196,6 +197,7 @@ def build_mticket_pdf_bytes(
     poster_url: str = "",
     seat_number: str = "General Admission",
     payment_mode: str = "",
+    include_qr: bool = True,
 ) -> Optional[bytes]:
     """One-page M-ticket PDF. Returns None if assembly fails."""
     try:
@@ -215,8 +217,10 @@ def build_mticket_pdf_bytes(
             gst = round(total * 0.18, 2)
         subtotal = max(0.0, total - gst)
         booking_label = f"JOD-{_short_booking_id(booking_id)}"
-        qr_jpeg = _fetch_qr_jpeg(qr_token)
+        show_qr = bool(include_qr)
+        qr_jpeg = _fetch_qr_jpeg(qr_token) if show_qr else b""
         poster_jpeg = _fetch_jpeg(_absolute_media_url(poster_url)) if poster_url else b""
+        badge_label = "INVOICE" if not show_qr else "M-TICKET"
 
         # A4 page, white ticket card centered.
         card_x, card_y, card_w, card_h = 72.0, 90.0, 451.0, 662.0
@@ -270,7 +274,7 @@ def build_mticket_pdf_bytes(
             "/F2 10 Tf 0.42 0.45 0.50 rg",
             f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_label[:42])}) Tj",
             "/F1 8 Tf 0.62 0.65 0.70 rg",
-            f"1 0 0 1 {inner_right - 52:.1f} {y - 8:.1f} Tm ({_pdf_escape('M-TICKET')}) Tj",
+            f"1 0 0 1 {inner_right - 52:.1f} {y - 8:.1f} Tm ({_pdf_escape(badge_label)}) Tj",
             "ET",
         ])
 
@@ -288,50 +292,64 @@ def build_mticket_pdf_bytes(
             "ET",
         ])
 
-        qr_top = block_top - 64
-        qr_size = 168.0
-        qr_x = card_x + (card_w - qr_size) / 2
-        qr_y = qr_top - qr_size
-        if qr_jpeg:
-            qw, qh = _jpeg_dimensions(qr_jpeg)
-            xobjects["ImQ"] = (qr_jpeg, qw, qh)
+        if show_qr:
+            qr_top = block_top - 64
+            qr_size = 168.0
+            qr_x = card_x + (card_w - qr_size) / 2
+            qr_y = qr_top - qr_size
+            if qr_jpeg:
+                qw, qh = _jpeg_dimensions(qr_jpeg)
+                xobjects["ImQ"] = (qr_jpeg, qw, qh)
+                ops.extend([
+                    "0.93 0.94 0.96 RG 1 w",
+                    f"{qr_x - 8:.1f} {qr_y - 8:.1f} {qr_size + 16:.1f} {qr_size + 16:.1f} re S",
+                    _draw_image("ImQ", qr_x, qr_y, qr_size, qr_size),
+                ])
+            else:
+                ops.extend([
+                    "0.97 0.98 0.99 rg 0.82 0.84 0.86 RG",
+                    f"{qr_x:.1f} {qr_y:.1f} {qr_size:.1f} {qr_size:.1f} re B",
+                    "BT /F2 11 Tf 0.42 0.45 0.50 rg",
+                    f"1 0 0 1 {qr_x + 36:.1f} {qr_y + 84:.1f} Tm ({_pdf_escape('QR pending')}) Tj ET",
+                ])
+            policy_y = qr_y - 46
             ops.extend([
-                "0.93 0.94 0.96 RG 1 w",
-                f"{qr_x - 8:.1f} {qr_y - 8:.1f} {qr_size + 16:.1f} {qr_size + 16:.1f} re S",
-                _draw_image("ImQ", qr_x, qr_y, qr_size, qr_size),
+                "BT",
+                "/F1 12 Tf 0.07 0.09 0.16 rg",
+                f"1 0 0 1 {card_x + (card_w - 148) / 2:.1f} {qr_y - 24:.1f} Tm ({_pdf_escape('BOOKING ID: ' + booking_label)}) Tj",
+                "/F2 9 Tf 0.42 0.45 0.50 rg",
+                f"1 0 0 1 {inner_x:.1f} {policy_y:.1f} Tm ({_pdf_escape('Cancellation available up to 24h prior to showtime')}) Tj",
+                "ET",
             ])
+            divider_y = card_y + 92
         else:
+            policy_y = block_top - 64
             ops.extend([
-                "0.97 0.98 0.99 rg 0.82 0.84 0.86 RG",
-                f"{qr_x:.1f} {qr_y:.1f} {qr_size:.1f} {qr_size:.1f} re B",
-                "BT /F2 11 Tf 0.42 0.45 0.50 rg",
-                f"1 0 0 1 {qr_x + 36:.1f} {qr_y + 84:.1f} Tm ({_pdf_escape('QR pending')}) Tj ET",
+                "BT",
+                "/F2 9 Tf 0.42 0.45 0.50 rg",
+                f"1 0 0 1 {inner_x:.1f} {policy_y:.1f} Tm ({_pdf_escape('Cancellation available up to 24h prior to showtime')}) Tj",
+                "ET",
             ])
+            divider_y = policy_y - 22
 
         ops.extend([
-            "BT",
-            "/F1 12 Tf 0.07 0.09 0.16 rg",
-            f"1 0 0 1 {card_x + (card_w - 148) / 2:.1f} {qr_y - 24:.1f} Tm ({_pdf_escape('BOOKING ID: ' + booking_label)}) Tj",
-            "/F2 9 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {inner_x:.1f} {qr_y - 46:.1f} Tm ({_pdf_escape('Cancellation available up to 24h prior to showtime')}) Tj",
-            "ET",
             "[6 4] 0 d 0.80 0.83 0.86 RG 1 w",
-            f"{inner_x:.1f} {card_y + 92:.1f} m {inner_right:.1f} {card_y + 92:.1f} l S",
+            f"{inner_x:.1f} {divider_y:.1f} m {inner_right:.1f} {divider_y:.1f} l S",
             "[] 0 d",
             "BT",
             "/F1 12 Tf 0.07 0.09 0.16 rg",
-            f"1 0 0 1 {inner_x:.1f} {card_y + 68:.1f} Tm ({_pdf_escape('Total Amount')}) Tj",
-            f"1 0 0 1 {inner_right - 78:.1f} {card_y + 68:.1f} Tm ({_pdf_escape(_money(total))}) Tj",
+            f"1 0 0 1 {inner_x:.1f} {divider_y - 24:.1f} Tm ({_pdf_escape('Total Amount')}) Tj",
+            f"1 0 0 1 {inner_right - 78:.1f} {divider_y - 24:.1f} Tm ({_pdf_escape(_money(total))}) Tj",
             "/F2 9 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {inner_x:.1f} {card_y + 50:.1f} Tm ({_pdf_escape(f'Ticket price (x{qty})')}) Tj",
-            f"1 0 0 1 {inner_right - 78:.1f} {card_y + 50:.1f} Tm ({_pdf_escape(_money(subtotal))}) Tj",
-            f"1 0 0 1 {inner_x:.1f} {card_y + 36:.1f} Tm ({_pdf_escape('Convenience fee & GST (18%)')}) Tj",
-            f"1 0 0 1 {inner_right - 78:.1f} {card_y + 36:.1f} Tm ({_pdf_escape(_money(gst))}) Tj",
+            f"1 0 0 1 {inner_x:.1f} {divider_y - 42:.1f} Tm ({_pdf_escape(f'Ticket price (x{qty})')}) Tj",
+            f"1 0 0 1 {inner_right - 78:.1f} {divider_y - 42:.1f} Tm ({_pdf_escape(_money(subtotal))}) Tj",
+            f"1 0 0 1 {inner_x:.1f} {divider_y - 56:.1f} Tm ({_pdf_escape('Convenience fee & GST (18%)')}) Tj",
+            f"1 0 0 1 {inner_right - 78:.1f} {divider_y - 56:.1f} Tm ({_pdf_escape(_money(gst))}) Tj",
         ])
         if payment_mode:
             ops.extend([
-                f"1 0 0 1 {inner_x:.1f} {card_y + 22:.1f} Tm ({_pdf_escape('Payment Mode')}) Tj",
-                f"1 0 0 1 {inner_right - 110:.1f} {card_y + 22:.1f} Tm ({_pdf_escape(_ascii_text(payment_mode)[:22])}) Tj",
+                f"1 0 0 1 {inner_x:.1f} {divider_y - 70:.1f} Tm ({_pdf_escape('Payment Mode')}) Tj",
+                f"1 0 0 1 {inner_right - 110:.1f} {divider_y - 70:.1f} Tm ({_pdf_escape(_ascii_text(payment_mode)[:22])}) Tj",
             ])
         ops.append("ET")
 
@@ -367,7 +385,7 @@ def build_mticket_pdf_bytes(
         return None
 
 
-def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None) -> Optional[bytes]:
+def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None, include_qr: bool = True) -> Optional[bytes]:
     """Build the M-ticket PDF from a Booking ORM row."""
     event = getattr(booking, "event", None)
     token = (qr_token or "").strip()
@@ -398,6 +416,7 @@ def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None) -> Opti
         poster_url=poster,
         seat_number=getattr(booking, "seat_number", None) or "General Admission",
         payment_mode=getattr(booking, "payment_mode", None) or "",
+        include_qr=include_qr,
     )
 
 
@@ -417,6 +436,7 @@ def build_ticket_pdf_bytes(
     poster_url: str = "",
     seat_number: str = "General Admission",
     payment_mode: str = "",
+    include_qr: bool = True,
 ) -> Optional[bytes]:
     """Compatibility wrapper — same M-ticket PDF as email and download."""
     return build_mticket_pdf_bytes(
@@ -434,4 +454,5 @@ def build_ticket_pdf_bytes(
         poster_url=poster_url,
         seat_number=seat_number,
         payment_mode=payment_mode,
+        include_qr=include_qr,
     )

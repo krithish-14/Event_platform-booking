@@ -133,6 +133,9 @@ window.JodInbox = (() => {
 		const date = new Date(iso);
 		if (Number.isNaN(date.getTime())) return "";
 		const sec = Math.round((Date.now() - date.getTime()) / 1000);
+		if (sec < -86400) return `In ${Math.ceil(Math.abs(sec) / 86400)} days`;
+		if (sec < -3600) return `In ${Math.ceil(Math.abs(sec) / 3600)} hours`;
+		if (sec < 0) return "Soon";
 		if (sec < 60) return "Just now";
 		if (sec < 3600) return `${Math.floor(sec / 60)} min ago`;
 		if (sec < 86400) return `${Math.floor(sec / 3600)} hours ago`;
@@ -144,6 +147,29 @@ window.JodInbox = (() => {
 		const date = new Date(iso);
 		if (Number.isNaN(date.getTime())) return null;
 		return Math.ceil((date.getTime() - Date.now()) / 86400000);
+	}
+
+	function isFlagTrue(value) {
+		return value === true || value === 1 || String(value || "").toLowerCase() === "true";
+	}
+
+	function sortMillis(iso, extra) {
+		const t = new Date(iso || 0).getTime();
+		return (Number.isNaN(t) ? 0 : t) + (Number(extra) || 0);
+	}
+
+	function ticketHref(bookingId) {
+		return bookingId ? `ticket-details.html?id=${encodeURIComponent(bookingId)}` : "orders.html";
+	}
+
+	function eventHref(eventId) {
+		return eventId ? `event-details.html?id=${encodeURIComponent(eventId)}` : "index.html";
+	}
+
+	function reminderLabels(days) {
+		if (days === 0) return { when: "today", time: "Today" };
+		if (days === 1) return { when: "tomorrow", time: "Tomorrow" };
+		return { when: `in ${days} days`, time: `In ${days} days` };
 	}
 
 	function injectStyles() {
@@ -287,87 +313,121 @@ window.JodInbox = (() => {
 			const res = await authFetch(`${apiBase()}/api/bookings/my-bookings`);
 			if (res.ok) {
 				const bookings = await res.json();
-				(Array.isArray(bookings) ? bookings : []).forEach((b) => {
+				const list = Array.isArray(bookings) ? bookings : [];
+				const cancelMap = {};
+				const missingIds = [...new Set(list
+					.filter((b) => b && b.event_id && b.event_is_cancelled == null)
+					.map((b) => String(b.event_id)))];
+				await Promise.all(missingIds.map(async (id) => {
+					try {
+						const evRes = await authFetch(`${apiBase()}/api/events/${encodeURIComponent(id)}`);
+						if (evRes.status === 404) {
+							cancelMap[id] = true;
+							return;
+						}
+						if (!evRes.ok) return;
+						const ev = await evRes.json();
+						cancelMap[id] = isFlagTrue(ev.is_cancelled);
+					} catch (_) {}
+				}));
+				list.forEach((b) => {
 					const bookingId = String(b.booking_id || "");
+					const eventId = String(b.event_id || "");
 					const title = b.event_title || "your event";
 					const qty = b.quantity || 1;
 					const type = b.ticket_type || "ticket";
 					const status = String(b.status || "").toUpperCase();
-					const href = bookingId ? `ticket-details.html?id=${encodeURIComponent(bookingId)}` : "orders.html";
+					const ticketStatus = String(b.ticket_status || "").toUpperCase();
+					const eventCancelled = isFlagTrue(b.event_is_cancelled) || isFlagTrue(cancelMap[eventId]);
+					const bookingCancelled = status === "CANCELLED";
+					const liveCancelled = eventCancelled || bookingCancelled;
 
-					if (prefs.bookingEmails) {
-						if (status === "CANCELLED") {
-							const id = `booking-cancelled-${bookingId}`;
-							if (!clearedIds.has(id)) {
-								const plain = `Your ${type} for ${title} was cancelled.`;
-								items.push({
-									id,
-									icon: "🎟️",
-									title: "Booking cancelled",
-									time: timeAgo(b.booked_at),
-									unread: !readIds.has(id),
-									href,
-									plain,
-									html: `Your ${escapeHtml(type)} for <strong>${escapeHtml(title)}</strong> was cancelled.`,
-									sort: new Date(b.booked_at || 0).getTime() + 1,
-								});
-							}
-						} else {
-							const id = `booking-confirmed-${bookingId}`;
-							if (!clearedIds.has(id)) {
-								const plain = `Your ${qty} × ${type} for ${title} is confirmed.`;
-								items.push({
-									id,
-									icon: "🎟️",
-									title: "Booking confirmed",
-									time: timeAgo(b.booked_at),
-									unread: !readIds.has(id),
-									href,
-									plain,
-									html: `Your ${escapeHtml(String(qty))} × ${escapeHtml(type)} for <strong>${escapeHtml(title)}</strong> ${qty > 1 ? "are" : "is"} confirmed. E-tickets are in <span style="color:var(--primary);font-weight:600;">Your Orders</span>.`,
-									sort: new Date(b.booked_at || 0).getTime(),
-								});
-							}
+					if (prefs.bookingEmails && liveCancelled) {
+						const id = eventCancelled
+							? `event-cancelled-${eventId || bookingId}`
+							: `booking-cancelled-${bookingId}`;
+						if (!clearedIds.has(id)) {
+							const cancelAt = b.event_updated_at || b.booked_at;
+							const plain = eventCancelled
+								? `${title} was cancelled by the host.`
+								: `Your ${type} for ${title} was cancelled.`;
+							items.push({
+								id,
+								kind: eventCancelled ? "event_cancelled" : "booking_cancelled",
+								icon: "🚫",
+								title: eventCancelled ? "Event cancelled" : "Booking cancelled",
+								time: timeAgo(cancelAt),
+								unread: !readIds.has(id),
+								href: "orders.html",
+								plain,
+								html: eventCancelled
+									? `<strong>${escapeHtml(title)}</strong> was cancelled by the host. Your booking is in <span style="color:var(--primary);font-weight:600;">Your Orders</span>.`
+									: `Your ${escapeHtml(type)} for <strong>${escapeHtml(title)}</strong> was cancelled.`,
+								sort: sortMillis(cancelAt, 2),
+							});
+						}
+					} else if (prefs.bookingEmails) {
+						const id = `booking-confirmed-${bookingId}`;
+						if (!clearedIds.has(id)) {
+							const plain = `Your ${qty} × ${type} for ${title} is confirmed.`;
+							items.push({
+								id,
+								kind: "booking_confirmed",
+								icon: "🎟️",
+								title: "Booking confirmed",
+								time: timeAgo(b.booked_at),
+								unread: !readIds.has(id),
+								href: "orders.html",
+								plain,
+								html: `Your ${escapeHtml(String(qty))} × ${escapeHtml(type)} for <strong>${escapeHtml(title)}</strong> ${qty > 1 ? "are" : "is"} confirmed. E-tickets are in <span style="color:var(--primary);font-weight:600;">Your Orders</span>.`,
+								sort: sortMillis(b.booked_at),
+							});
 						}
 					}
 
-					const ticketStatus = String(b.ticket_status || "").toUpperCase();
-					if (status !== "CANCELLED" && ticketStatus === "USED") {
+					if (!liveCancelled && ticketStatus === "USED") {
 						const id = `booking-checkedin-${bookingId}`;
 						if (!clearedIds.has(id)) {
 							const plain = `You're checked in for ${title}.`;
 							items.push({
 								id,
+								kind: "booking_checkedin",
 								icon: "✅",
 								title: "Checked in successfully",
 								time: timeAgo(b.used_at || b.booked_at),
 								unread: !readIds.has(id),
-								href,
+								href: ticketHref(bookingId),
 								plain,
 								html: `You're checked in for <strong>${escapeHtml(title)}</strong>. Enjoy the event!`,
-								sort: new Date(b.used_at || b.booked_at || 0).getTime() + 20000,
+								sort: sortMillis(b.used_at || b.booked_at, 20000),
 							});
 						}
 					}
 
-					if (prefs.eventReminders && status !== "CANCELLED" && b.event_start_date) {
+					if (
+						prefs.eventReminders
+						&& !liveCancelled
+						&& ticketStatus !== "USED"
+						&& b.event_start_date
+					) {
 						const days = daysUntil(b.event_start_date);
 						if (days != null && days >= 0 && days <= 7) {
 							const id = `remind-${bookingId}`;
 							if (!clearedIds.has(id)) {
-								const when = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+								const labels = reminderLabels(days);
 								const venue = b.event_venue ? ` at ${b.event_venue}` : "";
-								const plain = `${title} starts ${when}${venue}.`;
+								const plain = `${title} starts ${labels.when}${venue}.`;
 								items.push({
 									id,
+									kind: "event_reminder",
 									icon: "✨",
 									title: "Upcoming event reminder",
-									time: timeAgo(b.event_start_date),
+									time: labels.time,
 									unread: !readIds.has(id),
-									href,
+									href: eventHref(eventId),
 									plain,
-									html: `<strong>${escapeHtml(title)}</strong> starts ${when}${b.event_venue ? " at " + escapeHtml(b.event_venue) : ""}.`,
-									sort: Date.now() + (7 - days),
+									html: `<strong>${escapeHtml(title)}</strong> starts ${labels.when}${b.event_venue ? " at " + escapeHtml(b.event_venue) : ""}.`,
+									sort: sortMillis(b.event_start_date),
 								});
 							}
 						}
@@ -383,19 +443,22 @@ window.JodInbox = (() => {
 					const events = await res.json();
 					const list = Array.isArray(events) ? events : (events.items || events.events || []);
 					list.slice(0, 2).forEach((ev) => {
-						const id = `offer-${ev.id || ev.event_id || ev.title}`;
+						if (isFlagTrue(ev.is_cancelled)) return;
+						const eventId = ev.id || ev.event_id;
+						const id = `offer-${eventId || ev.title}`;
 						if (clearedIds.has(id)) return;
 						const title = ev.title || "a new event";
 						items.push({
 							id,
+							kind: "event_offer",
 							icon: "🎁",
 							title: "Event recommendation",
 							time: timeAgo(ev.start_date || ev.created_at),
 							unread: !readIds.has(id),
-							href: ev.id ? `event-details.html?id=${encodeURIComponent(ev.id)}` : "index.html",
+							href: eventHref(eventId),
 							plain: `You might like ${title}.`,
 							html: `You might like <strong>${escapeHtml(title)}</strong>${ev.venue ? " at " + escapeHtml(ev.venue) : ""}.`,
-							sort: new Date(ev.start_date || ev.created_at || 0).getTime(),
+							sort: sortMillis(ev.start_date || ev.created_at),
 						});
 					});
 				}
@@ -413,17 +476,18 @@ window.JodInbox = (() => {
 					const message = row.message || `A new event is upcoming in ${place}.`;
 					items.push({
 						id,
+						kind: row.kind || "event_published",
 						icon: "📍",
 						title: row.title || "New upcoming event",
 						time: timeAgo(row.created_at),
 						unread: !readIds.has(id),
-						href: row.href || (row.event_id ? `event-details.html?id=${encodeURIComponent(row.event_id)}` : "index.html#upcoming"),
+						href: row.href || eventHref(row.event_id) || "index.html#upcoming",
 						plain: message,
 						html: escapeHtml(message).replace(
 							escapeHtml(place),
 							`<strong>${escapeHtml(place)}</strong>`
 						),
-						sort: new Date(row.created_at || 0).getTime() + 5000,
+						sort: sortMillis(row.created_at, 5000),
 					});
 				});
 			}
@@ -441,6 +505,9 @@ window.JodInbox = (() => {
 		}
 		const items = await collectItems();
 		updateBadge(unreadCount(items));
+		try {
+			window.dispatchEvent(new CustomEvent("jod:inbox-updated", { detail: { items } }));
+		} catch (_) {}
 
 		if (opts.toastNew) {
 			const known = readJson(KNOWN_KEY, null);
@@ -466,6 +533,7 @@ window.JodInbox = (() => {
 			if (bookingId && /ticket-details\.html/i.test(window.location.pathname || "")) {
 				markRead(`booking-confirmed-${bookingId}`);
 				markRead(`booking-cancelled-${bookingId}`);
+				markRead(`booking-checkedin-${bookingId}`);
 				markRead(`remind-${bookingId}`);
 			}
 			hydrateStateFromServer().then(() => refresh({ toastNew: true }));

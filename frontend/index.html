@@ -21,9 +21,9 @@
 	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<script src="js/theme.js?v=8"></script>
-		<script src="js/api-config.js?v=4"></script>
-	<link rel="stylesheet" href="css/style.css?v=38" />
-	<link rel="stylesheet" href="css/responsive.css?v=41" />
+		<script src="js/api-config.js?v=5"></script>
+	<link rel="stylesheet" href="css/style.css?v=39" />
+	<link rel="stylesheet" href="css/responsive.css?v=42" />
 </head>
 
 <body class="home-page">
@@ -161,8 +161,11 @@
 							<div class="carousel-track category-track" data-category-track>
 								<article class="category-card carousel-slide reveal" style="cursor: pointer;"
 									onclick="window.location.href='category.html?name=Sports'" data-category-name="Sports">
-									<div class="category-card-inner"
+									<div class="category-card-inner has-photo"
 										style="--cat-gradient: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);">
+										<img class="category-card-photo" data-no-cdn="1" alt="Sports"
+											src="https://assets.jodevents.com/images/categories/sports.webp"
+											onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='images/categories/sports.webp';}" />
 										<div class="category-bg-overlay"></div>
 										<div class="category-content">
 											<h3>Sports</h3>
@@ -172,8 +175,11 @@
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-1" style="cursor: pointer;"
 									onclick="window.location.href='category.html?name=Conferences'" data-category-name="Conferences">
-									<div class="category-card-inner"
+									<div class="category-card-inner has-photo"
 										style="--cat-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+										<img class="category-card-photo" data-no-cdn="1" alt="Conferences"
+											src="https://assets.jodevents.com/images/categories/conference.webp"
+											onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='images/categories/conference.webp';}" />
 										<div class="category-bg-overlay"></div>
 										<div class="category-content">
 											<h3>Conferences</h3>
@@ -183,8 +189,11 @@
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-2" style="cursor: pointer;"
 									onclick="window.location.href='category.html?name=Performances'" data-category-name="Performances">
-									<div class="category-card-inner"
+									<div class="category-card-inner has-photo"
 										style="--cat-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+										<img class="category-card-photo" data-no-cdn="1" alt="Performances"
+											src="https://assets.jodevents.com/images/categories/performance.webp"
+											onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='images/categories/performance.webp';}" />
 										<div class="category-bg-overlay"></div>
 										<div class="category-content">
 											<h3>Performances</h3>
@@ -192,50 +201,34 @@
 										</div>
 									</div>
 								</article>
-								<article class="category-card carousel-slide reveal reveal-delay-3" style="cursor: pointer;"
-									onclick="window.location.href='category.html?name=Experiences'" data-category-name="Experiences">
-									<div class="category-card-inner"
-										style="--cat-gradient: linear-gradient(135deg, #30cfd0 0%, #330867 100%);">
+								<article class="category-card carousel-slide reveal reveal-delay-1" style="cursor: pointer;"
+									onclick="window.location.href='category.html?name=Parties'" data-category-name="Parties">
+									<div class="category-card-inner has-photo"
+										style="--cat-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+										<img class="category-card-photo" data-no-cdn="1" alt="Parties"
+											src="https://assets.jodevents.com/images/categories/parties.webp"
+											onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='images/categories/parties.webp';}" />
 										<div class="category-bg-overlay"></div>
 										<div class="category-content">
-											<h3>Experiences</h3>
-											<span class="category-count" data-category-count="Experiences">0 Events</span>
+											<h3>Parties</h3>
+											<span class="category-count" data-category-count="Parties">0 Events</span>
 										</div>
 									</div>
 								</article>
-								<article class="category-card carousel-slide reveal" style="cursor: pointer;"
-									onclick="window.location.href='category.html?name=Expositions'" data-category-name="Expositions">
-									<div class="category-card-inner"
-										style="--cat-gradient: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);">
+								<article class="category-card carousel-slide reveal reveal-delay-2" style="cursor: pointer;"
+									onclick="window.location.href='category.html?name=Workshops'" data-category-name="Workshops">
+									<div class="category-card-inner has-photo"
+										style="--cat-gradient: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);">
+										<img class="category-card-photo" data-no-cdn="1" alt="Workshops"
+											src="https://assets.jodevents.com/images/categories/workshop.webp"
+											onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='images/categories/workshop.webp';}" />
 										<div class="category-bg-overlay"></div>
 										<div class="category-content">
-											<h3>Expositions</h3>
-											<span class="category-count" data-category-count="Expositions">0 Events</span>
+											<h3>Workshops</h3>
+											<span class="category-count" data-category-count="Workshops">0 Events</span>
 										</div>
 									</div>
 								</article>
-							<article class="category-card carousel-slide reveal reveal-delay-1" style="cursor: pointer;"
-								onclick="window.location.href='category.html?name=Parties'" data-category-name="Parties">
-								<div class="category-card-inner"
-									style="--cat-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-									<div class="category-bg-overlay"></div>
-									<div class="category-content">
-										<h3>Parties</h3>
-										<span class="category-count" data-category-count="Parties">0 Events</span>
-									</div>
-								</div>
-							</article>
-							<article class="category-card carousel-slide reveal reveal-delay-2" style="cursor: pointer;"
-								onclick="window.location.href='category.html?name=Workshops'" data-category-name="Workshops">
-								<div class="category-card-inner"
-									style="--cat-gradient: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);">
-									<div class="category-bg-overlay"></div>
-									<div class="category-content">
-										<h3>Workshops</h3>
-										<span class="category-count" data-category-count="Workshops">0 Events</span>
-									</div>
-								</div>
-							</article>
 							</div>
 						</div>
 						<button class="carousel-arrow carousel-next category-carousel-next" type="button"
@@ -333,9 +326,9 @@
 						launch, conference, exhibition or private celebration - JOD Events is ready to bring your vision
 						to life.</p>
 					<div class="button-row centered">
-						<a class="button button-primary" href="mailto:hello@jodevents.com">Request a Free Consultation
+						<a class="button button-primary" href="help.html">Request a Free Consultation
 							<span>&#8594;</span></a>
-						<a class="button button-outline-light" href="tel:+910000000000">&#9742; Talk to Our Event
+						<a class="button button-outline-light" href="tel:+919150904455">&#9742; Talk to Our Event
 							Experts</a>
 					</div>
 				</div>
@@ -407,11 +400,11 @@
 		</div>
 	</div>
 
-	<script src="js/include.js?v=25"></script>
+	<script src="js/include.js?v=28"></script>
 	<script src="js/health.js?v=2"></script>
 	<script src="js/auth.js?v=30"></script>
-	<script src="js/profile.js?v=10"></script>
-	<script src="js/location.js?v=13"></script>
+	<script src="js/profile.js?v=11"></script>
+	<script src="js/location.js?v=14"></script>
 	<script src="js/search.js?v=1"></script>
 	<script src="js/script.js?v=28"></script>
         <script src="js/events-public.js?v=20260825_v16"></script>

@@ -3225,7 +3225,7 @@ async function initOrganizerDashboard() {
 			panel.style.cssText = "display:block;margin-top:0.75rem;border:1.5px solid #cbd5e1;border-radius:12px;overflow:hidden;background:#e2e8f0;";
 			panel.innerHTML = `
 				<div class="venue-map" id="venueMap" role="application" aria-label="Venue map" style="width:100%;height:280px;min-height:280px;background:#dbeafe;"></div>
-				<p class="venue-map-hint" id="venueMapHint" style="margin:0;padding:0.6rem 0.9rem;font-size:0.8rem;color:#334155;background:#fff;border-top:1px solid #e2e8f0;">Click the map or drag the pin to the exact street. You can also type an address or a 6-digit pincode (e.g. 600021).</p>
+				<p class="venue-map-hint" id="venueMapHint" style="margin:0;padding:0.6rem 0.9rem;font-size:0.8rem;color:#334155;background:#fff;border-top:1px solid #e2e8f0;">Click the map or drag the pin onto the building. The venue line fills with building name, street, area, and pincode.</p>
 			`;
 			const after = lonEl.nextSibling;
 			if (after) input.parentNode.insertBefore(panel, after);
@@ -3334,8 +3334,29 @@ async function initOrganizerDashboard() {
 		}
 
 		const house = pickEnglish(addr.house_number);
-		const road = pickEnglish(addr.road, addr.pedestrian, addr.residential, addr.street);
-		const poi = pickEnglish(addr.building, addr.amenity, addr.shop, addr.tourism, addr.railway, addr.public_building);
+		const road = pickEnglish(addr.road, addr.pedestrian, addr.residential, addr.street, addr.footway, addr.path);
+		const names = namedetails || {};
+		const poi = pickEnglish(
+			names["name:en"],
+			names.name,
+			addr.building,
+			addr.amenity,
+			addr.shop,
+			addr.office,
+			addr.leisure,
+			addr.club,
+			addr.tourism,
+			addr.hotel,
+			addr.university,
+			addr.college,
+			addr.school,
+			addr.hospital,
+			addr.railway,
+			addr.public_building,
+			addr.house_name,
+			addr.place
+		);
+		if (poi && road && poi.toLowerCase() === road.toLowerCase()) poi = "";
 		const neighbourhood = pickEnglish(addr.neighbourhood, addr.quarter, addr.hamlet, addr.allotments);
 		const suburb = pickEnglish(addr.suburb, addr.village, addr.city_district);
 		const city = pickEnglish(addr.city, addr.town, addr.municipality, addr.county);

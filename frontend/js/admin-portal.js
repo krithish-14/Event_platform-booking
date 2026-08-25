@@ -105,7 +105,7 @@
 				<div class="admin-muted">${escapeHtml(row.attendee_phone || "No phone")}</div>
 			</td>
 			<td>
-				<div class="admin-event-title">${escapeHtml(row.event_title)}</div>
+				<button type="button" class="admin-event-title" data-event-key="${escapeHtml(eventKey(row))}" title="Show only this event">${escapeHtml(row.event_title)}</button>
 				<div class="admin-muted">${escapeHtml(row.event_venue || "")}</div>
 			</td>
 			<td>
@@ -127,6 +127,51 @@
 	function currentSection() {
 		const select = document.getElementById("adminSection");
 		return select && select.value === "payment" ? "payment" : "host";
+	}
+
+	function eventKey(row) {
+		const id = String((row && row.event_id) || "").trim();
+		if (id) return `id:${id}`;
+		const title = String((row && row.event_title) || "Event").trim() || "Event";
+		return `title:${title.toLowerCase()}`;
+	}
+
+	function currentEventFilter() {
+		const select = document.getElementById("adminEventFilter");
+		return (select && select.value) || "all";
+	}
+
+	function persistEventFilter(value) {
+		try { sessionStorage.setItem("jod_admin_event_filter", value || "all"); } catch (_) {}
+	}
+
+	function readPersistedEventFilter() {
+		try { return sessionStorage.getItem("jod_admin_event_filter") || "all"; } catch (_) { return "all"; }
+	}
+
+	function rowsForEvent(rows, key) {
+		if (!key || key === "all") return rows;
+		return rows.filter((row) => eventKey(row) === key);
+	}
+
+	function fillEventFilter(rows) {
+		const select = document.getElementById("adminEventFilter");
+		if (!select) return;
+		const prev = (select.dataset.bound === "1" ? select.value : readPersistedEventFilter()) || "all";
+		select.dataset.bound = "1";
+		const seen = new Map();
+		(rows || []).forEach((row) => {
+			const key = eventKey(row);
+			if (seen.has(key)) return;
+			const title = String(row.event_title || "Event").trim() || "Event";
+			seen.set(key, title);
+		});
+		const options = Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1], undefined, { sensitivity: "base" }));
+		select.innerHTML = `<option value="all">All events</option>` +
+			options.map(([key, title]) => `<option value="${escapeHtml(key)}">${escapeHtml(title)}</option>`).join("");
+		const valid = prev === "all" || seen.has(prev);
+		select.value = valid ? prev : "all";
+		persistEventFilter(select.value);
 	}
 
 	function fillTable(rows, emptyText, options) {
@@ -151,35 +196,55 @@
 	function applySection(data) {
 		const payload = data || window.__adminData || { submissions: [] };
 		const rows = payload.submissions || [];
-		const hostRows = rows.filter((row) => (row.kind || "form") !== "payment");
-		const payRows = rows.filter((row) => row.kind === "payment");
+		fillEventFilter(rows);
+		const eventFilter = currentEventFilter();
+		const scoped = rowsForEvent(rows, eventFilter);
+		const hostRows = scoped.filter((row) => (row.kind || "form") !== "payment");
+		const payRows = scoped.filter((row) => row.kind === "payment");
 		const isPayment = currentSection() === "payment";
 		const visible = isPayment ? payRows : hostRows;
+		const eventLabel = (() => {
+			const select = document.getElementById("adminEventFilter");
+			if (!select || select.value === "all") return "";
+			const opt = select.options[select.selectedIndex];
+			return opt ? opt.textContent.trim() : "";
+		})();
 		const setText = (id, value) => {
 			const el = document.getElementById(id);
 			if (el) el.textContent = String(value);
 		};
+		const payPending = payRows.filter((row) => !row.has_qr).length;
+		const payReady = payRows.filter((row) => row.has_qr).length;
 		setText("statHost", hostRows.length);
 		setText("statPay", payRows.length);
-		setText("statPending", payload.pending_qr || 0);
-		setText("statReady", payload.qr_ready || 0);
+		setText("statPending", payPending);
+		setText("statReady", payReady);
 		setText("sectionCount", visible.length);
 		const title = document.getElementById("adminSectionTitle");
 		const copy = document.getElementById("adminSectionCopy");
 		const hint = document.getElementById("adminSectionHint");
 		const ticketCol = document.getElementById("ticketCol");
+		const eventNote = eventLabel ? ` for ${eventLabel}` : "";
 		if (isPayment) {
-			if (title) title.textContent = "Payment forms";
-			if (copy) copy.textContent = "UPI payment details and screenshot. Use Generate QR after you verify the payment.";
-			if (hint) hint.textContent = "Attendees scan the UPI QR, submit payment details, then you generate their ticket QR.";
+			if (title) title.textContent = "Payment Data";
+			if (copy) copy.textContent = eventLabel
+				? `UPI payment details for ${eventLabel}. Verify payment, then generate QR.`
+				: "UPI payment details and screenshot. Choose an event to see only that event's payments.";
+			if (hint) hint.textContent = eventLabel
+				? `Payment data${eventNote}.`
+				: "Select an event to view that event's payment data, or keep All events.";
 			if (ticketCol) ticketCol.textContent = "Ticket / Txn";
-			fillTable(visible, "No payment forms yet.", { showGenerate: true });
+			fillTable(visible, eventLabel ? `No payment data for ${eventLabel} yet.` : "No payment data yet.", { showGenerate: true });
 		} else {
-			if (title) title.textContent = "Host form";
-			if (copy) copy.textContent = "Registered details from the event host form.";
-			if (hint) hint.textContent = "People who submitted the event host registration form.";
+			if (title) title.textContent = "Attendees Data";
+			if (copy) copy.textContent = eventLabel
+				? `Registered attendees for ${eventLabel}.`
+				: "Registered details from the event host form. Choose an event to see only that event's attendees.";
+			if (hint) hint.textContent = eventLabel
+				? `Attendee data${eventNote}.`
+				: "Select an event to view that event's attendee data, or keep All events.";
 			if (ticketCol) ticketCol.textContent = "Ticket";
-			fillTable(visible, "No host form registrations yet.", { showGenerate: false });
+			fillTable(visible, eventLabel ? `No attendee data for ${eventLabel} yet.` : "No attendee data yet.", { showGenerate: false });
 		}
 		window.__adminRows = visible;
 		window.__adminData = payload;
@@ -319,6 +384,10 @@
 		document.getElementById("adminSection")?.addEventListener("change", () => {
 			applySection(window.__adminData);
 		});
+		document.getElementById("adminEventFilter")?.addEventListener("change", () => {
+			persistEventFilter(currentEventFilter());
+			applySection(window.__adminData);
+		});
 		let searchTimer = null;
 		document.getElementById("adminSearch")?.addEventListener("input", () => {
 			clearTimeout(searchTimer);
@@ -332,6 +401,16 @@
 			}
 			const answersBtn = event.target.closest("[data-answers]");
 			if (answersBtn) openAnswers(answersBtn.getAttribute("data-answers"), answersBtn.getAttribute("data-kind") || "form");
+			const eventBtn = event.target.closest("[data-event-key]");
+			if (eventBtn) {
+				const key = eventBtn.getAttribute("data-event-key");
+				const select = document.getElementById("adminEventFilter");
+				if (select && key) {
+					select.value = key;
+					persistEventFilter(key);
+					applySection(window.__adminData);
+				}
+			}
 		});
 		document.getElementById("closeAnswersModal")?.addEventListener("click", () => {
 			document.getElementById("answersModal").hidden = true;

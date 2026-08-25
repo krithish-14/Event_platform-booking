@@ -3,6 +3,7 @@
  */
 document.addEventListener('DOMContentLoaded', () => {
     initEventDetailsPage();
+    setupEventDescriptionToggle();
 });
 
 let currentSelectedPrice = 0;
@@ -13,6 +14,38 @@ let galleryImages = [];
 let galleryIndex = 0;
 let galleryLightboxBound = false;
 let hasIssuedTicket = false;
+
+function setupEventDescriptionToggle() {
+    const descEl = document.getElementById("eventDescription");
+    const btn = document.getElementById("eventDescToggle");
+    if (!descEl || !btn) return;
+
+    descEl.classList.add("is-collapsed");
+    const measure = () => {
+        const collapsed = descEl.classList.contains("is-collapsed");
+        if (!collapsed) {
+            btn.hidden = false;
+            btn.textContent = "Read less";
+            return;
+        }
+        const overflowing = descEl.scrollHeight > descEl.clientHeight + 4;
+        btn.hidden = !overflowing;
+        btn.textContent = "Read more";
+    };
+
+    window.requestAnimationFrame(measure);
+
+    if (btn.dataset.bound === "1") return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => {
+        const nowCollapsed = descEl.classList.toggle("is-collapsed");
+        btn.textContent = nowCollapsed ? "Read more" : "Read less";
+        if (nowCollapsed) window.requestAnimationFrame(measure);
+    });
+    window.addEventListener("resize", () => {
+        if (descEl.classList.contains("is-collapsed")) window.requestAnimationFrame(measure);
+    });
+}
 
 async function readyAuthSession() {
     if (window.JodAuth && typeof window.JodAuth.ensureSession === "function") {
@@ -297,6 +330,7 @@ function renderEventDOM(event) {
 
     const descEl = document.getElementById('eventDescription');
     if (descEl) descEl.textContent = event.description || 'Event details will be shared by the host.';
+    setupEventDescriptionToggle();
 
     const scheduleEl = document.getElementById('infoSchedule');
     if (scheduleEl && EP) {

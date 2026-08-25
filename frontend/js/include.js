@@ -22,6 +22,26 @@
 		document.body.classList.add("sub-page");
 	}
 
+	function syncHeaderOffset() {
+		const header = document.querySelector(".site-header");
+		if (!header) return;
+		const height = Math.ceil(header.getBoundingClientRect().height);
+		if (height > 0) {
+			document.documentElement.style.setProperty("--site-header-height", `${height}px`);
+		}
+	}
+
+	function watchHeaderOffset() {
+		syncHeaderOffset();
+		window.addEventListener("resize", syncHeaderOffset);
+		window.addEventListener("load", syncHeaderOffset);
+		const header = document.querySelector(".site-header");
+		if (header && typeof ResizeObserver !== "undefined" && !header.dataset.offsetWatched) {
+			header.dataset.offsetWatched = "1";
+			new ResizeObserver(() => syncHeaderOffset()).observe(header);
+		}
+	}
+
 	function loadComponent(id, path) {
 		const target = document.getElementById(id);
 		if (!target) return Promise.reject(new Error(`Missing component target: #${id}`));
@@ -30,8 +50,11 @@
 			return response.text();
 		}).then((html) => {
 			target.outerHTML = html;
-			if (id === "header" && typeof window.updateNavAuth === "function") {
-				try { window.updateNavAuth(); } catch (_) {}
+			if (id === "header") {
+				syncHeaderOffset();
+				if (typeof window.updateNavAuth === "function") {
+					try { window.updateNavAuth(); } catch (_) {}
+				}
 			}
 		});
 	}
@@ -116,9 +139,10 @@
 	const headerEl = document.getElementById("header");
 	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=21"));
 	const footerEl = document.getElementById("footer");
-	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=4"));
+	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=5"));
 
 	window.includesReady = Promise.all(promises).then(() => {
+		watchHeaderOffset();
 		updateNavigation();
 		if (window.JodTheme && typeof window.JodTheme.sync === "function") {
 			window.JodTheme.sync();
@@ -137,6 +161,7 @@
 				window.JodSearch.initSearch();
 			}
 			window.dispatchEvent(new Event("includesLoaded"));
+			syncHeaderOffset();
 		}, 0);
 	}).catch((error) => {
 		console.error(error);

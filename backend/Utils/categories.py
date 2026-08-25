@@ -5,13 +5,19 @@ CANONICAL_CATEGORIES = (
     "Sports",
     "Conferences",
     "Performances",
-    "Experiences",
-    "Expositions",
     "Parties",
     "Workshops",
 )
 
-_CANONICAL_LOOKUP = {name.lower(): name for name in CANONICAL_CATEGORIES}
+# Keep reading older events that still store these labels.
+_LEGACY_CATEGORIES = (
+    "Experiences",
+    "Expositions",
+)
+
+_CANONICAL_LOOKUP = {
+    name.lower(): name for name in CANONICAL_CATEGORIES + _LEGACY_CATEGORIES
+}
 
 INVALID_IMAGE_TYPE_MESSAGE = (
     "Your image is not in this standard file type. Please use JPG, JPEG, PNG, or WEBP."

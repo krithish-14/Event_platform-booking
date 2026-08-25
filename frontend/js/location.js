@@ -19,6 +19,8 @@ window.JodLocation = (() => {
 
   /* ── Config ─────────────────────────────────────────────── */
   const RADIUS_KM = 20;
+  // Public location toast + map modal. Host venue map is separate and stays on.
+  const USER_MAP_POPUP_ENABLED = false;
   function getApiBase() {
     if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
       return window.JodConfig.getApiOrigin();
@@ -450,7 +452,8 @@ window.JodLocation = (() => {
     if (t) t.classList.remove("is-visible");
   }
 
-  function openModal() {
+  function openModal(options) {
+    if (!USER_MAP_POPUP_ENABLED && !(options && options.force)) return;
     const m = document.getElementById("jodLocationModal");
     if (m) {
       m.hidden = false;
@@ -1210,6 +1213,7 @@ window.JodLocation = (() => {
   }
 
   function showLocationConfirmation(city, pincode) {
+    if (!USER_MAP_POPUP_ENABLED) return;
     ensureLocationUI();
     const cityEl = document.getElementById("jodLocationCity");
     const label = formatLocationLabel(city, pincode);
@@ -1329,7 +1333,7 @@ window.JodLocation = (() => {
         updateRecommendations(loc);
       }
     } catch (_geoErr) {
-      openModal();
+      if (USER_MAP_POPUP_ENABLED) openModal();
     }
   }
 

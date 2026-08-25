@@ -271,6 +271,9 @@ class BookingResponse(BaseModel):
     event_title: Optional[str] = None
     event_venue: Optional[str] = None
     event_start_date: Optional[datetime] = None
+    event_is_cancelled: bool = False
+    event_is_published: bool = True
+    event_updated_at: Optional[datetime] = None
     ticket_type: str
     quantity: int
     total_price: float
@@ -414,6 +417,9 @@ def _serialize_booking(b: Booking, db: Session = None) -> dict:
         "event_title": event_title,
         "event_venue": event_venue,
         "event_start_date": event_start,
+        "event_is_cancelled": bool(getattr(b.event, "is_cancelled", False)) if b.event else False,
+        "event_is_published": bool(getattr(b.event, "is_published", True)) if b.event else True,
+        "event_updated_at": getattr(b.event, "updated_at", None) if b.event else None,
         "ticket_type": b.ticket_type or "Standard Access",
         "quantity": b.quantity,
         "total_price": float(b.total_price or 0.0),
@@ -786,13 +792,17 @@ def get_single_booking(
     return _serialize_booking(b, db=db)
 
 
-def _ticket_pdf_http_response(booking: Booking, db: Session, qr_token: str = ""):
+def _ticket_pdf_http_response(booking: Booking, db: Session, qr_token: str = "", kind: str = "ticket"):
     from Services.ticket_pdf import build_mticket_pdf_from_booking, ticket_pdf_filename
 
-    pdf = build_mticket_pdf_from_booking(booking, qr_token=qr_token, db=db)
+    kind_key = "invoice" if str(kind or "").strip().lower() == "invoice" else "ticket"
+    include_qr = kind_key != "invoice"
+    pdf = build_mticket_pdf_from_booking(
+        booking, qr_token=qr_token, db=db, include_qr=include_qr
+    )
     if not pdf:
         raise HTTPException(status_code=500, detail="Could not generate the ticket PDF.")
-    filename = ticket_pdf_filename(booking.booking_id)
+    filename = ticket_pdf_filename(booking.booking_id, kind=kind_key)
     return Response(
         content=pdf,
         media_type="application/pdf",
@@ -806,10 +816,11 @@ def _ticket_pdf_http_response(booking: Booking, db: Session, qr_token: str = "")
 @router.get("/{booking_id}/pdf")
 def download_booking_ticket_pdf(
     booking_id: str,
+    kind: str = "ticket",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Same M-ticket PDF that is emailed after Generate QR."""
+    """Same rounded M-ticket card PDF that is emailed after Generate QR. Use kind=invoice to omit the QR."""
     booking = _lookup_booking_row(db, booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
@@ -818,9 +829,10 @@ def download_booking_ticket_pdf(
     token = ""
     if tickets:
         token = (getattr(tickets[0], "qr_token", None) or "").strip()
-    if not token:
+    kind_key = "invoice" if str(kind or "").strip().lower() == "invoice" else "ticket"
+    if kind_key == "ticket" and not token:
         raise HTTPException(status_code=404, detail="QR ticket is not ready yet.")
-    return _ticket_pdf_http_response(booking, db, token)
+    return _ticket_pdf_http_response(booking, db, token, kind=kind_key)
 
 
 @router.post("/{booking_id}/cancel", response_model=BookingResponse)

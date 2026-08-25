@@ -192,16 +192,9 @@
 		margin-bottom: 0.12rem;
 		letter-spacing: 0.14em;
 	}
-	.hero .inline-featured-label {
-		margin-bottom: 0.22rem;
-		padding: 0.18rem 0.5rem;
-		font-size: 0.55rem;
-		letter-spacing: 0.1em;
-		gap: 0.22rem;
-	}
-	.hero .inline-featured-label .pulse-dot {
-		width: 0.35rem;
-		height: 0.35rem;
+	.hero .inline-featured-label,
+	.hero .featured-label.inline-featured-label {
+		display: none !important;
 	}
 	.hero-countdown {
 		max-width: none;
@@ -346,7 +339,7 @@
 
 	body.sub-page .page-hero,
 	body.sub-page .dashboard-hero {
-		padding-top: calc(4.75rem + 1.35rem);
+		padding-top: calc(var(--site-header-height, 6.25rem) + 1.35rem);
 		padding-bottom: 2rem;
 	}
 
@@ -525,7 +518,7 @@
 	/* Site-wide mobile richness */
 	body.sub-page .page-hero,
 	body.sub-page .dashboard-hero {
-		padding-top: calc(4.75rem + 1.15rem);
+		padding-top: calc(var(--site-header-height, 6.25rem) + 1.25rem);
 		padding-bottom: 1.75rem;
 	}
 

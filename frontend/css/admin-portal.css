@@ -155,6 +155,31 @@
 	cursor: pointer;
 }
 
+.admin-section-label[for="adminEventFilter"] select {
+	min-width: 240px;
+	max-width: 320px;
+}
+
+button.admin-event-title {
+	display: block;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	text-align: left;
+	font: inherit;
+	font-weight: 800;
+	color: inherit;
+	cursor: pointer;
+}
+
+button.admin-event-title:hover,
+button.admin-event-title:focus-visible {
+	color: #c45a00;
+	text-decoration: underline;
+}
+
 .admin-toolbar input {
 	flex: 1;
 	min-width: 180px;

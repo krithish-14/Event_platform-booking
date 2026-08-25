@@ -1,6 +1,14 @@
 <!doctype html>
 <html lang="en">
 	<head>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-PFZVZGJR');</script>
+<!-- End Google Tag Manager -->
+<meta name="google-site-verification" content="NZqKNPeMc18zMdyTI3izDvSSlpvp-k5-QxDip8XCFw8" />
 		<script src="js/theme.js?v=7"></script>
 		<script src="js/api-config.js?v=3"></script>
 		<meta charset="UTF-8" />
@@ -9,9 +17,13 @@
 		<title>Admin QR Portal - JOD Events</title>
 		<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
 		<link rel="stylesheet" href="css/style.css?v=24" />
-		<link rel="stylesheet" href="css/admin-portal.css?v=6" />
+		<link rel="stylesheet" href="css/admin-portal.css?v=7" />
 	</head>
 	<body class="admin-portal-body">
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 		<header class="admin-topbar">
 			<div class="admin-brand">
 				<button type="button" class="header-back-btn header-back-btn--on-dark admin-mobile-back" data-header-back data-back-fallback="index.html" aria-label="Go back">
@@ -39,7 +51,7 @@
 					<p id="adminSectionHint">People who submitted the event host registration form.</p>
 				</div>
 				<div class="admin-stats">
-					<div class="admin-stat"><strong id="statHost">0</strong><span>Host forms</span></div>
+					<div class="admin-stat"><strong id="statHost">0</strong><span>Attendees</span></div>
 					<div class="admin-stat"><strong id="statPay">0</strong><span>Payments</span></div>
 					<div class="admin-stat"><strong id="statPending">0</strong><span>Need QR</span></div>
 					<div class="admin-stat"><strong id="statReady">0</strong><span>QR sent</span></div>
@@ -50,8 +62,14 @@
 				<label class="admin-section-label" for="adminSection">
 					<span>Section</span>
 					<select id="adminSection">
-						<option value="host">Host form</option>
-						<option value="payment">Payment forms</option>
+						<option value="host">Attendees Data</option>
+						<option value="payment">Payment Data</option>
+					</select>
+				</label>
+				<label class="admin-section-label" for="adminEventFilter">
+					<span>Event</span>
+					<select id="adminEventFilter">
+						<option value="all">All events</option>
 					</select>
 				</label>
 				<input type="search" id="adminSearch" placeholder="Search name, email, phone, or event" />
@@ -61,13 +79,13 @@
 			<section class="admin-block">
 				<div class="admin-block-head">
 					<div>
-						<h2 id="adminSectionTitle">Host form</h2>
+						<h2 id="adminSectionTitle">Attendees Data</h2>
 						<p id="adminSectionCopy">Registered details from the event host form.</p>
 					</div>
 					<span class="admin-block-count" id="sectionCount">0</span>
 				</div>
 				<div class="admin-table-card">
-					<div id="adminEmpty" class="admin-empty" hidden>No host form registrations yet.</div>
+					<div id="adminEmpty" class="admin-empty" hidden>No attendee data yet.</div>
 					<div class="admin-table-wrap" id="adminTableWrap">
 						<table class="admin-table">
 							<thead>
@@ -109,6 +127,6 @@
 
 		<script src="js/health.js?v=1"></script>
 		<script src="js/auth.js?v=26"></script>
-		<script src="js/admin-portal.js?v=11"></script>
+		<script src="js/admin-portal.js?v=12"></script>
 	</body>
 </html>

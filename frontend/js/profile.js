@@ -990,7 +990,7 @@
 			return;
 		}
 		const script = document.createElement("script");
-		script.src = "js/notifications-inbox.js?v=7";
+		script.src = "js/notifications-inbox.js?v=8";
 		script.dataset.jodInbox = "1";
 		script.onload = run;
 		document.head.appendChild(script);
