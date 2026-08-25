@@ -243,6 +243,7 @@ async function initOrganizerDashboard() {
 	const VERIFICATION_UI_ENABLED = false;
 
 	let activeEventId = null;
+	let hostEventCancelled = false;
 	let activeCustomerId = null;
 	let activeHostId = null;
 	let bannerImageUrl = null;
@@ -1323,6 +1324,95 @@ async function initOrganizerDashboard() {
 		}
 	}
 
+	function zeroHostKpis() {
+		if (kpiSales) kpiSales.textContent = "₹0.00";
+		if (kpiRegs) kpiRegs.textContent = "0";
+		if (kpiPending) kpiPending.textContent = "0";
+		if (kpiAttendees) kpiAttendees.textContent = "0";
+		if (kpiDays) kpiDays.textContent = "0";
+		["numSpeakers", "numSponsors", "numExhibitors", "exKpiTotal", "exKpiConfirmed", "exKpiPending", "exKpiSponsors", "valSold", "valPending", "valAvail", "valCheckedIn", "valYetToCheckIn", "sidebarCheckinCount"].forEach((id) => {
+			const el = document.getElementById(id);
+			if (el) el.textContent = id === "valSold" || id === "valPending" || id === "valAvail" ? "0 (0%)" : "0";
+		});
+		const donutCenterValue = document.getElementById("donutCenterValue");
+		const donutCenterLabel = document.getElementById("donutCenterLabel");
+		const donutCaption = document.getElementById("donutCaption");
+		if (donutCenterValue) donutCenterValue.textContent = "0";
+		if (donutCenterLabel) donutCenterLabel.textContent = "of 0 tickets";
+		if (donutCaption) donutCaption.textContent = "No active event.";
+		["donutPendingPath", "donutSoldPath", "donutCheckinPath"].forEach((id) => {
+			const el = document.getElementById(id);
+			if (el) el.setAttribute("stroke-dasharray", "0, 100");
+		});
+	}
+
+	function paintEmptyHostDashboard() {
+		hasEvent = false;
+		activeEventId = null;
+		currentLifecycle = "draft";
+		canPublishNew = true;
+		canCreateNew = true;
+		sessionStorage.removeItem(`has_event_${email}`);
+		sessionStorage.removeItem(`active_event_id_${email}`);
+		if (dashEventTitle) dashEventTitle.textContent = "My Events Dashboard";
+		zeroHostKpis();
+		updateEventPagePreview({
+			event_id: null,
+			event_title: "My Event",
+			event_status: "draft",
+			venue: "Venue TBD",
+			banner_image: ""
+		});
+		renderOverviewState();
+	}
+
+	function clearHostWorkspaceForms() {
+		pendingManageEvent = null;
+		pendingHostDesignData = null;
+		pendingRegistrationForm = null;
+		bannerImageUrl = null;
+		cardImageUrl = null;
+		galleryImageUrls = [];
+		if (createEventForm) createEventForm.reset();
+		if (eventTitleInput) eventTitleInput.value = "";
+		const catSel = document.getElementById("eventCategorySelect");
+		if (catSel) catSel.value = "";
+		["eventDescInput", "eventDateInput", "eventEndDateInput", "eventLocationInput", "eventDurationInput", "eventVenueLat", "eventVenueLon", "policyEventInput", "policyCancellationInput", "policyRefundInput", "policyTermsInput", "policyPrivacyInput", "policyAgeInput"].forEach((id) => {
+			const el = document.getElementById(id);
+			if (el) el.value = "";
+		});
+		const ticketHost = document.getElementById("ticketTiersRows");
+		if (ticketHost) {
+			ticketHost.innerHTML = "";
+			if (typeof createTicketTierRowHtml === "function") {
+				ticketHost.appendChild(createTicketTierRowHtml("", "", ""));
+			}
+		}
+		const agendaHost = document.getElementById("agendaRows");
+		if (agendaHost) {
+			agendaHost.innerHTML = "";
+			if (typeof createAgendaRowHtml === "function") {
+				agendaHost.appendChild(createAgendaRowHtml("", "", ""));
+			}
+		}
+		const bannerPreviewBoxEl = document.getElementById("bannerPreviewBox");
+		const bannerPreviewImgEl = document.getElementById("bannerPreviewImg");
+		const bannerDropzoneContentEl = document.getElementById("bannerDropzoneContent");
+		if (bannerPreviewBoxEl) bannerPreviewBoxEl.style.display = "none";
+		if (bannerPreviewImgEl) bannerPreviewImgEl.removeAttribute("src");
+		if (bannerDropzoneContentEl) bannerDropzoneContentEl.style.display = "";
+		const cardPreviewBox = document.getElementById("cardImagePreviewBox");
+		const cardPreviewImg = document.getElementById("cardImagePreviewImg");
+		if (cardPreviewBox) cardPreviewBox.style.display = "none";
+		if (cardPreviewImg) cardPreviewImg.removeAttribute("src");
+		const galleryPreview = document.getElementById("galleryPreviewGrid");
+		if (galleryPreview) galleryPreview.innerHTML = "";
+		if (window.JodFormBuilder && typeof window.JodFormBuilder.loadFromHost === "function") {
+			window.JodFormBuilder.loadFromHost({ questions_json: [], form_json: {}, settings_json: {} });
+		}
+		if (typeof populateDesignRows === "function") populateDesignRows([], []);
+	}
+
 	// ── Dynamic Dashboard Data Loader ──────────────────────────────────────────
 	async function loadDashboardData() {
 		if (!email) return;
@@ -1334,6 +1424,11 @@ async function initOrganizerDashboard() {
 				const d = await res.json();
 				if (d.customer_id) activeCustomerId = d.customer_id;
 				if (d.host_id) activeHostId = d.host_id;
+				const life = String(d.lifecycle || d.event_status || "").toLowerCase();
+				if (!d.has_event || life === "cancelled" || life === "unpublished") {
+					paintEmptyHostDashboard();
+					return;
+				}
 				if (d.has_event) {
 					hasEvent = true;
 					if (d.event_id) activeEventId = d.event_id;
@@ -2797,9 +2892,15 @@ async function initOrganizerDashboard() {
 			}
 
 			if (hostData.has_event && hostData.event) {
+				currentLifecycle = hostData.lifecycle || hostData.event.lifecycle || hostData.event.event_status || "draft";
+				if (currentLifecycle === "cancelled" || currentLifecycle === "unpublished") {
+					pendingManageEvent = null;
+					pendingHostDesignData = null;
+					pendingRegistrationForm = null;
+					paintEmptyHostDashboard();
+				} else {
 				activeEventId = hostData.event.event_id;
 				sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
-				currentLifecycle = hostData.lifecycle || hostData.event.lifecycle || hostData.event.event_status || "draft";
 				canPublishNew = hostData.can_publish_new !== false;
 				canCreateNew = hostData.can_create_new !== false;
 				pendingManageEvent = hostData.event;
@@ -2826,6 +2927,7 @@ async function initOrganizerDashboard() {
 					sessionStorage.removeItem(`has_event_${email}`);
 					renderOverviewState();
 				}
+				}
 			} else {
 				hasEvent = false;
 				activeEventId = null;
@@ -2833,10 +2935,13 @@ async function initOrganizerDashboard() {
 				canPublishNew = true;
 				canCreateNew = true;
 				pendingManageEvent = null;
+				pendingHostDesignData = null;
+				pendingRegistrationForm = null;
 				sessionStorage.removeItem(`has_event_${email}`);
 				sessionStorage.removeItem(`active_event_id_${email}`);
-				renderOverviewState();
+				paintEmptyHostDashboard();
 			}
+			if (hostData.has_event && currentLifecycle !== "cancelled" && currentLifecycle !== "unpublished") {
 			if (hostData.design) {
 				pendingHostDesignData = hostData.design;
 				if (hostData.design.about_event) {
@@ -2850,6 +2955,7 @@ async function initOrganizerDashboard() {
 					window.JodFormBuilder.loadFromHost(hostData.registration_form);
 				}
 			}
+			}
 			applySectionActionLabels();
 			updateLifecycleBanners();
 		}
@@ -2862,6 +2968,8 @@ async function initOrganizerDashboard() {
 
 	async function autoSaveManageEvent(notifyError = false) {
 		if (!email) return false;
+		if (hostEventCancelled && !notifyError) return false;
+		if (hostEventCancelled && notifyError) hostEventCancelled = false;
 		const descEl = document.getElementById("eventDescInput");
 		const dateInput = document.getElementById("eventDateInput");
 		const endDateInput = document.getElementById("eventEndDateInput");
@@ -2933,6 +3041,7 @@ async function initOrganizerDashboard() {
 
 	async function autoSaveEventDesign(notifyError = false) {
 		if (!email) return false;
+		if (hostEventCancelled && !notifyError) return false;
 		if (!activeEventId) {
 			const manageSaved = await autoSaveManageEvent(notifyError);
 			if (!manageSaved || !activeEventId) return false;
@@ -3870,6 +3979,7 @@ async function initOrganizerDashboard() {
 				showNotification("You already have an active event. You can create and publish a new event only after your current event has ended.");
 				return;
 			}
+			hostEventCancelled = false;
 			activeEventId = null;
 			currentLifecycle = "draft";
 			hasEvent = false;
@@ -4212,17 +4322,21 @@ async function initOrganizerDashboard() {
 						throw new Error(apiErrorMessage(data, "Could not cancel event."));
 					}
 				}
-					sessionStorage.removeItem(`has_event_${email}`);
+				sessionStorage.removeItem(`has_event_${email}`);
 				sessionStorage.removeItem(`active_event_id_${email}`);
-					hasEvent = false;
-					activeEventId = null;
+				hostEventCancelled = true;
+				hasEvent = false;
+				activeEventId = null;
 				currentLifecycle = "draft";
 				canPublishNew = true;
 				canCreateNew = true;
-				if (dashEventTitle) dashEventTitle.textContent = "My Events Dashboard";
-				if (typeof renderOverviewState === "function") renderOverviewState();
+				if (autoSaveTimer) clearTimeout(autoSaveTimer);
+				if (designSaveTimer) clearTimeout(designSaveTimer);
+				clearHostWorkspaceForms();
+				paintEmptyHostDashboard();
+				try { window.dispatchEvent(new Event("jod:inbox-refresh")); } catch (_) {}
 				showNotification("Event cancelled. It is no longer listed on Home, Category, or Event Details.");
-					switchTab("overview");
+				switchTab("overview");
 				} catch (err) {
 				console.warn("Could not cancel event:", err);
 				showNotification((err && err.message) || "Could not cancel event. Please try again.");

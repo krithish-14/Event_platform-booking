@@ -190,6 +190,8 @@ def resolve_or_create_event(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not own this event.",
         )
+    if event and is_cleared_host_event(event):
+        event = None
 
     if not event:
         event = find_working_event(db, email_clean, customer_id, host_id)
@@ -384,6 +386,68 @@ def compute_event_lifecycle(event: EventManagement) -> str:
 
 def is_event_active(event: EventManagement) -> bool:
     return compute_event_lifecycle(event) in ACTIVE_LIFECYCLE_STATES
+
+
+def is_cleared_host_event(event: Optional[EventManagement]) -> bool:
+    """Cancelled/unpublished events must not stay on the host dashboard."""
+    if not event:
+        return True
+    return compute_event_lifecycle(event) in ("cancelled", "unpublished")
+
+
+def resolve_working_host_event(
+    db: Session,
+    email_clean: str,
+    customer_id: Optional[str],
+    host_id: Optional[str],
+    event_id: Optional[str] = None,
+    current_user: Optional[User] = None,
+) -> Optional[EventManagement]:
+    """Resolve the event the host is working on, never a cancelled one."""
+    event = None
+    if event_id:
+        event = _lookup_event_by_id(db, event_id)
+        if event:
+            event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
+        if event and is_cleared_host_event(event):
+            event = None
+    if not event:
+        event = find_working_event(db, email_clean, customer_id, host_id)
+    if event and is_cleared_host_event(event):
+        return None
+    return event
+
+
+def empty_dashboard_summary(customer_id: Optional[str], host_id: Optional[str]) -> dict:
+    return {
+        "has_event": False,
+        "event_id": None,
+        "event_title": None,
+        "event_status": None,
+        "lifecycle": None,
+        "customer_id": customer_id,
+        "host_id": host_id,
+        "total_sales": 0.0,
+        "total_registrations": 0,
+        "pending_registrations": 0,
+        "days_to_event": 0,
+        "tickets_sold": 0,
+        "tickets_available": 0,
+        "ticket_capacity": 0,
+        "checked_in": 0,
+        "yet_to_checkin": 0,
+        "attendees_count": 0,
+        "attendees": [],
+        "speakers_count": 0,
+        "sponsors_count": 0,
+        "exhibitors_count": 0,
+        "exhibitors_confirmed": 0,
+        "exhibitors_pending": 0,
+        "registration_trend": [],
+        "venue": None,
+        "banner_image": None,
+        "image_url": None,
+    }
 
 
 def find_blocking_active_event(
@@ -1531,11 +1595,15 @@ def save_manage_event(
                     detail="You do not own this event and cannot modify or publish it.",
                 )
             event = None
+    if event and is_cleared_host_event(event):
+        event = None
 
     if not event:
         event = find_working_event(db, email_clean, customer_id, host_id)
         # Do not reuse an ended/cancelled event as a new draft — create a fresh row.
-        if event and compute_event_lifecycle(event) in ("ended", "cancelled", "unpublished"):
+        if event and is_cleared_host_event(event):
+            event = None
+        elif event and compute_event_lifecycle(event) == "ended":
             if not payload.event_id or str(payload.event_id) != str(event.event_id):
                 event = None
 
@@ -1689,8 +1757,12 @@ def save_event_design(
     event = _lookup_event_by_id(db, payload.event_id)
     if event and not _event_owned(event, email_clean, customer_id, host_id, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not own this event.")
+    if event and is_cleared_host_event(event):
+        event = None
     if not event:
         event = find_working_event(db, email_clean, customer_id, host_id)
+    if event and is_cleared_host_event(event):
+        event = None
     if not event:
         raise HTTPException(
             status_code=404,
@@ -1820,8 +1892,12 @@ def save_registration_form(
     event = _lookup_event_by_id(db, payload.event_id)
     if event and not _event_owned(event, email_clean, customer_id, host_id, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not own this event.")
+    if event and is_cleared_host_event(event):
+        event = None
     if not event:
         event = find_working_event(db, email_clean, customer_id, host_id)
+    if event and is_cleared_host_event(event):
+        event = None
     if not event:
         raise HTTPException(
             status_code=404,
@@ -1885,6 +1961,8 @@ def get_current_host_event(
     customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
 
     event = find_working_event(db, email_clean, customer_id, host_id)
+    if event and is_cleared_host_event(event):
+        event = None
     any_active = find_blocking_active_event(db, email_clean, customer_id, host_id)
 
     if not event:
@@ -2986,38 +3064,12 @@ def get_dashboard_summary(
     email_clean = _bound_email(email, current_user)
     customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
 
-    event = None
-    if event_id:
-        try:
-            event_uuid = uuid.UUID(event_id)
-            event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
-        except ValueError:
-            pass
-        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
+    event = resolve_working_host_event(
+        db, email_clean, customer_id, host_id, event_id=event_id, current_user=current_user
+    )
 
     if not event:
-        event = db.query(EventManagement).filter(
-            EventManagement.organizer_email == email_clean
-        ).order_by(EventManagement.created_at.desc()).first()
-
-    if not event:
-        return {
-            "has_event": False,
-            "customer_id": customer_id,
-            "host_id": host_id,
-            "total_sales": 0.0,
-            "total_registrations": 0,
-            "pending_registrations": 0,
-            "days_to_event": 0,
-            "tickets_sold": 0,
-            "tickets_available": 0,
-            "checked_in": 0,
-            "yet_to_checkin": 0,
-            "speakers_count": 0,
-            "sponsors_count": 0,
-            "exhibitors_count": 0,
-            "registration_trend": []
-        }
+        return empty_dashboard_summary(customer_id, host_id)
 
     # Calculate days to event start
     days_left = 0
@@ -3064,6 +3116,7 @@ def get_dashboard_summary(
         "event_id": str(event.event_id),
         "event_title": event.event_title,
         "event_status": event.event_status,
+        "lifecycle": compute_event_lifecycle(event),
         "customer_id": event.customer_id or customer_id,
         "host_id": event.host_id or host_id,
         "banner_image": preview_image,
@@ -3300,6 +3353,15 @@ def clear_host_events(
 
     db.commit()
 
+    try:
+        extra_hidden = hide_cancelled_host_events_from_catalog(db)
+        hidden = max(int(hidden or 0), int(extra_hidden or 0))
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
     print(
         f"[EVENT CANCEL] email={email_clean} cancelled={len(cancelled_ids)} "
         f"public_hidden={hidden} ids={[str(i) for i in cancelled_ids]}",
@@ -3325,18 +3387,9 @@ def get_gates(
     """Retrieve all gates for an event."""
     email_clean = _bound_email(organizer_email, current_user)
     customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
-    event = None
-    if event_id:
-        try:
-            event_uuid = uuid.UUID(event_id)
-            event = db.query(EventManagement).filter(EventManagement.event_id == event_uuid).first()
-        except ValueError:
-            pass
-        event = _reject_foreign_event(event, email_clean, customer_id, host_id, current_user)
-    if not event:
-        event = db.query(EventManagement).filter(
-            EventManagement.organizer_email == email_clean
-        ).order_by(EventManagement.created_at.desc()).first()
+    event = resolve_working_host_event(
+        db, email_clean, customer_id, host_id, event_id=event_id, current_user=current_user
+    )
 
     if not event:
         return {"event_id": None, "gates": []}

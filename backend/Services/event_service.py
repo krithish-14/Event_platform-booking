@@ -108,7 +108,7 @@ def _published_events_query(db: Session):
     now = datetime.utcnow()
     return db.query(Event).filter(
         Event.is_published == True,
-        Event.is_cancelled == False,
+        or_(Event.is_cancelled.is_(False), Event.is_cancelled.is_(None)),
         or_(Event.end_date.is_(None), Event.end_date > now),
     )
 
