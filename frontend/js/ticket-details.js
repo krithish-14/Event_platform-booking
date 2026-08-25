@@ -64,12 +64,23 @@
 		}
 	}
 
+	function authFetch(url, options) {
+		const opts = Object.assign({ cache: "no-store", credentials: "include" }, options || {});
+		if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+			return window.JodAuth.fetchAuth(url, opts);
+		}
+		return fetch(url, opts);
+	}
+
 	async function loadBookingData(bookingId) {
 		const apiBase = getApiBase();
 		const qrToken = getQueryParam("token") || getQueryParam("qr");
 		if (qrToken) {
 			try {
-				const res = await fetch(`${apiBase}/api/tickets/public/${encodeURIComponent(qrToken)}`, { cache: "no-store" });
+				const res = await fetch(`${apiBase}/api/tickets/public/${encodeURIComponent(qrToken)}`, {
+					cache: "no-store",
+					credentials: "include",
+				});
 				if (res.ok) {
 					const data = await res.json();
 					saveLocalBookingCache(data);
@@ -79,17 +90,11 @@
 			} catch (_) {}
 			return { _error: "unavailable" };
 		}
-		if (!bookingId) return null;
-		const token = window.JodAuth && typeof window.JodAuth.getToken === "function"
-			? window.JodAuth.getToken()
-			: null;
-
-		if (!token) return { _error: "signin" };
+		if (!bookingId) return { _error: "signin" };
 
 		try {
-			const res = await fetch(`${apiBase}/api/bookings/${bookingId}`, {
-				headers: { "Authorization": `Bearer ${token}` },
-				cache: "no-store"
+			const res = await authFetch(`${apiBase}/api/bookings/${encodeURIComponent(bookingId)}`, {
+				headers: { Accept: "application/json" },
 			});
 			if (res.ok) {
 				const data = await res.json();
@@ -105,7 +110,13 @@
 		return { _error: "unavailable" };
 	}
 
+	function setDownloadActionsVisible(visible) {
+		const bar = document.getElementById("ticketActionsBar") || document.querySelector(".ticket-actions-bar");
+		if (bar) bar.hidden = !visible;
+	}
+
 	function showTicketUnavailable(kind) {
+		setDownloadActionsVisible(false);
 		const messages = {
 			signin: "Please sign in to view this ticket.",
 			forbidden: "This ticket belongs to another account.",
@@ -516,6 +527,7 @@
 			showTicketUnavailable(bookingData && bookingData._error);
 			return;
 		}
+		setDownloadActionsVisible(true);
 		renderTicketDOM(bookingData);
 		bindActions(bookingData);
 		bindTicketFlip();

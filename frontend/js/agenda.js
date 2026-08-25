@@ -49,14 +49,14 @@
 	}
 
 	async function loadBooking(bookingId) {
-		const token = window.JodAuth && typeof window.JodAuth.getToken === "function"
-			? window.JodAuth.getToken()
-			: null;
-		if (!token) return { _error: "signin" };
 		try {
-			const res = await fetch(`${getApiBase()}/api/bookings/${bookingId}`, {
-				headers: { Authorization: `Bearer ${token}` },
-				cache: "no-store"
+			const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+				? window.JodAuth.fetchAuth.bind(window.JodAuth)
+				: fetch;
+			const res = await fetchFn(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}`, {
+				cache: "no-store",
+				credentials: "include",
+				headers: { Accept: "application/json" }
 			});
 			if (res.ok) return await res.json();
 			if (res.status === 401) return { _error: "signin" };

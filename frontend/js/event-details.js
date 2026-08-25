@@ -675,6 +675,26 @@ function showToast(message) {
     }, 3000);
 }
 
+function authFetch(url, options) {
+    const opts = Object.assign({
+        cache: "no-store",
+        credentials: "include",
+        headers: { Accept: "application/json" }
+    }, options || {});
+    if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+        return window.JodAuth.fetchAuth(url, opts);
+    }
+    return fetch(url, opts);
+}
+
+function ticketPageHref(bookingId, qrToken) {
+    const params = new URLSearchParams();
+    if (qrToken) params.set("token", qrToken);
+    if (bookingId) params.set("id", bookingId);
+    const qs = params.toString();
+    return qs ? `ticket-details.html?${qs}` : "orders.html";
+}
+
 function getAccessToken() {
     try {
         if (window.JodAuth && typeof window.JodAuth.getToken === "function") {
@@ -730,13 +750,9 @@ function findCachedBookingForEvent(eventId) {
 }
 
 async function fetchMyBookingForEvent(eventId) {
-    const token = getAccessToken();
-    if (!token || !eventId) return null;
+    if (!eventId) return null;
     try {
-        const res = await fetch(`${getApiRoot()}/api/bookings/my-bookings`, {
-            cache: "no-store",
-            headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
-        });
+        const res = await authFetch(`${getApiRoot()}/api/bookings/my-bookings`);
         if (!res.ok) return null;
         const rows = await res.json();
         if (!Array.isArray(rows)) return null;
@@ -747,14 +763,10 @@ async function fetchMyBookingForEvent(eventId) {
 }
 
 async function fetchRegistrationStatus(eventId) {
-    const token = getAccessToken();
-    if (!token || !eventId) return { state: "new" };
+    if (!eventId) return { state: "new" };
     let status = { state: "new" };
     try {
-        const res = await fetch(`${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`, {
-            cache: "no-store",
-            headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
-        });
+        const res = await authFetch(`${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`);
         if (res.ok) {
             const data = await res.json();
             if (data && data.state) status = data;
@@ -762,9 +774,17 @@ async function fetchRegistrationStatus(eventId) {
     } catch (_) {}
     if (status.state === "ticket" && status.booking_id) return status;
     const mine = await fetchMyBookingForEvent(eventId);
-    if (mine) return ticketStateFromBooking(mine);
+    if (mine) {
+        const row = ticketStateFromBooking(mine);
+        row.qr_token = mine.qr_token || null;
+        return row;
+    }
     const cached = findCachedBookingForEvent(eventId);
-    if (cached) return ticketStateFromBooking(cached);
+    if (cached) {
+        const row = ticketStateFromBooking(cached);
+        row.qr_token = cached.qr_token || null;
+        return row;
+    }
     return status;
 }
 
@@ -775,10 +795,8 @@ function setBookNowLabels(label) {
     });
 }
 
-function setPostPurchaseLinks(bookingId) {
-    const ticketHref = bookingId
-        ? `ticket-details.html?id=${encodeURIComponent(bookingId)}`
-        : "orders.html";
+function setPostPurchaseLinks(bookingId, qrToken) {
+    const ticketHref = ticketPageHref(bookingId, qrToken);
     const agendaHref = bookingId
         ? `agenda.html?id=${encodeURIComponent(bookingId)}`
         : "orders.html";
@@ -790,8 +808,8 @@ function setPostPurchaseLinks(bookingId) {
     });
 }
 
-function showPostPurchaseActions(bookingId) {
-    setPostPurchaseLinks(bookingId);
+function showPostPurchaseActions(bookingId, qrToken) {
+    setPostPurchaseLinks(bookingId, qrToken);
     document.querySelectorAll(".btn-book-now").forEach((btn) => {
         if (btn.classList.contains("btn-view-ticket")) return;
         btn.hidden = true;
@@ -823,7 +841,7 @@ function hidePostPurchaseActions() {
 async function applyBookingCtaState(eventId) {
     const status = await fetchRegistrationStatus(eventId);
     if (status.state === "ticket") {
-        showPostPurchaseActions(status.booking_id);
+        showPostPurchaseActions(status.booking_id, status.qr_token);
     } else {
         hidePostPurchaseActions();
         setBookNowLabels("Buy Ticket");
@@ -888,7 +906,7 @@ async function triggerBookingModal() {
     const status = await fetchRegistrationStatus(eventId);
     if (status.state === "ticket") {
         if (status.booking_id) {
-            window.location.href = `ticket-details.html?id=${encodeURIComponent(status.booking_id)}`;
+            window.location.href = ticketPageHref(status.booking_id, status.qr_token);
             return;
         }
         window.location.href = "orders.html";
