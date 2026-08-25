@@ -26,6 +26,7 @@ from Models.user import User
 from Services.auth_service import get_password_hash
 from Services.email import send_email
 from Services.whatsapp import send_whatsapp
+from Services.ticket_pdf import build_ticket_pdf_bytes
 
 from APIs.bookings import (
     _active_booking_for_event,
@@ -467,8 +468,10 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
     text_body = (
         f"Hi {attendee},\n\n"
         f"Your JOD Events ticket for {event_title} is ready.\n"
+        f"Booking ID: JOD-{(str(booking.booking_id).replace('-', '')[:8] or '00000000').upper()}\n"
+        f"Event date: {booking.event.start_date if booking.event else 'TBA'}\n"
         f"Ticket type: {booking.ticket_type or 'General Admission'}\n"
-        f"Open your e-ticket: {ticket_link}\n"
+        f"Your ticket PDF is attached. Open your e-ticket: {ticket_link}\n"
         f"{extra_text + chr(10) if extra_text else ''}"
         f"Show the QR code at the gate. Token: {token}\n"
         "This QR is unique to you. Do not share it."
@@ -477,7 +480,7 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#201d19;">
       <h2 style="color:#FF7508;">Your ticket is ready</h2>
       <p>Hi {attendee},</p>
-      <p>Your unique QR ticket for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) is ready. This code belongs only to you.</p>
+      <p>Your unique QR ticket for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) is ready. A PDF with booking ID, event date, and QR is attached.</p>
       <p style="text-align:center;margin:24px 0;">
         <img src="{image}" alt="Ticket QR" width="220" height="220" style="border:8px solid #fff8f0;border-radius:12px;" />
       </p>
@@ -485,14 +488,29 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
         <a href="{ticket_link}" style="background:#FF7508;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;">View ticket on website</a>
       </p>
       {extra_links}
-      <p style="font-size:13px;color:#64748b;">Gate token: {token}</p>
+      <p style="font-size:13px;color:#64748b;">Booking ID: JOD-{(str(booking.booking_id).replace('-', '')[:8] or '00000000').upper()} · Gate token: {token}</p>
     </div>
     """
+    pdf_bytes = None
+    try:
+        pdf_bytes = build_ticket_pdf_bytes(
+            booking_id=booking.booking_id,
+            event_name=event_title,
+            event_date=booking.event.start_date if booking.event else None,
+            qr_token=token,
+        )
+    except Exception:
+        pdf_bytes = None
+    attachments = []
+    if pdf_bytes:
+        short = (str(booking.booking_id).replace("-", "")[:8] or "ticket").upper()
+        attachments.append((f"JOD-Ticket-{short}.pdf", pdf_bytes, "application/pdf"))
     email_sent = send_email(
         email_addr,
         f"Your QR ticket — {event_title}",
         text_body,
         html_body,
+        attachments=attachments or None,
     ) if email_addr else False
 
     wa_text = (

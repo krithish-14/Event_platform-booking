@@ -64,25 +64,12 @@
 		}
 	}
 
-	async function authFetch(url, options) {
-		const opts = Object.assign({ cache: "no-store" }, options || {});
-		opts.headers = Object.assign({ Accept: "application/json" }, opts.headers || {});
+	function authFetch(url, options) {
+		const opts = Object.assign({ cache: "no-store", credentials: "include" }, options || {});
 		if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
 			return window.JodAuth.fetchAuth(url, opts);
 		}
-		return fetch(url, Object.assign({ credentials: "include" }, opts));
-	}
-
-	function isSignedIn() {
-		if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function") {
-			return window.JodAuth.isLoggedIn();
-		}
-		try {
-			const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
-			return Boolean(raw && raw !== "null" && raw !== "undefined");
-		} catch (_) {
-			return false;
-		}
+		return fetch(url, opts);
 	}
 
 	async function loadBookingData(bookingId) {
@@ -90,7 +77,10 @@
 		const qrToken = getQueryParam("token") || getQueryParam("qr");
 		if (qrToken) {
 			try {
-				const res = await fetch(`${apiBase}/api/tickets/public/${encodeURIComponent(qrToken)}`, { cache: "no-store" });
+				const res = await fetch(`${apiBase}/api/tickets/public/${encodeURIComponent(qrToken)}`, {
+					cache: "no-store",
+					credentials: "include",
+				});
 				if (res.ok) {
 					const data = await res.json();
 					saveLocalBookingCache(data);
@@ -100,17 +90,12 @@
 			} catch (_) {}
 			return { _error: "unavailable" };
 		}
-		if (!bookingId) return null;
-		if (!isSignedIn() && !(window.JodAuth && typeof window.JodAuth.validateSession === "function")) {
-			return { _error: "signin" };
-		}
+		if (!bookingId) return { _error: "signin" };
 
 		try {
-			if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
-				const sessionUser = await window.JodAuth.validateSession();
-				if (!sessionUser && !isSignedIn()) return { _error: "signin" };
-			}
-			const res = await authFetch(`${apiBase}/api/bookings/${bookingId}`);
+			const res = await authFetch(`${apiBase}/api/bookings/${encodeURIComponent(bookingId)}`, {
+				headers: { Accept: "application/json" },
+			});
 			if (res.ok) {
 				const data = await res.json();
 				if (!data.qr_token) return { _error: "pending" };
@@ -125,7 +110,13 @@
 		return { _error: "unavailable" };
 	}
 
+	function setDownloadActionsVisible(visible) {
+		const bar = document.getElementById("ticketActionsBar") || document.querySelector(".ticket-actions-bar");
+		if (bar) bar.hidden = !visible;
+	}
+
 	function showTicketUnavailable(kind) {
+		setDownloadActionsVisible(false);
 		const messages = {
 			signin: "Please sign in to view this ticket.",
 			forbidden: "This ticket belongs to another account.",
@@ -145,9 +136,6 @@
 
 	function resolveTicketImage(url) {
 		if (!url) return "";
-		if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
-			return window.JodConfig.safeMediaUrl(url, "images/hero-event.jpg");
-		}
 		if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("blob:") || url.startsWith("data:")) return url;
 		if (url.startsWith("/api/media") || url.startsWith("/uploads/") || url.startsWith("uploads/")) {
 			const base = getApiBase().replace(/\/$/, "");
@@ -539,6 +527,7 @@
 			showTicketUnavailable(bookingData && bookingData._error);
 			return;
 		}
+		setDownloadActionsVisible(true);
 		renderTicketDOM(bookingData);
 		bindActions(bookingData);
 		bindTicketFlip();

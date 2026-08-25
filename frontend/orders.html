@@ -541,12 +541,15 @@
 				const imgSrc = resolveOrderImage(b.card_image || b.image_url);
 				const showCancel = canShowCancel(b);
 
+				const ticketHref = b.qr_token
+					? `ticket-details.html?token=${encodeURIComponent(b.qr_token)}&id=${encodeURIComponent(b.booking_id)}`
+					: `ticket-details.html?id=${encodeURIComponent(b.booking_id)}`;
 				html += `
 					<div class="order-card" data-status="${cancelled ? 'cancelled' : 'completed'}">
 						<div class="order-thumb">
 							<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(b.event_title || 'Event Ticket')}" onerror="this.onerror=null;this.src=(window.JodConfig&&window.JodConfig.assetUrl?window.JodConfig.assetUrl('images/hero-event.jpg'):'https://assets.jodevents.com/images/hero-event.jpg')" />
 						</div>
-						<div class="order-details" style="cursor:pointer;" onclick="window.location.href='ticket-details.html?id=${encodeURIComponent(b.booking_id)}'">
+						<div class="order-details" style="cursor:pointer;" onclick="window.location.href='${ticketHref}'">
 							${statusBadge}
 							<h3>${escapeHtml(b.event_title || 'Event Booking')}</h3>
 							<div class="order-meta">
@@ -561,7 +564,7 @@
 						<div class="order-action">
 							<div class="order-price">₹${Number(b.total_price || 0).toLocaleString('en-IN')}</div>
 							<div class="order-action-btns">
-								<a class="button button-sm button-primary" href="ticket-details.html?id=${encodeURIComponent(b.booking_id)}">View Ticket &amp; QR 🎟️</a>
+								<a class="button button-sm button-primary" href="${ticketHref}">View Ticket &amp; QR 🎟️</a>
 								${showCancel ? `<button type="button" class="btn-cancel-order" data-cancel-id="${escapeHtml(b.booking_id)}">Cancel</button>` : ""}
 							</div>
 						</div>

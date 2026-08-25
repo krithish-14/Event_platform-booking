@@ -21,7 +21,7 @@ from Models.user import User
 router = APIRouter()
 
 
-from sqlalchemy import func, or_, text
+from sqlalchemy import String, cast, func, or_, text
 
 from Models.ticket import Ticket
 from Models.form_submissions import FormSubmission
@@ -43,6 +43,7 @@ class PendingPaymentResponse(BaseModel):
 class RegistrationStatusResponse(BaseModel):
     state: str
     booking_id: Optional[str] = None
+    qr_token: Optional[str] = None
     ticket_type: Optional[str] = None
     price: Optional[float] = None
     event_title: Optional[str] = None
@@ -268,7 +269,21 @@ def _booking_tickets(b: Booking, db: Session = None) -> List[Ticket]:
     try:
         return db.query(Ticket).filter(Ticket.booking_id == b.booking_id).all()
     except Exception:
-        return []
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        try:
+            compact = str(b.booking_id).replace("-", "").lower()
+            return db.query(Ticket).filter(
+                func.lower(func.replace(cast(Ticket.booking_id, String), "-", "")) == compact
+            ).all()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return []
 
 
 def _serialize_booking(b: Booking, db: Session = None) -> dict:
@@ -560,11 +575,19 @@ def get_registration_status(
         try:
             _mark_form_submission_paid(db, event_id, current_user, booking_id=booking.booking_id)
         except Exception:
-            pass
+            try:
+                db.rollback()
+            except Exception:
+                pass
         event = getattr(booking, "event", None)
+        tickets = _booking_tickets(booking, db=db)
+        qr_token = None
+        if tickets:
+            qr_token = getattr(tickets[0], "qr_token", None)
         return RegistrationStatusResponse(
             state="ticket",
             booking_id=str(booking.booking_id),
+            qr_token=qr_token,
             ticket_type=booking.ticket_type,
             price=float(booking.total_price or 0),
             event_title=getattr(event, "title", None),
@@ -651,6 +674,34 @@ def _assert_booking_owner(booking: Booking, current_user: User) -> None:
     )
 
 
+def _lookup_booking_row(db: Session, booking_id) -> Optional[Booking]:
+    bid = str(booking_id or "").strip()
+    if not bid:
+        return None
+    compact = bid.replace("-", "").lower()
+    try:
+        row = (
+            db.query(Booking)
+            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
+            .filter(cast(Booking.booking_id, String) == bid)
+            .first()
+        )
+        if row:
+            return row
+        return (
+            db.query(Booking)
+            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
+            .filter(func.lower(func.replace(cast(Booking.booking_id, String), "-", "")) == compact)
+            .first()
+        )
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
+
+
 @router.get("/{booking_id}", response_model=BookingResponse)
 def get_single_booking(
     booking_id: str,
@@ -658,22 +709,7 @@ def get_single_booking(
     current_user: User = Depends(get_current_user),
 ):
     """Get details for an individual booking owned by the authenticated user."""
-    try:
-        b_uuid = UUID(booking_id)
-        b = (
-            db.query(Booking)
-            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-            .filter(Booking.booking_id == b_uuid)
-            .first()
-        )
-    except Exception:
-        b = (
-            db.query(Booking)
-            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-            .filter(Booking.booking_id == booking_id)
-            .first()
-        )
-
+    b = _lookup_booking_row(db, booking_id)
     if not b:
         raise HTTPException(status_code=404, detail="Booking not found.")
     _assert_booking_owner(b, current_user)

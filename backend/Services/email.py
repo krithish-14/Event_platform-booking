@@ -5,9 +5,10 @@ Never logs message bodies or one-time codes.
 
 import os
 import smtplib
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from Services.runtime_env import smtp_configured
 
@@ -19,7 +20,13 @@ def _safe_print(msg: str) -> None:
         pass
 
 
-def send_email(to_email: str, subject: str, text_body: str, html_body: Optional[str] = None) -> bool:
+def send_email(
+    to_email: str,
+    subject: str,
+    text_body: str,
+    html_body: Optional[str] = None,
+    attachments: Optional[List[Tuple[str, bytes, str]]] = None,
+) -> bool:
     """Send email via SMTP if SMTP_HOST is set. Returns True if SMTP succeeded."""
     to_email = (to_email or "").strip()
     if not to_email:
@@ -36,13 +43,22 @@ def send_email(to_email: str, subject: str, text_body: str, html_body: Optional[
     from_addr = (os.getenv("SMTP_FROM") or os.getenv("EMAIL_FROM") or user or "noreply@jodevents.local").strip()
     use_tls = (os.getenv("SMTP_TLS") or "1").strip() not in ("0", "false", "False")
 
-    msg = MIMEMultipart("alternative")
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
     msg["From"] = from_addr
     msg["To"] = to_email
-    msg.attach(MIMEText(text_body or "", "plain", "utf-8"))
+    alt = MIMEMultipart("alternative")
+    alt.attach(MIMEText(text_body or "", "plain", "utf-8"))
     if html_body:
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
+        alt.attach(MIMEText(html_body, "html", "utf-8"))
+    msg.attach(alt)
+    for filename, content, mime in attachments or []:
+        if not content:
+            continue
+        subtype = (mime or "application/pdf").split("/")[-1] or "pdf"
+        part = MIMEApplication(content, _subtype=subtype)
+        part.add_header("Content-Disposition", "attachment", filename=filename or "ticket.pdf")
+        msg.attach(part)
 
     try:
         with smtplib.SMTP(host, port, timeout=20) as smtp:
