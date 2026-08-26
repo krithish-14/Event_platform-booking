@@ -9,8 +9,26 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','GTM-PFZVZGJR');</script>
 <!-- End Google Tag Manager -->
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1108643598261903');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+
 <meta name="google-site-verification" content="NZqKNPeMc18zMdyTI3izDvSSlpvp-k5-QxDip8XCFw8" />
-    	<script src="js/theme.js?v=8"></script>
+    	<script src="js/theme.js?v=9"></script>
 		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -48,7 +66,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div style="font-size:2.5rem; margin-bottom:1rem;">📭</div>
         <h1 id="unavailableTitle" style="margin:0 0 0.75rem; font-size:1.5rem;">This event is currently unavailable.</h1>
         <p id="unavailableMessage" style="color:#64748b; margin:0 0 1.5rem;">The event may be unpublished or no longer available.</p>
-        <a href="index.html" class="button button-primary">Browse Events</a>
+        <a href="/" class="button button-primary">Browse Events</a>
     </div>
 
     <main class="event-details-container" id="mainContent" style="display:none;">
@@ -181,8 +199,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             Buy Ticket
                         </button>
                         <div class="post-purchase-actions" id="postPurchaseActions" hidden>
-                            <a class="btn-book-now btn-view-ticket" data-action="view-ticket" href="ticket-details.html">View Ticket</a>
-                            <a class="btn-view-agenda" data-action="view-agenda" href="agenda.html">View Agenda</a>
+                            <a class="btn-book-now btn-view-ticket" data-action="view-ticket" href="/ticket-details">View Ticket</a>
+                            <a class="btn-view-agenda" data-action="view-agenda" href="/agenda">View Agenda</a>
                         </div>
                     </div>
                 </div>
@@ -209,8 +227,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 Buy Ticket
             </button>
             <div class="post-purchase-actions sticky-post-purchase" hidden>
-                <a class="btn-book-now btn-view-ticket" data-action="view-ticket" href="ticket-details.html">View Ticket</a>
-                <a class="btn-view-agenda" data-action="view-agenda" href="agenda.html">View Agenda</a>
+                <a class="btn-book-now btn-view-ticket" data-action="view-ticket" href="/ticket-details">View Ticket</a>
+                <a class="btn-view-agenda" data-action="view-agenda" href="/agenda">View Agenda</a>
             </div>
         </div>
     </div>
@@ -231,7 +249,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <script src="js/include.js?v=28"></script>
     <script src="js/health.js?v=2"></script>
     <script src="js/auth.js?v=31"></script>
-    <script src="js/profile.js?v=11"></script>
+    <script src="js/profile.js?v=12"></script>
     <script src="js/location.js?v=14"></script>
     <script src="js/search.js?v=1"></script>
     <script src="js/script.js?v=27"></script>

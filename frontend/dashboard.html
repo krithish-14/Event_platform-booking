@@ -8,8 +8,26 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','GTM-PFZVZGJR');</script>
 <!-- End Google Tag Manager -->
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1108643598261903');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+
 <meta name="google-site-verification" content="NZqKNPeMc18zMdyTI3izDvSSlpvp-k5-QxDip8XCFw8" />
-		<script src="js/theme.js?v=8"></script>
+		<script src="js/theme.js?v=9"></script>
 		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -351,7 +369,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				<div class="container">
 					<h2 class="section-title"><span></span>Overview</h2>
 					<div class="dashboard-grid">
-						<a class="stat-card" href="orders.html">
+						<a class="stat-card" href="/orders">
 							<div class="stat-icon orange">
 								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
 							</div>
@@ -369,7 +387,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								<div class="stat-value" id="upcomingEventsVal">0</div>
 							</div>
 						</a>
-						<a class="stat-card" href="wishlist.html">
+						<a class="stat-card" href="/wishlist">
 							<div class="stat-icon pink">
 								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
 							</div>
@@ -378,7 +396,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								<div class="stat-value" id="wishlistItemsVal">0</div>
 							</div>
 						</a>
-						<a class="stat-card" href="orders.html">
+						<a class="stat-card" href="/orders">
 							<div class="stat-icon green">
 								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
 							</div>
@@ -396,23 +414,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				<div class="container">
 					<h2 class="section-title"><span></span>Quick Actions</h2>
 					<div class="quick-grid">
-						<a class="quick-card" href="orders.html">
+						<a class="quick-card" href="/orders">
 							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg></div>
 							Your Orders
 						</a>
-						<a class="quick-card" href="wishlist.html">
+						<a class="quick-card" href="/wishlist">
 							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
 							Your Wishlist
 						</a>
-						<a class="quick-card" href="settings.html">
+						<a class="quick-card" href="/settings">
 							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
 							Settings
 						</a>
-						<a class="quick-card" href="help.html">
+						<a class="quick-card" href="/help">
 							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
 							Help & Support
 						</a>
-						<a class="quick-card" href="index.html#upcoming">
+						<a class="quick-card" href="/#upcoming">
 							<div class="qc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
 							Browse Events
 						</a>
@@ -441,7 +459,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						<div class="empty-state">
 							<div class="empty-icon">🎟️</div>
 							<p>You haven't booked any events yet.<br>
-							<a href="index.html#upcoming" style="color:var(--primary);font-weight:600">Explore upcoming events &rarr;</a></p>
+							<a href="/#upcoming" style="color:var(--primary);font-weight:600">Explore upcoming events &rarr;</a></p>
 						</div>
 					</div>
 				</div>
@@ -454,7 +472,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 	<script src="js/include.js?v=28"></script>
 	<script src="js/health.js?v=2"></script>
 	<script src="js/auth.js?v=25"></script>
-	<script src="js/profile.js?v=11"></script>
+	<script src="js/profile.js?v=12"></script>
 	<script src="js/wishlist.js?v=1"></script>
 	<script src="js/location.js?v=14"></script>
 	<script src="js/events-public.js?v=20260825_v16"></script>

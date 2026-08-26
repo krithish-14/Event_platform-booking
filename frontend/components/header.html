@@ -8,7 +8,7 @@
 		</div>
 		<div class="announcement-actions">
 			<span class="countdown-summary">Starts in <span data-summary-countdown>--d --h --m</span></span>
-			<a class="gold-link" href="index.html#upcoming">Reserve your seat <span
+			<a class="gold-link" href="/#upcoming">Reserve your seat <span
 					aria-hidden="true">&#8594;</span></a>
 		</div>
 	</div>
@@ -16,7 +16,7 @@
 <header class="site-header" data-header>
 	<div class="container nav-inner">
 		<div class="header-leading">
-			<a class="brand" href="index.html" aria-label="JOD Events home">
+			<a class="brand" href="/" aria-label="JOD Events home">
 				<img
 					class="brand-logo"
 					src="https://assets.jodevents.com/images/JOD%20Events%20Logo.png"
@@ -39,31 +39,31 @@
 			<button type="button" class="search-clear" id="headerSearchClear" aria-label="Clear search">&times;</button>
 		</div>
 		<nav class="desktop-nav" aria-label="Primary navigation">
-			<a href="index.html">Home</a>
-			<a href="about.html" aria-current="false">About</a>
-			<a href="category.html">Category</a>
-			<a href="host-your-event.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, 'account-setup.html', 'host');}">Host Your Event</a>
-			<a href="gallery.html">Gallery</a>
+			<a href="/">Home</a>
+			<a href="/about" aria-current="false">About</a>
+			<a href="/category">Category</a>
+			<a href="/host-your-event" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, '/account-setup', 'host');}">Host Your Event</a>
+			<a href="/gallery">Gallery</a>
 		</nav>
 		<button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Dark mode"></button>
 		<div class="nav-auth" id="navAuth">
-			<a class="button button-sm button-login" href="login.html" id="nav-login-btn">Login</a>
-			<a class="button button-sm button-primary" href="signup.html" id="nav-signup-btn">Sign Up &#8599;</a>
+			<a class="button button-sm button-login" href="/login" id="nav-login-btn">Login</a>
+			<a class="button button-sm button-primary" href="/signup" id="nav-signup-btn">Sign Up &#8599;</a>
 		</div>
 		<button class="menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" data-menu-toggle>
 			<span></span><span></span>
 		</button>
 	</div>
 		<nav class="mobile-nav" aria-label="Mobile navigation" data-mobile-nav>
-		<a href="index.html">Home</a>
-		<a href="about.html">About</a>
-		<a href="category.html">Category</a>
-		<a href="host-your-event.html" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, 'account-setup.html', 'host');}">Host Your Event</a>
-		<a href="gallery.html">Gallery</a>
+		<a href="/">Home</a>
+		<a href="/about">About</a>
+		<a href="/category">Category</a>
+		<a href="/host-your-event" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, '/account-setup', 'host');}">Host Your Event</a>
+		<a href="/gallery">Gallery</a>
 		<button type="button" class="theme-toggle mobile-theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Dark mode"></button>
 		<div class="mobile-auth-group">
-			<a class="button button-login" href="login.html">Login</a>
-			<a class="button button-primary" href="signup.html">Sign Up</a>
+			<a class="button button-login" href="/login">Login</a>
+			<a class="button button-primary" href="/signup">Sign Up</a>
 		</div>
 	</nav>
 </header> 

@@ -6,8 +6,10 @@
 	const canvas = document.getElementById("bgCanvas");
 	const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-	const pageName = window.location.pathname.split("/").pop() || "index.html";
-	const isHome = pageName === "index.html" || pageName === "";
+	const pageName = (window.JodUrls && window.JodUrls.currentPageFile)
+		? window.JodUrls.currentPageFile()
+		: (window.location.pathname.split("/").pop() || "index.html");
+	const isHome = pageName === "index.html";
 
 	let splashShown = false;
 	try {
@@ -71,7 +73,7 @@
 
 	document.addEventListener("click", (e) => {
 		if (!splashScreen || prefersReduced) return;
-		const logo = e.target.closest("a[href='index.html'] img, a[href='./index.html'] img, img[alt='JOD Events']");
+		const logo = e.target.closest("a[href='index.html'] img, a[href='./index.html'] img, a[href='/'] img, img[alt='JOD Events']");
 		if (!logo) return;
 		if (isHome) {
 			e.preventDefault();
@@ -416,7 +418,7 @@
 					<a class="button button-sm button-primary" href="signup.html" id="nav-signup-btn">Sign Up &#8599;</a>`;
 				}
 			}
-			if (mobileGroup && !mobileGroup.querySelector('a[href="login.html"]')) {
+			if (mobileGroup && !mobileGroup.querySelector('a[href="login.html"], a[href="/login"]')) {
 				mobileGroup.hidden = false;
 				mobileGroup.innerHTML = `
 					<a class="button button-login" href="login.html">Login</a>

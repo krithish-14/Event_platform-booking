@@ -91,7 +91,10 @@
 	}
 
 	function eventDetailsUrl(event) {
-		return `event-details.html?id=${encodeURIComponent(event.id)}`;
+		const raw = `event-details.html?id=${encodeURIComponent(event.id)}`;
+		return (global.JodUrls && typeof global.JodUrls.prettyHref === "function")
+			? global.JodUrls.prettyHref(raw)
+			: raw;
 	}
 
 	function parseEventMs(iso) {
@@ -188,10 +191,7 @@
 
 	function cardCountdownIso(event) {
 		if (!event) return "";
-		const phase = getEventPhase(event);
-		if (phase === "upcoming") return event.start_date || "";
-		if (phase === "live") return event.end_date || event.start_date || "";
-		return event.end_date || event.start_date || "";
+		return event.start_date || "";
 	}
 
 	function pickFeaturedEvent(events) {
@@ -418,14 +418,15 @@
 			updateSummaryCountdown(el, startIso, endIso);
 			return;
 		}
-		const phase = getEventPhase({ start_date: startIso, end_date: endIso });
 		const startMs = parseEventMs(startIso);
+		const endMs = parseEventMs(endIso);
+		const now = Date.now();
 
-		if (phase === "ended") {
+		if (endMs && now >= endMs) {
 			el.innerHTML = `<div class="countdown-status" style="grid-column:1/-1;text-align:center;font-weight:700;">Event Ended</div>`;
 			return;
 		}
-		if (phase === "live") {
+		if (!startMs || now >= startMs) {
 			el.innerHTML = `<div class="countdown-status" style="grid-column:1/-1;text-align:center;font-weight:700;color:#34d399;">Live Now</div>`;
 			return;
 		}
@@ -444,18 +445,15 @@
 
 	function updateSummaryCountdown(el, startIso, endIso) {
 		if (!el) return;
-		const phase = getEventPhase({ start_date: startIso, end_date: endIso });
-		if (phase === "ended") {
+		const startMs = parseEventMs(startIso);
+		const endMs = parseEventMs(endIso);
+		const now = Date.now();
+		if (endMs && now >= endMs) {
 			el.textContent = "Ended";
 			return;
 		}
-		if (phase === "live") {
+		if (!startMs || now >= startMs) {
 			el.textContent = "Live Now";
-			return;
-		}
-		const startMs = parseEventMs(startIso);
-		if (!startMs) {
-			el.textContent = "--d --h --m";
 			return;
 		}
 		const parts = getCountdownParts(startMs);
@@ -464,29 +462,18 @@
 
 	function updateCardCountdownElement(el, startIso, endIso) {
 		if (!el || !startIso) return;
-		const phase = getEventPhase({ start_date: startIso, end_date: endIso || el.dataset.cardCountdownEnd || "" });
-		if (phase === "ended") {
+		const startMs = parseEventMs(startIso);
+		const endMs = parseEventMs(endIso || el.dataset.cardCountdownEnd || "");
+		const now = Date.now();
+		if (endMs && now >= endMs) {
 			el.textContent = "Ended";
 			return;
 		}
-		if (phase === "live") {
-			const endMs = parseEventMs(endIso || el.dataset.cardCountdownEnd || "");
-			if (endMs) {
-				const parts = getCountdownParts(endMs);
-				el.textContent = parts.expired
-					? "Ended"
-					: `Live ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m`;
-			} else {
-				el.textContent = "✨ Live Now";
-			}
+		if (!startMs || now >= startMs) {
+			el.textContent = "✨ Live Now";
 			return;
 		}
-		const startMs = parseEventMs(startIso);
 		const parts = getCountdownParts(startMs);
-		if (parts.expired) {
-			el.textContent = "✨ Started";
-			return;
-		}
 		el.textContent = `✨ ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m`;
 	}
 
@@ -614,6 +601,9 @@
 		if (!event) {
 			bar.classList.remove("has-published-event");
 			bar.hidden = true;
+			if (typeof window.syncHeaderOffset === "function") {
+				window.syncHeaderOffset();
+			}
 			return;
 		}
 		const titleEl = bar.querySelector(".announcement-title");
@@ -635,6 +625,9 @@
 		if (link) link.href = eventDetailsUrl(event);
 		bar.classList.add("has-published-event");
 		bar.hidden = false;
+		if (typeof window.syncHeaderOffset === "function") {
+			window.syncHeaderOffset();
+		}
 	}
 
 	function renderFeaturedPopup(event) {

@@ -50,6 +50,7 @@ async def run_duplicate_email_tests():
         email=test_email_1,
         username=f"user_{secrets.token_hex(3)}",
         full_name="Manual User 1",
+        phone="9876543210",
         password="Password123!"
     )
     reg_resp_1 = register(test_user_1, db)
@@ -122,6 +123,7 @@ async def run_duplicate_email_tests():
         email=test_email_2,
         username=f"manual_dup_{secrets.token_hex(3)}",
         full_name="Dup Manual User",
+        phone="9876543213",
         password="Password123!"
     )
     try:

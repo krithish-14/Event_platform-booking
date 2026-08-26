@@ -5,8 +5,10 @@
 (function initHomeEvents() {
 	"use strict";
 
-	const page = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
-	if (page !== "index.html" && page !== "") return;
+	const page = (window.JodUrls && window.JodUrls.currentPageFile)
+		? window.JodUrls.currentPageFile()
+		: (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+	if (page !== "index.html") return;
 
 	const EP = window.JodEventsPublic;
 	if (!EP) return;

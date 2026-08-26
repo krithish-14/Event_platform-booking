@@ -229,8 +229,15 @@ window.JodAuth = (() => {
 		} catch (_) {}
 	}
 
+	function prettyUrl(href) {
+		if (window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
+			return window.JodUrls.prettyHref(href);
+		}
+		return href;
+	}
+
 	function homeUrlWithFeaturedPopup() {
-		return "index.html?show_featured=1";
+		return prettyUrl("index.html?show_featured=1");
 	}
 
 	async function redirectAfterAuth(preferredUrl) {
@@ -245,7 +252,7 @@ window.JodAuth = (() => {
 		// on home with show_featured=1 so the modal always appears. Admins keep
 		// going straight to the admin portal.
 		if (isAdminUser(getUser()) || String(dest).toLowerCase().includes("admin-portal")) {
-			window.location.replace(dest);
+			window.location.replace(prettyUrl(dest));
 			return;
 		}
 		try {
@@ -295,7 +302,9 @@ window.JodAuth = (() => {
 				sessionStorage.removeItem("jod_redirect_after_login");
 				target = decodeURIComponent(target);
 				const isRelative = !target.includes("://") || target.startsWith(window.location.origin);
-				if (isRelative && !target.includes("login.html") && !target.includes("signup.html")) {
+				if (isRelative && !(window.JodUrls && window.JodUrls.isLoginOrSignupHref
+					? window.JodUrls.isLoginOrSignupHref(target)
+					: (target.includes("login.html") || target.includes("signup.html")))) {
 					return target;
 				}
 			}
@@ -1067,6 +1076,14 @@ window.JodAuth = (() => {
 			usernameInput.addEventListener("blur", (e) => { checkUsername(e.target.value.trim()); });
 		}
 
+		const phoneInput = signupForm.querySelector("#signupPhone");
+		if (phoneInput) {
+			phoneInput.addEventListener("input", () => {
+				const digits = phoneInput.value.replace(/\D/g, "").slice(0, 10);
+				if (phoneInput.value !== digits) phoneInput.value = digits;
+			});
+		}
+
 		/* live confirm-password match check */
 		if (confirmInput && passwordInput) {
 			confirmInput.addEventListener("input", () => {
@@ -1104,6 +1121,8 @@ window.JodAuth = (() => {
 			const fullName = signupForm.querySelector("#signupFullName").value.trim();
 			const username = (usernameInput ? usernameInput.value : "").trim();
 			const email = (emailInput ? emailInput.value : "").trim();
+			const phoneEl = signupForm.querySelector("#signupPhone");
+			const phone = phoneEl ? phoneEl.value.replace(/\D/g, "") : "";
 			const password = passwordInput ? passwordInput.value : "";
 			const confirm = confirmInput ? confirmInput.value : "";
 			let valid = true;
@@ -1117,11 +1136,16 @@ window.JodAuth = (() => {
 				clearAuth();
 			}
 
+			if (!fullName) { setError(signupForm.querySelector("#signupFullName"), "Full name is required."); valid = false; }
+
 			if (!username) { setError(signupForm.querySelector("#signupUsername"), "Username is required."); valid = false; }
 			else if (username.length < 3) { setError(signupForm.querySelector("#signupUsername"), "Username must be at least 3 characters."); valid = false; }
 
 			if (!email) { setError(signupForm.querySelector("#signupEmail"), "Email is required."); valid = false; }
 			else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError(signupForm.querySelector("#signupEmail"), "Enter a valid email address."); valid = false; }
+
+			if (!phone) { setError(signupForm.querySelector("#signupPhone"), "Phone number is required."); valid = false; }
+			else if (!/^\d{10}$/.test(phone)) { setError(signupForm.querySelector("#signupPhone"), "Phone number must be exactly 10 digits."); valid = false; }
 
 			if (!password) { setError(signupForm.querySelector("#signupPassword"), "Password is required."); valid = false; }
 			else if (password.length < 8) { setError(signupForm.querySelector("#signupPassword"), "Password must be at least 8 characters."); valid = false; }
@@ -1156,8 +1180,7 @@ window.JodAuth = (() => {
 					usernameAvailable = null;
 				}
 
-				const payload = { username, email, password };
-				if (fullName) payload.full_name = fullName;
+				const payload = { username, email, password, full_name: fullName, phone };
 
 				const res = await fetch(`${getApiBase()}/api/auth/register`, {
 					method: "POST",
@@ -1479,7 +1502,9 @@ window.JodAuth = (() => {
 
 
 	// Auto-redirect if already logged in on login or signup page
-	const pageFile = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+	const pageFile = (window.JodUrls && window.JodUrls.currentPageFile)
+		? window.JodUrls.currentPageFile()
+		: (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 	if ((pageFile === "login.html" || pageFile === "signup.html") && isLoggedIn()) {
 		(async () => {
 			const verified = await validateSession();
@@ -1568,6 +1593,9 @@ window.JodAuth = (() => {
 	}
 
 	function currentPageName() {
+		if (window.JodUrls && typeof window.JodUrls.currentPageFile === "function") {
+			return window.JodUrls.currentPageFile();
+		}
 		return (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 	}
 
@@ -1695,7 +1723,7 @@ window.JodAuth = (() => {
 
 			const onHomeOrCategory = page === "index.html" || page === "" || page === "category.html";
 			if (onHomeOrCategory) {
-				const eventLink = e.target.closest("a[href*='event-details.html'], a[href*='makeup-boutique'], .hero a.button-gold, .hero-featured-image a");
+				const eventLink = e.target.closest("a[href*='event-details.html'], a[href*='/event-details'], a[href*='makeup-boutique'], .hero a.button-gold, .hero-featured-image a");
 				if (eventLink) {
 					e.preventDefault();
 					e.stopPropagation();

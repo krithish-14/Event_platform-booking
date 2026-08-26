@@ -185,6 +185,11 @@
 	font-weight: 300;
 	margin-left: .25rem;
 }
+.form-label .req {
+	color: #e11d48;
+	font-weight: 700;
+	margin-left: .15rem;
+}
 
 .input-wrap {
 	position: relative;

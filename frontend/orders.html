@@ -8,8 +8,26 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','GTM-PFZVZGJR');</script>
 <!-- End Google Tag Manager -->
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1108643598261903');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+
 <meta name="google-site-verification" content="NZqKNPeMc18zMdyTI3izDvSSlpvp-k5-QxDip8XCFw8" />
-		<script src="js/theme.js?v=8"></script>
+		<script src="js/theme.js?v=9"></script>
 		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -319,7 +337,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 	<script src="js/include.js?v=28"></script>
 	<script src="js/health.js?v=2"></script>
 	<script src="js/auth.js?v=31"></script>
-	<script src="js/profile.js?v=11"></script>
+	<script src="js/profile.js?v=12"></script>
 	<script src="js/location.js?v=14"></script>
 	<script src="js/script.js?v=27"></script>
 	<script>
@@ -521,7 +539,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						<div style="font-size:3rem;margin-bottom:1rem;">🎟️</div>
 						<h3 style="font-size:1.15rem;color:var(--foreground);margin:0 0 .5rem;">No Event Bookings Found</h3>
 						<p style="font-size:.9rem;margin:0 0 1.25rem;">You haven't purchased any tickets yet. Explore upcoming events and book your seats!</p>
-						<a href="index.html#upcoming" class="button button-primary button-sm" style="display:inline-flex;align-items:center;gap:.5rem;">Explore Events &rarr;</a>
+						<a href="/#upcoming" class="button button-primary button-sm" style="display:inline-flex;align-items:center;gap:.5rem;">Explore Events &rarr;</a>
 					</div>`;
 				return;
 			}

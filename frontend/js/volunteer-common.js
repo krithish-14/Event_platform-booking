@@ -120,29 +120,21 @@ window.JodVolunteer = (() => {
 
 
 	function pageRedirectUrl() {
-
-		return window.location.pathname.split("/").pop() + window.location.search;
-
+		return window.location.pathname + window.location.search;
 	}
 
 
 
 	function loginUrl(next) {
-
 		const target = next || pageRedirectUrl();
-
-		return `login.html?redirect=${encodeURIComponent(target)}`;
-
+		const raw = `login.html?redirect=${encodeURIComponent(target)}`;
+		return (window.JodUrls && window.JodUrls.prettyHref) ? window.JodUrls.prettyHref(raw) : raw;
 	}
 
-
-
 	function signupUrl(next) {
-
 		const target = next || pageRedirectUrl();
-
-		return `signup.html?redirect=${encodeURIComponent(target)}`;
-
+		const raw = `signup.html?redirect=${encodeURIComponent(target)}`;
+		return (window.JodUrls && window.JodUrls.prettyHref) ? window.JodUrls.prettyHref(raw) : raw;
 	}
 
 

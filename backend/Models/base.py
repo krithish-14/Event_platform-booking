@@ -170,6 +170,7 @@ def _migrate_tables(engine=None):
                 ("avatar_url", "VARCHAR(500)"),
                 ("notification_read_ids", "JSON" if is_pg else "TEXT"),
                 ("notification_cleared_ids", "JSON" if is_pg else "TEXT"),
+                ("phone", "VARCHAR(15)"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in user_migrations:

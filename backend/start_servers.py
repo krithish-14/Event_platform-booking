@@ -106,26 +106,13 @@ def main():
         )
     services.append(("backend", backend, backend_log))
 
-    frontend_script = (
-        "import sys; sys.stdout.reconfigure(encoding='utf-8', errors='replace');"
-        "import socketserver, http.server;"
-        "PORT=%d;"
-        "H=('%s',PORT);"
-        "Handler=http.server.SimpleHTTPRequestHandler;"
-        "httpd=socketserver.TCPServer(H, Handler, bind_and_activate=False);"
-        "httpd.allow_reuse_address=True;"
-        "httpd.server_bind(); httpd.server_activate();"
-        "sys.stdout.write('Serving on http://%s:%d\\n'); sys.stdout.flush();"
-        "httpd.serve_forever()"
-    ) % (FRONTEND_PORT, FRONTEND_HOST, FRONTEND_HOST, FRONTEND_PORT)
-
     if port_in_use(FRONTEND_HOST, FRONTEND_PORT):
         frontend, frontend_log = None, None
         print("[launcher] frontend port %s:%d already bound — reusing running instance"
               % (FRONTEND_HOST, FRONTEND_PORT))
     else:
         frontend, frontend_log = launch(
-            [sys.executable, "-u", "-c", frontend_script],
+            [sys.executable, "-u", os.path.join(here, "serve_frontend.py")],
             cwd=os.path.join(project_root, "frontend"),
             logfile=os.path.join(here, "frontend.log"),
         )

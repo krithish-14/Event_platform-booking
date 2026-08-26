@@ -246,6 +246,7 @@ class CookieAuthTests(unittest.TestCase):
             "username": username,
             "password": "Passw0rd1",
             "full_name": "Stage Two",
+            "phone": "9876543210",
         })
         self.assertIn(res.status_code, (200, 201), res.text)
         body = res.json()
@@ -271,6 +272,7 @@ class CsrfCookieTests(unittest.TestCase):
                 "username": f"c{os.urandom(3).hex()}",
                 "password": "Passw0rd1",
                 "full_name": "Csrf User",
+                "phone": "9876543210",
             })
             self.assertIn(res.status_code, (200, 201), res.text)
             blocked = client.post("/api/organizers/resubmit-verification", json={"action": "submitted"})

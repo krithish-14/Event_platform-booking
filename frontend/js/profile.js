@@ -818,12 +818,17 @@
 		];
 
 		function getDropdownActiveState(href) {
-			const path = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+			const path = (window.JodUrls && window.JodUrls.currentPageFile)
+				? window.JodUrls.currentPageFile()
+				: (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 			const hash = (window.location.hash || "").toLowerCase();
 			const hrefLower = href.toLowerCase();
 			const [hrefPath, hrefHash] = hrefLower.split("#");
+			const hrefFile = (window.JodUrls && window.JodUrls.pageFileFromHref)
+				? window.JodUrls.pageFileFromHref(hrefPath)
+				: hrefPath.split("/").pop();
 
-			if (path !== hrefPath) return false;
+			if (path !== hrefFile) return false;
 
 			if (hrefHash) {
 				return hash === `#${hrefHash}`;

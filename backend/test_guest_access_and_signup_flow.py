@@ -43,6 +43,7 @@ def test_guest_access_and_signup_persistence():
         email=test_email,
         username=test_username,
         full_name=test_fullname,
+        phone="9876543210",
         password=test_password,
         avatar_url=test_avatar,
         city=test_city,
@@ -84,6 +85,8 @@ def test_guest_access_and_signup_persistence():
     dup_req_email = UserRegisterRequest(
         email=test_email.upper(),
         username=f"different_{secrets.token_hex(3)}",
+        full_name="Dup Email User",
+        phone="9876543211",
         password="ValidPassword123!"
     )
     try:
@@ -98,6 +101,8 @@ def test_guest_access_and_signup_persistence():
     dup_req_username = UserRegisterRequest(
         email=f"different_{secrets.token_hex(4)}@jodevents.com",
         username=test_username.upper(),
+        full_name="Dup Username User",
+        phone="9876543212",
         password="ValidPassword123!"
     )
     try:

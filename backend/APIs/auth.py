@@ -176,12 +176,31 @@ def generate_customer_id(db: Session) -> str:
 class UserRegisterRequest(BaseModel):
     email: EmailStr
     username: str
-    full_name: str | None = None
+    full_name: str
+    phone: str
     password: str
     avatar_url: str | None = None
     bio: str | None = None
     city: str | None = None
     location_pincode: str | None = None
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, v: str) -> str:
+        v = (v or "").strip()
+        if len(v) < 2:
+            raise ValueError("Full name is required.")
+        if len(v) > 200:
+            raise ValueError("Full name must be at most 200 characters long.")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        digits = re.sub(r"\D", "", v or "")
+        if len(digits) != 10:
+            raise ValueError("Phone number must be exactly 10 digits.")
+        return digits
 
     @field_validator("username")
     @classmethod
@@ -232,6 +251,7 @@ class UserResponse(BaseModel):
     email: str
     username: str
     full_name: str | None
+    phone: str | None = None
     avatar_url: str | None = None
     city: str | None = None
     location_pincode: str | None = None
@@ -266,6 +286,7 @@ def _serialize_user(user) -> dict:
         "email": user.email,
         "username": user.username,
         "full_name": user.full_name,
+        "phone": getattr(user, "phone", None),
         "avatar_url": getattr(user, "avatar_url", None),
         "city": getattr(user, "city", None),
         "location_pincode": getattr(user, "location_pincode", None),
@@ -295,6 +316,7 @@ def register(payload: UserRegisterRequest, response: Response, request: Request,
         email=email_clean,
         username=username_clean,
         full_name=payload.full_name.strip() if payload.full_name else None,
+        phone=payload.phone,
         hashed_password=get_password_hash(payload.password),
         avatar_url=payload.avatar_url,
         bio=payload.bio,

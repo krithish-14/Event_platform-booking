@@ -16,14 +16,32 @@
 	})(window,document,'script','dataLayer','GTM-PFZVZGJR');
 	</script>
 	<!-- End Google Tag Manager -->
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1108643598261903');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+
 		
 	<title>JOD Events - Creating Events That People Remember</title>
 	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
-	<script src="js/theme.js?v=8"></script>
+	<script src="js/theme.js?v=9"></script>
 		<script src="js/api-config.js?v=5"></script>
-	<link rel="stylesheet" href="css/style.css?v=39" />
-	<link rel="stylesheet" href="css/responsive.css?v=42" />
+	<link rel="stylesheet" href="css/style.css?v=45" />
+	<link rel="stylesheet" href="css/responsive.css?v=44" />
 </head>
 
 <body class="home-page">
@@ -127,7 +145,7 @@
 				<div class="container">
 					<div class="section-heading">
 						<span class="pill pill-light-orange">&#10024; Upcoming Events</span>
-						<h2>Live Trending Events</h2>
+						<h2>Upcoming Events</h2>
 						<p>A curated calendar of experiences we're producing. Reserve a spot, request an invite, or
 							partner with us.</p>
 					</div>
@@ -160,7 +178,7 @@
 						<div class="carousel-viewport category-viewport" data-category-viewport>
 							<div class="carousel-track category-track" data-category-track>
 								<article class="category-card carousel-slide reveal" style="cursor: pointer;"
-									onclick="window.location.href='category.html?name=Sports'" data-category-name="Sports">
+									onclick="window.location.href='/category?name=Sports'" data-category-name="Sports">
 									<div class="category-card-inner has-photo"
 										style="--cat-gradient: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);">
 										<img class="category-card-photo" data-no-cdn="1" alt="Sports"
@@ -174,7 +192,7 @@
 									</div>
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-1" style="cursor: pointer;"
-									onclick="window.location.href='category.html?name=Conferences'" data-category-name="Conferences">
+									onclick="window.location.href='/category?name=Conferences'" data-category-name="Conferences">
 									<div class="category-card-inner has-photo"
 										style="--cat-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
 										<img class="category-card-photo" data-no-cdn="1" alt="Conferences"
@@ -188,7 +206,7 @@
 									</div>
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-2" style="cursor: pointer;"
-									onclick="window.location.href='category.html?name=Performances'" data-category-name="Performances">
+									onclick="window.location.href='/category?name=Performances'" data-category-name="Performances">
 									<div class="category-card-inner has-photo"
 										style="--cat-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
 										<img class="category-card-photo" data-no-cdn="1" alt="Performances"
@@ -202,7 +220,7 @@
 									</div>
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-1" style="cursor: pointer;"
-									onclick="window.location.href='category.html?name=Parties'" data-category-name="Parties">
+									onclick="window.location.href='/category?name=Parties'" data-category-name="Parties">
 									<div class="category-card-inner has-photo"
 										style="--cat-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
 										<img class="category-card-photo" data-no-cdn="1" alt="Parties"
@@ -216,7 +234,7 @@
 									</div>
 								</article>
 								<article class="category-card carousel-slide reveal reveal-delay-2" style="cursor: pointer;"
-									onclick="window.location.href='category.html?name=Workshops'" data-category-name="Workshops">
+									onclick="window.location.href='/category?name=Workshops'" data-category-name="Workshops">
 									<div class="category-card-inner has-photo"
 										style="--cat-gradient: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);">
 										<img class="category-card-photo" data-no-cdn="1" alt="Workshops"
@@ -255,7 +273,7 @@
 								<li>Government &amp; Educational</li>
 								<li>Entertainment &amp; Sports</li>
 							</ul>
-							<a class="button button-gold" href="about.html#services">Explore All Services
+							<a class="button button-gold" href="/about#services">Explore All Services
 								<span>&#8594;</span></a>
 						</div>
 						<div class="home-teaser-card reveal reveal-delay">
@@ -272,7 +290,7 @@
 								<li>Timely Project Delivery</li>
 								<li>End-to-End Coordination</li>
 							</ul>
-							<a class="button button-gold" href="about.html#why-us">Why Choose Us
+							<a class="button button-gold" href="/about#why-us">Why Choose Us
 								<span>&#8594;</span></a>
 						</div>
 					</div>
@@ -326,7 +344,7 @@
 						launch, conference, exhibition or private celebration - JOD Events is ready to bring your vision
 						to life.</p>
 					<div class="button-row centered">
-						<a class="button button-primary" href="help.html">Request a Free Consultation
+						<a class="button button-primary" href="/help">Request a Free Consultation
 							<span>&#8594;</span></a>
 						<a class="button button-outline-light" href="tel:+919150904455">&#9742; Talk to Our Event
 							Experts</a>
@@ -342,13 +360,15 @@
 	<div class="modal-backdrop" data-modal hidden>
 		<button class="modal-close-backdrop" type="button" aria-label="Close announcement" data-modal-close></button>
 		<div class="event-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-			<button class="modal-close" type="button" aria-label="Close" data-modal-close>&times;</button>
 			<div class="modal-image">
 				<img id="featuredModalImage" src="" alt="" />
 				<span class="featured-label"><span class="pulse-dot"></span> Featured</span>
 			</div>
 			<div class="modal-content">
-				<span class="pill pill-dark" id="featuredModalBadge">&#10024; Upcoming Event</span>
+				<div class="modal-content-top">
+					<span class="pill pill-dark" id="featuredModalBadge">&#10024; Upcoming Event</span>
+					<button class="modal-close" type="button" aria-label="Close" data-modal-close>&times;</button>
+				</div>
 				<h2 id="modal-title"></h2>
 				<p id="featuredModalDesc"></p>
 				<div class="modal-meta">
@@ -389,26 +409,26 @@
 				<p id="guestAuthModalDesc">You need to sign up or log in to reserve tickets for this event.</p>
 			</div>
 			<div class="guest-auth-modal-actions">
-				<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html">
+				<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="/signup">
 					Sign Up <span aria-hidden="true">&#8594;</span>
 				</a>
 				<button class="button button-ghost-light" type="button" id="guestAuthCancelBtn">Maybe Later</button>
 			</div>
 			<div class="guest-auth-modal-switch">
-				Already have an account? <a href="login.html" id="guestAuthLoginLink">Log In</a>
+				Already have an account? <a href="/login" id="guestAuthLoginLink">Log In</a>
 			</div>
 		</div>
 	</div>
 
-	<script src="js/include.js?v=28"></script>
+	<script src="js/include.js?v=32"></script>
 	<script src="js/health.js?v=2"></script>
-	<script src="js/auth.js?v=30"></script>
-	<script src="js/profile.js?v=11"></script>
+	<script src="js/auth.js?v=32"></script>
+	<script src="js/profile.js?v=12"></script>
 	<script src="js/location.js?v=14"></script>
 	<script src="js/search.js?v=1"></script>
-	<script src="js/script.js?v=28"></script>
-        <script src="js/events-public.js?v=20260825_v16"></script>
+	<script src="js/script.js?v=31"></script>
+        <script src="js/events-public.js?v=20260826_v19"></script>
 	<script src="js/wishlist.js?v=1"></script>
-	<script src="js/home-events.js?v=10"></script>
+	<script src="js/home-events.js?v=11"></script>
 </body>
 </html>

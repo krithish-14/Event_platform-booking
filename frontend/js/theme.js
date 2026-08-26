@@ -1,4 +1,119 @@
 /**
+ * Pretty page URLs: /about instead of /about.html (status-bar hover + address bar).
+ * Files stay *.html; Cloudflare + the local static server map extensionless paths.
+ */
+(function initJodUrls(global) {
+	"use strict";
+
+	function currentPageFile() {
+		var path = String((global.location && global.location.pathname) || "/").replace(/\/+$/, "") || "/";
+		var pop = path.split("/").pop().toLowerCase();
+		if (!pop || pop === "index" || pop === "index.html") return "index.html";
+		if (pop.slice(-5) === ".html") return pop;
+		return pop + ".html";
+	}
+
+	function prettyHref(href) {
+		if (typeof href !== "string") return href;
+		var s = href.trim();
+		if (!s || s.charAt(0) === "#") return href;
+		if (/^(mailto:|tel:|javascript:)/i.test(s)) return href;
+		if (s.indexOf("components/") !== -1) return href;
+		if (!/\.html(?=[?#]|$)/i.test(s)) return href;
+		var url;
+		try {
+			url = new URL(s, "https://jodevents.com/");
+		} catch (_) {
+			return href;
+		}
+		if (/^https?:\/\//i.test(s)) {
+			var host = String(url.hostname || "").toLowerCase();
+			if (host !== "jodevents.com" && host !== "www.jodevents.com" && host !== "localhost" && host !== "127.0.0.1") {
+				return href;
+			}
+		}
+		var path = url.pathname || "/";
+		if (/\/index\.html$/i.test(path)) path = "/";
+		else path = path.replace(/\.html$/i, "");
+		if (!path) path = "/";
+		return path + url.search + url.hash;
+	}
+
+	function pageFileFromHref(href) {
+		var pretty = prettyHref(href);
+		var path = String(pretty || "").split("?")[0].split("#")[0];
+		if (!path || path === "/") return "index.html";
+		var pop = path.split("/").pop().toLowerCase();
+		if (!pop || pop === "index") return "index.html";
+		if (pop.slice(-5) === ".html") return pop;
+		return pop + ".html";
+	}
+
+	function isLoginOrSignupHref(href) {
+		var file = pageFileFromHref(href);
+		return file === "login.html" || file === "signup.html";
+	}
+
+	function rewriteAnchor(a) {
+		if (!a || !a.getAttribute) return;
+		var href = a.getAttribute("href");
+		var next = prettyHref(href);
+		if (next && next !== href) a.setAttribute("href", next);
+	}
+
+	function rewriteLinks(root) {
+		var scope = root || document;
+		if (!scope || !scope.querySelectorAll) {
+			if (scope && scope.tagName === "A") rewriteAnchor(scope);
+			return;
+		}
+		if (scope.tagName === "A") rewriteAnchor(scope);
+		var nodes = scope.querySelectorAll("a[href]");
+		for (var i = 0; i < nodes.length; i++) rewriteAnchor(nodes[i]);
+	}
+
+	function watchPrettyLinks() {
+		rewriteLinks(document);
+		if (typeof MutationObserver === "undefined" || global.__jodPrettyLinksWatched) return;
+		global.__jodPrettyLinksWatched = true;
+		new MutationObserver(function (mutations) {
+			for (var i = 0; i < mutations.length; i++) {
+				var m = mutations[i];
+				if (m.type === "attributes" && m.target && m.target.tagName === "A") {
+					rewriteAnchor(m.target);
+					continue;
+				}
+				var added = m.addedNodes || [];
+				for (var j = 0; j < added.length; j++) {
+					var node = added[j];
+					if (!node || node.nodeType !== 1) continue;
+					rewriteLinks(node);
+				}
+			}
+		}).observe(document.documentElement, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			attributeFilter: ["href"],
+		});
+	}
+
+	global.JodUrls = {
+		currentPageFile: currentPageFile,
+		prettyHref: prettyHref,
+		pageFileFromHref: pageFileFromHref,
+		isLoginOrSignupHref: isLoginOrSignupHref,
+		rewriteLinks: rewriteLinks,
+	};
+
+	if (document.readyState === "loading") {
+		document.addEventListener("DOMContentLoaded", watchPrettyLinks);
+	} else {
+		watchPrettyLinks();
+	}
+})(window);
+
+/**
  * JOD Events — Light / Dark theme.
  * Guests and logged-in users can both toggle. Guest choice is stored as
  * "guest"; a logged-in user's choice is stored under their account.
@@ -27,6 +142,9 @@
 	}
 
 	function pageFile() {
+		if (global.JodUrls && typeof global.JodUrls.currentPageFile === "function") {
+			return global.JodUrls.currentPageFile();
+		}
 		return (global.location.pathname.split("/").pop() || "index.html").toLowerCase();
 	}
 
@@ -280,7 +398,16 @@
 	global.__jodHeaderBackBound = true;
 
 	function pageFile() {
+		if (global.JodUrls && typeof global.JodUrls.currentPageFile === "function") {
+			return global.JodUrls.currentPageFile();
+		}
 		return (global.location.pathname.split("/").pop() || "index.html").toLowerCase();
+	}
+
+	function pretty(href) {
+		return (global.JodUrls && typeof global.JodUrls.prettyHref === "function")
+			? global.JodUrls.prettyHref(href)
+			: href;
 	}
 
 	function sameOriginReferrer() {
@@ -302,33 +429,34 @@
 		var page = pageFile();
 		var params = new URLSearchParams(global.location.search);
 		var eventId = params.get("id") || params.get("eventId") || params.get("event_id") || "";
-		if (page === "forgot-password.html") return "login.html";
-		if (page === "signup.html") return "login.html";
-		if (page === "ticket-details.html") return "orders.html";
+		if (page === "forgot-password.html") return pretty("login.html");
+		if (page === "signup.html") return pretty("login.html");
+		if (page === "ticket-details.html") return pretty("orders.html");
 		if (page === "agenda.html") {
-			return eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "orders.html";
+			return pretty(eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "orders.html");
 		}
 		if (page === "payment.html" || page === "published-form.html") {
-			return eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "index.html";
+			return pretty(eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "index.html");
 		}
-		if (page === "verify-email.html" || page === "account-setup.html") return "host-your-event.html";
-		if (page === "orders.html" || page === "settings.html" || page === "notifications.html") return "dashboard.html";
-		if (page === "volunteer-scanner.html") return "volunteer-portal.html";
-		return "index.html";
+		if (page === "verify-email.html" || page === "account-setup.html") return pretty("host-your-event.html");
+		if (page === "orders.html" || page === "settings.html" || page === "notifications.html") return pretty("dashboard.html");
+		if (page === "volunteer-scanner.html") return pretty("volunteer-portal.html");
+		return pretty("index.html");
 	}
 
 	function goBack(btn) {
 		if (sameOriginReferrer() && global.history.length > 1) {
 			try {
-				var refPage = (new URL(document.referrer).pathname.split("/").pop() || "").toLowerCase();
-				// Never history.back() into auth pages after a successful login redirect.
-				if (refPage !== "login.html" && refPage !== "signup.html" && refPage !== "forgot-password.html") {
+				var refFile = global.JodUrls && typeof global.JodUrls.pageFileFromHref === "function"
+					? global.JodUrls.pageFileFromHref(document.referrer)
+					: (new URL(document.referrer).pathname.split("/").pop() || "").toLowerCase();
+				if (refFile !== "login.html" && refFile !== "signup.html" && refFile !== "forgot-password.html") {
 					global.history.back();
 					return;
 				}
 			} catch (_) {}
 		}
-		global.location.href = fallbackHref(btn);
+		global.location.href = pretty(fallbackHref(btn));
 	}
 
 	document.addEventListener("click", function (event) {

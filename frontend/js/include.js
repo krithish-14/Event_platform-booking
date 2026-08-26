@@ -7,8 +7,15 @@
 		window.JodTheme.apply();
 	}
 
-	const pageName = window.location.pathname.split("/").pop() || "index.html";
-	const isHome = pageName === "index.html" || pageName === "";
+	function currentPageFile() {
+		if (window.JodUrls && typeof window.JodUrls.currentPageFile === "function") {
+			return window.JodUrls.currentPageFile();
+		}
+		return (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+	}
+
+	const pageName = currentPageFile();
+	const isHome = pageName === "index.html";
 	const isAboutPage = pageName === "about.html";
 	const isCategoryPage = pageName === "category.html";
 	const isGalleryPage = pageName === "gallery.html";
@@ -22,14 +29,30 @@
 		document.body.classList.add("sub-page");
 	}
 
+	function announcementBarHeight() {
+		const bar = document.querySelector(".announcement-bar");
+		if (!bar || !bar.classList.contains("has-published-event")) return 0;
+		if (window.getComputedStyle(bar).display === "none") return 0;
+		return bar.offsetHeight || 40;
+	}
+
 	function syncHeaderOffset() {
 		const header = document.querySelector(".site-header");
 		if (!header) return;
-		const height = Math.ceil(header.getBoundingClientRect().height);
-		if (height > 0) {
-			document.documentElement.style.setProperty("--site-header-height", `${height}px`);
+		const headerHeight = Math.ceil(header.getBoundingClientRect().height) || header.offsetHeight;
+		if (headerHeight > 0) {
+			document.documentElement.style.setProperty("--site-header-height", `${headerHeight}px`);
 		}
+		if (!document.body.classList.contains("home-page")) return;
+		// Use layout heights only. Measuring header.bottom - hero.top while
+		// scrolling makes padding grow as the hero leaves the viewport (glitchy jump).
+		const offset = Math.max(0, announcementBarHeight() + headerHeight - 4);
+		const value = `${offset}px`;
+		if (document.body.style.getPropertyValue("--hero-header-offset") === value) return;
+		document.body.style.setProperty("--hero-header-offset", value);
+		document.documentElement.style.setProperty("--hero-header-offset", value);
 	}
+	window.syncHeaderOffset = syncHeaderOffset;
 
 	function watchHeaderOffset() {
 		syncHeaderOffset();
@@ -39,6 +62,15 @@
 		if (header && typeof ResizeObserver !== "undefined" && !header.dataset.offsetWatched) {
 			header.dataset.offsetWatched = "1";
 			new ResizeObserver(() => syncHeaderOffset()).observe(header);
+		}
+		const announcement = document.querySelector(".announcement-bar");
+		if (announcement && typeof ResizeObserver !== "undefined" && !announcement.dataset.offsetWatched) {
+			announcement.dataset.offsetWatched = "1";
+			new ResizeObserver(() => syncHeaderOffset()).observe(announcement);
+		}
+		if (announcement && typeof MutationObserver !== "undefined" && !announcement.dataset.classWatched) {
+			announcement.dataset.classWatched = "1";
+			new MutationObserver(() => syncHeaderOffset()).observe(announcement, { attributes: true, attributeFilter: ["class", "hidden", "style"] });
 		}
 	}
 
@@ -59,75 +91,65 @@
 		});
 	}
 
+	function prettyHref(href) {
+		if (window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
+			return window.JodUrls.prettyHref(href);
+		}
+		return href;
+	}
+
+	function markActive(root, file) {
+		const pretty = prettyHref(file);
+		root.querySelectorAll("a[href]").forEach((link) => {
+			const raw = (link.getAttribute("href") || "").split("?")[0].split("#")[0];
+			if (raw === pretty || raw === file || raw === file.replace(/\.html$/i, "")) {
+				link.classList.add("is-active");
+				link.setAttribute("aria-current", "page");
+			}
+		});
+	}
+
 	function updateNavigation() {
 		const header = document.querySelector("[data-header]");
 		const footer = document.querySelector(".site-footer");
-		const homeLink = isHome ? "#top" : "index.html#top";
+		const homeLink = isHome ? "#top" : prettyHref("index.html#top");
 
 		if (header) {
 			header.querySelectorAll(".brand").forEach((brand) => brand.setAttribute("href", homeLink));
 			header.querySelectorAll("a[href^='#']").forEach((link) => {
-				if (!isHome) link.setAttribute("href", `index.html${link.getAttribute("href")}`);
+				if (!isHome) link.setAttribute("href", prettyHref(`index.html${link.getAttribute("href")}`));
 			});
 		}
 		if (footer) {
 			footer.querySelectorAll(".brand").forEach((brand) => brand.setAttribute("href", homeLink));
 			footer.querySelectorAll("a[href^='#']").forEach((link) => {
-				if (!isHome) link.setAttribute("href", `index.html${link.getAttribute("href")}`);
+				if (!isHome) link.setAttribute("href", prettyHref(`index.html${link.getAttribute("href")}`));
 			});
 		}
 		if (!header) return;
 
-		// Mark active nav links
-		if (isPolicyPage) {
-			header.querySelectorAll("a[href='privacy-policy.html']").forEach((link) => {
-				link.classList.add("is-active");
-				link.setAttribute("aria-current", "page");
-			});
-		}
-		if (isAboutPage) {
-			header.querySelectorAll("a[href='about.html']").forEach((link) => {
-				link.classList.add("is-active");
-				link.setAttribute("aria-current", "page");
-			});
-		}
-		if (isCategoryPage) {
-			header.querySelectorAll("a[href='category.html']").forEach((link) => {
-				link.classList.add("is-active");
-				link.setAttribute("aria-current", "page");
-			});
-		}
-		if (isGalleryPage) {
-			header.querySelectorAll("a[href='gallery.html']").forEach((link) => {
-				link.classList.add("is-active");
-				link.setAttribute("aria-current", "page");
-			});
-		}
-		if (isLoginPage) {
-			header.querySelectorAll("a[href='login.html']").forEach((link) => {
-				link.classList.add("is-active");
-				link.setAttribute("aria-current", "page");
-			});
-		}
-		if (isSignupPage) {
-			header.querySelectorAll("a[href='signup.html']").forEach((link) => {
-				link.classList.add("is-active");
-				link.setAttribute("aria-current", "page");
-			});
-		}
+		if (isPolicyPage) markActive(header, pageName);
+		if (isAboutPage) markActive(header, "about.html");
+		if (isCategoryPage) markActive(header, "category.html");
+		if (isGalleryPage) markActive(header, "gallery.html");
+		if (isLoginPage) markActive(header, "login.html");
+		if (isSignupPage) markActive(header, "signup.html");
 	}
 
-	// Global click listener to track return URL before navigating to login/signup
 	document.addEventListener("click", (e) => {
-		const link = e.target.closest("a[href*='login.html'], a[href*='signup.html']");
+		const link = e.target.closest("a[href]");
 		if (!link) return;
-		const currentFile = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+		const href = link.getAttribute("href") || "";
+		const isAuthLink = window.JodUrls && typeof window.JodUrls.isLoginOrSignupHref === "function"
+			? window.JodUrls.isLoginOrSignupHref(href)
+			: (href.includes("login.html") || href.includes("signup.html"));
+		if (!isAuthLink) return;
+		const currentFile = currentPageFile();
 		if (currentFile !== "login.html" && currentFile !== "signup.html") {
 			const fullTarget = window.location.pathname + window.location.search + window.location.hash;
 			try {
 				sessionStorage.setItem("jod_redirect_after_login", fullTarget);
 			} catch (_) {}
-			const href = link.getAttribute("href");
 			if (href && !href.includes("redirect=")) {
 				const sep = href.includes("?") ? "&" : "?";
 				link.setAttribute("href", `${href}${sep}redirect=${encodeURIComponent(fullTarget)}`);
@@ -137,9 +159,9 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=21"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=22"));
 	const footerEl = document.getElementById("footer");
-	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=5"));
+	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=6"));
 
 	window.includesReady = Promise.all(promises).then(() => {
 		watchHeaderOffset();

@@ -62,6 +62,7 @@ class NotificationApiCaseTests(unittest.TestCase):
                 "username": f"u{os.urandom(3).hex()}",
                 "password": password,
                 "full_name": "Notif Case",
+                "phone": "9876543210",
             },
         )
         self.assertIn(reg.status_code, (200, 201), reg.text)
