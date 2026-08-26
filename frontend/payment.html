@@ -27,7 +27,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <!-- End Meta Pixel Code -->
 
 <meta name="google-site-verification" content="NZqKNPeMc18zMdyTI3izDvSSlpvp-k5-QxDip8XCFw8" />
-		<script src="js/theme.js?v=9"></script>
+		<script src="js/theme.js?v=10"></script>
 		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -383,15 +383,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		</div>
 		<p class="err" id="payError"></p>
 	</div>
-	<div class="pay-modal" id="paySuccessModal" role="dialog" aria-modal="true" aria-labelledby="paySuccessTitle">
-		<div class="pay-modal-card">
-			<h2 id="paySuccessTitle">Registration process completed</h2>
-			<p id="paySuccessText">Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.</p>
-			<p class="wait-note">Admin will generate your QR ticket after verification. You will get it on the website, email, and WhatsApp.</p>
-			<p class="pay-modal-timer" id="paySuccessTimer">Exit available in 5s</p>
-			<button type="button" class="pay-btn pay-modal-exit" id="paySuccessExit">Exit</button>
-		</div>
-	</div>
 
 	<script src="js/health.js?v=2"></script>
 	<script src="js/auth.js?v=31"></script>
@@ -471,7 +462,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			const qrFromUrl = params.get("qr") || saved.paymentQrUrl || "";
 			const qty = Number(saved.quantity || 1) || 1;
 			const apiBase = ((window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, "");
-			const SUCCESS_COPY = "Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.";
 
 			const eventEl = document.getElementById("payEvent");
 			const venueRow = document.getElementById("venueRow");
@@ -486,11 +476,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			const statusEl = document.getElementById("payStatus");
 			const proofForm = document.getElementById("payProofForm");
 			const submitBtn = document.getElementById("paySubmitBtn");
-			const successModal = document.getElementById("paySuccessModal");
-			const successText = document.getElementById("paySuccessText");
-			const successTimer = document.getElementById("paySuccessTimer");
-			const successExit = document.getElementById("paySuccessExit");
-			let successCountdown = null;
 
 			if (ticketEl) ticketEl.textContent = ticket;
 			if (qtyEl) qtyEl.textContent = String(qty);
@@ -602,38 +587,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				}
 			}
 
-			function closeSuccessModal() {
-				if (successCountdown) {
-					clearInterval(successCountdown);
-					successCountdown = null;
+			function thankYouHref() {
+				if (window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
+					return window.JodUrls.prettyHref("thank-you.html");
 				}
-				window.location.href = "index.html";
-			}
-
-			function showSuccessModal(message) {
-				if (!successModal) return;
-				if (successCountdown) {
-					clearInterval(successCountdown);
-					successCountdown = null;
-				}
-				if (successText) {
-					successText.textContent = message || SUCCESS_COPY;
-				}
-				if (successExit) successExit.classList.remove("is-visible");
-				let remaining = 5;
-				if (successTimer) successTimer.textContent = "Exit available in 5s";
-				successModal.classList.add("is-open");
-				successCountdown = setInterval(() => {
-					remaining -= 1;
-					if (remaining <= 0) {
-						clearInterval(successCountdown);
-						successCountdown = null;
-						if (successTimer) successTimer.textContent = "";
-						if (successExit) successExit.classList.add("is-visible");
-						return;
-					}
-					if (successTimer) successTimer.textContent = "Exit available in " + remaining + "s";
-				}, 1000);
+				return "thank-you.html";
 			}
 
 			function prefillUser() {
@@ -696,7 +654,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						throw new Error(apiErrorMessage(data, "Could not submit payment details."));
 					}
 					try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
-					showSuccessModal(data.message || SUCCESS_COPY);
+					window.location.replace(thankYouHref());
 					submitBtn.textContent = "Submitted";
 				} catch (err) {
 					errEl.textContent = err.message || "Could not submit payment details.";
@@ -706,7 +664,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			}
 
 			if (proofForm) proofForm.addEventListener("submit", submitProof);
-			if (successExit) successExit.addEventListener("click", closeSuccessModal);
 			const shotInput = document.getElementById("payShot");
 			const shotPreview = document.getElementById("payShotPreview");
 			if (shotInput && shotPreview) {

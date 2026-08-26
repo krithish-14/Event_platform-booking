@@ -231,6 +231,8 @@
 			ticketCard.classList.toggle("is-cancelled", isCancelled);
 			ticketCard.classList.toggle("is-checked-in", isCheckedIn);
 		}
+		const cancelLabel = document.getElementById("ticketCancelledLabel");
+		if (cancelLabel) cancelLabel.hidden = !isCancelled;
 
 		// Status Badge & Header ID
 		const statusBadge = document.getElementById("ticketStatusBadge");
@@ -455,7 +457,7 @@
 
 		const doc = iframe.contentDocument || iframe.contentWindow.document;
 		const clone = source.cloneNode(true);
-		clone.querySelectorAll(".mticket-toggle-btn, .mticket-support-row, .mticket-notch, .mticket-savings-badge").forEach((n) => n.remove());
+		clone.querySelectorAll(".mticket-toggle-btn, .mticket-support-row, .mticket-notch, .mticket-savings-badge, .mticket-cancelled-label").forEach((n) => n.remove());
 		if (mode === "invoice") {
 			clone.querySelectorAll(".mticket-qr-block").forEach((n) => n.remove());
 		}
@@ -505,7 +507,8 @@
 		.mticket-qr-block { text-align: center; }
 		.mticket-stub-divider { border-top: 1px dashed #cbd5e1; margin: 0.25rem 0; }
 		.mticket-item-row, .mticket-total-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; }
-		.mticket-savings-badge { display: none !important; }
+		.mticket-savings-badge,
+		.mticket-cancelled-label { display: none !important; }
 		.mticket-collapsible-content.collapsed { max-height: none !important; opacity: 1 !important; overflow: visible !important; }
 		.ticket-print-agenda-page, .ticket-print-agenda-page * {
 			visibility: visible !important;

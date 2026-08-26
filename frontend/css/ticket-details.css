@@ -641,6 +641,11 @@
 		visibility: visible !important;
 	}
 
+	.mticket-cancelled-label {
+		display: none !important;
+		visibility: hidden !important;
+	}
+
 	#header,
 	#footer,
 	.site-header,
