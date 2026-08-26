@@ -45,8 +45,8 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 			to { transform: rotate(360deg); }
 		}
 		@keyframes fadeIn {
-			from { opacity: 0; transform: translateY(12px); }
-			to { opacity: 1; transform: translateY(0); }
+			from { opacity: 0; }
+			to { opacity: 1; }
 		}
 
 		* {
@@ -254,32 +254,38 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 			transform: none;
 		}
 
-		/* Success popup */
+		/* Success popup — must live on the viewport, not inside #pageContainer */
 		#successState {
 			display: none;
 			position: fixed;
 			inset: 0;
 			z-index: 90;
 			background: rgba(15, 23, 42, 0.55);
-			align-items: center;
-			justify-content: center;
-			padding: 1.25rem;
+			padding: max(1rem, env(safe-area-inset-top)) 1rem max(1.25rem, env(safe-area-inset-bottom));
+			overflow-y: auto;
+			overflow-x: hidden;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
 		}
 
 		#successState.is-open {
 			display: flex;
+			align-items: center;
+			justify-content: center;
 		}
 
 		.success-modal-card {
 			width: 100%;
 			max-width: 440px;
+			margin: auto;
+			flex-shrink: 0;
 			background: #ffffff;
 			border-radius: 16px;
-			padding: 1.75rem 1.4rem 1.4rem;
+			padding: 1.5rem 1.35rem 1.35rem;
 			text-align: center;
 			box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
 			border: 1px solid #e2e8f0;
-			animation: fadeIn 0.3s ease-out forwards;
+			animation: fadeIn 0.25s ease-out;
 		}
 
 		.success-icon {
@@ -372,6 +378,17 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 			.form-card-body { padding: 1.25rem 1rem 1.4rem; }
 			.form-title { font-size: 1.28rem; }
 			input, select, textarea { font-size: 16px; }
+		}
+
+		@media (max-height: 720px) {
+			.success-icon {
+				width: 48px;
+				height: 48px;
+				font-size: 1.45rem;
+				margin-bottom: 0.65rem;
+			}
+			.success-modal-card h2 { font-size: 1.15rem; }
+			.success-lead { margin-bottom: 1rem; }
 		}
 
 		.policy-modal {
@@ -586,23 +603,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			</div>
 		</div>
 
-		<!-- ── SUCCESS POPUP ──────────────────────────────────────────────────── -->
-		<div id="successState" aria-hidden="true">
-			<div class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="successTitle">
-				<div class="success-icon">✓</div>
-				<h2 id="successTitle">Registration form completed</h2>
-				<p class="success-lead">Move to payment to finish your full registration process.</p>
-				<div class="success-actions">
-					<button type="button" class="success-btn success-btn-next" id="successNextBtn">Continue to Payment</button>
-				</div>
-			</div>
-		</div>
-
 		<!-- Powered By Footer -->
 		<div class="powered-by">
 			Powered by <a href="#" onclick="return false;">JOD Events Platform</a>
 		</div>
 
+	</div>
+
+	<div id="successState" aria-hidden="true">
+		<div class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="successTitle">
+			<div class="success-icon">✓</div>
+			<h2 id="successTitle">Registration form completed</h2>
+			<p class="success-lead">Move to payment to finish your full registration process.</p>
+			<div class="success-actions">
+				<button type="button" class="success-btn success-btn-next" id="successNextBtn">Continue to Payment</button>
+			</div>
+		</div>
 	</div>
 
 	<script>
@@ -763,7 +779,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				successState.setAttribute("aria-hidden", "false");
 				successState.style.display = "flex";
 				document.body.style.overflow = "hidden";
-				window.scrollTo({ top: 0, behavior: "smooth" });
+				successState.scrollTop = 0;
+				const nextBtn = document.getElementById("successNextBtn");
+				if (nextBtn && typeof nextBtn.focus === "function") {
+					try { nextBtn.focus({ preventScroll: true }); } catch (_) { nextBtn.focus(); }
+				}
 			}
 
 			async function fetchEventPolicies(id) {

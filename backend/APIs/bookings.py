@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy.orm import Session, joinedload, defer
+from sqlalchemy.orm import Session, defer, joinedload
 
 from Authentication.dependencies import get_current_user
 from Models.base import get_db
@@ -97,6 +97,37 @@ def _safe_db_rollback(db: Session) -> None:
         db.rollback()
     except Exception:
         pass
+
+
+def _as_str(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    return str(value)
+
+
+def _as_optional_str(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_optional_float(value: Any) -> Optional[float]:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _lookup_public_event(db: Session, event_id):
@@ -298,26 +329,28 @@ class BookingResponse(BaseModel):
         from_attributes = True
 
 
-def _booking_event_images(b: Booking, db: Session = None):
+def _booking_event_images(b: Booking, db: Optional[Session] = None):
     """Resolve card + hero images for tickets; prefer card_image from catalog or design."""
     card_image = None
     hero_image = None
     if b.event:
-        card_image = getattr(b.event, "card_image", None) or None
-        hero_image = getattr(b.event, "image_url", None) or None
-    if not card_image and db is not None and b.event_id:
+        card_image = _as_optional_str(getattr(b.event, "card_image", None))
+        hero_image = _as_optional_str(getattr(b.event, "image_url", None))
+    event_id = getattr(b, "event_id", None)
+    if not card_image and db is not None and event_id is not None:
         try:
             from Models.event_design import EventDesign
-            design = db.query(EventDesign).filter(EventDesign.event_id == b.event_id).first()
-            if design and design.card_image:
-                card_image = design.card_image
+            design = db.query(EventDesign).filter(EventDesign.event_id == event_id).first()
+            design_card = _as_optional_str(getattr(design, "card_image", None)) if design is not None else None
+            if design_card:
+                card_image = design_card
         except Exception:
             pass
     ticket_image = card_image or hero_image
     return ticket_image, card_image, hero_image
 
 
-def _booking_event_agenda(event_id, db: Session = None) -> list:
+def _booking_event_agenda(event_id, db: Optional[Session] = None) -> list:
     if not event_id or db is None:
         return []
     try:
@@ -353,7 +386,7 @@ def _booking_event_agenda(event_id, db: Session = None) -> list:
         return []
 
 
-def _booking_tickets(b: Booking, db: Session = None) -> List[Ticket]:
+def _booking_tickets(b: Booking, db: Optional[Session] = None) -> List[Ticket]:
     """Return issued tickets only. Never mint QR codes here — admin Generate QR does that."""
     tickets = list(getattr(b, "tickets", None) or [])
     if tickets:
@@ -380,7 +413,7 @@ def _booking_tickets(b: Booking, db: Session = None) -> List[Ticket]:
             return []
 
 
-def _serialize_booking(b: Booking, db: Session = None) -> dict:
+def _serialize_booking(b: Booking, db: Optional[Session] = None) -> dict:
     event_title = b.event.title if b.event else "Event"
     event_venue = (b.event.venue or b.event.location) if b.event else None
     event_start = b.event.start_date if b.event else None
@@ -391,7 +424,7 @@ def _serialize_booking(b: Booking, db: Session = None) -> dict:
 
     pid = getattr(b, "payment_id", None)
     pmode = getattr(b, "payment_mode", None) or "UPI"
-    gst = float(getattr(b, "gst_amount", 0.0) or 0.0)
+    gst = _as_float(getattr(b, "gst_amount", None))
     seat = getattr(b, "seat_number", None) or ""
 
     tickets = _booking_tickets(b, db=db)
@@ -420,9 +453,9 @@ def _serialize_booking(b: Booking, db: Session = None) -> dict:
         "event_is_cancelled": bool(getattr(b.event, "is_cancelled", False)) if b.event else False,
         "event_is_published": bool(getattr(b.event, "is_published", True)) if b.event else True,
         "event_updated_at": getattr(b.event, "updated_at", None) if b.event else None,
-        "ticket_type": b.ticket_type or "Standard Access",
+        "ticket_type": _as_optional_str(getattr(b, "ticket_type", None)) or "Standard Access",
         "quantity": b.quantity,
-        "total_price": float(b.total_price or 0.0),
+        "total_price": _as_float(getattr(b, "total_price", None)),
         "status": b.status or "CONFIRMED",
         "payment_id": pid,
         "payment_mode": pmode,
@@ -527,19 +560,21 @@ def get_my_pending_payments(
         if _active_booking_for_event(db, current_user, event_id):
             continue
         seen_events.add(event_key)
-        ticket, price = _ticket_from_answers(row.answers_json)
-        if not ticket:
-            ticket = row.ticket_type or "General Admission"
-        if price is None:
-            price = row.ticket_price
         event_row = _lookup_public_event(db, event_id)
+        ticket, price = _ticket_from_answers(row.answers_json)
+        ticket_name = _as_optional_str(ticket) or _as_optional_str(getattr(row, "ticket_type", None)) or "General Admission"
+        price_val = _as_optional_float(price)
+        if price_val is None:
+            price_val = _as_optional_float(getattr(row, "ticket_price", None))
+        if price_val is None:
+            price_val = _as_float(getattr(event_row, "price", None) if event_row is not None else None)
         pending.append(PendingPaymentResponse(
             event_id=event_id,
             event_title=getattr(event_row, "title", None),
             event_venue=getattr(event_row, "venue", None) or getattr(event_row, "location", None),
             event_start_date=getattr(event_row, "start_date", None),
-            ticket_type=ticket or None,
-            price=float(price) if price is not None else float(getattr(event_row, "price", 0) or 0),
+            ticket_type=ticket_name,
+            price=price_val,
             quantity=1,
             image_url=getattr(event_row, "image_url", None),
             status="PAYMENT_PENDING",
@@ -583,7 +618,7 @@ def _mark_form_submission_paid(db: Session, event_id, user, booking_id=None) -> 
     try:
         rows = (
             db.query(FormSubmission)
-            .options(defer(FormSubmission.booking_id))
+            .options(defer(FormSubmission.booking_id))  # type: ignore[arg-type]
             .filter(or_(*owner_filters))
             .all()
         )
@@ -670,8 +705,8 @@ def get_registration_status(
             state="ticket",
             booking_id=str(booking.booking_id),
             qr_token=qr_token,
-            ticket_type=booking.ticket_type,
-            price=float(booking.total_price or 0),
+            ticket_type=_as_optional_str(getattr(booking, "ticket_type", None)),
+            price=_as_float(getattr(booking, "total_price", None)),
             event_title=getattr(event, "title", None),
             venue=getattr(event, "venue", None) or getattr(event, "location", None),
         )
@@ -700,15 +735,17 @@ def get_registration_status(
             break
     if pending:
         ticket, price = _ticket_from_answers(pending.answers_json)
-        if not ticket:
-            ticket = pending.ticket_type or ""
-        if price is None:
-            price = pending.ticket_price
+        ticket_name = _as_optional_str(ticket) or _as_optional_str(getattr(pending, "ticket_type", None))
+        price_val = _as_optional_float(price)
+        if price_val is None:
+            price_val = _as_optional_float(getattr(pending, "ticket_price", None))
         event_row = _lookup_public_event(db, event_id)
+        if price_val is None and event_row is not None:
+            price_val = _as_optional_float(getattr(event_row, "price", None))
         return RegistrationStatusResponse(
             state="payment_pending",
-            ticket_type=ticket or None,
-            price=price if price is not None else getattr(event_row, "price", None),
+            ticket_type=ticket_name,
+            price=price_val,
             event_title=getattr(event_row, "title", None),
             venue=getattr(event_row, "venue", None) or getattr(event_row, "location", None),
         )
@@ -861,7 +898,7 @@ def cancel_booking(
         )
         return _serialize_booking(b_full or b, db=db)
 
-    b.status = "CANCELLED"
+    setattr(b, "status", "CANCELLED")
     db.query(Ticket).filter(Ticket.booking_id == b.booking_id).update({Ticket.ticket_status: "CANCELLED"})
     db.commit()
     db.refresh(b)
