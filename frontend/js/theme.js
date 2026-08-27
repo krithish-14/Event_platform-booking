@@ -126,7 +126,7 @@
 	var PREFS_KEY = "jod_theme_prefs";
 	var EVENT_NAME = "jod-theme-change";
 	var DARK_CSS_ID = "jod-theme-dark-css";
-	var DARK_CSS_HREF = "css/theme-dark.css?v=8";
+	var DARK_CSS_HREF = "css/theme-dark.css?v=9";
 	var AUTH_PAGES = {
 		"login.html": 1,
 		"signup.html": 1,
@@ -283,7 +283,7 @@
 		var asset = global.JodConfig && global.JodConfig.assetUrl
 			? global.JodConfig.assetUrl.bind(global.JodConfig)
 			: function (path) { return path; };
-		document.querySelectorAll(".site-header .brand-logo, .site-header .brand img").forEach(function (img) {
+		document.querySelectorAll(".site-header .brand-logo, .site-header .brand img, .site-footer .brand-logo, .site-footer .brand img").forEach(function (img) {
 			var lightPath = img.getAttribute("data-logo-light") || "images/JOD Events Logo.png";
 			var darkPath = img.getAttribute("data-logo-dark") || "images/Jod_log_Dark.webp";
 			var next = theme === "dark" ? asset(darkPath) : asset(lightPath);

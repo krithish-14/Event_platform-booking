@@ -74,7 +74,7 @@
 	document.addEventListener("click", (e) => {
 		if (!splashScreen || prefersReduced) return;
 		const logo = e.target.closest("a[href='index.html'] img, a[href='./index.html'] img, a[href='/'] img, img[alt='JOD Events']");
-		if (!logo) return;
+		if (!logo || logo.closest(".site-footer")) return;
 		if (isHome) {
 			e.preventDefault();
 			showSplash();

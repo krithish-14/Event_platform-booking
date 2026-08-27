@@ -1674,17 +1674,21 @@ window.JodAuth = (() => {
 	}
 
 	function promptGuestForEventDetails(targetUrl) {
-		const page = currentPageName();
-		const preferLogin = page === "index.html" || page === "";
 		openGuestAuthModal({
-			title: preferLogin ? "Log In to View This Event" : "Sign Up to View Event Details",
-			message: preferLogin
-				? "Please log in or create an account to explore this event."
-				: "Create an account or log in to see full event details and book tickets.",
-			targetUrl: targetUrl || "event-details.html",
-			badge: "ACCOUNT REQUIRED",
-			primaryAction: preferLogin ? "login" : "signup"
+			title: "Sign Up to Book Tickets",
+			message: "You can browse this event as a guest. Sign up or log in to reserve tickets.",
+			targetUrl: targetUrl || (window.location.pathname + window.location.search + window.location.hash),
+			badge: "🎟️ Account Required"
 		});
+	}
+
+	function maybePromptGuestOnEventDetails() {
+		const page = currentPageName();
+		if (page !== "event-details.html" && page !== "makeup-boutique-workshop.html") return;
+		ensureSession().then(() => {
+			if (isLoggedIn()) return;
+			promptGuestForEventDetails(window.location.pathname + window.location.search + window.location.hash);
+		}).catch(() => {});
 	}
 
 	if (typeof document !== "undefined") {
@@ -1719,28 +1723,6 @@ window.JodAuth = (() => {
 					badge: "✨ Host Your Event"
 				});
 				return;
-			}
-
-			const onHomeOrCategory = page === "index.html" || page === "" || page === "category.html";
-			if (onHomeOrCategory) {
-				const eventLink = e.target.closest("a[href*='event-details.html'], a[href*='/event-details'], a[href*='makeup-boutique'], .hero a.button-gold, .hero-featured-image a");
-				if (eventLink) {
-					e.preventDefault();
-					e.stopPropagation();
-					e.stopImmediatePropagation();
-					const href = eventLink.getAttribute("href") || "";
-					promptGuestForEventDetails((href && href !== "#") ? href : "event-details.html");
-					return;
-				}
-				const eventCard = e.target.closest("article.event-card");
-				if (eventCard) {
-					e.preventDefault();
-					e.stopPropagation();
-					e.stopImmediatePropagation();
-					const link = eventCard.querySelector("a.card-link, a[href*='event-details']");
-					promptGuestForEventDetails(link ? link.getAttribute("href") : "event-details.html");
-					return;
-				}
 			}
 
 			const bookTarget = e.target.closest(".btn-book-now");
@@ -1786,31 +1768,35 @@ window.JodAuth = (() => {
 			if (typeof e.stopPropagation === "function") e.stopPropagation();
 			if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
 		}
-		if (isLoggedIn()) {
-			if (type === "host") {
+		if (type === "host") {
+			if (isLoggedIn()) {
 				navigateToHostFlow(e);
 			} else {
-				window.location.href = targetUrl || "event-details.html";
+				openGuestAuthModal({
+					title: "Sign Up to Host Your Event",
+					message: "Please sign up or log in to access this feature.",
+					targetUrl: targetUrl || "account-setup.html",
+					badge: "HOST YOUR EVENT"
+				});
 			}
 			return false;
 		}
 
-		if (type === "host") {
-			openGuestAuthModal({
-				title: "Sign Up to Host Your Event",
-				message: "Please sign up or log in to access this feature.",
-				targetUrl: targetUrl || "account-setup.html",
-				badge: "HOST YOUR EVENT"
-			});
-		} else {
-			promptGuestForEventDetails(targetUrl || "event-details.html");
-		}
+		window.location.href = targetUrl || "event-details.html";
 		return false;
 	}
 
 	if (typeof window !== "undefined") {
 		window.handleGuestOrNavigate = handleGuestOrNavigate;
 		ensureSession();
+		const startEventDetailsPrompt = () => {
+			window.setTimeout(maybePromptGuestOnEventDetails, 600);
+		};
+		if (document.readyState === "loading") {
+			document.addEventListener("DOMContentLoaded", startEventDetailsPrompt);
+		} else {
+			startEventDetailsPrompt();
+		}
 	}
 
 	/* ── Expose Public API ─────────────────────────────────── */

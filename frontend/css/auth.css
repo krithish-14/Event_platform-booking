@@ -64,9 +64,12 @@
 	gap: .75rem;
 }
 .auth-brand-logo img {
-	height: 60px;
+	height: 5.75rem;
 	width: auto;
-	filter: brightness(1.1);
+	max-width: min(20rem, 70%);
+	object-fit: contain;
+	object-position: left center;
+	filter: none;
 }
 
 .auth-brand-body {
@@ -121,6 +124,62 @@
 	font-size: .6875rem;
 	letter-spacing: .08em;
 	text-transform: uppercase;
+}
+
+.auth-reset-steps {
+	display: flex;
+	align-items: stretch;
+	gap: .55rem;
+}
+
+.auth-reset-steps .auth-stat {
+	flex: 1;
+	min-width: 0;
+	padding: 1.15rem .7rem;
+	border: 1px solid rgba(255,255,255,.1);
+	border-radius: 1rem;
+	background: rgba(255,255,255,.04);
+	backdrop-filter: blur(10px);
+	text-align: center;
+}
+
+.auth-reset-steps .auth-stat strong {
+	font-size: clamp(1.05rem, 1.7vw, 1.28rem);
+	white-space: nowrap;
+}
+
+.auth-step-arrow {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 1.5rem;
+	color: #FF8A1F;
+}
+
+.auth-step-arrow svg {
+	display: block;
+	width: 1.35rem;
+	height: 1.35rem;
+}
+
+@media (max-width: 1100px) {
+	.auth-brand-logo img {
+		height: 4.85rem;
+	}
+	.auth-reset-steps {
+		gap: .35rem;
+	}
+	.auth-reset-steps .auth-stat {
+		padding: .95rem .45rem;
+	}
+	.auth-step-arrow {
+		width: 1.15rem;
+	}
+	.auth-step-arrow svg {
+		width: 1.15rem;
+		height: 1.15rem;
+	}
 }
 
 .auth-brand-footer {

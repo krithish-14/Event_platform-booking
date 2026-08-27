@@ -312,6 +312,10 @@ html[data-theme="dark"] .dashboard-section {
 	color: #f6f0e8 !important;
 }
 
+html[data-theme="dark"] .footer-nav a {
+	color: #f6f0e8 !important;
+}
+
 html[data-theme="dark"] .filter-tab {
 	color: #c8bfb4 !important;
 }

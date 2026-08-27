@@ -161,7 +161,7 @@
 	const headerEl = document.getElementById("header");
 	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=22"));
 	const footerEl = document.getElementById("footer");
-	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=6"));
+	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=9"));
 
 	window.includesReady = Promise.all(promises).then(() => {
 		watchHeaderOffset();

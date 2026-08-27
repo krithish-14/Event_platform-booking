@@ -260,7 +260,7 @@
 				data-live-event="${liveEventAttr(event)}"
 				data-lat="${event.latitude || ""}" data-lon="${event.longitude || ""}"
 				style="cursor:pointer;"
-				onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : (window.location.href='${detailsUrl}', false));">
+				onclick="window.location.href='${detailsUrl}';">
 				<div class="event-card-image">
 					<img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
 					<span class="card-category">${category}</span>
@@ -275,7 +275,7 @@
 						<span>&#128205; ${venue}</span>
 					</div>
 					<a class="card-link" href="${detailsUrl}"
-						onclick="event.stopPropagation(); return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : true);">
+						onclick="event.stopPropagation();">
 						View Details <span>&#8594;</span>
 					</a>
 				</div>
@@ -303,7 +303,7 @@
 				data-live-event="${liveEventAttr(event)}"
 				data-lat="${event.latitude || ""}" data-lon="${event.longitude || ""}"
 				style="cursor:pointer;"
-				onclick="return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : (window.location.href='${detailsUrl}', false));">
+				onclick="window.location.href='${detailsUrl}';">
 				<div class="event-card-image">
 					<img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
 					<span class="card-category">${category}</span>
@@ -319,7 +319,7 @@
 						<span class="cat-card-price">${priceDisplay}</span>
 					</div>
 					<a class="card-link" href="${detailsUrl}"
-						onclick="event.stopPropagation(); return (window.handleGuestOrNavigate ? window.handleGuestOrNavigate(event, '${detailsUrl}', 'event') : true);">
+						onclick="event.stopPropagation();">
 						View Details <span>&#8594;</span>
 					</a>
 				</div>
@@ -382,11 +382,7 @@
 		}
 		if (heroCta) {
 			heroCta.href = url;
-			heroCta.onclick = function (evt) {
-				return window.handleGuestOrNavigate
-					? window.handleGuestOrNavigate(evt, url, "event")
-					: true;
-			};
+			heroCta.onclick = null;
 		}
 		if (featuredImg) {
 			featuredImg.src = img;
@@ -394,11 +390,7 @@
 		}
 		if (featuredLink) {
 			featuredLink.href = url;
-			featuredLink.onclick = function (evt) {
-				return window.handleGuestOrNavigate
-					? window.handleGuestOrNavigate(evt, url, "event")
-					: true;
-			};
+			featuredLink.onclick = null;
 		}
 	}
 

@@ -2485,37 +2485,86 @@ html[data-theme="dark"] .marquee {
 	background: var(--background);
 }
 
+.site-footer > .container {
+	width: min(100% - 3rem, 90rem);
+}
+
+.site-footer .brand {
+	display: block;
+	align-items: center;
+	line-height: 0;
+	margin: 0;
+}
+
+.site-footer .brand-logo,
+.site-footer .brand img {
+	display: block;
+	width: auto;
+	max-width: min(20rem, 82vw);
+	height: 5.75rem;
+	margin: 0;
+	object-fit: contain;
+	object-position: left bottom;
+}
+
 .footer-grid {
-	display: grid;
-	grid-template-columns: 2fr 1fr 1fr;
-	gap: 2rem;
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: clamp(1.5rem, 3.2vw, 3.75rem);
+	width: 100%;
+}
+
+.footer-brand {
+	flex: 1 1 18rem;
+	max-width: 26rem;
+	min-width: 0;
 }
 
 .footer-grid p {
-	max-width: 20rem;
-	margin: 1rem 0 0;
+	max-width: none;
+	margin: 0;
 	color: var(--muted);
 	font-size: .875rem;
 }
 
-.footer-explore {
+.footer-brand p {
+	margin: -0.85rem 0 0;
+	padding: 0;
+	line-height: 1.45;
+}
+
+.footer-nav {
 	display: flex;
-	flex-wrap: wrap;
-	gap: .65rem 1.1rem;
-	margin-top: 1rem;
+	flex-direction: column;
+	align-items: flex-start;
+	flex: 0 0 auto;
+	min-width: 8.5rem;
+	gap: .85rem;
+	padding-top: .2rem;
 }
 
-.footer-explore a {
-	color: var(--muted);
-	font-size: .8125rem;
-	font-weight: 600;
+.footer-nav a {
+	color: var(--foreground);
+	font-size: .9375rem;
+	font-weight: 700;
+	line-height: 1.2;
+	transition: color .2s;
 }
 
-.footer-explore a:hover {
+.footer-nav a:hover {
 	background: var(--brand-gradient);
 	background-clip: text;
 	-webkit-background-clip: text;
 	color: transparent;
+}
+
+.footer-contact,
+.footer-follow {
+	flex: 1 1 12rem;
+	max-width: 20rem;
+	min-width: 0;
 }
 
 .footer-grid h3 {
@@ -2527,7 +2576,6 @@ html[data-theme="dark"] .marquee {
 	margin-top: .75rem;
 }
 
-.footer-grid>div:nth-child(2) p,
 .footer-contact p {
 	margin-top: .5rem;
 }
@@ -4283,7 +4331,9 @@ html[data-theme="dark"] .site-header {
 }
 
 html[data-theme="dark"] .site-header .brand img,
-html[data-theme="dark"] .site-header .brand-logo {
+html[data-theme="dark"] .site-header .brand-logo,
+html[data-theme="dark"] .site-footer .brand img,
+html[data-theme="dark"] .site-footer .brand-logo {
 	filter: none;
 }
 
