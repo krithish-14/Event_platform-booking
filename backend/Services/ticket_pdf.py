@@ -1,14 +1,18 @@
 """M-ticket PDF used for email attachments and website download.
 
-Stdlib + httpx only. Layout matches the on-screen ticket card: poster, title,
-date, venue, ticket type, QR, booking ID, and totals — no savings badge.
+Stdlib + httpx (Pillow optional for WebP/GIF). Layout matches the on-screen
+ticket card: rounded card, poster thumbnail, title, date, venue, ticket type,
+QR, booking ID, and totals — no orange bar, no savings badge.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import struct
+import zlib
 from datetime import datetime
+from io import BytesIO
 from typing import Optional
 from urllib.parse import quote
 
@@ -29,16 +33,16 @@ def _ascii_text(value, fallback: str = "") -> str:
 def _format_event_date(value) -> str:
     if not value:
         return "Date TBA"
-    if isinstance(value, datetime):
-        return value.strftime("%a, %b %d, %Y, %I:%M %p").replace(" 0", " ")
-    text = str(value).strip()
-    if not text:
-        return "Date TBA"
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        return parsed.strftime("%a, %b %d, %Y, %I:%M %p").replace(" 0", " ")
-    except Exception:
-        return _ascii_text(text[:48], "Date TBA")
+    parsed = value if isinstance(value, datetime) else None
+    if parsed is None:
+        text = str(value).strip()
+        if not text:
+            return "Date TBA"
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except Exception:
+            return _ascii_text(text[:48], "Date TBA")
+    return f"{parsed.strftime('%a, %b')} {parsed.day}, {parsed.strftime('%Y, %I:%M %p')}"
 
 
 def _short_booking_id(booking_id) -> str:
@@ -96,20 +100,25 @@ def _jpeg_dimensions(data: bytes) -> tuple[int, int]:
     return 280, 280
 
 
-def _fetch_jpeg(url: str, timeout: float = 12.0) -> bytes:
+def _fetch_bytes(url: str, timeout: float = 12.0) -> bytes:
     target = (url or "").strip()
     if not target.startswith("http://") and not target.startswith("https://"):
         return b""
     try:
         with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-            res = client.get(target)
+            res = client.get(target, headers={"User-Agent": "JOD-Events-TicketPDF/1.0"})
         if res.status_code != 200 or not res.content:
-            return b""
-        if res.content[:2] != b"\xff\xd8":
             return b""
         return res.content
     except Exception:
         return b""
+
+
+def _fetch_jpeg(url: str, timeout: float = 12.0) -> bytes:
+    data = _fetch_bytes(url, timeout=timeout)
+    if data[:2] != b"\xff\xd8":
+        return b""
+    return data
 
 
 def _fetch_qr_jpeg(qr_token: str) -> bytes:
@@ -121,6 +130,193 @@ def _fetch_qr_jpeg(qr_token: str) -> bytes:
         f"?size=280x280&format=jpeg&margin=8&data={quote(token)}"
     )
     return _fetch_jpeg(url)
+
+
+def _paeth(a: int, b: int, c: int) -> int:
+    p = a + b - c
+    pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+    if pa <= pb and pa <= pc:
+        return a
+    if pb <= pc:
+        return b
+    return c
+
+
+def _unfilter_png_rows(raw: bytes, height: int, stride: int, bpp: int) -> Optional[list[bytearray]]:
+    expected = (stride + 1) * height
+    if len(raw) < expected or stride <= 0:
+        return None
+    prev = bytearray(stride)
+    rows = []
+    src = 0
+    for _ in range(height):
+        ftype = raw[src]
+        src += 1
+        row = bytearray(raw[src : src + stride])
+        src += stride
+        if ftype == 1:
+            for i in range(stride):
+                row[i] = (row[i] + (row[i - bpp] if i >= bpp else 0)) & 255
+        elif ftype == 2:
+            for i in range(stride):
+                row[i] = (row[i] + prev[i]) & 255
+        elif ftype == 3:
+            for i in range(stride):
+                left = row[i - bpp] if i >= bpp else 0
+                row[i] = (row[i] + ((left + prev[i]) // 2)) & 255
+        elif ftype == 4:
+            for i in range(stride):
+                left = row[i - bpp] if i >= bpp else 0
+                up = prev[i]
+                ul = prev[i - bpp] if i >= bpp else 0
+                row[i] = (row[i] + _paeth(left, up, ul)) & 255
+        elif ftype != 0:
+            return None
+        prev = row
+        rows.append(row)
+    return rows
+
+
+def _composite_white(r: int, g: int, b: int, a: int) -> tuple[int, int, int]:
+    if a >= 255:
+        return r, g, b
+    inv = 255 - a
+    return (
+        (r * a + 255 * inv + 127) // 255,
+        (g * a + 255 * inv + 127) // 255,
+        (b * a + 255 * inv + 127) // 255,
+    )
+
+
+def _decode_png_rgb(data: bytes) -> Optional[tuple[bytes, int, int]]:
+    """Decode common 8-bit PNG types to raw RGB. Returns None if unsupported."""
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    pos = 8
+    width = height = bit_depth = color_type = None
+    interlace = 0
+    idat = []
+    palette = b""
+    trns = b""
+    while pos + 8 <= len(data):
+        length = int.from_bytes(data[pos : pos + 4], "big")
+        if pos + 12 + length > len(data):
+            break
+        ctype = data[pos + 4 : pos + 8]
+        chunk = data[pos + 8 : pos + 8 + length]
+        pos += 12 + length
+        if ctype == b"IHDR" and len(chunk) >= 13:
+            width, height, bit_depth, color_type, _comp, _filt, interlace = struct.unpack(
+                ">IIBBBBB", chunk[:13]
+            )
+        elif ctype == b"PLTE":
+            palette = chunk
+        elif ctype == b"tRNS":
+            trns = chunk
+        elif ctype == b"IDAT":
+            idat.append(chunk)
+        elif ctype == b"IEND":
+            break
+    if not width or not height or not idat or interlace != 0 or bit_depth != 8:
+        return None
+    if color_type not in (0, 2, 3, 4, 6):
+        return None
+    try:
+        raw = zlib.decompress(b"".join(idat))
+    except Exception:
+        return None
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color_type]
+    stride = width * channels
+    rows = _unfilter_png_rows(raw, height, stride, channels)
+    if rows is None:
+        return None
+    out = bytearray(width * height * 3)
+    dst = 0
+    if color_type == 2:
+        for row in rows:
+            out[dst : dst + stride] = row
+            dst += stride
+    elif color_type == 6:
+        for row in rows:
+            for i in range(0, stride, 4):
+                r, g, b, a = row[i : i + 4]
+                out[dst], out[dst + 1], out[dst + 2] = _composite_white(r, g, b, a)
+                dst += 3
+    elif color_type == 0:
+        for row in rows:
+            for v in row:
+                out[dst : dst + 3] = bytes((v, v, v))
+                dst += 3
+    elif color_type == 4:
+        for row in rows:
+            for i in range(0, stride, 2):
+                v, a = row[i], row[i + 1]
+                c, _, _ = _composite_white(v, v, v, a)
+                out[dst : dst + 3] = bytes((c, c, c))
+                dst += 3
+    else:
+        if len(palette) < 3:
+            return None
+        for row in rows:
+            for idx in row:
+                base = idx * 3
+                if base + 2 >= len(palette):
+                    r = g = b = 0
+                else:
+                    r, g, b = palette[base], palette[base + 1], palette[base + 2]
+                a = trns[idx] if idx < len(trns) else 255
+                out[dst], out[dst + 1], out[dst + 2] = _composite_white(r, g, b, a)
+                dst += 3
+    return bytes(out), width, height
+
+
+def _scale_rgb(rgb: bytes, width: int, height: int, max_w: int = 360, max_h: int = 480) -> tuple[bytes, int, int]:
+    if width <= max_w and height <= max_h:
+        return rgb, width, height
+    scale = min(max_w / width, max_h / height)
+    nw = max(1, int(width * scale))
+    nh = max(1, int(height * scale))
+    out = bytearray(nw * nh * 3)
+    for y in range(nh):
+        sy = min(height - 1, int(y / scale))
+        for x in range(nw):
+            sx = min(width - 1, int(x / scale))
+            i = (sy * width + sx) * 3
+            o = (y * nw + x) * 3
+            out[o : o + 3] = rgb[i : i + 3]
+    return bytes(out), nw, nh
+
+
+def _via_pillow(data: bytes) -> Optional[tuple[str, bytes, int, int]]:
+    try:
+        from PIL import Image
+    except Exception:
+        return None
+    try:
+        image = Image.open(BytesIO(data))
+        image = image.convert("RGB")
+        image.thumbnail((360, 480))
+        buf = BytesIO()
+        image.save(buf, format="JPEG", quality=85)
+        jpeg = buf.getvalue()
+        return "DCTDecode", jpeg, image.size[0], image.size[1]
+    except Exception:
+        return None
+
+
+def _load_poster_image(url: str) -> Optional[tuple[str, bytes, int, int]]:
+    data = _fetch_bytes(url)
+    if not data:
+        return None
+    if data[:2] == b"\xff\xd8":
+        width, height = _jpeg_dimensions(data)
+        return "DCTDecode", data, width, height
+    png = _decode_png_rgb(data)
+    if png:
+        rgb, width, height = png
+        rgb, width, height = _scale_rgb(rgb, width, height)
+        return "FlateDecode", zlib.compress(rgb, 9), width, height
+    return _via_pillow(data)
 
 
 def _absolute_media_url(path: str) -> str:
@@ -161,19 +357,60 @@ def _assemble_pdf(object_bodies: list[bytes]) -> bytes:
     return b"".join(chunks + xref + [trailer])
 
 
-def _image_xobject(jpeg: bytes, width: int, height: int) -> bytes:
+def _image_xobject(payload: bytes, width: int, height: int, pdf_filter: str = "DCTDecode") -> bytes:
     return (
         b"<< /Type /XObject /Subtype /Image "
         + f"/Width {width} /Height {height} ".encode("ascii")
-        + b"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode "
-        + f"/Length {len(jpeg)} >>\nstream\n".encode("ascii")
-        + jpeg
+        + b"/ColorSpace /DeviceRGB /BitsPerComponent 8 "
+        + f"/Filter /{pdf_filter} ".encode("ascii")
+        + f"/Length {len(payload)} >>\nstream\n".encode("ascii")
+        + payload
         + b"\nendstream"
     )
 
 
 def _draw_image(name: str, x: float, y: float, w: float, h: float) -> str:
     return f"q {w:.1f} 0 0 {h:.1f} {x:.1f} {y:.1f} cm /{name} Do Q"
+
+
+def _round_rect_path(x: float, y: float, w: float, h: float, r: float) -> str:
+    r = min(r, w / 2.0, h / 2.0)
+    k = 0.552284749831 * r
+    return (
+        f"{x + r:.2f} {y:.2f} m "
+        f"{x + w - r:.2f} {y:.2f} l "
+        f"{x + w - r + k:.2f} {y:.2f} {x + w:.2f} {y + r - k:.2f} {x + w:.2f} {y + r:.2f} c "
+        f"{x + w:.2f} {y + h - r:.2f} l "
+        f"{x + w:.2f} {y + h - r + k:.2f} {x + w - r + k:.2f} {y + h:.2f} {x + w - r:.2f} {y + h:.2f} c "
+        f"{x + r:.2f} {y + h:.2f} l "
+        f"{x + r - k:.2f} {y + h:.2f} {x:.2f} {y + h - r + k:.2f} {x:.2f} {y + h - r:.2f} c "
+        f"{x:.2f} {y + r:.2f} l "
+        f"{x:.2f} {y + r - k:.2f} {x + r - k:.2f} {y:.2f} {x + r:.2f} {y:.2f} c h"
+    )
+
+
+def _cover_image(
+    name: str,
+    box_x: float,
+    box_y: float,
+    box_w: float,
+    box_h: float,
+    img_w: int,
+    img_h: int,
+    radius: float = 6.0,
+) -> str:
+    if img_w <= 0 or img_h <= 0:
+        return ""
+    scale = max(box_w / img_w, box_h / img_h)
+    dw, dh = img_w * scale, img_h * scale
+    x = box_x + (box_w - dw) / 2.0
+    y = box_y + (box_h - dh) / 2.0
+    clip = _round_rect_path(box_x, box_y, box_w, box_h, radius)
+    return f"q {clip} W n {_draw_image(name, x, y, dw, dh)} Q"
+
+
+def _tj_right(right_x: float, y: float, text: str, char_w: float) -> str:
+    return f"1 0 0 1 {right_x - max(1, len(text)) * char_w:.1f} {y:.1f} Tm ({_pdf_escape(text)}) Tj"
 
 
 def ticket_pdf_filename(booking_id, kind: str = "ticket") -> str:
@@ -219,137 +456,147 @@ def build_mticket_pdf_bytes(
         booking_label = f"JOD-{_short_booking_id(booking_id)}"
         show_qr = bool(include_qr)
         qr_jpeg = _fetch_qr_jpeg(qr_token) if show_qr else b""
-        poster_jpeg = _fetch_jpeg(_absolute_media_url(poster_url)) if poster_url else b""
-        badge_label = "INVOICE" if not show_qr else "M-TICKET"
+        poster = _load_poster_image(_absolute_media_url(poster_url)) if poster_url else None
+        badge_label = "Invoice" if not show_qr else "M-Ticket"
 
-        # A4 page, white ticket card centered.
-        card_x, card_y, card_w, card_h = 72.0, 90.0, 451.0, 662.0
-        inner_x = card_x + 22
-        inner_right = card_x + card_w - 22
-        y = card_y + card_h - 28
+        poster_w, poster_h = 88.0, 110.0
+        qr_size = 180.0
+        header_h = poster_h
+        seating_h = 58.0
+        qr_block_h = (qr_size + 44.0) if show_qr else 0.0
+        policy_h = 16.0
+        totals_h = 86.0 if payment_mode else 70.0
+        pad_x, pad_y = 22.0, 20.0
+        card_w = 451.0
+        card_h = pad_y * 2 + header_h + 18 + seating_h + (16 if show_qr else 8) + qr_block_h + 14 + policy_h + 18 + totals_h
+        card_x = (595.0 - card_w) / 2.0
+        card_y = max(36.0, (842.0 - card_h) / 2.0)
+        inner_x = card_x + pad_x
+        inner_right = card_x + card_w - pad_x
+        y = card_y + card_h - pad_y
 
         ops = [
-            "0.94 0.95 0.97 rg 0 0 595 842 re f",
-            "1 1 1 rg 0.82 0.84 0.86 RG 1.2 w",
-            f"{card_x:.1f} {card_y:.1f} {card_w:.1f} {card_h:.1f} re B",
-            "1 0.46 0.03 rg",
-            f"{card_x:.1f} {card_y + card_h - 6:.1f} {card_w:.1f} 6 re f",
+            "0.97 0.97 0.98 rg 0 0 595 842 re f",
+            "1 1 1 rg 0.83 0.85 0.88 RG 1 w",
+            f"{_round_rect_path(card_x, card_y, card_w, card_h, 12)} B",
         ]
 
-        xobjects = {}
-        poster_name = ""
-        if poster_jpeg:
-            poster_name = "ImP"
-            pw, ph = _jpeg_dimensions(poster_jpeg)
-            box_w, box_h = 78.0, 104.0
-            xobjects[poster_name] = (poster_jpeg, pw, ph)
-            ops.append(_draw_image(poster_name, inner_x, y - box_h, box_w, box_h))
-            text_x = inner_x + box_w + 14
+        xobjects: dict[str, tuple[bytes, int, int, str]] = {}
+        poster_box_x, poster_box_y = inner_x, y - poster_h
+        if poster:
+            filt, payload, pw, ph = poster
+            xobjects["ImP"] = (payload, pw, ph, filt)
+            ops.append(_cover_image("ImP", poster_box_x, poster_box_y, poster_w, poster_h, pw, ph, 8))
         else:
-            text_x = inner_x
+            ops.extend([
+                "0.90 0.91 0.93 rg",
+                f"{_round_rect_path(poster_box_x, poster_box_y, poster_w, poster_h, 8)} f",
+            ])
 
-        title_width_chars = 28 if poster_jpeg else 36
-        title_lines = _wrap_text(title, title_width_chars, 2)
+        text_x = inner_x + poster_w + 12
+        title_lines = _wrap_text(title, 30, 2)
+        venue_lines = _wrap_text(venue_label, 38, 2)
         ops.extend([
             "BT",
-            "/F1 16 Tf 0.07 0.09 0.16 rg",
-            f"1 0 0 1 {text_x:.1f} {y - 18:.1f} Tm ({_pdf_escape(title_lines[0])}) Tj",
+            "/F1 15 Tf 0.07 0.09 0.15 rg",
+            f"1 0 0 1 {text_x:.1f} {y - 16:.1f} Tm ({_pdf_escape(title_lines[0])}) Tj",
         ])
-        cursor = y - 18
+        cursor = y - 16
         if len(title_lines) > 1:
-            cursor -= 18
+            cursor -= 16
             ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(title_lines[1])}) Tj")
-        cursor -= 16
-        ops.extend([
-            "/F2 10 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(format_label[:42])}) Tj",
-        ])
-        cursor -= 16
-        ops.extend([
-            "/F1 11 Tf 0.07 0.09 0.16 rg",
-            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(date_label[:42])}) Tj",
-        ])
         cursor -= 15
         ops.extend([
-            "/F2 10 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_label[:42])}) Tj",
-            "/F1 8 Tf 0.62 0.65 0.70 rg",
-            f"1 0 0 1 {inner_right - 52:.1f} {y - 8:.1f} Tm ({_pdf_escape(badge_label)}) Tj",
+            "/F2 9 Tf 0.42 0.45 0.50 rg",
+            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(format_label[:42])}) Tj",
+        ])
+        cursor -= 14
+        ops.extend([
+            "/F1 10 Tf 0.07 0.09 0.15 rg",
+            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(date_label[:44])}) Tj",
+        ])
+        cursor -= 13
+        ops.extend([
+            "/F2 9 Tf 0.42 0.45 0.50 rg",
+            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[0])}) Tj",
+        ])
+        if len(venue_lines) > 1:
+            cursor -= 12
+            ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[1])}) Tj")
+        ops.extend([
+            "/F1 8 Tf 0.61 0.64 0.69 rg",
+            _tj_right(inner_right, y - 16, badge_label, 5.1),
             "ET",
         ])
 
-        block_top = min(cursor, y - (104 if poster_jpeg else 70)) - 18
+        block_top = poster_box_y - 16
         ops.extend([
-            "0.89 0.91 0.94 RG 0.8 w",
-            f"{inner_x:.1f} {block_top + 10:.1f} m {inner_right:.1f} {block_top + 10:.1f} l S",
+            "0.89 0.91 0.94 RG 0.7 w",
+            f"{inner_x:.1f} {block_top + 8:.1f} m {inner_right:.1f} {block_top + 8:.1f} l S",
             "BT",
-            "/F2 10 Tf 0.42 0.45 0.50 rg",
+            "/F2 9 Tf 0.42 0.45 0.50 rg",
             f"1 0 0 1 {inner_x:.1f} {block_top - 6:.1f} Tm ({_pdf_escape(f'{qty} Ticket(s)')}) Tj",
-            "/F1 16 Tf 0.07 0.09 0.16 rg",
-            f"1 0 0 1 {inner_x:.1f} {block_top - 28:.1f} Tm ({_pdf_escape(type_label[:34])}) Tj",
+            "/F1 14 Tf 0.07 0.09 0.15 rg",
+            f"1 0 0 1 {inner_x:.1f} {block_top - 26:.1f} Tm ({_pdf_escape(type_label[:34])}) Tj",
             "/F2 10 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {inner_x:.1f} {block_top - 44:.1f} Tm ({_pdf_escape(seat_label[:34])}) Tj",
+            f"1 0 0 1 {inner_x:.1f} {block_top - 42:.1f} Tm ({_pdf_escape(seat_label[:34])}) Tj",
             "ET",
         ])
 
         if show_qr:
-            qr_top = block_top - 64
-            qr_size = 168.0
-            qr_x = card_x + (card_w - qr_size) / 2
+            qr_top = block_top - 58
+            qr_x = card_x + (card_w - qr_size) / 2.0
             qr_y = qr_top - qr_size
             if qr_jpeg:
                 qw, qh = _jpeg_dimensions(qr_jpeg)
-                xobjects["ImQ"] = (qr_jpeg, qw, qh)
-                ops.extend([
-                    "0.93 0.94 0.96 RG 1 w",
-                    f"{qr_x - 8:.1f} {qr_y - 8:.1f} {qr_size + 16:.1f} {qr_size + 16:.1f} re S",
-                    _draw_image("ImQ", qr_x, qr_y, qr_size, qr_size),
-                ])
+                xobjects["ImQ"] = (qr_jpeg, qw, qh, "DCTDecode")
+                ops.append(_draw_image("ImQ", qr_x, qr_y, qr_size, qr_size))
             else:
                 ops.extend([
-                    "0.97 0.98 0.99 rg 0.82 0.84 0.86 RG",
+                    "0.97 0.98 0.99 rg 0.82 0.84 0.86 RG 0.8 w",
                     f"{qr_x:.1f} {qr_y:.1f} {qr_size:.1f} {qr_size:.1f} re B",
                     "BT /F2 11 Tf 0.42 0.45 0.50 rg",
-                    f"1 0 0 1 {qr_x + 36:.1f} {qr_y + 84:.1f} Tm ({_pdf_escape('QR pending')}) Tj ET",
+                    f"1 0 0 1 {qr_x + 48:.1f} {qr_y + 90:.1f} Tm ({_pdf_escape('QR pending')}) Tj ET",
                 ])
-            policy_y = qr_y - 46
+            booking_text = f"BOOKING ID: #{booking_label}"
+            booking_w = len(booking_text) * 6.35
             ops.extend([
                 "BT",
-                "/F1 12 Tf 0.07 0.09 0.16 rg",
-                f"1 0 0 1 {card_x + (card_w - 148) / 2:.1f} {qr_y - 24:.1f} Tm ({_pdf_escape('BOOKING ID: ' + booking_label)}) Tj",
-                "/F2 9 Tf 0.42 0.45 0.50 rg",
-                f"1 0 0 1 {inner_x:.1f} {policy_y:.1f} Tm ({_pdf_escape('Cancellation available up to 24h prior to showtime')}) Tj",
+                "/F1 11 Tf 0.07 0.09 0.15 rg",
+                f"1 0 0 1 {card_x + (card_w - booking_w) / 2.0:.1f} {qr_y - 22:.1f} Tm ({_pdf_escape(booking_text)}) Tj",
                 "ET",
             ])
-            divider_y = card_y + 92
+            policy_y = qr_y - 42
         else:
-            policy_y = block_top - 64
-            ops.extend([
-                "BT",
-                "/F2 9 Tf 0.42 0.45 0.50 rg",
-                f"1 0 0 1 {inner_x:.1f} {policy_y:.1f} Tm ({_pdf_escape('Cancellation available up to 24h prior to showtime')}) Tj",
-                "ET",
-            ])
-            divider_y = policy_y - 22
+            policy_y = block_top - 60
 
+        policy_text = "Cancellation available up to 24h prior to showtime"
+        policy_w = len(policy_text) * 4.35
         ops.extend([
-            "[6 4] 0 d 0.80 0.83 0.86 RG 1 w",
-            f"{inner_x:.1f} {divider_y:.1f} m {inner_right:.1f} {divider_y:.1f} l S",
-            "[] 0 d",
             "BT",
-            "/F1 12 Tf 0.07 0.09 0.16 rg",
-            f"1 0 0 1 {inner_x:.1f} {divider_y - 24:.1f} Tm ({_pdf_escape('Total Amount')}) Tj",
-            f"1 0 0 1 {inner_right - 78:.1f} {divider_y - 24:.1f} Tm ({_pdf_escape(_money(total))}) Tj",
+            "/F2 8 Tf 0.42 0.45 0.50 rg",
+            f"1 0 0 1 {card_x + (card_w - policy_w) / 2.0:.1f} {policy_y:.1f} Tm ({_pdf_escape(policy_text)}) Tj",
+            "ET",
+            "[5 4] 0 d 0.80 0.83 0.86 RG 1 w",
+            f"{inner_x:.1f} {policy_y - 14:.1f} m {inner_right:.1f} {policy_y - 14:.1f} l S",
+            "[] 0 d",
+        ])
+        divider_y = policy_y - 14
+        ops.extend([
+            "BT",
+            "/F1 11 Tf 0.07 0.09 0.15 rg",
+            f"1 0 0 1 {inner_x:.1f} {divider_y - 22:.1f} Tm ({_pdf_escape('Total Amount')}) Tj",
+            _tj_right(inner_right, divider_y - 22, _money(total), 6.4),
             "/F2 9 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {inner_x:.1f} {divider_y - 42:.1f} Tm ({_pdf_escape(f'Ticket price (x{qty})')}) Tj",
-            f"1 0 0 1 {inner_right - 78:.1f} {divider_y - 42:.1f} Tm ({_pdf_escape(_money(subtotal))}) Tj",
-            f"1 0 0 1 {inner_x:.1f} {divider_y - 56:.1f} Tm ({_pdf_escape('Convenience fee & GST (18%)')}) Tj",
-            f"1 0 0 1 {inner_right - 78:.1f} {divider_y - 56:.1f} Tm ({_pdf_escape(_money(gst))}) Tj",
+            f"1 0 0 1 {inner_x:.1f} {divider_y - 40:.1f} Tm ({_pdf_escape(f'Ticket price (x{qty})')}) Tj",
+            _tj_right(inner_right, divider_y - 40, _money(subtotal), 5.2),
+            f"1 0 0 1 {inner_x:.1f} {divider_y - 54:.1f} Tm ({_pdf_escape('Convenience fee & GST (18%)')}) Tj",
+            _tj_right(inner_right, divider_y - 54, _money(gst), 5.2),
         ])
         if payment_mode:
             ops.extend([
                 f"1 0 0 1 {inner_x:.1f} {divider_y - 70:.1f} Tm ({_pdf_escape('Payment Mode')}) Tj",
-                f"1 0 0 1 {inner_right - 110:.1f} {divider_y - 70:.1f} Tm ({_pdf_escape(_ascii_text(payment_mode)[:22])}) Tj",
+                _tj_right(inner_right, divider_y - 70, _ascii_text(payment_mode)[:28], 5.2),
             ])
         ops.append("ET")
 
@@ -357,9 +604,9 @@ def build_mticket_pdf_bytes(
         xobject_refs = []
         image_objects = []
         next_obj = 7
-        for name, (jpeg, width, height) in xobjects.items():
+        for name, (payload, width, height, pdf_filter) in xobjects.items():
             xobject_refs.append(f"/{name} {next_obj} 0 R")
-            image_objects.append(_image_xobject(jpeg, width, height))
+            image_objects.append(_image_xobject(payload, width, height, pdf_filter))
             next_obj += 1
         xobject_dict = f"/XObject << {' '.join(xobject_refs)} >>" if xobject_refs else ""
         resources = (

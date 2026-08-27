@@ -230,6 +230,28 @@ class InviteUrlTests(unittest.TestCase):
         with patch.dict(os.environ, {"APP_ENV": "development", "PUBLIC_APP_URL": "http://127.0.0.1:5500", "FRONTEND_URL": "http://127.0.0.1:5500"}, clear=False):
             self.assertEqual(_frontend_base(FakeRequest()), "http://127.0.0.1:5500")
 
+    def test_invite_url_uses_live_site_when_env_is_localhost(self):
+        from APIs.volunteers import _frontend_base
+
+        class LiveRequest:
+            headers = {
+                "origin": "https://jodevents.com",
+                "referer": "https://jodevents.com/organizer-dashboard",
+                "host": "api.jodevents.com",
+            }
+
+        with patch.dict(os.environ, {"APP_ENV": "development", "PUBLIC_APP_URL": "http://127.0.0.1:5500", "FRONTEND_URL": "http://127.0.0.1:5500"}, clear=False):
+            self.assertEqual(_frontend_base(LiveRequest()), "https://jodevents.com")
+
+    def test_invite_url_production_never_returns_localhost(self):
+        from APIs.volunteers import _frontend_base
+
+        class ApiRequest:
+            headers = {"host": "api.jodevents.com"}
+
+        with patch.dict(os.environ, {"APP_ENV": "production", "PUBLIC_APP_URL": "http://127.0.0.1:5500", "FRONTEND_URL": "http://127.0.0.1:5500"}, clear=False):
+            self.assertEqual(_frontend_base(ApiRequest()), "https://jodevents.com")
+
 
 class CookieAuthTests(unittest.TestCase):
     @classmethod

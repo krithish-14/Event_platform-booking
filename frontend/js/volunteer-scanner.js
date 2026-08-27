@@ -191,14 +191,15 @@
 			return;
 		}
 
-		if (statusCode === "ALREADY_USED") {
+		if (statusCode === "ALREADY_USED" || statusCode === "DUPLICATE" || (data && (data.duplicate || data.already_checked_in))) {
 			showResult("warn", `
 				<div class="res-icon">⚠</div>
-				<h3>ALREADY CHECKED IN</h3>
+				<h3>DUPLICATE</h3>
 				<p class="res-name">${name}</p>
 				${bookingRef ? `<div class="res-row"><span>Booking ID</span><strong>${bookingRef}</strong></div>` : ""}
 				<div class="res-row"><span>Checked in at</span><strong>${when}</strong></div>
 				${verifiedBy ? `<div class="res-row"><span>Scanned by</span><strong>${verifiedBy}</strong></div>` : ""}
+				<p class="res-auto">This ticket was already used. Do not admit again.</p>
 			`);
 			return;
 		}
@@ -233,7 +234,7 @@
 		if (!token || !assignment) return;
 		const now = Date.now();
 		if (isProcessingToken) return;
-		if (token === lastToken && now - lastTokenAt < 3000) return;
+		if (token === lastToken && now - lastTokenAt < 2500) return;
 
 		isProcessingToken = true;
 		lastToken    = token;

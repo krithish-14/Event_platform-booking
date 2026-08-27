@@ -1663,10 +1663,20 @@ async function initOrganizerDashboard() {
 				})
 			});
 			const data = await res.json().catch(() => ({}));
-			const already = Boolean(data.already_checked_in || data.status === "already_used");
-			const ok = res.ok && data.valid !== false && !already && data.status !== "cancelled";
+			const status = String(data.status || "").toLowerCase();
+			const already = Boolean(
+				data.already_checked_in
+				|| data.duplicate
+				|| status === "already_used"
+				|| status === "duplicate"
+				|| status === "already_checked_in"
+			);
+			const ok = res.ok && data.valid !== false && !already && status !== "cancelled";
 			const detail = typeof data.detail === "string" ? data.detail : "";
-			const message = data.message || detail || (ok ? `${value} checked in successfully.` : "Could not validate this ticket.");
+			let message = data.message || detail || (ok ? `${value} checked in successfully.` : "Could not validate this ticket.");
+			if (already && !/duplicate/i.test(message)) {
+				message = `Duplicate — ${message}`;
+			}
 			paintCheckinResult(resultEl, ok, (ok ? "✓ " : "") + message.replace(/^✓\s*/, ""), already);
 			await loadDashboardData();
 			await loadAttendanceData();
@@ -2323,9 +2333,11 @@ async function initOrganizerDashboard() {
 					});
 					const data = await res.json().catch(() => ({}));
 					if (res.ok) {
-						showVolunteerInviteLink(data.invite_url, volunteerName);
+						showVolunteerInviteLink(data.invite_url, volunteerName, data.email_sent);
 						loadVolunteers();
-						showNotification("Invitation resent.");
+						showNotification(data.email_sent === false
+							? "Invitation link ready. Email could not be sent — copy the live link."
+							: "Invitation resent.");
 					} else {
 						alert(apiErrorMessage(data, "Could not resend invitation."));
 					}
@@ -2345,16 +2357,39 @@ async function initOrganizerDashboard() {
 		if (generatedLinkContainer) generatedLinkContainer.style.display = "none";
 	}
 
-	function showVolunteerInviteLink(url, volunteerName) {
+	function publicVolunteerInviteUrl(url) {
+		if (!url) return "";
+		try {
+			const parsed = new URL(url, window.location.origin);
+			const host = (parsed.hostname || "").toLowerCase();
+			if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
+				parsed.protocol = window.location.protocol;
+				parsed.host = window.location.host;
+			}
+			return parsed.toString();
+		} catch (_) {
+			return String(url);
+		}
+	}
+
+	function showVolunteerInviteLink(url, volunteerName, emailSent) {
 		const generatedLinkContainer = document.getElementById("generatedLinkContainer");
 		const volunteerPortalUrl = document.getElementById("volunteerPortalUrl");
 		const volunteerLinkLabel = document.getElementById("volunteerLinkLabel");
 		if (!generatedLinkContainer || !volunteerPortalUrl || !url) return;
-		volunteerPortalUrl.value = url;
+		const liveUrl = publicVolunteerInviteUrl(url);
+		volunteerPortalUrl.value = liveUrl;
 		if (volunteerLinkLabel) {
-			volunteerLinkLabel.textContent = volunteerName
-				? `Invitation link for ${volunteerName} (also emailed):`
-				: "Invitation link (also emailed):";
+			const emailed = emailSent !== false;
+			if (volunteerName && emailed) {
+				volunteerLinkLabel.textContent = `Invitation link for ${volunteerName} (also emailed):`;
+			} else if (volunteerName) {
+				volunteerLinkLabel.textContent = `Invitation link for ${volunteerName} (copy and send this live link):`;
+			} else if (emailed) {
+				volunteerLinkLabel.textContent = "Invitation link (also emailed):";
+			} else {
+				volunteerLinkLabel.textContent = "Invitation link (copy and send this live link):";
+			}
 		}
 		generatedLinkContainer.style.display = "block";
 	}
@@ -5121,10 +5156,11 @@ async function initOrganizerDashboard() {
 				return;
 			}
 			const data = await performTicketCheckin(code, modalScanResult);
-			const name = (data && data.attendee_name) || "Attendee";
-			if (data && (data.valid || data.status === "success")) {
+			const name = (data && (data.attendee_name || data.customer_name)) || "Attendee";
+			const status = String((data && data.status) || "").toLowerCase();
+			if (data && (data.valid || status === "success")) {
 				_addHistoryRow(code, "valid", name);
-			} else if (data && (data.already_checked_in || data.status === "already_used")) {
+			} else if (data && (data.already_checked_in || data.duplicate || status === "already_used" || status === "duplicate")) {
 				_addHistoryRow(code, "duplicate", name);
 			} else {
 				_addHistoryRow(code, "invalid", name);
@@ -5205,13 +5241,17 @@ async function initOrganizerDashboard() {
 				});
 				const data = await res.json().catch(() => ({}));
 				if (res.ok) {
-					showVolunteerInviteLink(data.invite_url, name);
+					showVolunteerInviteLink(data.invite_url, name, data.email_sent);
 					if (volunteerNameInput) volunteerNameInput.value = "";
 					if (volunteerEmailInput) volunteerEmailInput.value = "";
 					if (volunteerGateSelectEl) volunteerGateSelectEl.selectedIndex = 0;
 					loadVolunteers();
 					loadEventDayVolunteerStats();
-					showNotification(`Invitation sent to ${volunteerEmail}.`);
+					if (data.email_sent === false) {
+						showNotification(`Volunteer added. Email could not be sent — copy the live invitation link.`);
+					} else {
+						showNotification(`Invitation sent to ${volunteerEmail}.`);
+					}
 				} else {
 					alert(apiErrorMessage(data, "Could not send volunteer invitation."));
 				}

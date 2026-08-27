@@ -32,7 +32,7 @@
 	function statusLabel(status) {
 		const s = String(status || "").toLowerCase();
 		if (s === "checked_in") return "✓";
-		if (s === "already_checked_in") return "⚠ Already checked in";
+		if (s === "already_checked_in" || s === "duplicate" || s === "already_used") return "⚠ Duplicate";
 		if (s === "wrong_event") return "✕ Wrong event";
 		if (s === "cancelled") return "✕ Not valid";
 		return "✕";

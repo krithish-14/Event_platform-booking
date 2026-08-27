@@ -5,9 +5,12 @@ Volunteer invitations, event-scoped scanner access, and ticket check-in.
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 from datetime import datetime
+from html import escape as html_escape
 from typing import Optional
+from urllib.parse import urlparse
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -31,7 +34,13 @@ from Models.user import User
 from Services.email import send_email
 from Services.runtime_env import is_production, public_app_url
 
-from APIs.tickets import _lookup_ticket, _serialize_ticket_success
+from APIs.tickets import (
+    CANCELLED_TICKET_STATUSES,
+    CHECKABLE_TICKET_STATUSES,
+    CHECKED_IN_TICKET_STATUSES,
+    _lookup_ticket,
+    _serialize_ticket_success,
+)
 
 router = APIRouter()
 
@@ -57,16 +66,67 @@ def _hash_token(raw: str) -> str:
     return hashlib.sha256((raw or "").encode("utf-8")).hexdigest()
 
 
+def _is_loopback_url(url: str) -> bool:
+    try:
+        host = (urlparse(url or "").hostname or "").lower()
+    except Exception:
+        return False
+    return host in ("localhost", "127.0.0.1", "0.0.0.0", "::1")
+
+
+def _trusted_frontend_origins() -> set[str]:
+    origins = {"https://jodevents.com", "https://www.jodevents.com"}
+    for raw in (os.getenv("ALLOWED_ORIGINS") or "").split(","):
+        value = raw.strip().rstrip("/")
+        if value and not _is_loopback_url(value):
+            origins.add(value)
+    configured = (public_app_url() or "").strip().rstrip("/")
+    if configured and not _is_loopback_url(configured):
+        origins.add(configured)
+    return origins
+
+
+def _origin_from_request(request: Optional[Request]) -> str:
+    if request is None:
+        return ""
+    headers = getattr(request, "headers", {}) or {}
+    origin = (headers.get("origin") or "").strip().rstrip("/")
+    trusted = _trusted_frontend_origins()
+    if origin in trusted:
+        return origin
+    referer = (headers.get("referer") or "").strip()
+    if referer:
+        try:
+            parsed = urlparse(referer)
+            candidate = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+        except Exception:
+            candidate = ""
+        if candidate in trusted:
+            return candidate
+    return ""
+
+
 def _frontend_base(request: Optional[Request] = None) -> str:
-    base = (public_app_url() or "").strip().rstrip("/")
-    if base:
-        return base
-    if is_production():
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="PUBLIC_APP_URL is not configured.",
-        )
-    return "http://127.0.0.1:5500"
+    """Live volunteer links must never point at localhost.
+
+    PUBLIC_APP_URL is preferred when it is a public https origin. If live still
+    has a leftover local URL, use the organizer's real site (jodevents.com) or
+    the API host instead of emailing 127.0.0.1.
+    """
+    configured = (public_app_url() or "").strip().rstrip("/")
+    request_origin = _origin_from_request(request)
+    api_host = ""
+    if request is not None:
+        api_host = ((getattr(request, "headers", {}) or {}).get("host") or "").split(":")[0].lower()
+    live_request = api_host in ("api.jodevents.com", "jodevents.com", "www.jodevents.com") or bool(request_origin)
+
+    if configured and not _is_loopback_url(configured):
+        return configured
+    if request_origin:
+        return request_origin
+    if is_production() or live_request:
+        return "https://jodevents.com"
+    return configured or "http://127.0.0.1:5500"
 
 
 def _invite_url(request: Optional[Request], raw_token: str) -> str:
@@ -386,24 +446,27 @@ def _verify_ticket_for_assignment(
 
     booking_status = ((ticket.booking.status if ticket.booking else "") or "").upper()
     ticket_status = (ticket.ticket_status or "").upper()
-    if booking_status in ("CANCELLED", "REFUNDED") or ticket_status in ("CANCELLED", "REFUNDED"):
+    if booking_status in CANCELLED_TICKET_STATUSES or ticket_status in CANCELLED_TICKET_STATUSES:
         return fail("CANCELLED", "This ticket has been cancelled or refunded.")
 
     existing = db.query(VolunteerCheckin).filter(VolunteerCheckin.ticket_id == ticket.ticket_id).first()
-    if existing or ticket_status == "USED":
+    if existing or ticket_status in CHECKED_IN_TICKET_STATUSES:
         extra = _volunteer_ticket_extra(
             ticket,
             customer_name=(ticket.booking.receiver_name if ticket.booking else None),
             ticket_type=ticket.ticket_type,
             used_at=_iso(ticket.used_at or (existing.created_at if existing else None)),
             scanned_by=ticket.scanned_by or (existing.volunteer.volunteer_name if existing and existing.volunteer else None),
+            already_checked_in=True,
+            duplicate=True,
         )
-        return fail("ALREADY_USED", "This ticket was already checked in.", extra)
+        return fail("ALREADY_USED", "Duplicate — this ticket was already checked in.", extra)
 
     now_utc = datetime.utcnow()
     rows_updated = (
         db.query(Ticket)
-        .filter(Ticket.ticket_id == ticket.ticket_id, Ticket.ticket_status == "VALID")
+        .filter(Ticket.ticket_id == ticket.ticket_id)
+        .filter(Ticket.ticket_status.in_(tuple(CHECKABLE_TICKET_STATUSES)))
         .update(
             {
                 Ticket.ticket_status: "USED",
@@ -422,8 +485,10 @@ def _verify_ticket_for_assignment(
             used_at=_iso(ticket.used_at if ticket else None),
             scanned_by=ticket.scanned_by if ticket else None,
             ticket_type=ticket.ticket_type if ticket else None,
+            already_checked_in=True,
+            duplicate=True,
         )
-        return fail("ALREADY_USED", "This ticket was already checked in.", extra)
+        return fail("ALREADY_USED", "Duplicate — this ticket was already checked in.", extra)
 
     attendee = (ticket.booking.receiver_name if ticket.booking else None) or "Guest"
     booking_label = _booking_ref(ticket) or "Guest"
@@ -449,8 +514,10 @@ def _verify_ticket_for_assignment(
             customer_name=(ticket.booking.receiver_name if ticket and ticket.booking else None),
             used_at=_iso(ticket.used_at if ticket else None),
             scanned_by=ticket.scanned_by if ticket else None,
+            already_checked_in=True,
+            duplicate=True,
         )
-        return fail("ALREADY_USED", "This ticket was already checked in.", extra)
+        return fail("ALREADY_USED", "Duplicate — this ticket was already checked in.", extra)
 
     _audit(
         db,
@@ -503,33 +570,42 @@ def _create_invitation(db: Session, volunteer: EventVolunteer) -> tuple[Voluntee
     return invite, raw
 
 
-def _send_invite_email(event: EventManagement, volunteer: EventVolunteer, invite: VolunteerInvitation, url: str, gate: Optional[EventEntryGate] = None) -> None:
+def _send_invite_email(event: EventManagement, volunteer: EventVolunteer, invite: VolunteerInvitation, url: str, gate: Optional[EventEntryGate] = None) -> bool:
     expires = invite.expires_at.strftime("%d %b %Y, %I:%M %p UTC") if invite.expires_at else "soon"
     organizer = event.organizer_name or event.organizer_email or "the organizer"
     gate_name = (gate.gate_name if gate else None) or "Assigned gate"
-    subject = f"You're invited to help check in guests at {event.event_title}"
+    title = event.event_title or "JOD Events"
+    subject = f"You're invited to help check in guests at {title}"
+    safe_title = html_escape(title)
+    safe_organizer = html_escape(str(organizer))
+    safe_gate = html_escape(str(gate_name))
+    safe_url = html_escape(url, quote=True)
     text = (
         f"You're invited to help manage event check-ins.\n\n"
-        f"Event: {event.event_title}\n"
+        f"Event: {title}\n"
         f"Organizer: {organizer}\n"
         f"Role: Scanner Volunteer\n"
         f"Assigned Gate: {gate_name}\n\n"
         f"Accept Volunteer Invitation:\n{url}\n\n"
         f"This invitation expires on {expires}.\n"
+        f"Open this link on your phone — it works on jodevents.com, not on localhost.\n"
     )
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;line-height:1.5;color:#0f172a">
       <h2 style="margin:0 0 12px">You're invited to help manage event check-ins.</h2>
-      <p><strong>Event:</strong> {event.event_title}<br/>
-      <strong>Organizer:</strong> {organizer}<br/>
+      <p><strong>Event:</strong> {safe_title}<br/>
+      <strong>Organizer:</strong> {safe_organizer}<br/>
       <strong>Role:</strong> Scanner Volunteer<br/>
-      <strong>Assigned Gate:</strong> {gate_name}</p>
+      <strong>Assigned Gate:</strong> {safe_gate}</p>
       <p>You have been invited to verify attendee tickets during event day.</p>
-      <p><a href="{url}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Accept Volunteer Invitation</a></p>
-      <p style="color:#64748b;font-size:13px">This invitation expires on {expires}.</p>
+      <p><a href="{safe_url}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Accept Volunteer Invitation</a></p>
+      <p style="color:#64748b;font-size:13px">This invitation expires on {html_escape(expires)}.</p>
     </div>
     """
-    send_email(volunteer.invited_email, subject, text, html)
+    try:
+        return bool(send_email(volunteer.invited_email, subject, text, html))
+    except Exception:
+        return False
 
 
 def _role_label(role: str) -> str:
@@ -611,11 +687,12 @@ def invite_volunteer(
     db.commit()
     db.refresh(volunteer)
     db.refresh(invite)
-    _send_invite_email(event, volunteer, invite, url, gate)
+    email_sent = _send_invite_email(event, volunteer, invite, url, gate)
     return {
         "status": "success",
         "volunteer": _serialize_volunteer(volunteer, gate=gate),
         "invite_url": url,
+        "email_sent": bool(email_sent),
         "expires_at": invite.expires_at.isoformat() if invite.expires_at else None,
     }
 
@@ -688,8 +765,13 @@ def resend_invitation(
     )
     db.commit()
     gate = volunteer.entry_gate
-    _send_invite_email(event, volunteer, invite, url, gate)
-    return {"status": "success", "invite_url": url, "expires_at": invite.expires_at.isoformat()}
+    email_sent = _send_invite_email(event, volunteer, invite, url, gate)
+    return {
+        "status": "success",
+        "invite_url": url,
+        "email_sent": bool(email_sent),
+        "expires_at": invite.expires_at.isoformat(),
+    }
 
 
 @router.post("/{volunteer_id}/revoke")

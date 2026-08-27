@@ -5,6 +5,7 @@ Handles QR token validation, atomic staff check-in, and ticket management.
 
 from datetime import datetime
 from typing import Optional, List
+from urllib.parse import parse_qs, unquote, urlparse
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -56,28 +57,89 @@ class TicketResponse(BaseModel):
         from_attributes = True
 
 
-def _extract_token(payload: TokenVerificationRequest | TokenCheckinRequest) -> str:
-    tok = (payload.qr_token or payload.token or "").strip()
-    if not tok:
-        raise HTTPException(status_code=400, detail="Missing ticket QR token.")
-    return tok
+CHECKED_IN_TICKET_STATUSES = {"USED", "CHECKED_IN", "CHECKED-IN", "CHECKEDIN"}
+CANCELLED_TICKET_STATUSES = {"CANCELLED", "CANCELED", "REFUNDED"}
+CHECKABLE_TICKET_STATUSES = {"VALID", "ISSUED", "CONFIRMED", "ACTIVE", "UNUSED", ""}
 
 
-def _lookup_ticket(db: Session, token_str: str, event_id: Optional[str] = None) -> Optional[Ticket]:
-    raw = (token_str or "").strip()
-    if not raw:
-        return None
-    query = (
-        db.query(Ticket)
-        .options(joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer))
-        .filter(Ticket.qr_token == raw)
+def extract_scan_token(value: str) -> str:
+    """Pull the QR / booking token out of a raw scanner payload or ticket URL."""
+    text = (value or "").strip()
+    if not text:
+        return ""
+    candidate = text
+    lowered = text.lower()
+    looks_like_url = (
+        "://" in text
+        or lowered.startswith("www.")
+        or "ticket-details" in lowered
+        or "/ticket" in lowered
+    )
+    if looks_like_url:
+        try:
+            parsed = urlparse(text if "://" in text else f"https://{text.lstrip('/')}")
+            params = parse_qs(parsed.query)
+            if parsed.fragment:
+                if "=" in parsed.fragment:
+                    params.update(parse_qs(parsed.fragment))
+                elif parsed.fragment.strip():
+                    candidate = unquote(parsed.fragment).strip() or candidate
+            for key in ("token", "qr_token", "qr", "code"):
+                vals = params.get(key) or []
+                if vals and str(vals[0]).strip():
+                    return unquote(str(vals[0])).strip()
+            path = unquote(parsed.path or "").rstrip("/")
+            last = path.split("/")[-1] if path else ""
+            skip = {"ticket-details.html", "ticket-details", "tickets", "ticket", "index.html", ""}
+            if last.lower() not in skip:
+                candidate = last
+        except Exception:
+            pass
+    return (candidate or text).strip()
+
+
+def _ticket_base_query(db: Session, event_id: Optional[str] = None):
+    query = db.query(Ticket).options(
+        joinedload(Ticket.booking), joinedload(Ticket.event), joinedload(Ticket.customer)
     )
     if event_id:
         try:
             query = query.filter(Ticket.event_id == UUID(str(event_id)))
         except Exception:
             query = query.filter(Ticket.event_id == event_id)
-    return query.first()
+    return query
+
+
+def _extract_token(payload: TokenVerificationRequest | TokenCheckinRequest) -> str:
+    tok = extract_scan_token(payload.qr_token or payload.token or "")
+    if not tok:
+        raise HTTPException(status_code=400, detail="Missing ticket QR token.")
+    return tok
+
+
+def _lookup_ticket(db: Session, token_str: str, event_id: Optional[str] = None) -> Optional[Ticket]:
+    raw = extract_scan_token(token_str)
+    original = (token_str or "").strip()
+    if not raw and not original:
+        return None
+    for candidate in dict.fromkeys([raw, original]):
+        if not candidate:
+            continue
+        ticket = _ticket_base_query(db, event_id).filter(Ticket.qr_token == candidate).first()
+        if ticket:
+            return ticket
+    compact = "".join(ch for ch in (raw or original).upper() if ch.isalnum())
+    if compact.startswith("JODTKT"):
+        return None
+    if compact.startswith("JOD"):
+        compact = compact[3:]
+    if len(compact) < 8:
+        return None
+    from sqlalchemy import String, cast, func
+
+    prefix = compact[:8].lower()
+    bid_txt = func.replace(func.lower(cast(Ticket.booking_id, String)), "-", "")
+    return _ticket_base_query(db, event_id).filter(bid_txt.like(prefix + "%")).first()
 
 
 def _serialize_ticket_success(t: Ticket, message: str = "Ticket is valid for entry.") -> dict:
@@ -147,7 +209,7 @@ def verify_ticket_token(
             "message": "Ticket booking has been cancelled.",
         }
 
-    if (ticket.ticket_status or "").upper() == "CANCELLED":
+    if (ticket.ticket_status or "").upper() in CANCELLED_TICKET_STATUSES:
         return {
             "valid": False,
             "status": "CANCELLED",
@@ -158,10 +220,12 @@ def verify_ticket_token(
             "message": "This ticket was marked as CANCELLED.",
         }
 
-    if (ticket.ticket_status or "").upper() == "USED":
+    if (ticket.ticket_status or "").upper() in CHECKED_IN_TICKET_STATUSES:
         return {
             "valid": False,
             "status": "ALREADY_USED",
+            "already_checked_in": True,
+            "duplicate": True,
             "ticket_id": str(ticket.ticket_id),
             "booking_id": str(ticket.booking_id),
             "qr_token": ticket.qr_token,
@@ -171,7 +235,7 @@ def verify_ticket_token(
             "customer_name": ticket.booking.receiver_name if ticket.booking else "Guest Customer",
             "used_at": ticket.used_at,
             "scanned_by": ticket.scanned_by,
-            "message": f"Ticket was ALREADY USED for entry at {ticket.used_at.strftime('%I:%M %p, %b %d') if ticket.used_at else 'an earlier time'}.",
+            "message": f"Duplicate — this ticket was already checked in at {ticket.used_at.strftime('%I:%M %p, %b %d') if ticket.used_at else 'an earlier time'}.",
         }
 
     # Optional event filter check
@@ -210,7 +274,7 @@ def checkin_ticket_entry(
     # Atomic SQL UPDATE — only updates if ticket_status is currently 'VALID'
     rows_updated = (
         db.query(Ticket)
-        .filter(Ticket.qr_token == resolved_token, Ticket.ticket_status == "VALID")
+        .filter(Ticket.qr_token == resolved_token, Ticket.ticket_status.in_(tuple(CHECKABLE_TICKET_STATUSES)))
         .update(
             {
                 Ticket.ticket_status: "USED",
@@ -242,10 +306,12 @@ def checkin_ticket_entry(
         return _serialize_ticket_success(ticket, message="ENTRY ALLOWED — Ticket successfully checked in!")
     else:
         # Atomic update modified 0 rows -> ticket was either ALREADY_USED, CANCELLED, or invalid
-        if (ticket.ticket_status or "").upper() == "USED":
+        if (ticket.ticket_status or "").upper() in CHECKED_IN_TICKET_STATUSES:
             return {
                 "valid": False,
                 "status": "ALREADY_USED",
+                "already_checked_in": True,
+                "duplicate": True,
                 "ticket_id": str(ticket.ticket_id),
                 "booking_id": str(ticket.booking_id),
                 "qr_token": ticket.qr_token,
@@ -255,9 +321,9 @@ def checkin_ticket_entry(
                 "customer_name": ticket.booking.receiver_name if ticket.booking else "Guest Customer",
                 "used_at": ticket.used_at,
                 "scanned_by": ticket.scanned_by,
-                "message": f"ENTRY DENIED — Ticket was ALREADY USED at {ticket.used_at.strftime('%I:%M %p, %b %d') if ticket.used_at else 'earlier'}.",
+                "message": f"Duplicate — this ticket was already checked in at {ticket.used_at.strftime('%I:%M %p, %b %d') if ticket.used_at else 'earlier'}.",
             }
-        elif (ticket.ticket_status or "").upper() == "CANCELLED":
+        elif (ticket.ticket_status or "").upper() in CANCELLED_TICKET_STATUSES:
             return {
                 "valid": False,
                 "status": "CANCELLED",

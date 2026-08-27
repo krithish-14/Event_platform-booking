@@ -758,10 +758,12 @@ def _ticket_matches_scan(ticket, raw: str, needle: str) -> bool:
 
 def _find_event_ticket(db: Session, event_mgt: EventManagement, code: str):
     from Models.ticket import Ticket
+    from APIs.tickets import extract_scan_token
     from sqlalchemy import cast, String, func, or_
     from sqlalchemy.orm import joinedload
 
-    raw = (code or "").strip()
+    original = (code or "").strip()
+    raw = extract_scan_token(original) or original
     if not raw:
         return None
     needle = _normalize_scan_code(raw)
@@ -2398,7 +2400,8 @@ def save_registration_checkin(
                 "status": "already_used",
                 "valid": False,
                 "already_checked_in": True,
-                "message": f"Already checked in at {when}.",
+                "duplicate": True,
+                "message": f"Duplicate — already checked in at {when}.",
                 "attendee_name": attendee_name,
                 "attendee_email": attendee_email,
                 "used_at": ticket.used_at.isoformat() if ticket.used_at else None,
@@ -2465,7 +2468,8 @@ def save_registration_checkin(
             "status": "already_used",
             "valid": False,
             "already_checked_in": True,
-            "message": "This attendee is already checked in.",
+            "duplicate": True,
+            "message": "Duplicate — this attendee is already checked in.",
             "attendee_name": registration.attendee_name,
             "attendee_email": registration.attendee_email,
             **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},

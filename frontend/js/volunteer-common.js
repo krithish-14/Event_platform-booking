@@ -17,20 +17,15 @@ window.JodVolunteer = (() => {
 		}
 		if (window.JodAuth && window.JodAuth.API_BASE) return String(window.JodAuth.API_BASE).replace(/\/$/, "");
 		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
-		return "";
+		const host = (window.location && window.location.hostname) || "";
+		if (host === "localhost" || host === "127.0.0.1") return "http://127.0.0.1:8001";
+		return "https://api.jodevents.com";
 	}
 
 
 
 	function apiBase() {
-		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
-			return window.JodConfig.getApiOrigin();
-		}
-		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
-			return window.JodHealth.getApiBaseUrl();
-		}
-		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
-		return "";
+		return `${String(apiRoot() || "").replace(/\/$/, "")}/api/volunteers`;
 	}
 
 
@@ -197,7 +192,8 @@ window.JodVolunteer = (() => {
 		const res = await fetch(`${apiBase()}${path}`, Object.assign({}, opts, {
 			headers,
 			body: opts.json ? JSON.stringify(opts.json) : opts.body,
-			cache: opts.cache || "default"
+			cache: opts.cache || "default",
+			credentials: "include"
 		}));
 
 		let data = {};
