@@ -47,7 +47,7 @@ from Utils.categories import (
     is_allowed_image_filename,
     normalize_category,
 )
-from Utils.text_sanitize import sanitize_text
+from Utils.text_sanitize import sanitize_text, pick_attendee_identity
 
 router = APIRouter()
 
@@ -2585,14 +2585,20 @@ def _serialize_cancellation_request(db: Session, booking, event_mgt: EventManage
     customer = getattr(booking, "customer", None)
     if not email and customer is not None:
         email = (getattr(customer, "email", None) or "").lower().strip()
-    name = (
-        getattr(booking, "receiver_name", None)
-        or (getattr(customer, "full_name", None) if customer is not None else None)
-        or (getattr(customer, "username", None) if customer is not None else None)
-        or "Guest"
-    )
-    phone = getattr(booking, "receiver_phone", None) or (
-        getattr(customer, "phone", None) if customer is not None else None
+    name, email, phone = pick_attendee_identity(
+        names=(
+            getattr(customer, "full_name", None) if customer is not None else None,
+            getattr(booking, "receiver_name", None),
+        ),
+        emails=(
+            email,
+            getattr(customer, "email", None) if customer is not None else None,
+            getattr(booking, "receiver_email", None),
+        ),
+        phones=(
+            getattr(customer, "phone", None) if customer is not None else None,
+            getattr(booking, "receiver_phone", None),
+        ),
     )
     attendee_form = {}
     for row in _form_submissions_for_event(db, event_mgt):

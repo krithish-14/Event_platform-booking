@@ -90,6 +90,7 @@
 
 .admin-stats {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 0.7rem;
 }
 
@@ -205,6 +206,16 @@ button.admin-event-title:focus-visible {
 	background: #fff;
 	color: #FF7508;
 	border: 1px solid #ffd7a8;
+}
+
+.admin-btn.accept {
+	background: #166534;
+	color: #fff;
+}
+
+.admin-badge.cancel {
+	background: #fff7ed;
+	color: #c2410c;
 }
 
 .admin-block {

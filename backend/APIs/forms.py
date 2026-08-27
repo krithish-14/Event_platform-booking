@@ -16,6 +16,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 from Models import get_db, FormDefinition, FormSubmission, EventRegistrationForm
 from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.user import User
+from Utils.text_sanitize import pick_attendee_identity
 
 logger = logging.getLogger("jod")
 
@@ -990,11 +991,26 @@ def _serialize_submission(
 			answer_values[title] = _pretty_answer(val)
 	submitted = row.submission_time
 	ticket_type = _submission_ticket(db, row, answers, ticket_cache, event)
+	customer = getattr(row, "customer", None)
+	name, email, phone = pick_attendee_identity(
+		names=(
+			getattr(customer, "full_name", None) if customer is not None else None,
+			_pick_answer(answers, "full name", "attendee name", "your name", "name"),
+		),
+		emails=(
+			row.user_email,
+			getattr(customer, "email", None) if customer is not None else None,
+		),
+		phones=(
+			getattr(customer, "phone", None) if customer is not None else None,
+			_pick_answer(answers, "phone", "mobile", "whatsapp"),
+		),
+	)
 	return {
 		"id": row.id,
-		"user_email": row.user_email or "",
-		"attendee_name": _pick_answer(answers, "full name", "attendee name", "your name") or "",
-		"phone": _pick_answer(answers, "phone", "mobile", "whatsapp"),
+		"user_email": email or row.user_email or "",
+		"attendee_name": name,
+		"phone": phone,
 		"ticket_type": ticket_type or row.ticket_type or "",
 		"submitted_at": submitted.strftime("%b %d, %Y %I:%M %p") if submitted else "",
 		"submitted_at_iso": submitted.isoformat() if submitted else "",

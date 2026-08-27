@@ -776,7 +776,11 @@ function bookingMatchesEvent(row, eventId, eventData) {
 }
 
 function isActiveBookingRow(row) {
-    return !["CANCELLED", "CANCELED", "REFUNDED"].includes(String((row && row.status) || "").toUpperCase());
+    const status = String((row && row.status) || "").toUpperCase();
+    const ticketStatus = String((row && row.ticket_status) || "").toUpperCase();
+    if (["CANCELLED", "CANCELED", "REFUNDED"].includes(status)) return false;
+    if (["CANCELLED", "CANCELED"].includes(ticketStatus)) return false;
+    return true;
 }
 
 function ticketStateFromBooking(row) {

@@ -986,6 +986,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								<button type="button" id="subTabSubmissions" class="subtab-btn" style="background: transparent; color: #64748b; font-weight: 600; border: none; padding: 0.45rem 1.1rem; border-radius: 6px; cursor: pointer; font-size: 0.88rem;">
 									Submissions &amp; Analytics
 								</button>
+								<button type="button" id="subTabCancellations" class="subtab-btn" style="background: transparent; color: #64748b; font-weight: 600; border: none; padding: 0.45rem 1.1rem; border-radius: 6px; cursor: pointer; font-size: 0.88rem;">
+									Cancellation request
+								</button>
 							</div>
 						</div>
 
@@ -1244,19 +1247,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								</div>
 							</div>
 
-							<div id="cancellationRequestsCard" style="background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; padding:1.1rem 1.2rem; margin-bottom:1.2rem;">
-								<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:0.85rem;">
-									<div>
-										<h3 style="margin:0 0 0.25rem; font-size:1.05rem; font-weight:800; color:#9a3412;">Cancellation requests</h3>
-										<p style="margin:0; font-size:0.85rem; color:#c2410c;">Review the attendee form and payment form, then cancel the ticket.</p>
-									</div>
-									<span id="cancellationRequestCount" style="background:#fff; border:1px solid #fdba74; color:#c2410c; font-weight:800; font-size:0.78rem; padding:0.2rem 0.7rem; border-radius:999px;">0 pending</span>
-								</div>
-								<div id="cancellationRequestsBody" style="overflow:auto;">
-									<p style="margin:0; color:#9a3412; font-size:0.88rem;">No cancellation requests yet.</p>
-								</div>
-							</div>
-
 							<!-- Submissions Table -->
 							<div class="builder-panel-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: auto;">
 								<table id="submissionsDataTable" style="width: 100%; min-width: 920px; border-collapse: collapse; font-size: 0.88rem;">
@@ -1277,6 +1267,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								</table>
 							</div>
 
+						</div>
+
+						<div id="subViewCancellations" style="display: none;">
+							<div id="cancellationRequestsCard" style="background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; padding:1.1rem 1.2rem; margin-bottom:1.2rem;">
+								<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:0.85rem;">
+									<div>
+										<h3 style="margin:0 0 0.25rem; font-size:1.05rem; font-weight:800; color:#9a3412;">Cancellation request</h3>
+										<p style="margin:0; font-size:0.85rem; color:#c2410c;">Review the attendee form and payment form, then accept the request to cancel the ticket.</p>
+									</div>
+									<span id="cancellationRequestCount" style="background:#fff; border:1px solid #fdba74; color:#c2410c; font-weight:800; font-size:0.78rem; padding:0.2rem 0.7rem; border-radius:999px;">0 pending</span>
+								</div>
+								<div id="cancellationRequestsBody" style="overflow:auto;">
+									<p style="margin:0; color:#9a3412; font-size:0.88rem;">No cancellation requests yet.</p>
+								</div>
+							</div>
 						</div>
 
 					</div>
@@ -2020,7 +2025,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		<script src="js/auth.js?v=33"></script>
 		<script src="js/profile.js?v=12"></script>
 		<script src="js/script.js?v=27"></script>
-		<script src="js/form-builder.js?v=20260827_v13"></script>
+		<script src="js/form-builder.js?v=20260827_v14"></script>
 		<script src="js/organizer-dashboard.js?v=20260827_v46"></script>
 	</body>
 </html>

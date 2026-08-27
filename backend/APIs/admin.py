@@ -30,12 +30,17 @@ from Services.ticket_pdf import build_ticket_pdf_bytes
 
 from APIs.bookings import (
     _active_booking_for_event,
+    _booking_is_cancelled,
+    _booking_ticket_used,
+    _lookup_booking_row,
     _mark_form_submission_paid,
     _same_event_id,
     _serialize_booking,
     _sql_set_booking_id,
     _ticket_from_answers,
+    finalize_booking_cancellation,
 )
+from Utils.text_sanitize import pick_attendee_identity
 
 router = APIRouter(dependencies=[Depends(limit_admin)])
 
@@ -47,6 +52,13 @@ PHONE_KEYS = (
     "phone", "mobile", "whatsapp", "phone_number", "mobile_number",
     "whatsapp_number", "contact", "phone number", "mobile number",
     "whatsapp number",
+)
+
+HIDDEN_ADMIN_BOOKING_STATUSES = (
+    "CANCELLED",
+    "CANCELED",
+    "REFUNDED",
+    "CANCELLATION_REQUESTED",
 )
 
 
@@ -243,6 +255,187 @@ def _matching_payment(db: Session, email: str, event_id) -> Optional[PaymentProo
     return None
 
 
+def _user_by_email(db: Session, email: str) -> Optional[User]:
+    clean = (email or "").strip().lower()
+    if not clean:
+        return None
+    try:
+        return db.query(User).filter(func.lower(User.email) == clean).first()
+    except Exception:
+        _db_safe_rollback(db)
+        return None
+
+
+def _resolve_attendee_identity(
+    db: Session,
+    *,
+    booking=None,
+    user=None,
+    form_name: str = "",
+    form_email: str = "",
+    form_phone: str = "",
+):
+    if user is None and booking is not None:
+        user = getattr(booking, "customer", None)
+    if user is None and form_email:
+        user = _user_by_email(db, form_email)
+    return pick_attendee_identity(
+		names=(
+			getattr(user, "full_name", None) if user is not None else None,
+			getattr(booking, "receiver_name", None) if booking is not None else None,
+			form_name,
+		),
+        emails=(
+            getattr(booking, "receiver_email", None) if booking is not None else None,
+            getattr(user, "email", None) if user is not None else None,
+            form_email,
+        ),
+        phones=(
+            getattr(user, "phone", None) if user is not None else None,
+            getattr(booking, "receiver_phone", None) if booking is not None else None,
+            form_phone,
+        ),
+    )
+
+
+def _booking_status_value(booking) -> str:
+    return str(getattr(booking, "status", None) or "").strip().upper()
+
+
+def _hide_from_admin_lists(item: dict) -> bool:
+    booking_status = str(item.get("booking_status") or "").upper()
+    row_status = str(item.get("form_status") or item.get("status") or "").lower()
+    if booking_status in HIDDEN_ADMIN_BOOKING_STATUSES:
+        return True
+    if row_status in ("cancelled", "canceled", "refunded"):
+        return True
+    return False
+
+
+def _event_id_compact(value) -> str:
+    return str(value or "").replace("-", "").lower()
+
+
+def _form_submission_for_booking(db: Session, booking) -> Optional[FormSubmission]:
+    email = (getattr(booking, "receiver_email", None) or "").lower().strip()
+    customer = getattr(booking, "customer", None)
+    if not email and customer is not None:
+        email = (getattr(customer, "email", None) or "").lower().strip()
+    if not email:
+        return None
+    compact = _event_id_compact(getattr(booking, "event_id", None))
+    try:
+        rows = (
+            db.query(FormSubmission)
+            .options(defer(FormSubmission.booking_id))
+            .filter(func.lower(FormSubmission.user_email) == email)
+            .order_by(FormSubmission.submission_time.desc())
+            .all()
+        )
+    except Exception:
+        _db_safe_rollback(db)
+        rows = []
+    for row in rows:
+        stored = _event_id_compact(getattr(row, "event_id", None))
+        if compact and stored and stored != compact:
+            continue
+        return row
+    return None
+
+
+def _payment_proof_for_booking(db: Session, booking) -> Optional[PaymentProof]:
+    email = (getattr(booking, "receiver_email", None) or "").lower().strip()
+    customer = getattr(booking, "customer", None)
+    if not email and customer is not None:
+        email = (getattr(customer, "email", None) or "").lower().strip()
+    if not email:
+        return None
+    compact = _event_id_compact(getattr(booking, "event_id", None))
+    try:
+        rows = (
+            db.query(PaymentProof)
+            .options(defer(PaymentProof.booking_id), defer(PaymentProof.screenshot_file_id))
+            .filter(func.lower(PaymentProof.attendee_email) == email)
+            .order_by(PaymentProof.created_at.desc())
+            .all()
+        )
+    except Exception:
+        _db_safe_rollback(db)
+        rows = []
+    for row in rows:
+        stored = _event_id_compact(getattr(row, "event_id", None))
+        if compact and stored and stored != compact:
+            continue
+        return row
+    return None
+
+
+def _serialize_admin_cancellation(db: Session, booking: Booking) -> dict:
+    event = getattr(booking, "event", None) or _lookup_event(db, booking.event_id)
+    form_row = _form_submission_for_booking(db, booking)
+    proof_row = _payment_proof_for_booking(db, booking)
+    form_answers = form_row.answers_json if form_row and isinstance(form_row.answers_json, dict) else {}
+    name, email, phone = _resolve_attendee_identity(
+        db,
+        booking=booking,
+        user=getattr(booking, "customer", None),
+        form_name=_answer_value(form_answers, NAME_KEYS) or (getattr(proof_row, "attendee_name", None) or ""),
+        form_email=(getattr(form_row, "user_email", None) if form_row else "") or (getattr(proof_row, "attendee_email", None) or ""),
+        form_phone=_answer_value(form_answers, PHONE_KEYS) or (getattr(proof_row, "attendee_phone", None) or ""),
+    )
+    attendee_answers = {
+        "Name": name,
+        "Email": email,
+        "Phone": phone or "—",
+        "Form status": getattr(form_row, "status", None) or "—",
+        "Submitted": form_row.submission_time.isoformat() if form_row and form_row.submission_time else None,
+    }
+    attendee_answers.update(_pretty_answers(form_answers))
+    shot_id = None
+    if proof_row is not None:
+        shot_id = _column_as_text(db, "payment_proofs", "id", proof_row.id, "screenshot_file_id")
+    shot = _screenshot_url(shot_id)
+    payment_answers = {
+        "Name": name,
+        "Email": email,
+        "Phone": phone or getattr(proof_row, "attendee_phone", None) or "—",
+        "Ticket": booking.ticket_type,
+        "Quantity": booking.quantity,
+        "Amount": booking.total_price,
+        "GST": getattr(booking, "gst_amount", None),
+        "Payment mode": getattr(booking, "payment_mode", None),
+        "Payment ID": getattr(booking, "payment_id", None),
+        "Bank name": getattr(proof_row, "bank_name", None) if proof_row is not None else None,
+        "Transaction ID": getattr(proof_row, "transaction_id", None) if proof_row is not None else None,
+        "Proof status": getattr(proof_row, "status", None) if proof_row is not None else None,
+        "Booked at": booking.booked_at.isoformat() if booking.booked_at else None,
+    }
+    if shot:
+        payment_answers["Screenshot"] = shot
+    return {
+        "kind": "cancel",
+        "id": str(booking.booking_id),
+        "booking_id": str(booking.booking_id),
+        "event_id": str(booking.event_id or ""),
+        "event_title": getattr(event, "title", None) or "Event",
+        "event_venue": getattr(event, "venue", None) or getattr(event, "location", None),
+        "user_email": email,
+        "attendee_name": name,
+        "attendee_email": email,
+        "attendee_phone": phone,
+        "ticket_type": booking.ticket_type or "Ticket",
+        "ticket_price": float(booking.total_price or 0),
+        "quantity": booking.quantity or 1,
+        "status": "cancellation_requested",
+        "booking_status": _booking_status_value(booking),
+        "submitted_at": booking.booked_at.isoformat() if booking.booked_at else None,
+        "answers": attendee_answers,
+        "payment_answers": payment_answers,
+        "screenshot_url": shot,
+        "has_qr": False,
+    }
+
+
 def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Optional[str] = None) -> dict:
     answers = row.answers_json if isinstance(row.answers_json, dict) else {}
     ticket_type, price = _ticket_from_answers(answers)
@@ -251,9 +444,15 @@ def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Opt
     if price is None:
         price = row.ticket_price
     event = _lookup_event(db, row.event_id)
-    name = _answer_value(answers, NAME_KEYS) or (row.customer.full_name if row.customer else None) or ""
     booking = _reload_booking(db, booking_id_text if booking_id_text is not None else getattr(row, "booking_id", None))
-    phone = _answer_value(answers, PHONE_KEYS) or (getattr(booking, "receiver_phone", None) if booking else None) or ""
+    name, email, phone = _resolve_attendee_identity(
+        db,
+        booking=booking,
+        user=getattr(row, "customer", None),
+        form_name=_answer_value(answers, NAME_KEYS),
+        form_email=row.user_email or "",
+        form_phone=_answer_value(answers, PHONE_KEYS),
+    )
     tickets = []
     if booking:
         tickets = [
@@ -276,12 +475,14 @@ def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Opt
         "event_id": str(row.event_id or ""),
         "event_title": getattr(event, "title", None) or "Event",
         "event_venue": getattr(event, "venue", None) or getattr(event, "location", None),
-        "user_email": row.user_email,
-        "attendee_name": name or row.user_email,
+        "user_email": email or row.user_email,
+        "attendee_name": name,
         "attendee_phone": phone,
         "ticket_type": ticket_type,
         "ticket_price": float(price) if price is not None else float(getattr(event, "price", 0) or 0),
         "status": "qr_ready" if has_qr else status_val,
+        "form_status": status_val,
+        "booking_status": _booking_status_value(booking) if booking else "",
         "submitted_at": row.submission_time.isoformat() if row.submission_time else None,
         "answers": _pretty_answers(answers),
         "booking_id": str(booking.booking_id) if booking else booking_id_text,
@@ -334,10 +535,17 @@ def _serialize_payment_proof(db: Session, row: PaymentProof, booking_id_text: Op
     primary = tickets[0] if tickets else None
     has_qr = bool(primary)
     shot = _screenshot_url(screenshot_id_text if screenshot_id_text is not None else getattr(row, "screenshot_file_id", None))
+    name, email, phone = _resolve_attendee_identity(
+        db,
+        booking=booking,
+        form_name=row.attendee_name or "",
+        form_email=row.attendee_email or "",
+        form_phone=row.attendee_phone or "",
+    )
     answers = {
-        "Name": row.attendee_name,
-        "Email": row.attendee_email,
-        "Number": row.attendee_phone,
+        "Name": name,
+        "Email": email,
+        "Number": phone,
         "Bank name": row.bank_name,
         "Transaction ID": row.transaction_id,
     }
@@ -350,12 +558,14 @@ def _serialize_payment_proof(db: Session, row: PaymentProof, booking_id_text: Op
         "event_id": str(row.event_id or ""),
         "event_title": getattr(event, "title", None) or "Event",
         "event_venue": getattr(event, "venue", None) or getattr(event, "location", None),
-        "user_email": row.attendee_email,
-        "attendee_name": row.attendee_name,
-        "attendee_phone": row.attendee_phone,
+        "user_email": email or row.attendee_email,
+        "attendee_name": name,
+        "attendee_phone": phone,
         "ticket_type": row.ticket_type or "General Admission",
         "ticket_price": float(row.amount or 0),
         "status": "qr_ready" if has_qr else (row.status or "payment_submitted"),
+        "form_status": (row.status or "payment_submitted"),
+        "booking_status": _booking_status_value(booking) if booking else "",
         "submitted_at": row.created_at.isoformat() if row.created_at else None,
         "answers": answers,
         "screenshot_url": shot,
@@ -675,11 +885,13 @@ def list_form_submissions(
                 "event_title": "Event",
                 "event_venue": None,
                 "user_email": getattr(row, "user_email", "") or "",
-                "attendee_name": _answer_value(answers, NAME_KEYS) or getattr(row, "user_email", "") or "Attendee",
-                "attendee_phone": _answer_value(answers, PHONE_KEYS),
+                "attendee_name": getattr(row, "user_email", "") or "Attendee",
+                "attendee_phone": "",
                 "ticket_type": getattr(row, "ticket_type", None) or "General Admission",
                 "ticket_price": float(getattr(row, "ticket_price", 0) or 0),
                 "status": getattr(row, "status", None) or "payment_pending",
+                "form_status": getattr(row, "status", None) or "payment_pending",
+                "booking_status": "",
                 "submitted_at": row.submission_time.isoformat() if getattr(row, "submission_time", None) else None,
                 "answers": _pretty_answers(answers),
                 "booking_id": None,
@@ -700,6 +912,7 @@ def list_form_submissions(
             or needle in str(item.get("bank_name") or "").lower()
             or needle in str(item.get("transaction_id") or "").lower()
         ]
+    items = [item for item in items if not _hide_from_admin_lists(item)]
     pay_items = [item for item in items if item.get("kind") == "payment"]
     ready = sum(1 for item in pay_items if item.get("has_qr"))
     return {
@@ -764,3 +977,80 @@ def generate_payment_qr(
     item["delivery"] = delivery
     item["booking"] = _serialize_booking(booking, db=db)
     return item
+
+
+@router.get("/cancellation-requests")
+def list_cancellation_requests(
+    q: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """Pending attendee cancellation requests across all events."""
+    rows = []
+    try:
+        rows = (
+            db.query(Booking)
+            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
+            .filter(func.upper(Booking.status) == "CANCELLATION_REQUESTED")
+            .order_by(Booking.booked_at.desc())
+            .all()
+        )
+    except Exception:
+        _db_safe_rollback(db)
+        try:
+            rows = (
+                db.query(Booking)
+                .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
+                .order_by(Booking.booked_at.desc())
+                .all()
+            )
+            rows = [b for b in rows if _booking_status_value(b) == "CANCELLATION_REQUESTED"]
+        except Exception:
+            _db_safe_rollback(db)
+            rows = []
+    items = []
+    for booking in rows:
+        try:
+            items.append(_serialize_admin_cancellation(db, booking))
+        except Exception:
+            _db_safe_rollback(db)
+    needle = (q or "").strip().lower()
+    if needle:
+        items = [
+            item for item in items
+            if needle in str(item.get("attendee_name") or "").lower()
+            or needle in str(item.get("user_email") or "").lower()
+            or needle in str(item.get("attendee_phone") or "").lower()
+            or needle in str(item.get("event_title") or "").lower()
+        ]
+    return {"total": len(items), "requests": items}
+
+
+@router.post("/bookings/{booking_id}/accept-cancellation")
+def admin_accept_cancellation(
+    booking_id: str,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """Staff accepts a cancellation request and voids the ticket."""
+    booking = _lookup_booking_row(db, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if _booking_is_cancelled(booking):
+        return {
+            "status": "success",
+            "message": "Ticket already cancelled.",
+            "booking": _serialize_booking(booking, db=db),
+        }
+    if _booking_ticket_used(booking, db=db):
+        raise HTTPException(
+            status_code=400,
+            detail="This ticket is already checked in and cannot be cancelled.",
+        )
+    booking = finalize_booking_cancellation(db, booking)
+    refreshed = _lookup_booking_row(db, booking.booking_id) or booking
+    return {
+        "status": "success",
+        "message": "Cancellation accepted. The attendee can buy again.",
+        "booking": _serialize_booking(refreshed, db=db),
+    }

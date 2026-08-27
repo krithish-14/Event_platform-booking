@@ -138,8 +138,10 @@ function initFormBuilder() {
 	// Elements
 	const subTabBuilder = document.getElementById("subTabBuilder");
 	const subTabSubmissions = document.getElementById("subTabSubmissions");
+	const subTabCancellations = document.getElementById("subTabCancellations");
 	const subViewBuilder = document.getElementById("subViewBuilder");
 	const subViewSubmissions = document.getElementById("subViewSubmissions");
+	const subViewCancellations = document.getElementById("subViewCancellations");
 
 	const builderFormTitle = document.getElementById("builderFormTitle");
 	const builderFormDesc = document.getElementById("builderFormDesc");
@@ -387,37 +389,42 @@ function initFormBuilder() {
 	let submissionQuestionColumns = [];
 
 	// ── Sub-Tab Switcher ──────────────────────────────────────────────────────
-	if (subTabBuilder && subTabSubmissions) {
-		subTabBuilder.addEventListener("click", () => {
-			subTabBuilder.classList.add("active");
-			subTabBuilder.style.background = "#ffffff";
-			subTabBuilder.style.color = "#2563eb";
-			subTabBuilder.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
+	function styleSubTab(tab, active) {
+		if (!tab) return;
+		if (active) {
+			tab.classList.add("active");
+			tab.style.background = "#ffffff";
+			tab.style.color = "#2563eb";
+			tab.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
+			tab.style.fontWeight = "700";
+		} else {
+			tab.classList.remove("active");
+			tab.style.background = "transparent";
+			tab.style.color = "#64748b";
+			tab.style.boxShadow = "none";
+			tab.style.fontWeight = "600";
+		}
+	}
 
-			subTabSubmissions.classList.remove("active");
-			subTabSubmissions.style.background = "transparent";
-			subTabSubmissions.style.color = "#64748b";
-			subTabSubmissions.style.boxShadow = "none";
+	function showRegistrationSubView(view) {
+		if (subViewBuilder) subViewBuilder.style.display = view === "builder" ? "block" : "none";
+		if (subViewSubmissions) subViewSubmissions.style.display = view === "submissions" ? "block" : "none";
+		if (subViewCancellations) subViewCancellations.style.display = view === "cancellations" ? "block" : "none";
+		styleSubTab(subTabBuilder, view === "builder");
+		styleSubTab(subTabSubmissions, view === "submissions");
+		styleSubTab(subTabCancellations, view === "cancellations");
+		if (view === "submissions") loadSubmissionsData();
+		if (view === "cancellations") loadCancellationRequests();
+	}
 
-			subViewBuilder.style.display = "block";
-			subViewSubmissions.style.display = "none";
-		});
-
-		subTabSubmissions.addEventListener("click", () => {
-			subTabSubmissions.classList.add("active");
-			subTabSubmissions.style.background = "#ffffff";
-			subTabSubmissions.style.color = "#2563eb";
-			subTabSubmissions.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-
-			subTabBuilder.classList.remove("active");
-			subTabBuilder.style.background = "transparent";
-			subTabBuilder.style.color = "#64748b";
-			subTabBuilder.style.boxShadow = "none";
-
-			subViewBuilder.style.display = "none";
-			subViewSubmissions.style.display = "block";
-			loadSubmissionsData();
-		});
+	if (subTabBuilder) {
+		subTabBuilder.addEventListener("click", () => showRegistrationSubView("builder"));
+	}
+	if (subTabSubmissions) {
+		subTabSubmissions.addEventListener("click", () => showRegistrationSubView("submissions"));
+	}
+	if (subTabCancellations) {
+		subTabCancellations.addEventListener("click", () => showRegistrationSubView("cancellations"));
 	}
 
 	// ── Render Left Builder Questions List ────────────────────────────────────
@@ -1239,6 +1246,8 @@ function initFormBuilder() {
 		const toDate = submissionsToDate && submissionsToDate.value ? new Date(submissionsToDate.value) : null;
 
 		const filtered = allSubmissionsData.filter(s => {
+			const statusNow = String(s.status || "").toLowerCase();
+			if (statusNow === "cancelled" || statusNow === "canceled") return false;
 			const hay = [
 				s.user_email,
 				s.attendee_name,
@@ -1426,7 +1435,7 @@ function initFormBuilder() {
 		const form = req.attendee_form || {};
 		const answers = form.answers || {};
 		const rows = [
-			["Name", req.attendee_name],
+			["Name", displayRequestName(req)],
 			["Email", req.attendee_email],
 			["Phone", req.attendee_phone],
 			["Form status", form.status],
@@ -1457,7 +1466,7 @@ function initFormBuilder() {
 
 	async function hostCancelTicket(bookingId, btn) {
 		if (!bookingId) return;
-		if (!window.confirm("Cancel this ticket? The attendee will be able to buy again, and this ticket QR will stop working.")) {
+		if (!window.confirm("Accept this cancellation request? The ticket will be cancelled, the attendee can buy again, and this QR will stop working.")) {
 			return;
 		}
 		if (btn) btn.disabled = true;
@@ -1477,6 +1486,23 @@ function initFormBuilder() {
 			alert(err.message || "Could not cancel this ticket.");
 			if (btn) btn.disabled = false;
 		}
+	}
+
+	function looksLikePersonName(value) {
+		const t = String(value || "").trim();
+		if (t.length < 2 || t.length > 80 || t.includes("@")) return false;
+		if (/[%$&#*!?=^+]{2,}/.test(t) || /\d{5,}/.test(t)) return false;
+		const letters = (t.match(/[A-Za-z]/g) || []).length;
+		const digits = (t.match(/\d/g) || []).length;
+		return letters >= 2 && letters >= digits;
+	}
+
+	function displayRequestName(req) {
+		const raw = String((req && req.attendee_name) || "").trim();
+		if (looksLikePersonName(raw)) return raw;
+		const email = String((req && req.attendee_email) || "").trim();
+		if (email.includes("@")) return email.split("@")[0].replace(/[._+-]+/g, " ");
+		return "Guest";
 	}
 
 	function renderCancellationRequests(items) {
@@ -1503,7 +1529,7 @@ function initFormBuilder() {
 					${items.map((req) => `
 						<tr data-cancel-booking="${escapeHtml(req.booking_id)}" style="border-bottom:1px solid #ffedd5;">
 							<td style="padding:0.75rem 0.85rem;">
-								<div style="font-weight:800; color:#0f172a;">${escapeHtml(req.attendee_name || "—")}</div>
+								<div style="font-weight:800; color:#0f172a;">${escapeHtml(displayRequestName(req))}</div>
 								<div style="color:#64748b;">${escapeHtml(req.attendee_email || "")}</div>
 							</td>
 							<td style="padding:0.75rem 0.85rem; color:#334155;">${escapeHtml(req.ticket_type || "Ticket")} (x${Number(req.quantity || 1)})</td>
@@ -1511,7 +1537,7 @@ function initFormBuilder() {
 							<td style="padding:0.75rem 0.85rem; text-align:right; white-space:nowrap;">
 								<button type="button" class="btn-cancel-attendee-form" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; font-weight:700; font-size:0.76rem; padding:0.32rem 0.6rem; border-radius:6px; cursor:pointer; margin:0 0.15rem 0.25rem 0;">Attendees form</button>
 								<button type="button" class="btn-cancel-payment-form" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; font-weight:700; font-size:0.76rem; padding:0.32rem 0.6rem; border-radius:6px; cursor:pointer; margin:0 0.15rem 0.25rem 0;">Payment form</button>
-								<button type="button" class="btn-cancel-ticket" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-weight:700; font-size:0.76rem; padding:0.32rem 0.6rem; border-radius:6px; cursor:pointer; margin:0 0 0.25rem 0;">Cancel the ticket</button>
+								<button type="button" class="btn-cancel-ticket" style="background:#166534; border:1px solid #166534; color:#fff; font-weight:700; font-size:0.76rem; padding:0.32rem 0.6rem; border-radius:6px; cursor:pointer; margin:0 0 0.25rem 0;">Accept request</button>
 							</td>
 						</tr>
 					`).join("")}
@@ -1523,10 +1549,10 @@ function initFormBuilder() {
 			const req = items.find((row) => String(row.booking_id) === String(bookingId));
 			if (!req) return;
 			tr.querySelector(".btn-cancel-attendee-form")?.addEventListener("click", () => {
-				openDetailModal(`Attendees form: ${req.attendee_name || req.attendee_email || "attendee"}`, attendeeFormRows(req));
+				openDetailModal(`Attendees form: ${displayRequestName(req) || req.attendee_email || "attendee"}`, attendeeFormRows(req));
 			});
 			tr.querySelector(".btn-cancel-payment-form")?.addEventListener("click", () => {
-				openDetailModal(`Payment form: ${req.attendee_name || req.attendee_email || "attendee"}`, paymentFormRows(req));
+				openDetailModal(`Payment form: ${displayRequestName(req) || req.attendee_email || "attendee"}`, paymentFormRows(req));
 			});
 			tr.querySelector(".btn-cancel-ticket")?.addEventListener("click", (e) => {
 				hostCancelTicket(bookingId, e.currentTarget);

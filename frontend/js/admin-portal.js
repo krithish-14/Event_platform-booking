@@ -92,18 +92,67 @@
 		return res.json();
 	}
 
+	function looksLikeName(value) {
+		const t = String(value || "").trim();
+		if (t.length < 2 || t.length > 80 || t.includes("@")) return false;
+		if (/[%$&#*!?=^+]{2,}/.test(t) || /\d{5,}/.test(t)) return false;
+		const letters = (t.match(/[A-Za-z]/g) || []).length;
+		const digits = (t.match(/\d/g) || []).length;
+		return letters >= 2 && letters >= digits;
+	}
+
+	function looksLikePhone(value) {
+		const digits = String(value || "").replace(/\D/g, "");
+		return digits.length >= 8 && digits.length <= 15;
+	}
+
+	function displayAttendee(row) {
+		const email = String((row && (row.user_email || row.attendee_email)) || "").trim();
+		const rawName = String((row && row.attendee_name) || "").trim();
+		const name = looksLikeName(rawName)
+			? rawName
+			: (email.includes("@") ? email.split("@")[0].replace(/[._+-]+/g, " ") : "Guest");
+		const phone = looksLikePhone(row && row.attendee_phone) ? String(row.attendee_phone).trim() : "";
+		return { name, email, phone };
+	}
+
+	function attendeeCellHtml(row) {
+		const person = displayAttendee(row);
+		return `<div class="admin-name">${escapeHtml(person.name)}</div>
+			${person.email ? `<div class="admin-muted">${escapeHtml(person.email)}</div>` : ""}
+			${person.phone ? `<div class="admin-muted">${escapeHtml(person.phone)}</div>` : ""}`;
+	}
+
 	function rowHtml(row, options) {
-		const ready = Boolean(row.has_qr);
 		const kind = row.kind || "form";
-		const recordId = row.id || row.submission_id;
+		const recordId = row.id || row.submission_id || row.booking_id;
+		if (kind === "cancel") {
+			return `<tr data-id="${escapeHtml(recordId)}" data-kind="cancel">
+				<td>${attendeeCellHtml(row)}</td>
+				<td>
+					<button type="button" class="admin-event-title" data-event-key="${escapeHtml(eventKey(row))}" title="Show only this event">${escapeHtml(row.event_title)}</button>
+					<div class="admin-muted">${escapeHtml(row.event_venue || "")}</div>
+				</td>
+				<td>
+					<div class="admin-ticket-title">${escapeHtml(row.ticket_type || "Ticket")}</div>
+					<div class="admin-muted">₹${Number(row.ticket_price || 0).toLocaleString("en-IN")}</div>
+				</td>
+				<td class="admin-submitted">${escapeHtml(formatWhen(row.submitted_at))}</td>
+				<td><span class="admin-badge cancel">Cancellation requested</span></td>
+				<td>
+					<div class="admin-actions">
+						<button type="button" class="admin-btn ghost" data-attendee-form="${escapeHtml(recordId)}">Attendees form</button>
+						<button type="button" class="admin-btn ghost" data-payment-form="${escapeHtml(recordId)}">Payment form</button>
+						<button type="button" class="admin-btn accept" data-accept-cancel="${escapeHtml(recordId)}">Accept request</button>
+					</div>
+				</td>
+			</tr>`;
+		}
+		const ready = Boolean(row.has_qr);
 		const showGenerate = Boolean(options && options.showGenerate);
 		const generateLabel = ready ? "Resend QR" : "Generate QR";
 		return `<tr data-id="${recordId}" data-kind="${escapeHtml(kind)}">
-			<td>
-				<div class="admin-name">${escapeHtml(row.attendee_name)}</div>
-				<div class="admin-muted">${escapeHtml(row.user_email)}</div>
-				<div class="admin-muted">${escapeHtml(row.attendee_phone || "No phone")}</div>
-			</td>
+			<td>${attendeeCellHtml(row)}</td>
 			<td>
 				<button type="button" class="admin-event-title" data-event-key="${escapeHtml(eventKey(row))}" title="Show only this event">${escapeHtml(row.event_title)}</button>
 				<div class="admin-muted">${escapeHtml(row.event_venue || "")}</div>
@@ -126,7 +175,10 @@
 
 	function currentSection() {
 		const select = document.getElementById("adminSection");
-		return select && select.value === "payment" ? "payment" : "host";
+		const value = select && select.value;
+		if (value === "payment") return "payment";
+		if (value === "cancel") return "cancel";
+		return "host";
 	}
 
 	function eventKey(row) {
@@ -196,13 +248,14 @@
 	function applySection(data) {
 		const payload = data || window.__adminData || { submissions: [] };
 		const rows = payload.submissions || [];
-		fillEventFilter(rows);
+		const cancelRows = window.__cancelRequests || [];
+		fillEventFilter(rows.concat(cancelRows));
 		const eventFilter = currentEventFilter();
 		const scoped = rowsForEvent(rows, eventFilter);
+		const scopedCancel = rowsForEvent(cancelRows, eventFilter);
 		const hostRows = scoped.filter((row) => (row.kind || "form") !== "payment");
 		const payRows = scoped.filter((row) => row.kind === "payment");
-		const isPayment = currentSection() === "payment";
-		const visible = isPayment ? payRows : hostRows;
+		const section = currentSection();
 		const eventLabel = (() => {
 			const select = document.getElementById("adminEventFilter");
 			if (!select || select.value === "all") return "";
@@ -219,13 +272,26 @@
 		setText("statPay", payRows.length);
 		setText("statPending", payPending);
 		setText("statReady", payReady);
-		setText("sectionCount", visible.length);
+		setText("statCancel", scopedCancel.length);
 		const title = document.getElementById("adminSectionTitle");
 		const copy = document.getElementById("adminSectionCopy");
 		const hint = document.getElementById("adminSectionHint");
 		const ticketCol = document.getElementById("ticketCol");
 		const eventNote = eventLabel ? ` for ${eventLabel}` : "";
-		if (isPayment) {
+		if (section === "cancel") {
+			setText("sectionCount", scopedCancel.length);
+			if (title) title.textContent = "Cancellation request";
+			if (copy) copy.textContent = eventLabel
+				? `Pending cancellation requests for ${eventLabel}. Review the attendee and payment forms, then accept.`
+				: "Pending cancellation requests. Review the attendee form and payment form, then accept the request.";
+			if (hint) hint.textContent = eventLabel
+				? `Cancellation requests${eventNote}.`
+				: "Select an event to view that event's cancellation requests, or keep All events.";
+			if (ticketCol) ticketCol.textContent = "Ticket";
+			fillTable(scopedCancel, eventLabel ? `No cancellation requests for ${eventLabel}.` : "No cancellation requests yet.", { showGenerate: false });
+			window.__adminRows = scopedCancel;
+		} else if (section === "payment") {
+			setText("sectionCount", payRows.length);
 			if (title) title.textContent = "Payment Data";
 			if (copy) copy.textContent = eventLabel
 				? `UPI payment details for ${eventLabel}. Verify payment, then generate QR.`
@@ -234,8 +300,10 @@
 				? `Payment data${eventNote}.`
 				: "Select an event to view that event's payment data, or keep All events.";
 			if (ticketCol) ticketCol.textContent = "Ticket / Txn";
-			fillTable(visible, eventLabel ? `No payment data for ${eventLabel} yet.` : "No payment data yet.", { showGenerate: true });
+			fillTable(payRows, eventLabel ? `No payment data for ${eventLabel} yet.` : "No payment data yet.", { showGenerate: true });
+			window.__adminRows = payRows;
 		} else {
+			setText("sectionCount", hostRows.length);
 			if (title) title.textContent = "Attendees Data";
 			if (copy) copy.textContent = eventLabel
 				? `Registered attendees for ${eventLabel}.`
@@ -244,9 +312,9 @@
 				? `Attendee data${eventNote}.`
 				: "Select an event to view that event's attendee data, or keep All events.";
 			if (ticketCol) ticketCol.textContent = "Ticket";
-			fillTable(visible, eventLabel ? `No attendee data for ${eventLabel} yet.` : "No attendee data yet.", { showGenerate: false });
+			fillTable(hostRows, eventLabel ? `No attendee data for ${eventLabel} yet.` : "No attendee data yet.", { showGenerate: false });
+			window.__adminRows = hostRows;
 		}
-		window.__adminRows = visible;
 		window.__adminData = payload;
 	}
 
@@ -256,29 +324,32 @@
 
 	function findRow(id, kind) {
 		return (window.__adminRows || []).find((item) => {
-			const itemId = String(item.id || item.submission_id);
+			const itemId = String(item.id || item.submission_id || item.booking_id);
 			const itemKind = item.kind || "form";
 			return itemId === String(id) && itemKind === String(kind || itemKind);
 		});
 	}
 
-	function mediaUrl(path) {
-		if (!path) return "";
-		if (/^https?:\/\//i.test(path)) return path;
-		return `${apiBase()}${path.startsWith("/") ? path : `/${path}`}`;
+	function pairsHtml(pairs) {
+		const rows = (pairs || []).filter((row) => row && row[0] && row[1] != null && row[1] !== "");
+		if (!rows.length) return "<p>No extra answers stored.</p>";
+		return rows.map(([key, value]) => (
+			`<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd>`
+		)).join("");
 	}
 
-	async function openAnswers(id, kind) {
-		const row = findRow(id, kind);
+	function setAnswersTitle(title) {
+		const heading = document.querySelector("#answersModal h2");
+		if (heading) heading.textContent = title || "Form answers";
+	}
+
+	async function openLabeled(title, pairs, screenshotUrl) {
 		const modal = document.getElementById("answersModal");
 		const body = document.getElementById("answersBody");
-		if (!row || !modal || !body) return;
-		const answers = row.answers || {};
-		const keys = Object.keys(answers);
-		const shot = row.screenshot_url || answers.Screenshot;
-		body.innerHTML = (keys.length
-			? keys.filter((key) => String(key).toLowerCase() !== "screenshot").map((key) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof answers[key] === "object" ? JSON.stringify(answers[key]) : answers[key])}</dd>`).join("")
-			: "<p>No extra answers stored.</p>") +
+		if (!modal || !body) return;
+		setAnswersTitle(title);
+		const shot = screenshotUrl || "";
+		body.innerHTML = pairsHtml(pairs) +
 			(shot ? `<dt>Screenshot</dt><dd><img id="proofShot" alt="Payment screenshot" style="max-width:100%;border-radius:10px;margin-top:0.4rem;display:none;" /></dd>` : "");
 		modal.hidden = false;
 		if (!shot) return;
@@ -292,6 +363,44 @@
 				img.style.display = "block";
 			}
 		} catch (_) {}
+	}
+
+	function mediaUrl(path) {
+		if (!path) return "";
+		if (/^https?:\/\//i.test(path)) return path;
+		return `${apiBase()}${path.startsWith("/") ? path : `/${path}`}`;
+	}
+
+	async function openAnswers(id, kind) {
+		const row = findRow(id, kind);
+		if (!row) return;
+		const answers = row.answers || {};
+		const keys = Object.keys(answers).filter((key) => String(key).toLowerCase() !== "screenshot");
+		const shot = row.screenshot_url || answers.Screenshot;
+		await openLabeled("Form answers", keys.map((key) => [key, answers[key]]), shot);
+	}
+
+	async function openCancelAttendeeForm(id) {
+		const row = findRow(id, "cancel");
+		if (!row) return;
+		const answers = row.answers || {};
+		const keys = Object.keys(answers).filter((key) => String(key).toLowerCase() !== "screenshot");
+		await openLabeled(
+			`Attendees form: ${displayAttendee(row).name}`,
+			keys.map((key) => [key, answers[key]])
+		);
+	}
+
+	async function openCancelPaymentForm(id) {
+		const row = findRow(id, "cancel");
+		if (!row) return;
+		const answers = row.payment_answers || {};
+		const keys = Object.keys(answers).filter((key) => String(key).toLowerCase() !== "screenshot");
+		await openLabeled(
+			`Payment form: ${displayAttendee(row).name}`,
+			keys.map((key) => [key, answers[key]]),
+			row.screenshot_url || answers.Screenshot
+		);
 	}
 
 	function showQrResult(row) {
@@ -358,10 +467,52 @@
 		}
 	}
 
+	async function acceptCancellation(id, btn) {
+		if (!id) return;
+		if (!window.confirm("Accept this cancellation request? The ticket will be cancelled, the attendee can buy again, and this QR will stop working.")) {
+			return;
+		}
+		if (btn) {
+			btn.disabled = true;
+			btn.textContent = "Accepting…";
+		}
+		try {
+			const res = await adminFetch(`${apiBase()}/api/admin/bookings/${encodeURIComponent(id)}/accept-cancellation`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				const detail = data && data.detail;
+				alert(typeof detail === "string" ? detail : "Could not accept this cancellation request.");
+				return;
+			}
+			await refresh();
+		} catch (_) {
+			alert("Could not accept this cancellation request. Check that the backend is running.");
+		} finally {
+			if (btn && btn.isConnected) {
+				btn.disabled = false;
+				btn.textContent = "Accept request";
+			}
+		}
+	}
+
+	async function loadCancelRequests(query) {
+		const qs = query ? `?q=${encodeURIComponent(query)}` : "";
+		const res = await adminFetch(`${apiBase()}/api/admin/cancellation-requests${qs}`);
+		if (!res.ok) return { requests: [] };
+		return res.json().catch(() => ({ requests: [] }));
+	}
+
 	async function refresh() {
 		const query = (document.getElementById("adminSearch") || {}).value || "";
 		try {
-			const data = await loadRows(query.trim());
+			const [data, cancelData] = await Promise.all([
+				loadRows(query.trim()),
+				loadCancelRequests(query.trim()),
+			]);
+			window.__cancelRequests = Array.isArray(cancelData && cancelData.requests) ? cancelData.requests : [];
 			if (data) renderRows(data);
 		} catch (err) {
 			const empty = document.getElementById("adminEmpty");
@@ -400,7 +551,25 @@
 				return;
 			}
 			const answersBtn = event.target.closest("[data-answers]");
-			if (answersBtn) openAnswers(answersBtn.getAttribute("data-answers"), answersBtn.getAttribute("data-kind") || "form");
+			if (answersBtn) {
+				openAnswers(answersBtn.getAttribute("data-answers"), answersBtn.getAttribute("data-kind") || "form");
+				return;
+			}
+			const attendeeFormBtn = event.target.closest("[data-attendee-form]");
+			if (attendeeFormBtn) {
+				openCancelAttendeeForm(attendeeFormBtn.getAttribute("data-attendee-form"));
+				return;
+			}
+			const paymentFormBtn = event.target.closest("[data-payment-form]");
+			if (paymentFormBtn) {
+				openCancelPaymentForm(paymentFormBtn.getAttribute("data-payment-form"));
+				return;
+			}
+			const acceptBtn = event.target.closest("[data-accept-cancel]");
+			if (acceptBtn) {
+				acceptCancellation(acceptBtn.getAttribute("data-accept-cancel"), acceptBtn);
+				return;
+			}
 			const eventBtn = event.target.closest("[data-event-key]");
 			if (eventBtn) {
 				const key = eventBtn.getAttribute("data-event-key");
