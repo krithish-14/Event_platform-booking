@@ -68,6 +68,10 @@ def _exempt(path: str) -> bool:
         return True
     if path.startswith("/api/auth/google"):
         return True
+    if path.startswith("/api/volunteers/portal/"):
+        return True
+    if path.startswith("/portal/"):
+        return True
     return False
 
 

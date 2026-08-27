@@ -34,10 +34,10 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Volunteer Portal | JOD Events</title>
 		<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
 		<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
-		<link rel="stylesheet" href="css/volunteer-checkin.css?v=6" />
+		<link rel="stylesheet" href="css/volunteer-checkin.css?v=7" />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
 	</head>
-	<body class="vol-body">
+	<body class="vol-body" data-defer-scanner>
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -53,9 +53,53 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			<div class="vol-card" id="portalCard">
 				<p class="vol-sub">Loading your assignment…</p>
 			</div>
+
+			<div id="portalScannerWrap" hidden>
+				<div class="vol-card" id="scannerHeader">
+					<div class="vol-kicker" id="roleLabel">Scanner Volunteer</div>
+					<h2 class="vol-title" id="eventTitle">Ticket scanner</h2>
+					<p class="vol-sub" id="scannerStatus">Camera starts after you accept.</p>
+					<div class="vol-stat" style="margin-top:0.85rem;">
+						<span>Today's Check-ins</span>
+						<strong id="todayCount">0</strong>
+					</div>
+				</div>
+
+				<div class="vol-camera-card" id="cameraCard">
+					<div class="vol-camera is-open" id="cameraWrap">
+						<video id="scannerVideo" playsinline muted autoplay></video>
+						<div class="vol-frame"><span></span></div>
+						<div class="vol-cam-hint" id="camHint">Point camera at a QR code</div>
+						<div class="vol-scan-ring" id="scanRing"></div>
+					</div>
+					<p class="vol-error" id="cameraFallback" style="display:none;margin-top:0.8rem;">
+						Camera unavailable. Enter the booking ID below.
+					</p>
+				</div>
+
+				<div class="vol-result-card" id="resultCard" style="display:none;">
+					<div class="vol-result is-visible" id="scanResult"></div>
+					<div class="vol-actions" style="margin-top:1rem;">
+						<button type="button" class="vol-btn vol-btn-primary" id="btnBackToScanner">
+							Scan next ticket
+						</button>
+					</div>
+				</div>
+
+				<div class="vol-card" style="margin-top:0.8rem;">
+					<p class="vol-sub" style="margin-bottom:0.6rem;font-weight:700;color:#e2e8f0;">Or enter booking ID</p>
+					<input class="vol-input" id="ticketCodeInput" type="text" autocomplete="off"
+						autocapitalize="characters" placeholder="#JOD-XXXXXXXX" />
+					<div class="vol-actions">
+						<button type="button" class="vol-btn vol-btn-primary" id="btnVerifyCode">Verify Ticket</button>
+					</div>
+				</div>
+			</div>
 		</div>
+		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 		<script src="js/health.js?v=2"></script>
-		<script src="js/volunteer-common.js?v=5"></script>
-		<script src="js/volunteer-portal.js?v=8"></script>
+		<script src="js/volunteer-common.js?v=6"></script>
+		<script src="js/volunteer-scanner.js?v=7"></script>
+		<script src="js/volunteer-portal.js?v=9"></script>
 	</body>
 </html>

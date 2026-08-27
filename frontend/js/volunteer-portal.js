@@ -3,6 +3,7 @@
 
 	const V = window.JodVolunteer;
 	const card = document.getElementById("portalCard");
+	const scannerWrap = document.getElementById("portalScannerWrap");
 	if (!V || !card) return;
 
 	V.getPortalToken();
@@ -22,6 +23,8 @@
 	let refreshInFlight = false;
 	let portalRecentItems = [];
 	let activityFilterMins = 30;
+	let scannerStarted = false;
+	let accepting = false;
 
 	function greetingName(name) {
 		const hour = new Date().getHours();
@@ -58,6 +61,33 @@
 			.filter((item) => String(item.status || "").toLowerCase() === "checked_in")
 			.sort((a, b) => itemTimestamp(b) - itemTimestamp(a))
 			.slice(0, 8);
+	}
+
+	function sentence(message) {
+		const text = String(message || "").trim();
+		if (!text) return "";
+		return /[.!?]$/.test(text) ? text : `${text}.`;
+	}
+
+	function needsAccept(data) {
+		if (!data) return false;
+		if (data.needs_accept === true) return true;
+		if (data.needs_accept === false) return false;
+		return String(data.status || "").toUpperCase() === "PENDING"
+			|| String(data.invite_status || "").toUpperCase() === "PENDING";
+	}
+
+	function hideScanner() {
+		if (scannerWrap) scannerWrap.hidden = true;
+	}
+
+	function startScanner(data) {
+		if (scannerWrap) scannerWrap.hidden = false;
+		if (scannerStarted) return;
+		scannerStarted = true;
+		if (window.JodVolunteerScanner && typeof window.JodVolunteerScanner.start === "function") {
+			window.JodVolunteerScanner.start(data);
+		}
 	}
 
 	function renderRow(item) {
@@ -117,22 +147,73 @@
 		`;
 	}
 
-	function renderPortal(data) {
-		portalRecentItems = data.recent || [];
-		card.innerHTML = `
+	function detailsHtml(data) {
+		return `
 			<div class="vol-kicker">Volunteer Portal</div>
 			<h1 class="vol-title">${V.escapeHtml(greetingName(data.volunteer_name))}</h1>
 			<div class="vol-meta">
 				<div><strong>Assigned Event</strong><br>${V.escapeHtml(data.event_title || "Event")}</div>
+				${data.organizer_name ? `<div><strong>Organizer</strong><br>${V.escapeHtml(data.organizer_name)}</div>` : ""}
+				${data.venue ? `<div><strong>Venue</strong><br>${V.escapeHtml(data.venue)}</div>` : ""}
 				<div><strong>Role</strong><br>${V.escapeHtml(data.role || "Scanner Volunteer")}</div>
 				${data.gate_name ? `<div><strong>Assigned Gate</strong><br>${V.escapeHtml(data.gate_name)}</div>` : ""}
 			</div>
+		`;
+	}
+
+	function bindAcceptButton() {
+		const btn = document.getElementById("btnAcceptInvite");
+		if (!btn || btn.dataset.bound === "1") return;
+		btn.dataset.bound = "1";
+		btn.addEventListener("click", onAccept);
+	}
+
+	async function onAccept() {
+		if (accepting) return;
+		const btn = document.getElementById("btnAcceptInvite");
+		accepting = true;
+		if (btn) {
+			btn.disabled = true;
+			btn.textContent = "Accepting…";
+		}
+		try {
+			const { ok, status, data } = await V.acceptPortal();
+			if (!ok) {
+				renderError(
+					status === 410 ? "Access unavailable" : "Could not accept invitation",
+					V.apiError(data, "This volunteer link is invalid or has expired.")
+				);
+				return;
+			}
+			renderReady(data);
+		} catch (_) {
+			renderError("Could not accept invitation", "A network or server error occurred. Try again in a moment");
+			bindAcceptButton();
+		} finally {
+			accepting = false;
+		}
+	}
+
+	function renderPending(data) {
+		hideScanner();
+		portalRecentItems = [];
+		card.innerHTML = `
+			${detailsHtml(data)}
+			<p class="vol-sub" style="margin-top:1rem;">Accept this assignment to open the ticket scanner.</p>
+			<div class="vol-actions">
+				<button type="button" class="vol-btn vol-btn-ok" id="btnAcceptInvite">Accept assignment</button>
+			</div>
+		`;
+		bindAcceptButton();
+	}
+
+	function renderReady(data) {
+		portalRecentItems = data.recent || [];
+		card.innerHTML = `
+			${detailsHtml(data)}
 			<div class="vol-stat">
 				<span>Today's Check-ins</span>
 				<strong id="portalTodayCount">${Number(data.today_checkins || 0)}</strong>
-			</div>
-			<div class="vol-actions">
-				<a class="vol-btn vol-btn-ok" href="${V.scannerUrl()}">Open Scanner</a>
 			</div>
 			<div class="vol-recent-head">
 				<h2>Recent Activity</h2>
@@ -140,14 +221,16 @@
 			${renderActivitySections()}
 		`;
 		bindActivityFilter();
+		startScanner(data);
 	}
 
 	function renderError(title, message) {
+		hideScanner();
 		portalRecentItems = [];
 		card.innerHTML = `
 			<div class="vol-kicker">Volunteer Portal</div>
 			<h1 class="vol-title">${V.escapeHtml(title)}</h1>
-			<p class="vol-sub">${V.escapeHtml(message)}.</p>
+			<p class="vol-sub">${V.escapeHtml(sentence(message))}</p>
 		`;
 	}
 
@@ -162,6 +245,8 @@
 		portalRecentItems = data.recent || [];
 		const countEl = document.getElementById("portalTodayCount");
 		if (countEl) countEl.textContent = String(Number(data.today_checkins || 0));
+		const scannerCount = document.getElementById("todayCount");
+		if (scannerCount) scannerCount.textContent = String(Number(data.today_checkins || 0));
 		updateActivityLists();
 	}
 
@@ -176,7 +261,7 @@
 	}
 
 	async function refreshPortal(forceFullRender) {
-		if (refreshInFlight) return;
+		if (refreshInFlight || accepting) return;
 		refreshInFlight = true;
 		try {
 			const { ok, status, data } = await V.fetchPortal();
@@ -187,8 +272,12 @@
 				}
 				return;
 			}
+			if (needsAccept(data) && !scannerStarted) {
+				renderPending(data);
+				return;
+			}
 			if (forceFullRender || !document.getElementById("portalTodayCount")) {
-				renderPortal(data);
+				renderReady(data);
 			} else {
 				updateLiveStats(data);
 			}

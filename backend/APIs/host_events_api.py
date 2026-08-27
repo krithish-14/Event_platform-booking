@@ -619,6 +619,17 @@ _CANCELLED_STATUSES = {"CANCELLED", "CANCELED", "REFUNDED"}
 _CHECKED_IN_STATUSES = {"USED", "CHECKED_IN", "CHECKED-IN", "CHECKEDIN"}
 
 
+def _compact_id(value) -> str:
+    return str(value or "").replace("-", "").lower().strip()
+
+
+def _booking_ref_from_ticket(ticket) -> Optional[str]:
+    bid = getattr(ticket, "booking_id", None)
+    if not bid:
+        return None
+    return f"#JOD-{str(bid).replace('-', '')[:8].upper()}"
+
+
 def _normalize_scan_code(value: Optional[str]) -> str:
     return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
 
@@ -859,18 +870,26 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         db.rollback()
         event_regs = []
     try:
+        checkin_clauses = []
+        for eid in _event_public_ids(db, event_mgt):
+            checkin_clauses.extend(_guid_equals_clauses(EventAttendanceCheckin.event_id, eid))
+        checkin_clauses.extend(_guid_equals_clauses(EventAttendanceCheckin.event_id, event_mgt.event_id))
         checkin_rows = db.query(EventAttendanceCheckin).filter(
-            EventAttendanceCheckin.event_id == event_mgt.event_id,
+            or_(*checkin_clauses),
             EventAttendanceCheckin.deleted_at.is_(None),
         ).all()
     except Exception:
         db.rollback()
         checkin_rows = []
     try:
+        volunteer_clauses = []
+        for eid in _event_public_ids(db, event_mgt):
+            volunteer_clauses.extend(_guid_equals_clauses(VolunteerCheckin.event_id, eid))
+        volunteer_clauses.extend(_guid_equals_clauses(VolunteerCheckin.event_id, event_mgt.event_id))
         volunteer_checkins = (
             db.query(VolunteerCheckin)
             .options(joinedload(VolunteerCheckin.volunteer))
-            .filter(VolunteerCheckin.event_id == event_mgt.event_id)
+            .filter(or_(*volunteer_clauses))
             .all()
         )
     except Exception:
@@ -881,8 +900,12 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         if not vc.ticket_id:
             continue
         vname = vc.volunteer.volunteer_name if vc.volunteer else None
-        if vname:
-            volunteer_by_ticket[str(vc.ticket_id)] = vname
+        if not vname:
+            continue
+        volunteer_by_ticket[str(vc.ticket_id)] = vname
+        compact = _compact_id(vc.ticket_id)
+        if compact:
+            volunteer_by_ticket[compact] = vname
 
     active_bookings = [b for b in bookings if (b.status or "").upper() not in _CANCELLED_STATUSES]
     active_tickets = [t for t in tickets if (t.ticket_status or "").upper() not in _CANCELLED_STATUSES]
@@ -926,16 +949,22 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         is_used = (ticket.ticket_status or "").upper() in _CHECKED_IN_STATUSES
         if is_used and email:
             used_emails.add(email)
+        volunteer_name = (
+            volunteer_by_ticket.get(str(ticket.ticket_id))
+            or volunteer_by_ticket.get(_compact_id(ticket.ticket_id))
+            or ticket.scanned_by
+        )
         attendees.append({
             "ticket_id": str(ticket.ticket_id),
             "booking_id": str(ticket.booking_id) if ticket.booking_id else None,
+            "booking_ref": _booking_ref_from_ticket(ticket),
             "attendee_name": name,
             "attendee_email": (booking.receiver_email if booking else "") or "",
             "ticket_type": ticket.ticket_type or "Standard Access",
             "status": "checked_in" if is_used else "yet_to_checkin",
             "checked_in_at": ticket.used_at.isoformat() if ticket.used_at else None,
-            "scanned_by": ticket.scanned_by,
-            "volunteer_name": volunteer_by_ticket.get(str(ticket.ticket_id)) or ticket.scanned_by,
+            "scanned_by": ticket.scanned_by or volunteer_name,
+            "volunteer_name": volunteer_name,
         })
 
     extra_checkins = 0
@@ -959,6 +988,7 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         attendees.append({
             "ticket_id": None,
             "booking_id": None,
+            "booking_ref": None,
             "attendee_name": row.attendee_name or "Attendee",
             "attendee_email": row.attendee_email or "",
             "ticket_type": "",
@@ -972,17 +1002,21 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
 
     for vc in volunteer_checkins:
         tid = str(vc.ticket_id or "")
+        compact = _compact_id(tid)
         vname = vc.volunteer.volunteer_name if vc.volunteer else None
         matched = False
         if tid:
             for item in attendees:
-                if str(item.get("ticket_id") or "") == tid:
+                item_tid = str(item.get("ticket_id") or "")
+                if item_tid == tid or (compact and _compact_id(item_tid) == compact):
                     item["status"] = "checked_in"
                     item["checked_in_at"] = item.get("checked_in_at") or (
                         vc.created_at.isoformat() if vc.created_at else None
                     )
                     item["volunteer_name"] = item.get("volunteer_name") or vname
                     item["scanned_by"] = item.get("scanned_by") or vname
+                    if vc.ticket_code and not item.get("booking_ref"):
+                        item["booking_ref"] = vc.ticket_code
                     matched = True
                     break
         if matched:
@@ -991,6 +1025,7 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         attendees.append({
             "ticket_id": tid or None,
             "booking_id": None,
+            "booking_ref": vc.ticket_code,
             "attendee_name": vc.attendee_name or "Attendee",
             "attendee_email": "",
             "ticket_type": "",
@@ -1033,6 +1068,9 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
     if not registration_trend and total_registrations:
         registration_trend = [{"date": "Now", "value": total_registrations}]
 
+    checked_in_attendees = [a for a in attendees if a.get("status") == "checked_in"]
+    checked_in_attendees.sort(key=lambda row: row.get("checked_in_at") or "", reverse=True)
+
     return {
         "total_sales": total_sales,
         "total_registrations": total_registrations,
@@ -1045,7 +1083,7 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         "yet_to_checkin": yet_to_checkin,
         "attendees_count": sold,
         "attendees": attendees,
-        "checked_in_attendees": [a for a in attendees if a.get("status") == "checked_in"],
+        "checked_in_attendees": checked_in_attendees,
         "registration_trend": registration_trend,
     }
 

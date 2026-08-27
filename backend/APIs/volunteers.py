@@ -11,7 +11,7 @@ from datetime import datetime
 from html import escape as html_escape
 from typing import Optional
 from urllib.parse import urlparse
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
@@ -29,6 +29,7 @@ from Models.event_volunteer import (
     VolunteerInvitation,
     default_invite_expiry,
 )
+from Models.event_attendance_checkins import EventAttendanceCheckin
 from Models.ticket import Ticket
 from Models.user import User
 from Services.email import send_email
@@ -43,6 +44,7 @@ from APIs.tickets import (
 )
 
 router = APIRouter()
+compat_router = APIRouter()
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -231,6 +233,78 @@ def _serialize_volunteer(row: EventVolunteer, checkin_count: int = 0, gate: Opti
     return payload
 
 
+def _compact_id(value) -> str:
+    return str(value or "").replace("-", "").lower().strip()
+
+
+def _ticket_belongs_to_assignment(db: Session, ticket: Ticket, assignment: EventVolunteer) -> bool:
+    """Tickets store the public events.id; volunteers are keyed to event_management.event_id."""
+    if not ticket:
+        return False
+    if _compact_id(ticket.event_id) == _compact_id(assignment.event_id):
+        return True
+    event = db.query(EventManagement).filter(EventManagement.event_id == assignment.event_id).first()
+    if not event:
+        return False
+    try:
+        from APIs.host_events_api import _event_public_ids
+        for eid in _event_public_ids(db, event):
+            if _compact_id(eid) == _compact_id(ticket.event_id):
+                return True
+    except Exception:
+        return False
+
+
+def _mirror_attendance_from_volunteer(
+    db: Session,
+    assignment: EventVolunteer,
+    ticket: Ticket,
+    staff_name: str,
+    method: str,
+    booking_label: str,
+) -> None:
+    """Copy a volunteer scan into the host Attendance table without failing the check-in."""
+    email = ""
+    if ticket.booking and ticket.booking.receiver_email:
+        email = (ticket.booking.receiver_email or "").lower().strip()
+    attendee = (ticket.booking.receiver_name if ticket.booking else None) or "Guest"
+    note = f"Volunteer scan · {booking_label} · {ticket.ticket_type or 'Ticket'}"
+    try:
+        with db.begin_nested():
+            existing = None
+            if email:
+                existing = (
+                    db.query(EventAttendanceCheckin)
+                    .filter(EventAttendanceCheckin.event_id == assignment.event_id)
+                    .filter(EventAttendanceCheckin.attendee_email == email)
+                    .filter(EventAttendanceCheckin.deleted_at.is_(None))
+                    .first()
+                )
+            if existing:
+                existing.status = "checked_in"
+                existing.created_by = existing.created_by or staff_name
+                existing.updated_at = datetime.utcnow()
+                if not existing.notes:
+                    existing.notes = note
+                return
+            db.add(
+                EventAttendanceCheckin(
+                    id=uuid4(),
+                    event_id=assignment.event_id,
+                    customer_id=assignment.customer_id or assignment.invited_by_customer_id,
+                    created_by=staff_name,
+                    attendee_name=attendee,
+                    attendee_email=email or None,
+                    scan_method=method,
+                    status="checked_in",
+                    notes=note,
+                )
+            )
+            db.flush()
+    except Exception:
+        pass
+
+
 def _booking_ref(ticket: Optional[Ticket]) -> Optional[str]:
     if not ticket or not ticket.booking_id:
         return None
@@ -282,7 +356,7 @@ def _resolve_invite_bundle(db: Session, raw_token: str):
     return invite, volunteer, event
 
 
-def _ensure_portal_access(db: Session, invite: VolunteerInvitation, volunteer: EventVolunteer) -> EventVolunteer:
+def _assert_invite_usable(db: Session, invite: VolunteerInvitation, volunteer: EventVolunteer) -> None:
     if volunteer.status == "REVOKED" or invite.status in ("REVOKED", "REPLACED"):
         raise HTTPException(status_code=410, detail="This volunteer access has been revoked.")
     if invite.is_expired():
@@ -291,18 +365,43 @@ def _ensure_portal_access(db: Session, invite: VolunteerInvitation, volunteer: E
             volunteer.status = "EXPIRED"
         db.commit()
         raise HTTPException(status_code=410, detail="This invitation has expired.")
-    if volunteer.status == "PENDING" or invite.status == "PENDING":
+
+
+def _invite_needs_accept(invite: VolunteerInvitation, volunteer: EventVolunteer) -> bool:
+    return volunteer.status == "PENDING" or invite.status == "PENDING"
+
+
+def _volunteer_with_gate(db: Session, volunteer: EventVolunteer) -> EventVolunteer:
+    loaded = (
+        db.query(EventVolunteer)
+        .options(joinedload(EventVolunteer.entry_gate))
+        .filter(EventVolunteer.id == volunteer.id)
+        .first()
+    )
+    return loaded or volunteer
+
+
+def _ensure_portal_access(
+    db: Session,
+    invite: VolunteerInvitation,
+    volunteer: EventVolunteer,
+    actor_customer_id: Optional[str] = None,
+) -> EventVolunteer:
+    _assert_invite_usable(db, invite, volunteer)
+    if _invite_needs_accept(invite, volunteer):
         now = datetime.utcnow()
         volunteer.status = "ACTIVE"
         volunteer.accepted_at = now
         volunteer.updated_at = now
         invite.status = "ACCEPTED"
         invite.accepted_at = now
+        if actor_customer_id and not volunteer.customer_id:
+            volunteer.customer_id = actor_customer_id
         _audit(
             db,
             event_id=volunteer.event_id,
             volunteer_id=volunteer.id,
-            actor_customer_id=volunteer.customer_id,
+            actor_customer_id=actor_customer_id or volunteer.customer_id,
             action="invitation_accepted",
             detail=volunteer.invited_email,
         )
@@ -408,6 +507,7 @@ def _portal_payload(db: Session, volunteer: EventVolunteer, event: Optional[Even
         "today_checkins": today_count,
         "recent": _assignment_recent(db, volunteer.id),
         "status": volunteer.status,
+        "organizer_name": event.organizer_name if event else None,
     }
 
 
@@ -441,7 +541,7 @@ def _verify_ticket_for_assignment(
     if not ticket:
         return fail("INVALID", "This ticket could not be verified.")
 
-    if str(ticket.event_id) != str(assignment.event_id):
+    if not _ticket_belongs_to_assignment(db, ticket, assignment):
         return fail("WRONG_EVENT", "This ticket belongs to another event.")
 
     booking_status = ((ticket.booking.status if ticket.booking else "") or "").upper()
@@ -478,7 +578,7 @@ def _verify_ticket_for_assignment(
     )
     if rows_updated != 1:
         db.rollback()
-        ticket = _lookup_ticket(db, token_str, str(assignment.event_id))
+        ticket = _lookup_ticket(db, token_str, None)
         extra = _volunteer_ticket_extra(
             ticket,
             customer_name=(ticket.booking.receiver_name if ticket and ticket.booking else None),
@@ -505,10 +605,11 @@ def _verify_ticket_for_assignment(
     )
     db.add(checkin)
     try:
-        db.flush()
+        with db.begin_nested():
+            db.flush()
     except IntegrityError:
         db.rollback()
-        ticket = _lookup_ticket(db, token_str, str(assignment.event_id))
+        ticket = _lookup_ticket(db, token_str, None)
         extra = _volunteer_ticket_extra(
             ticket,
             customer_name=(ticket.booking.receiver_name if ticket and ticket.booking else None),
@@ -518,7 +619,10 @@ def _verify_ticket_for_assignment(
             duplicate=True,
         )
         return fail("ALREADY_USED", "Duplicate — this ticket was already checked in.", extra)
+    except Exception:
+        pass
 
+    _mirror_attendance_from_volunteer(db, assignment, ticket, staff_name, method, booking_label)
     _audit(
         db,
         event_id=assignment.event_id,
@@ -900,21 +1004,54 @@ def event_day_stats(
     }
 
 
+def _portal_view(db: Session, token: str) -> dict:
+    invite, volunteer, event = _resolve_invite_bundle(db, token)
+    _assert_invite_usable(db, invite, volunteer)
+    volunteer = _volunteer_with_gate(db, volunteer)
+    payload = _portal_payload(db, volunteer, event)
+    payload["needs_accept"] = _invite_needs_accept(invite, volunteer)
+    payload["invite_status"] = invite.status
+    return payload
+
+
+def _accept_portal_view(
+    db: Session,
+    token: str,
+    current_user: Optional[User] = None,
+) -> dict:
+    invite, volunteer, event = _resolve_invite_bundle(db, token)
+    volunteer = _ensure_portal_access(
+        db,
+        invite,
+        volunteer,
+        actor_customer_id=current_user.customer_id if current_user else None,
+    )
+    volunteer = _volunteer_with_gate(db, volunteer)
+    payload = _portal_payload(db, volunteer, event)
+    payload["needs_accept"] = False
+    payload["invite_status"] = invite.status
+    return payload
+
+
 # ── Invitation peek / accept ──────────────────────────────────────────────────
 @router.get("/portal/{token}")
+@compat_router.get("/portal/{token}")
 def volunteer_portal(token: str, db: Session = Depends(get_db)):
-    invite, volunteer, event = _resolve_invite_bundle(db, token)
-    volunteer = _ensure_portal_access(db, invite, volunteer)
-    volunteer = (
-        db.query(EventVolunteer)
-        .options(joinedload(EventVolunteer.entry_gate))
-        .filter(EventVolunteer.id == volunteer.id)
-        .first()
-    )
-    return _portal_payload(db, volunteer, event)
+    return _portal_view(db, token)
+
+
+@router.post("/portal/{token}/accept")
+@compat_router.post("/portal/{token}/accept")
+def accept_portal_invite(
+    token: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    return _accept_portal_view(db, token, current_user)
 
 
 @router.post("/portal/{token}/verify-ticket")
+@compat_router.post("/portal/{token}/verify-ticket")
 def portal_verify_ticket(
     token: str,
     payload: VerifyTicketRequest,

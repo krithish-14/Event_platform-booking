@@ -8,7 +8,7 @@
 .gallery-hero {
 	position: relative;
 	overflow: hidden;
-	padding: 5.5rem 0 1.5rem;
+	padding: calc(var(--site-header-height, 6.25rem) + 1.85rem) 0 1.5rem;
 	background: radial-gradient(ellipse 90% 70% at 50% 100%, rgba(255, 117, 8, 0.16), transparent 68%);
 }
 
@@ -18,7 +18,7 @@
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(240px, 22rem);
 	gap: 1.5rem 2rem;
-	align-items: center;
+	align-items: start;
 }
 
 .gallery-hero-brand {
@@ -52,6 +52,8 @@ html[data-theme="dark"] .gallery-hero-brand-name {
 	grid-template-columns: 1.45fr 0.95fr;
 	grid-template-rows: 5.6rem 5.6rem;
 	gap: 0.35rem;
+	margin-top: 0.45rem;
+	align-self: start;
 	overflow: hidden;
 	border-radius: 1rem;
 	box-shadow: 0 16px 36px -18px rgba(38, 35, 31, 0.45);
@@ -360,8 +362,9 @@ html[data-theme="dark"] .gallery-tile {
 }
 
 @media (max-width: 900px) {
-	.gallery-hero { padding-top: 5rem; }
+	.gallery-hero { padding-top: calc(var(--site-header-height, 6.25rem) + 1.35rem); }
 	.gallery-hero-grid { grid-template-columns: 1fr; gap: 1rem; }
+	.gallery-hero-mosaic { margin-top: 0.15rem; }
 	.gallery-hero-brand { font-size: clamp(2.6rem, 12vw, 4.2rem); }
 	.gallery-hero-mosaic {
 		grid-template-rows: 5.2rem 5.2rem;

@@ -296,33 +296,70 @@
 
 	window.addEventListener("pagehide", stopCamera);
 
-	// ── load assignment then start camera ─────────────────────────────────────
+	function applyAssignment(data) {
+		assignment = data || assignment;
+		if (!assignment) return;
+		if (eventTitleEl) eventTitleEl.textContent = assignment.event_title || "Event";
+		if (roleLabelEl) {
+			roleLabelEl.textContent = assignment.gate_name
+				? `${assignment.role || "Scanner Volunteer"} · ${assignment.gate_name}`
+				: (assignment.role || "Scanner Volunteer");
+		}
+		if (scannerStatus) scannerStatus.textContent = assignment.volunteer_name
+			? `${assignment.volunteer_name} · Ready to scan`
+			: "Ready to scan";
+		setTodayCount(assignment.today_checkins || 0);
+	}
 
-	(async function loadAssignment() {
+	async function loadAssignment() {
 		const { ok, status, data } = await V.fetchPortal();
 		if (!ok) {
 			if (eventTitleEl) eventTitleEl.textContent = status === 410 ? "Access unavailable" : "Volunteer link required";
 			if (scannerStatus) scannerStatus.textContent = V.apiError(data, "Open the volunteer link from your invitation email.");
 			if (cameraCard) cameraCard.style.display = "none";
+			return false;
+		}
+		let payload = data;
+		if (payload && payload.needs_accept && typeof V.acceptPortal === "function") {
+			const accepted = await V.acceptPortal();
+			if (accepted.ok) payload = accepted.data;
+		}
+		applyAssignment(payload);
+		return true;
+	}
+
+	let started = false;
+	let startPromise = null;
+
+	async function start(assignmentData) {
+		if (started) {
+			if (assignmentData) applyAssignment(assignmentData);
+			await startCamera();
 			return;
 		}
-		assignment = data;
-		if (eventTitleEl) eventTitleEl.textContent = data.event_title || "Event";
-		if (roleLabelEl) {
-			roleLabelEl.textContent = data.gate_name
-				? `${data.role || "Scanner Volunteer"} · ${data.gate_name}`
-				: (data.role || "Scanner Volunteer");
-		}
-		if (scannerStatus) scannerStatus.textContent = data.volunteer_name
-			? `${data.volunteer_name} · Ready to scan`
-			: "Ready to scan";
-		setTodayCount(data.today_checkins || 0);
+		if (startPromise) return startPromise;
+		startPromise = (async () => {
+			started = true;
+			try {
+				if (assignmentData) {
+					applyAssignment(assignmentData);
+				} else {
+					const ok = await loadAssignment();
+					if (!ok) return;
+				}
+				await startCamera();
+			} catch (err) {
+				console.warn(err);
+				if (eventTitleEl) eventTitleEl.textContent = "Could not load scanner";
+				if (scannerStatus) scannerStatus.textContent = "A network or server error occurred.";
+			}
+		})();
+		return startPromise;
+	}
 
-		// auto-start camera
-		await startCamera();
-	})().catch((err) => {
-		console.warn(err);
-		if (eventTitleEl) eventTitleEl.textContent = "Could not load scanner";
-		if (scannerStatus) scannerStatus.textContent = "A network or server error occurred.";
-	});
+	window.JodVolunteerScanner = { start, stop: stopCamera };
+
+	if (!document.body || !document.body.hasAttribute("data-defer-scanner")) {
+		start();
+	}
 })();

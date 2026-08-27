@@ -40,7 +40,7 @@ from APIs.wishlist import router as wishlist_router
 from APIs.media import router as media_router
 from APIs.support import router as support_router
 from APIs.notifications import router as notifications_router
-from APIs.volunteers import router as volunteers_router
+from APIs.volunteers import router as volunteers_router, compat_router as volunteers_compat_router
 from APIs.admin import router as admin_router
 from APIs.payments import router as payments_router
 from Models.base import create_tables
@@ -207,6 +207,7 @@ app.include_router(media_router)
 app.include_router(support_router, prefix="/api/support", tags=["Support"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(volunteers_router, prefix="/api/volunteers", tags=["Volunteers"])
+app.include_router(volunteers_compat_router, tags=["Volunteers"])
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
 app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
 

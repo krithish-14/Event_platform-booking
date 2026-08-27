@@ -1558,7 +1558,7 @@ async function initOrganizerDashboard() {
 		if (attKpiYetToCheckIn) attKpiYetToCheckIn.textContent = yetCheck.toLocaleString();
 		if (attKpiSold) attKpiSold.textContent = sold.toLocaleString();
 
-		if (Array.isArray(d.checked_in_attendees)) {
+		if (Array.isArray(d.checked_in_attendees) && d.checked_in_attendees.length) {
 			renderAttendanceTable(d.checked_in_attendees);
 		} else if (Array.isArray(d.attendees)) {
 			renderAttendanceTable(d.attendees.filter((row) => row && row.status === "checked_in"));
@@ -1568,14 +1568,21 @@ async function initOrganizerDashboard() {
 	function renderAttendanceTable(attendees) {
 		const body = document.getElementById("attendanceTableBody");
 		if (!body) return;
-		if (!attendees || attendees.length === 0) {
+		const rows = (attendees || []).slice().sort((a, b) => {
+			const ta = new Date(a && a.checked_in_at ? a.checked_in_at : 0).getTime();
+			const tb = new Date(b && b.checked_in_at ? b.checked_in_at : 0).getTime();
+			return tb - ta;
+		});
+		if (!rows.length) {
 			body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">No check-ins yet. Names appear here after a host or volunteer verifies a ticket.</td></tr>`;
 			return;
 		}
-		body.innerHTML = attendees.map((row) => {
+		body.innerHTML = rows.map((row) => {
 			const checked = row.status === "checked_in";
 			const when = row.checked_in_at ? new Date(row.checked_in_at).toLocaleString() : "—";
 			const volunteer = checked ? (row.volunteer_name || row.scanned_by || "—") : "—";
+			const ticketBits = [row.booking_ref, row.ticket_type].filter((bit) => String(bit || "").trim());
+			const ticketLabel = ticketBits.length ? ticketBits.join(" · ") : "Ticket";
 			const badge = checked
 				? `<span style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:700;">Checked-in</span>`
 				: `<span style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:700;">Yet to check-in</span>`;
@@ -1584,7 +1591,7 @@ async function initOrganizerDashboard() {
 					<div class="dash-ink" style="font-weight:700;">${escapeVolunteerHtml(row.attendee_name || "Guest")}</div>
 					<div class="dash-muted-text" style="font-size:0.78rem;">${escapeVolunteerHtml(row.attendee_email || "")}</div>
 				</td>
-				<td class="dash-muted-text" style="padding:0.85rem 1.2rem;">${escapeVolunteerHtml(row.ticket_type || "Ticket")}</td>
+				<td class="dash-muted-text" style="padding:0.85rem 1.2rem;">${escapeVolunteerHtml(ticketLabel)}</td>
 				<td style="padding:0.85rem 1.2rem;">${badge}</td>
 				<td class="dash-muted-text" style="padding:0.85rem 1.2rem;">${when}</td>
 				<td class="dash-ink" style="padding:0.85rem 1.2rem;font-weight:600;">${escapeVolunteerHtml(volunteer)}</td>
@@ -1613,7 +1620,9 @@ async function initOrganizerDashboard() {
 		if (!email) return;
 		try {
 			const res = await fetch(`${HOST_EVENTS_API_BASE}/attendance?email=${encodeURIComponent(email)}${activeEventId ? "&event_id=" + activeEventId : ""}`, {
-				headers: getAuthHeaders()
+				headers: getAuthHeaders(),
+				credentials: "include",
+				cache: "no-store"
 			});
 			if (!res.ok) return;
 			const data = await res.json();
