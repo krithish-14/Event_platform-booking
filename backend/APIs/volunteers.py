@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import String, cast, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -39,6 +40,7 @@ from APIs.tickets import (
     CANCELLED_TICKET_STATUSES,
     CHECKABLE_TICKET_STATUSES,
     CHECKED_IN_TICKET_STATUSES,
+    _lookup_matching_tickets,
     _lookup_ticket,
     _serialize_ticket_success,
 )
@@ -511,6 +513,61 @@ def _portal_payload(db: Session, volunteer: EventVolunteer, event: Optional[Even
     }
 
 
+def _volunteer_checkin_for_ticket(db: Session, ticket_id) -> Optional[VolunteerCheckin]:
+    """Find a prior check-in for this ticket, including CHAR vs UUID id storage on live."""
+    if not ticket_id:
+        return None
+    try:
+        from APIs.host_events_api import _id_text_match_clauses
+        clauses = _id_text_match_clauses(VolunteerCheckin.ticket_id, ticket_id)
+    except Exception:
+        clauses = [VolunteerCheckin.ticket_id == ticket_id]
+    if not clauses:
+        return None
+    try:
+        return db.query(VolunteerCheckin).options(joinedload(VolunteerCheckin.volunteer)).filter(or_(*clauses)).first()
+    except Exception:
+        db.rollback()
+        try:
+            return db.query(VolunteerCheckin).options(joinedload(VolunteerCheckin.volunteer)).filter(VolunteerCheckin.ticket_id == ticket_id).first()
+        except Exception:
+            db.rollback()
+            return None
+
+
+def _ticket_is_checked_in(db: Session, ticket: Optional[Ticket]) -> tuple[bool, Optional[VolunteerCheckin]]:
+    if not ticket:
+        return False, None
+    existing = _volunteer_checkin_for_ticket(db, ticket.ticket_id)
+    if existing:
+        return True, existing
+    if (ticket.ticket_status or "").upper() in CHECKED_IN_TICKET_STATUSES:
+        return True, None
+    return False, None
+
+
+def _duplicate_body(ticket: Optional[Ticket], existing: Optional[VolunteerCheckin] = None) -> dict:
+    scanned_by = None
+    used_at = None
+    if ticket:
+        scanned_by = ticket.scanned_by
+        used_at = ticket.used_at
+    if existing:
+        scanned_by = scanned_by or (
+            existing.volunteer.volunteer_name if existing.volunteer else None
+        )
+        used_at = used_at or existing.created_at
+    return _volunteer_ticket_extra(
+        ticket,
+        customer_name=(ticket.booking.receiver_name if ticket and ticket.booking else None),
+        ticket_type=ticket.ticket_type if ticket else None,
+        used_at=_iso(used_at),
+        scanned_by=scanned_by,
+        already_checked_in=True,
+        duplicate=True,
+    )
+
+
 def _verify_ticket_for_assignment(
     db: Session,
     assignment: EventVolunteer,
@@ -519,9 +576,9 @@ def _verify_ticket_for_assignment(
     staff_name: str,
     actor_customer_id: Optional[str] = None,
 ):
-    ticket = _lookup_ticket(db, token_str, None)
+    matched = _lookup_matching_tickets(db, token_str, None)
 
-    def fail(code: str, message: str, extra: Optional[dict] = None):
+    def fail(code: str, message: str, extra: Optional[dict] = None, ticket: Optional[Ticket] = None):
         _audit(
             db,
             event_id=assignment.event_id,
@@ -533,40 +590,56 @@ def _verify_ticket_for_assignment(
             detail=f"{code}: {message}",
         )
         db.commit()
-        body = {"valid": False, "status": code, "message": message}
+        body = {"valid": False, "status": code, "message": message, "duplicate": code == "ALREADY_USED"}
         if extra:
             body.update(extra)
         return body
 
-    if not ticket:
+    if not matched:
         return fail("INVALID", "This ticket could not be verified.")
 
-    if not _ticket_belongs_to_assignment(db, ticket, assignment):
-        return fail("WRONG_EVENT", "This ticket belongs to another event.")
+    scoped = [row for row in matched if _ticket_belongs_to_assignment(db, row, assignment)]
+    if not scoped:
+        return fail("WRONG_EVENT", "This ticket belongs to another event.", ticket=matched[0])
+
+    already = None
+    already_checkin = None
+    for row in scoped:
+        is_used, existing = _ticket_is_checked_in(db, row)
+        if is_used:
+            already = row
+            already_checkin = existing
+            break
+    if already:
+        return fail(
+            "ALREADY_USED",
+            "Duplicate — this ticket was already checked in.",
+            _duplicate_body(already, already_checkin),
+            ticket=already,
+        )
+
+    ticket = next(
+        (
+            row
+            for row in scoped
+            if (row.ticket_status or "").upper() in CHECKABLE_TICKET_STATUSES
+            or not (row.ticket_status or "").strip()
+        ),
+        scoped[0],
+    )
 
     booking_status = ((ticket.booking.status if ticket.booking else "") or "").upper()
     ticket_status = (ticket.ticket_status or "").upper()
     if booking_status in CANCELLED_TICKET_STATUSES or ticket_status in CANCELLED_TICKET_STATUSES:
-        return fail("CANCELLED", "This ticket has been cancelled or refunded.")
-
-    existing = db.query(VolunteerCheckin).filter(VolunteerCheckin.ticket_id == ticket.ticket_id).first()
-    if existing or ticket_status in CHECKED_IN_TICKET_STATUSES:
-        extra = _volunteer_ticket_extra(
-            ticket,
-            customer_name=(ticket.booking.receiver_name if ticket.booking else None),
-            ticket_type=ticket.ticket_type,
-            used_at=_iso(ticket.used_at or (existing.created_at if existing else None)),
-            scanned_by=ticket.scanned_by or (existing.volunteer.volunteer_name if existing and existing.volunteer else None),
-            already_checked_in=True,
-            duplicate=True,
-        )
-        return fail("ALREADY_USED", "Duplicate — this ticket was already checked in.", extra)
+        return fail("CANCELLED", "This ticket has been cancelled or refunded.", ticket=ticket)
 
     now_utc = datetime.utcnow()
+    checkable = tuple(status for status in CHECKABLE_TICKET_STATUSES if status)
+    status_u = func.upper(func.coalesce(Ticket.ticket_status, ""))
     rows_updated = (
         db.query(Ticket)
         .filter(Ticket.ticket_id == ticket.ticket_id)
-        .filter(Ticket.ticket_status.in_(tuple(CHECKABLE_TICKET_STATUSES)))
+        .filter(or_(status_u.in_(checkable), Ticket.ticket_status.is_(None), Ticket.ticket_status == ""))
         .update(
             {
                 Ticket.ticket_status: "USED",
@@ -579,16 +652,15 @@ def _verify_ticket_for_assignment(
     if rows_updated != 1:
         db.rollback()
         ticket = _lookup_ticket(db, token_str, None)
-        extra = _volunteer_ticket_extra(
-            ticket,
-            customer_name=(ticket.booking.receiver_name if ticket and ticket.booking else None),
-            used_at=_iso(ticket.used_at if ticket else None),
-            scanned_by=ticket.scanned_by if ticket else None,
-            ticket_type=ticket.ticket_type if ticket else None,
-            already_checked_in=True,
-            duplicate=True,
-        )
-        return fail("ALREADY_USED", "Duplicate — this ticket was already checked in.", extra)
+        is_used, existing = _ticket_is_checked_in(db, ticket)
+        if is_used or ticket:
+            return fail(
+                "ALREADY_USED",
+                "Duplicate — this ticket was already checked in.",
+                _duplicate_body(ticket, existing),
+                ticket=ticket,
+            )
+        return fail("INVALID", "This ticket could not be verified.")
 
     attendee = (ticket.booking.receiver_name if ticket.booking else None) or "Guest"
     booking_label = _booking_ref(ticket) or "Guest"
@@ -610,15 +682,13 @@ def _verify_ticket_for_assignment(
     except IntegrityError:
         db.rollback()
         ticket = _lookup_ticket(db, token_str, None)
-        extra = _volunteer_ticket_extra(
-            ticket,
-            customer_name=(ticket.booking.receiver_name if ticket and ticket.booking else None),
-            used_at=_iso(ticket.used_at if ticket else None),
-            scanned_by=ticket.scanned_by if ticket else None,
-            already_checked_in=True,
-            duplicate=True,
+        _existing = _volunteer_checkin_for_ticket(db, ticket.ticket_id if ticket else None)
+        return fail(
+            "ALREADY_USED",
+            "Duplicate — this ticket was already checked in.",
+            _duplicate_body(ticket, _existing),
+            ticket=ticket,
         )
-        return fail("ALREADY_USED", "Duplicate — this ticket was already checked in.", extra)
     except Exception:
         pass
 

@@ -19,6 +19,7 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 EXEMPT_PATHS = {
     "/health",
     "/health/ready",
+    "/api/health",
     "/docs",
     "/redoc",
     "/openapi.json",

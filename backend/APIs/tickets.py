@@ -10,6 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from Authentication.dependencies import get_current_user
@@ -117,29 +118,59 @@ def _extract_token(payload: TokenVerificationRequest | TokenCheckinRequest) -> s
     return tok
 
 
-def _lookup_ticket(db: Session, token_str: str, event_id: Optional[str] = None) -> Optional[Ticket]:
+def _lookup_matching_tickets(db: Session, token_str: str, event_id: Optional[str] = None) -> List[Ticket]:
+    """Every ticket that this scan payload could mean (exact QR, then booking/ticket id)."""
     raw = extract_scan_token(token_str)
     original = (token_str or "").strip()
     if not raw and not original:
-        return None
+        return []
+    found = {}
+
+    def add(rows):
+        for row in rows or []:
+            if row is None:
+                continue
+            key = str(row.ticket_id)
+            if key not in found:
+                found[key] = row
+
+    query = _ticket_base_query(db, event_id)
     for candidate in dict.fromkeys([raw, original]):
         if not candidate:
             continue
-        ticket = _ticket_base_query(db, event_id).filter(Ticket.qr_token == candidate).first()
-        if ticket:
-            return ticket
+        add(query.filter(Ticket.qr_token == candidate).all())
+    if found:
+        return list(found.values())
+
     compact = "".join(ch for ch in (raw or original).upper() if ch.isalnum())
     if compact.startswith("JODTKT"):
-        return None
+        return []
     if compact.startswith("JOD"):
         compact = compact[3:]
     if len(compact) < 8:
-        return None
-    from sqlalchemy import String, cast, func
-
+        return []
     prefix = compact[:8].lower()
     bid_txt = func.replace(func.lower(cast(Ticket.booking_id, String)), "-", "")
-    return _ticket_base_query(db, event_id).filter(bid_txt.like(prefix + "%")).first()
+    tid_txt = func.replace(func.lower(cast(Ticket.ticket_id, String)), "-", "")
+    add(
+        query.filter(
+            or_(
+                bid_txt.like(prefix + "%"),
+                tid_txt.like(prefix + "%"),
+            )
+        ).all()
+    )
+    return list(found.values())
+
+
+def _lookup_ticket(db: Session, token_str: str, event_id: Optional[str] = None) -> Optional[Ticket]:
+    tickets = _lookup_matching_tickets(db, token_str, event_id)
+    if not tickets:
+        return None
+    for ticket in tickets:
+        if (ticket.ticket_status or "").upper() in CHECKED_IN_TICKET_STATUSES:
+            return ticket
+    return tickets[0]
 
 
 def _serialize_ticket_success(t: Ticket, message: str = "Ticket is valid for entry.") -> dict:

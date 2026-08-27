@@ -445,7 +445,23 @@
 		return pretty("index.html");
 	}
 
+	function isVolunteerLeavePage(page) {
+		return page === "volunteer-portal.html" || page === "volunteer-invite.html";
+	}
+
 	function goBack(btn) {
+		var page = pageFile();
+		var leaveSite = (btn && btn.getAttribute("data-back-leave-site") === "true") || isVolunteerLeavePage(page);
+		if (leaveSite) {
+			if (global.history.length > 1) {
+				global.history.back();
+				return;
+			}
+			try {
+				global.close();
+			} catch (_) {}
+			return;
+		}
 		if (sameOriginReferrer() && global.history.length > 1) {
 			try {
 				var refFile = global.JodUrls && typeof global.JodUrls.pageFileFromHref === "function"

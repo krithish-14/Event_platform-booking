@@ -223,13 +223,18 @@ def root():
 
 
 @app.get("/health", tags=["Root"])
+@app.get("/api/health", tags=["Root"], include_in_schema=False)
 def health_check():
-    from Services.r2_storage import is_configured as r2_configured
-
+    r2_ok = False
+    try:
+        from Services.r2_storage import is_configured as r2_configured
+        r2_ok = bool(r2_configured())
+    except Exception:
+        r2_ok = False
     return {
         "status": "healthy",
         "version": APP_VERSION,
-        "r2_configured": r2_configured(),
+        "r2_configured": r2_ok,
     }
 
 

@@ -14,7 +14,7 @@
 window.JodHealth = (() => {
   "use strict";
 
-  const DEFAULT_PORT = "8001";
+  const HEALTH_PATHS = ["/health/ready", "/api/health", "/health", "/"];
 
   /**
    * Determine backend API base URL dynamically based on environment.
@@ -29,31 +29,46 @@ window.JodHealth = (() => {
     return "https://api.jodevents.com";
   }
 
-  /**
-   * Verify if the FastAPI backend is online and reachable.
-   */
-  async function checkBackendHealth(timeoutMs = 4000) {
-    const baseUrl = getApiBaseUrl();
+  function looksOnline(resp, data) {
+    if (!resp || !resp.ok) return false;
+    const status = String((data && (data.status || data.message)) || "").toLowerCase();
+    if (!status) return true;
+    if (status === "healthy" || status === "ok" || status === "ready") return true;
+    if (status.indexOf("running") !== -1) return true;
+    return resp.status >= 200 && resp.status < 300;
+  }
+
+  async function ping(url, timeoutMs) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-
     try {
-      const resp = await fetch(`${baseUrl}/health`, {
+      const resp = await fetch(url, {
         method: "GET",
         headers: { "Accept": "application/json" },
         signal: controller.signal,
         cache: "no-store",
+        credentials: "omit",
       });
-      clearTimeout(timer);
-      if (resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        return data.status === "healthy" || data.status === "ok" || resp.status === 200;
-      }
-      return false;
+      const data = await resp.json().catch(() => ({}));
+      return looksOnline(resp, data);
     } catch (_) {
-      clearTimeout(timer);
       return false;
+    } finally {
+      clearTimeout(timer);
     }
+  }
+
+  /**
+   * Verify if the FastAPI backend is online and reachable.
+   * Tries several probes because live nginx may expose /health/ready
+   * even when /health itself errors.
+   */
+  async function checkBackendHealth(timeoutMs = 4000) {
+    const baseUrl = String(getApiBaseUrl() || "").replace(/\/$/, "");
+    for (let i = 0; i < HEALTH_PATHS.length; i++) {
+      if (await ping(baseUrl + HEALTH_PATHS[i], timeoutMs)) return true;
+    }
+    return false;
   }
 
   /**

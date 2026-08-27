@@ -191,7 +191,7 @@
 			return;
 		}
 
-		if (statusCode === "ALREADY_USED" || statusCode === "DUPLICATE" || (data && (data.duplicate || data.already_checked_in))) {
+		if (statusCode === "ALREADY_USED" || statusCode === "DUPLICATE" || statusCode === "ALREADY_CHECKED_IN" || (data && (data.duplicate || data.already_checked_in))) {
 			showResult("warn", `
 				<div class="res-icon">⚠</div>
 				<h3>DUPLICATE</h3>
