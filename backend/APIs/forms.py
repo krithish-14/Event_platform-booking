@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, insert as sa_insert, or_
+from sqlalchemy import func, insert as sa_insert, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, field_validator
@@ -628,6 +628,17 @@ def submit_attendee_response(
 				existing.ticket_price = ticket_price
 			db.commit()
 			db.refresh(existing)
+			# After a host cancel the old booking_id can remain on this row. Clear it with
+			# SQL so a new buy is listed in the admin portal instead of staying hidden.
+			if status_val in ("cancelled", "canceled", "refunded"):
+				try:
+					db.execute(
+						text("UPDATE form_submissions SET booking_id = NULL WHERE id = :id"),
+						{"id": existing.id},
+					)
+					db.commit()
+				except Exception:
+					db.rollback()
 			return _submission_payload(existing, "Registration submitted successfully!")
 
 		sub = _insert_form_submission(

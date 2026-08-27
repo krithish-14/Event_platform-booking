@@ -309,9 +309,33 @@ def _booking_status_value(booking) -> str:
 
 
 def _hide_from_admin_lists(item: dict) -> bool:
+    """Keep pending cancels in the Cancellation request tab only.
+
+    Do not hide a new host/payment form just because an old cancelled booking
+    is still linked — that is how a second buy disappeared from the portal.
+    """
     booking_status = str(item.get("booking_status") or "").upper()
-    row_status = str(item.get("form_status") or item.get("status") or "").lower()
-    if booking_status in HIDDEN_ADMIN_BOOKING_STATUSES:
+    row_status = str(item.get("form_status") or "").lower()
+    kind = str(item.get("kind") or "form")
+    if booking_status == "CANCELLATION_REQUESTED":
+        return True
+    in_progress = row_status in (
+        "payment_pending",
+        "payment_submitted",
+        "submitted",
+        "pending",
+        "",
+    )
+    if kind == "payment":
+        pay_status = str(item.get("form_status") or item.get("status") or "").lower()
+        if pay_status in ("payment_submitted", "payment_pending", "submitted"):
+            return False
+        if pay_status == "qr_ready" and booking_status in ("CANCELLED", "CANCELED", "REFUNDED"):
+            return True
+        return False
+    if in_progress:
+        return False
+    if booking_status in ("CANCELLED", "CANCELED", "REFUNDED"):
         return True
     if row_status in ("cancelled", "canceled", "refunded"):
         return True
@@ -451,6 +475,9 @@ def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Opt
         price = row.ticket_price
     event = _lookup_event(db, row.event_id)
     booking = _reload_booking(db, booking_id_text if booking_id_text is not None else getattr(row, "booking_id", None))
+    status_val = (row.status or "payment_pending").lower()
+    if booking and _booking_status_value(booking) in HIDDEN_ADMIN_BOOKING_STATUSES and status_val not in ("paid", "qr_ready"):
+        booking = None
     name, email, phone = _resolve_attendee_identity(
         db,
         booking=booking,
@@ -472,7 +499,6 @@ def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Opt
             for t in (booking.tickets or [])
         ]
     primary = tickets[0] if tickets else None
-    status_val = (row.status or "payment_pending").lower()
     has_qr = bool(primary)
     return {
         "kind": "form",
@@ -527,6 +553,9 @@ def _serialize_payment_proof(db: Session, row: PaymentProof, booking_id_text: Op
     event = _lookup_event(db, row.event_id)
     tickets = []
     booking = _reload_booking(db, booking_id_text if booking_id_text is not None else getattr(row, "booking_id", None))
+    proof_status = (row.status or "payment_submitted").lower()
+    if booking and _booking_status_value(booking) in HIDDEN_ADMIN_BOOKING_STATUSES and proof_status != "qr_ready":
+        booking = None
     if booking:
         tickets = [
             {

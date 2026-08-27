@@ -5,7 +5,7 @@ Attendee payment-proof upload after scanning the UPI QR on the bill page.
 import os
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from Authentication.dependencies import get_current_user
@@ -88,6 +88,11 @@ async def submit_payment_proof(
         existing.status = "payment_submitted"
         db.commit()
         db.refresh(existing)
+        try:
+            db.execute(text("UPDATE payment_proofs SET booking_id = NULL WHERE id = :id"), {"id": existing.id})
+            db.commit()
+        except Exception:
+            db.rollback()
         row = existing
     else:
         row = PaymentProof(
