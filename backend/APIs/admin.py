@@ -30,17 +30,23 @@ from Services.ticket_pdf import build_ticket_pdf_bytes
 
 from APIs.bookings import (
     _active_booking_for_event,
-    _booking_is_cancelled,
-    _booking_ticket_used,
-    _lookup_booking_row,
     _mark_form_submission_paid,
     _same_event_id,
     _serialize_booking,
     _sql_set_booking_id,
     _ticket_from_answers,
-    finalize_booking_cancellation,
 )
-from Utils.text_sanitize import pick_attendee_identity
+
+try:
+    from Utils.text_sanitize import pick_attendee_identity
+except ImportError:
+    def pick_attendee_identity(*, names=(), emails=(), phones=()):
+        email = next((str(v).strip() for v in emails if v and "@" in str(v)), "")
+        name = next((str(v).strip() for v in names if v), "") or (
+            email.split("@")[0].replace(".", " ").title() if email else "Guest"
+        )
+        phone = next((str(v).strip() for v in phones if v), "")
+        return name, email, phone
 
 router = APIRouter(dependencies=[Depends(limit_admin)])
 
@@ -1033,6 +1039,13 @@ def admin_accept_cancellation(
     current_admin: User = Depends(get_current_admin),
 ):
     """Staff accepts a cancellation request and voids the ticket."""
+    from APIs.bookings import (
+        _booking_is_cancelled,
+        _booking_ticket_used,
+        _lookup_booking_row,
+        _serialize_booking,
+        finalize_booking_cancellation,
+    )
     booking = _lookup_booking_row(db, booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")

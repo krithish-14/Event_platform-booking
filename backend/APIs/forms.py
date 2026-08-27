@@ -16,7 +16,17 @@ from pydantic import BaseModel, EmailStr, field_validator
 from Models import get_db, FormDefinition, FormSubmission, EventRegistrationForm
 from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.user import User
-from Utils.text_sanitize import pick_attendee_identity
+
+try:
+	from Utils.text_sanitize import pick_attendee_identity
+except ImportError:
+	def pick_attendee_identity(*, names=(), emails=(), phones=()):
+		email = next((str(v).strip() for v in emails if v and "@" in str(v)), "")
+		name = next((str(v).strip() for v in names if v), "") or (
+			email.split("@")[0].replace(".", " ").title() if email else "Guest"
+		)
+		phone = next((str(v).strip() for v in phones if v), "")
+		return name, email, phone
 
 logger = logging.getLogger("jod")
 

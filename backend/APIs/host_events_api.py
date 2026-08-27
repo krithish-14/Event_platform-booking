@@ -47,7 +47,18 @@ from Utils.categories import (
     is_allowed_image_filename,
     normalize_category,
 )
-from Utils.text_sanitize import sanitize_text, pick_attendee_identity
+from Utils.text_sanitize import sanitize_text
+
+try:
+    from Utils.text_sanitize import pick_attendee_identity
+except ImportError:
+    def pick_attendee_identity(*, names=(), emails=(), phones=()):
+        email = next((str(v).strip() for v in emails if v and "@" in str(v)), "")
+        name = next((str(v).strip() for v in names if v), "") or (
+            email.split("@")[0].replace(".", " ").title() if email else "Guest"
+        )
+        phone = next((str(v).strip() for v in phones if v), "")
+        return name, email, phone
 
 router = APIRouter()
 

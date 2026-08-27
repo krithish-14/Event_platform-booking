@@ -1,8 +1,7 @@
 """Strip dangerous markup from user-supplied text before persistence."""
 
-from __future__ import annotations
-
 import re
+from typing import Optional, Tuple
 
 _SCRIPT_RE = re.compile(r"<\s*/?\s*script[^>]*>", re.IGNORECASE)
 _EVENT_RE = re.compile(r"\son[a-z]+\s*=", re.IGNORECASE)
@@ -10,7 +9,7 @@ _JS_URL_RE = re.compile(r"javascript\s*:", re.IGNORECASE)
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
-def sanitize_text(value: str | None, *, max_length: int = 4000) -> str:
+def sanitize_text(value: Optional[str] = None, *, max_length: int = 4000) -> str:
     text = _CTRL_RE.sub("", str(value or "")).strip()
     text = _SCRIPT_RE.sub("", text)
     text = _EVENT_RE.sub(" ", text)
@@ -20,7 +19,7 @@ def sanitize_text(value: str | None, *, max_length: int = 4000) -> str:
     return text
 
 
-def sanitize_url(value: str | None) -> str:
+def sanitize_url(value: Optional[str] = None) -> str:
     text = sanitize_text(value, max_length=2000)
     if not text:
         return ""
@@ -36,8 +35,8 @@ _GARBAGE_SYMBOLS_RE = re.compile(r"[%$&#*!?=^+]{2,}")
 _LONG_DIGIT_RUN_RE = re.compile(r"\d{5,}")
 
 
-def looks_like_person_name(value: str | None) -> bool:
-    """True for a readable name, false for form junk like 'fjweu…^%$%%'."""
+def looks_like_person_name(value: Optional[str] = None) -> bool:
+    """True for a readable name, false for form junk with symbols or long digit runs."""
     text = str(value or "").strip()
     if len(text) < 2 or len(text) > 80 or "@" in text:
         return False
@@ -50,12 +49,12 @@ def looks_like_person_name(value: str | None) -> bool:
     return True
 
 
-def looks_like_phone(value: str | None) -> bool:
+def looks_like_phone(value: Optional[str] = None) -> bool:
     digits = re.sub(r"\D", "", str(value or ""))
     return 8 <= len(digits) <= 15
 
 
-def looks_like_email(value: str | None) -> bool:
+def looks_like_email(value: Optional[str] = None) -> bool:
     text = str(value or "").strip()
     if "@" not in text or " " in text:
         return False
@@ -63,13 +62,13 @@ def looks_like_email(value: str | None) -> bool:
     return bool(local) and "." in domain
 
 
-def name_from_email(email: str | None) -> str:
+def name_from_email(email: Optional[str] = None) -> str:
     local = str(email or "").split("@")[0].strip()
     cleaned = re.sub(r"[._+-]+", " ", local).strip()
     return cleaned.title() if cleaned else "Guest"
 
 
-def pick_attendee_identity(*, names=(), emails=(), phones=()) -> tuple[str, str, str]:
+def pick_attendee_identity(*, names=(), emails=(), phones=()) -> Tuple[str, str, str]:
     """Prefer account/booking identity over raw host-form answers."""
     email = next((str(v).strip() for v in emails if looks_like_email(v)), "")
     name = next((str(v).strip() for v in names if looks_like_person_name(v)), "")
