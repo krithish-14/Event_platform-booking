@@ -291,7 +291,7 @@ def get_form_definition(
 			"theme_json": {
 				"primary_color": "#2563eb",
 				"bg_color": "#f8fafc",
-				"font_family": "Outfit",
+				"font_family": "Grift",
 				"border_radius": "8px"
 			}
 		}
@@ -307,7 +307,7 @@ def get_form_definition(
 		"theme_json": form.theme_json or {
 			"primary_color": "#2563eb",
 			"bg_color": "#f8fafc",
-			"font_family": "Outfit",
+			"font_family": "Grift",
 			"border_radius": "8px"
 		}
 	}

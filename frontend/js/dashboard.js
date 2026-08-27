@@ -415,13 +415,17 @@
 				? `ticket-details.html?id=${bookingId}`
 				: (eventId ? `event-details.html?id=${eventId}` : "orders.html");
 			const actionLabel = b.booking_id ? "View" : "Open";
+			const hideActions = cancelled || isCheckedIn(b);
+			const actionCell = hideActions
+				? ""
+				: `<a class="view-booking-btn" href="${href}">${actionLabel}</a>`;
 			return `
 				<tr class="${cancelled ? "is-cancelled" : ""}">
 					<td style="font-weight:600;color:var(--foreground);">${escapeHtml(b.event_title || "Event")}</td>
 					<td>${escapeHtml(b.ticket_type || "Ticket")} (x${Number(b.quantity || 1)})</td>
 					<td style="font-weight:700;color:#16a34a;">₹${Number(b.total_price || 0).toLocaleString("en-IN")}</td>
 					<td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
-					<td><a class="view-booking-btn" href="${href}">${actionLabel}</a></td>
+					<td>${actionCell}</td>
 				</tr>`;
 		}).join("");
 

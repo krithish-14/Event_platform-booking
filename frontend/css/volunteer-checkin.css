@@ -1,3 +1,5 @@
+@import url('fonts.css?v=1');
+
 :root {
 	--vol-bg: #07111f;
 	--vol-card: #102033;
@@ -17,7 +19,7 @@ html, body.vol-body {
 	min-height: 100%;
 	background: var(--vol-bg);
 	color: var(--vol-text);
-	font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+	font-family: 'Grift', sans-serif;
 }
 
 .vol-shell {

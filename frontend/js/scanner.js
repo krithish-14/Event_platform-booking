@@ -255,7 +255,7 @@
 			<div class="history-item">
 				<div>
 					<div style="font-weight: 700; color: #fff;">${escHtml(res.event || "Ticket Scan")} &bull; ${escHtml(res.customer_name || "Guest")}</div>
-					<div style="font-size: 0.75rem; color: #9ca3af; font-family: monospace; margin-top: 0.15rem;">${escHtml(tokenStr)}</div>
+					<div style="font-size: 0.75rem; color: #9ca3af; font-family: inherit; margin-top: 0.15rem;">${escHtml(tokenStr)}</div>
 				</div>
 				<div style="text-align: right;">
 					<span class="badge-mini ${badgeClass}">${escHtml(badgeLabel)}</span>

@@ -3095,7 +3095,7 @@ async function initOrganizerDashboard() {
 			event_id: activeEventId,
 			organizer_email: email,
 			theme_color: "#2563eb",
-			font: "Inter",
+			font: "Grift",
 			banner_image: bannerImageUrl || undefined,
 			card_image: cardImageUrl || "",
 			gallery_images: galleryImageUrls.length ? galleryImageUrls : undefined,

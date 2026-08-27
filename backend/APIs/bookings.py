@@ -217,8 +217,76 @@ def _user_identity_keys(user) -> set:
     return keys
 
 
+CANCEL_REQUEST_STATUS = "CANCELLATION_REQUESTED"
+CANCELLED_BOOKING_STATUSES = ("CANCELLED", "CANCELED", "REFUNDED")
+
+
 def _booking_is_cancelled(booking) -> bool:
-    return (getattr(booking, "status", None) or "").upper() in ("CANCELLED", "CANCELED", "REFUNDED")
+    return (getattr(booking, "status", None) or "").upper() in CANCELLED_BOOKING_STATUSES
+
+
+def _booking_cancel_requested(booking) -> bool:
+    return (getattr(booking, "status", None) or "").upper() == CANCEL_REQUEST_STATUS
+
+
+def _booking_ticket_used(booking, db: Optional[Session] = None) -> bool:
+    tickets = _booking_tickets(booking, db=db)
+    for ticket in tickets:
+        status_now = (getattr(ticket, "ticket_status", None) or "").upper()
+        if status_now == "USED" or getattr(ticket, "used_at", None):
+            return True
+    return False
+
+
+def _mark_form_cancelled_for_booking(db: Session, booking) -> None:
+    """Free the attendee to buy again after the host confirms cancellation."""
+    email = (getattr(booking, "receiver_email", None) or "").lower().strip()
+    customer = getattr(booking, "customer", None)
+    if not email and customer is not None:
+        email = (getattr(customer, "email", None) or "").lower().strip()
+    event_compact = str(getattr(booking, "event_id", None) or "").replace("-", "").lower()
+    if not email:
+        return
+    try:
+        rows = (
+            db.query(FormSubmission)
+            .filter(func.lower(FormSubmission.user_email) == email)
+            .all()
+        )
+    except Exception:
+        _safe_db_rollback(db)
+        return
+    for row in rows:
+        stored = str(getattr(row, "event_id", None) or "").replace("-", "").lower()
+        if event_compact and stored and stored != event_compact:
+            continue
+        try:
+            db.execute(
+                text("UPDATE form_submissions SET status = :st WHERE id = :id"),
+                {"st": "cancelled", "id": row.id},
+            )
+            db.commit()
+        except Exception:
+            _safe_db_rollback(db)
+
+
+def finalize_booking_cancellation(db: Session, booking) -> Booking:
+    """Host-confirmed cancel: void tickets and let the attendee buy again."""
+    setattr(booking, "status", "CANCELLED")
+    try:
+        db.query(Ticket).filter(Ticket.booking_id == booking.booking_id).update(
+            {Ticket.ticket_status: "CANCELLED"}
+        )
+        db.commit()
+    except Exception:
+        _safe_db_rollback(db)
+        db.query(Ticket).filter(Ticket.booking_id == booking.booking_id).update(
+            {Ticket.ticket_status: "CANCELLED"}
+        )
+        db.commit()
+    db.refresh(booking)
+    _mark_form_cancelled_for_booking(db, booking)
+    return booking
 
 
 def _active_booking_for_event(db: Session, user, event_id):
@@ -878,37 +946,25 @@ def cancel_booking(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Cancel a booking by ID and invalidate tickets."""
-    try:
-        b_uuid = UUID(booking_id)
-        b = db.query(Booking).filter(Booking.booking_id == b_uuid).first()
-    except Exception:
-        b = db.query(Booking).filter(Booking.booking_id == booking_id).first()
-
+    """Attendee cancellation request. The host must confirm before the ticket is voided."""
+    b = _lookup_booking_row(db, booking_id)
     if not b:
         raise HTTPException(status_code=404, detail="Booking not found.")
     _assert_booking_owner(b, current_user)
 
-    if (b.status or "").upper() in ("CANCELLED", "CANCELED"):
-        b_full = (
-            db.query(Booking)
-            .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-            .filter(Booking.booking_id == b.booking_id)
-            .first()
-        )
-        return _serialize_booking(b_full or b, db=db)
+    if _booking_is_cancelled(b) or _booking_cancel_requested(b):
+        return _serialize_booking(b, db=db)
 
-    setattr(b, "status", "CANCELLED")
-    db.query(Ticket).filter(Ticket.booking_id == b.booking_id).update({Ticket.ticket_status: "CANCELLED"})
+    if _booking_ticket_used(b, db=db):
+        raise HTTPException(
+            status_code=400,
+            detail="This ticket is already checked in and cannot be cancelled.",
+        )
+
+    setattr(b, "status", CANCEL_REQUEST_STATUS)
     db.commit()
     db.refresh(b)
-
-    b_full = (
-        db.query(Booking)
-        .options(joinedload(Booking.event), joinedload(Booking.customer), joinedload(Booking.tickets))
-        .filter(Booking.booking_id == b.booking_id)
-        .first()
-    )
+    b_full = _lookup_booking_row(db, b.booking_id)
     return _serialize_booking(b_full or b, db=db)
 
 

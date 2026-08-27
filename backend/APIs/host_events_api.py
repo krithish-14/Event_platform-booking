@@ -755,6 +755,38 @@ def _tickets_for_event(db: Session, event_mgt: EventManagement) -> list:
     return list(found.values())
 
 
+def _bookings_for_host_event(db: Session, event_mgt: EventManagement) -> list:
+    from Models.booking import Booking
+    from sqlalchemy.orm import joinedload
+
+    clauses = []
+    for eid in _event_public_ids(db, event_mgt):
+        clauses.extend(_guid_equals_clauses(Booking.event_id, eid))
+    if not clauses:
+        return []
+    try:
+        rows = (
+            db.query(Booking)
+            .options(joinedload(Booking.customer), joinedload(Booking.tickets), joinedload(Booking.event))
+            .filter(or_(*clauses))
+            .all()
+        )
+    except Exception:
+        db.rollback()
+        return []
+    found = {str(booking.booking_id): booking for booking in rows}
+    return list(found.values())
+
+
+def _host_event_id_compacts(db: Session, event_mgt: EventManagement) -> set:
+    return {str(eid).replace("-", "").lower() for eid in _event_public_ids(db, event_mgt) if eid}
+
+
+def _booking_on_host_event(db: Session, booking, event_mgt: EventManagement) -> bool:
+    compact = str(getattr(booking, "event_id", "") or "").replace("-", "").lower()
+    return bool(compact) and compact in _host_event_id_compacts(db, event_mgt)
+
+
 def _ticket_matches_scan(ticket, raw: str, needle: str) -> bool:
     token = (ticket.qr_token or "").strip()
     if raw and token == raw:
@@ -1433,7 +1465,7 @@ class SaveEventDesignRequest(BaseModel):
     card_image: Optional[str] = None
     logo: Optional[str] = None
     theme_color: Optional[str] = "#2563eb"
-    font: Optional[str] = "Inter"
+    font: Optional[str] = "Grift"
     gallery_images: Optional[List[Any]] = None
     about_event: Optional[str] = None
     highlights: Optional[str] = None
@@ -2542,6 +2574,154 @@ def save_registration_checkin(
         "attendee_name": checkin.attendee_name,
         "attendee_email": checkin.attendee_email,
         **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
+    }
+
+
+def _serialize_cancellation_request(db: Session, booking, event_mgt: EventManagement) -> dict:
+    from Models.payment_proof import PaymentProof
+    from sqlalchemy import func
+
+    email = (getattr(booking, "receiver_email", None) or "").lower().strip()
+    customer = getattr(booking, "customer", None)
+    if not email and customer is not None:
+        email = (getattr(customer, "email", None) or "").lower().strip()
+    name = (
+        getattr(booking, "receiver_name", None)
+        or (getattr(customer, "full_name", None) if customer is not None else None)
+        or (getattr(customer, "username", None) if customer is not None else None)
+        or "Guest"
+    )
+    phone = getattr(booking, "receiver_phone", None) or (
+        getattr(customer, "phone", None) if customer is not None else None
+    )
+    attendee_form = {}
+    for row in _form_submissions_for_event(db, event_mgt):
+        row_email = (getattr(row, "user_email", None) or "").lower().strip()
+        if email and row_email == email:
+            answers = getattr(row, "answers_json", None)
+            if isinstance(answers, str):
+                try:
+                    import json
+                    answers = json.loads(answers)
+                except Exception:
+                    answers = {}
+            if not isinstance(answers, dict):
+                answers = {}
+            attendee_form = {
+                "submission_id": row.id,
+                "status": row.status,
+                "submitted_at": row.submission_time.isoformat() if row.submission_time else None,
+                "answers": {k: v for k, v in answers.items() if not str(k).startswith("_")},
+            }
+            break
+
+    payment_form = {
+        "payment_id": getattr(booking, "payment_id", None),
+        "payment_mode": getattr(booking, "payment_mode", None),
+        "total_price": getattr(booking, "total_price", None),
+        "gst_amount": getattr(booking, "gst_amount", None),
+        "ticket_type": getattr(booking, "ticket_type", None),
+        "quantity": getattr(booking, "quantity", None),
+        "booked_at": booking.booked_at.isoformat() if booking.booked_at else None,
+    }
+    if email:
+        try:
+            proofs = (
+                db.query(PaymentProof)
+                .filter(func.lower(PaymentProof.attendee_email) == email)
+                .order_by(PaymentProof.created_at.desc())
+                .all()
+            )
+        except Exception:
+            db.rollback()
+            proofs = []
+        event_compact = _host_event_id_compacts(db, event_mgt)
+        for proof in proofs:
+            proof_compact = str(getattr(proof, "event_id", "") or "").replace("-", "").lower()
+            if proof_compact and proof_compact not in event_compact:
+                continue
+            payment_form.update({
+                "proof_id": proof.id,
+                "bank_name": proof.bank_name,
+                "transaction_id": proof.transaction_id,
+                "amount": proof.amount,
+                "attendee_phone": proof.attendee_phone,
+                "screenshot_file_id": str(proof.screenshot_file_id) if proof.screenshot_file_id else None,
+                "proof_status": proof.status,
+            })
+            break
+
+    return {
+        "booking_id": str(booking.booking_id),
+        "status": booking.status,
+        "attendee_name": name,
+        "attendee_email": email,
+        "attendee_phone": phone or "",
+        "ticket_type": booking.ticket_type,
+        "quantity": booking.quantity,
+        "total_price": booking.total_price,
+        "requested_at": booking.booked_at.isoformat() if booking.booked_at else None,
+        "attendee_form": attendee_form,
+        "payment_form": payment_form,
+    }
+
+
+@router.get("/cancellation-requests")
+def list_cancellation_requests(
+    email: str = Query(..., description="Organizer email address"),
+    event_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Pending attendee cancellation requests for the host's current event."""
+    event, _, _ = resolve_or_create_event(
+        db, email, event_id, current_user, create_if_missing=False
+    )
+    if not event:
+        return {"requests": []}
+    rows = [
+        booking for booking in _bookings_for_host_event(db, event)
+        if (booking.status or "").upper() == "CANCELLATION_REQUESTED"
+    ]
+    rows.sort(key=lambda b: b.booked_at or datetime.min, reverse=True)
+    return {"requests": [_serialize_cancellation_request(db, booking, event) for booking in rows]}
+
+
+@router.post("/bookings/{booking_id}/cancel")
+def host_confirm_ticket_cancellation(
+    booking_id: str,
+    email: str = Query(..., description="Organizer email address"),
+    event_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Host confirms an attendee cancellation request and voids the ticket."""
+    from APIs.bookings import (
+        finalize_booking_cancellation,
+        _booking_is_cancelled,
+        _booking_ticket_used,
+        _lookup_booking_row,
+        _serialize_booking,
+    )
+
+    event, _, _ = resolve_or_create_event(
+        db, email, event_id, current_user, create_if_missing=False
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="No event found for this host.")
+    booking = _lookup_booking_row(db, booking_id)
+    if not booking or not _booking_on_host_event(db, booking, event):
+        raise HTTPException(status_code=404, detail="Booking not found for this event.")
+    if _booking_is_cancelled(booking):
+        return {"status": "success", "message": "Ticket already cancelled.", "booking": _serialize_booking(booking, db=db)}
+    if _booking_ticket_used(booking, db=db):
+        raise HTTPException(status_code=400, detail="This ticket is already checked in and cannot be cancelled.")
+    booking = finalize_booking_cancellation(db, booking)
+    refreshed = _lookup_booking_row(db, booking.booking_id) or booking
+    return {
+        "status": "success",
+        "message": "Ticket cancelled. The attendee can buy again.",
+        "booking": _serialize_booking(refreshed, db=db),
     }
 
 

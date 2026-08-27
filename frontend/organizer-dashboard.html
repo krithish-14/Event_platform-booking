@@ -35,7 +35,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Organizer Event Dashboard - JOD Events</title>
 		<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
 		<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=26" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=27" />
 		<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -1244,6 +1244,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								</div>
 							</div>
 
+							<div id="cancellationRequestsCard" style="background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; padding:1.1rem 1.2rem; margin-bottom:1.2rem;">
+								<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:0.85rem;">
+									<div>
+										<h3 style="margin:0 0 0.25rem; font-size:1.05rem; font-weight:800; color:#9a3412;">Cancellation requests</h3>
+										<p style="margin:0; font-size:0.85rem; color:#c2410c;">Review the attendee form and payment form, then cancel the ticket.</p>
+									</div>
+									<span id="cancellationRequestCount" style="background:#fff; border:1px solid #fdba74; color:#c2410c; font-weight:800; font-size:0.78rem; padding:0.2rem 0.7rem; border-radius:999px;">0 pending</span>
+								</div>
+								<div id="cancellationRequestsBody" style="overflow:auto;">
+									<p style="margin:0; color:#9a3412; font-size:0.88rem;">No cancellation requests yet.</p>
+								</div>
+							</div>
+
 							<!-- Submissions Table -->
 							<div class="builder-panel-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: auto;">
 								<table id="submissionsDataTable" style="width: 100%; min-width: 920px; border-collapse: collapse; font-size: 0.88rem;">
@@ -2007,8 +2020,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		<script src="js/auth.js?v=33"></script>
 		<script src="js/profile.js?v=12"></script>
 		<script src="js/script.js?v=27"></script>
-		<script src="js/form-builder.js?v=20260822_v12"></script>
-		<script src="js/organizer-dashboard.js?v=20260827_v45"></script>
+		<script src="js/form-builder.js?v=20260827_v13"></script>
+		<script src="js/organizer-dashboard.js?v=20260827_v46"></script>
 	</body>
 </html>
 

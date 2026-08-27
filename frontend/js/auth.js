@@ -626,45 +626,11 @@ window.JodAuth = (() => {
 					}, 900);
 				}
 			} catch (err) {
-				const online = window.JodHealth
-					? await window.JodHealth.checkBackendHealth(2500)
-					: false;
-				if (online) {
-					showAlert(alertEl, "error", "Could not complete login. Please try again.");
-				} else if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function") {
-					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
-					window.JodHealth.retryConnection({
-						onSuccess: () => {
-							hideAlert(alertEl);
-							setLoading(submitBtn, false);
-							doLogin();
-						},
-						onError: () => {
-							showAlert(alertEl, "error", "Could not connect to server. Please try again.");
-						}
-					});
-				} else {
-					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + getApiBase());
-				}
+				showAlert(alertEl, "error", "Could not complete login. Please try again.");
 			} finally {
 				setLoading(submitBtn, false);
 			}
 		}
-
-		// Proactive page-load health check for login form
-		if (window.JodHealth) {
-			window.JodHealth.checkBackendHealth().then((isOnline) => {
-				if (!isOnline) {
-					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
-					window.JodHealth.retryConnection({
-						onSuccess: () => {
-							hideAlert(alertEl);
-						}
-					});
-				}
-			});
-		}
-
 
 		// Click handler on the button (type="button") — never triggers form submit
 		submitBtn.addEventListener("click", doLogin);
@@ -996,7 +962,6 @@ window.JodAuth = (() => {
 		let emailCheckSeq = 0;
 		let usernameCheckSeq = 0;
 		let signupBusy = false;
-		let signupAutoRetryUsed = false;
 
 		const emailInput = signupForm.querySelector("#signupEmail");
 		const usernameInput = signupForm.querySelector("#signupUsername");
@@ -1221,30 +1186,7 @@ window.JodAuth = (() => {
 					finishSignupSuccess({ access_token: getToken(), user: existing });
 					return;
 				}
-				const online = window.JodHealth
-					? await window.JodHealth.checkBackendHealth(2500)
-					: false;
-				if (online) {
-					showAlert(alertEl, "error", "Could not complete signup. Please try again.");
-					return;
-				}
-				if (window.JodHealth && typeof window.JodHealth.showFriendlyError === "function" && !signupAutoRetryUsed) {
-					signupAutoRetryUsed = true;
-					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
-					window.JodHealth.retryConnection({
-						onSuccess: () => {
-							hideAlert(alertEl);
-							signupBusy = false;
-							setLoading(submitBtn, false);
-							doSignup();
-						},
-						onError: () => {
-							showAlert(alertEl, "error", "Could not connect to server. Please try again.");
-						}
-					});
-				} else {
-					showAlert(alertEl, "error", "Network error: Unable to connect to backend server at " + getApiBase());
-				}
+				showAlert(alertEl, "error", "Could not complete signup. Please try again.");
 			} finally {
 				signupBusy = false;
 				setLoading(submitBtn, false);
@@ -1252,20 +1194,6 @@ window.JodAuth = (() => {
 		}
 
 		signupForm.addEventListener("submit", doSignup);
-
-		// Proactive page-load health check for signup form
-		if (window.JodHealth) {
-			window.JodHealth.checkBackendHealth().then((isOnline) => {
-				if (!isOnline) {
-					window.JodHealth.showFriendlyError(alertEl, "Starting server, please wait…", "info");
-					window.JodHealth.retryConnection({
-						onSuccess: () => {
-							hideAlert(alertEl);
-						}
-					});
-				}
-			});
-		}
 
 		// Click handler on button (type="button") — decoupled from form submit entirely
 		submitBtn.addEventListener("click", doSignup);
@@ -1338,6 +1266,8 @@ window.JodAuth = (() => {
 			await handleGoogleCredentialResponse({ code }, alertEl, btnEl);
 			return;
 		}
+
+		if (!btnEl) return;
 
 		try {
 			const res = await fetch(`${getApiBase()}/api/auth/google/config`);

@@ -4,7 +4,7 @@
 	background-color: #f1f5f9;
 	min-height: calc(100vh - 120px);
 	padding: 6.5rem 1rem 4rem 1rem;
-	font-family: 'Grift', 'Outfit', system-ui, -apple-system, sans-serif;
+	font-family: 'Grift', sans-serif;
 	color: #1e293b;
 }
 

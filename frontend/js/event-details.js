@@ -403,7 +403,7 @@ function renderEventDOM(event) {
                     ? EP.escapeHtml(EP.resolveImage(p.image_url || p.photo_url))
                     : heroFb;
                 return `
-                    <div class="performer-card">
+                <div class="performer-card">
                     <img class="performer-avatar" src="${photo}" alt="${name}" onerror="this.src='${heroFb}'" />
                     <h3 class="performer-name">${name}</h3>
                     ${role ? `<p class="performer-role">${role}</p>` : ''}
@@ -824,6 +824,7 @@ async function fetchRegistrationStatus(eventId) {
         ? window.JodAuth.isLoggedIn()
         : false;
     let status = { state: "new" };
+    let apiOk = false;
     if (loggedIn) {
         try {
             const res = await authFetch(
@@ -831,12 +832,14 @@ async function fetchRegistrationStatus(eventId) {
                 { allowGuest: true }
             );
             if (res.ok) {
+                apiOk = true;
                 const data = await res.json();
                 if (data && data.state) status = data;
             }
         } catch (_) {}
     }
     if (status.state === "ticket" && status.booking_id) return status;
+    if (loggedIn && apiOk && status.state !== "ticket") return status;
     const mine = loggedIn ? await fetchMyBookingForEvent(eventId) : null;
     if (mine) {
         const row = ticketStateFromBooking(mine);

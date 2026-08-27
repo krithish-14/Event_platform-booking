@@ -1,44 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&display=swap');
-
-@font-face {
-	font-family: 'Grift';
-	src: url('../fonts/Grift-Regular.otf') format('opentype');
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-}
-
-@font-face {
-	font-family: 'Grift';
-	src: url('../fonts/Grift-Bold.otf') format('opentype');
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
-}
-
-@font-face {
-	font-family: 'Grift';
-	src: url('../fonts/Grift-ExtraBold.otf') format('opentype');
-	font-weight: 800;
-	font-style: normal;
-	font-display: swap;
-}
-
-@font-face {
-	font-family: 'Grift';
-	src: url('../fonts/Grift-Light.otf') format('opentype');
-	font-weight: 300;
-	font-style: normal;
-	font-display: swap;
-}
-
-@font-face {
-	font-family: 'Grift';
-	src: url('../fonts/Grift-Black.otf') format('opentype');
-	font-weight: 900;
-	font-style: normal;
-	font-display: swap;
-}
+@import url('fonts.css?v=1');
 
 :root {
 	--background: #fffefa;
@@ -56,8 +16,8 @@
 	--border: #e5dfd5;
 	--dark: #25211c;
 	--dark-soft: #332b22;
-	--display: 'Grift', 'Outfit', sans-serif;
-	--body: 'Grift', 'Outfit', sans-serif;
+	--display: 'Grift', sans-serif;
+	--body: 'Grift', sans-serif;
 	--shadow: 0 20px 60px -20px rgba(38, 35, 31, .35);
 	--glow: 0 10px 40px -12px rgba(255, 117, 8, .55);
 	--gold-shadow: 0 10px 40px -12px rgba(255, 161, 54, .5);
@@ -105,6 +65,16 @@ body {
 	font-family: var(--body);
 	font-weight: 400;
 	-webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea {
+	font-family: inherit;
+}
+
+.leaflet-container,
+.leaflet-container a,
+.leaflet-bar a {
+	font-family: 'Grift', sans-serif !important;
 }
 
 body.modal-open {
@@ -3466,7 +3436,7 @@ body.sub-page .policy-hero {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-family: Georgia, 'Times New Roman', serif;
+	font-family: inherit;
 	font-weight: 700;
 	font-style: italic;
 	font-size: 0.95rem;

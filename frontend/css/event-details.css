@@ -29,7 +29,7 @@
 body.event-details-page {
     background: var(--background) !important;
     color: var(--text-primary);
-    font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Grift', sans-serif;
     margin: 0;
     padding: 0;
     line-height: 1.6;
@@ -104,7 +104,7 @@ body.category-theme-wedding {
 }
 
 body.category-theme-wedding .event-main-title {
-    font-family: 'Playfair Display', Georgia, serif;
+    font-family: 'Grift', sans-serif;
     letter-spacing: 0.01em;
 }
 

@@ -73,7 +73,7 @@
 	color: rgba(255, 255, 255, .6);
 	font-size: .875rem;
 	font-weight: 600;
-	font-family: monospace;
+	font-family: inherit;
 }
 
 /* ── BookMyShow Style M-Ticket Wrapper ───────────────────── */

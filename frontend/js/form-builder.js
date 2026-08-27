@@ -48,6 +48,15 @@ function initFormBuilder() {
 		return token ? { "Authorization": `Bearer ${token}` } : {};
 	}
 
+	function authFetch(url, options) {
+		const opts = Object.assign({ credentials: "include", cache: "no-store" }, options || {});
+		opts.headers = Object.assign({}, getAuthHeaders(), opts.headers || {});
+		if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+			return window.JodAuth.fetchAuth(url, opts);
+		}
+		return fetch(url, opts);
+	}
+
 	async function syncRegistrationFormToHost(eventId, schema, theme, published) {
 		if (!email) return false;
 		const formMeta = {
@@ -1202,10 +1211,12 @@ function initFormBuilder() {
 			}
 			allSubmissionsData = Array.isArray(data.submissions) ? data.submissions : [];
 			applySubmissionFilters();
+			loadCancellationRequests();
 		} catch (e) {
 			console.log("Could not load submissions.");
 			allSubmissionsData = [];
 			renderSubmissionsTable([]);
+			loadCancellationRequests();
 		}
 	}
 
@@ -1387,6 +1398,158 @@ function initFormBuilder() {
 			});
 			submissionsTableBody.appendChild(tr);
 		});
+	}
+
+	const cancellationRequestsBody = document.getElementById("cancellationRequestsBody");
+	const cancellationRequestCount = document.getElementById("cancellationRequestCount");
+	let cancellationRequests = [];
+
+	function formatMoney(value) {
+		return `₹${Number(value || 0).toLocaleString("en-IN")}`;
+	}
+
+	function openDetailModal(title, rows) {
+		const modal = ensureAnswersModal();
+		const titleEl = document.getElementById("registrationAnswersTitle");
+		const body = document.getElementById("registrationAnswersBody");
+		if (titleEl) titleEl.textContent = title;
+		if (body) {
+			const pairs = (rows || []).filter((row) => row && row[0]);
+			body.innerHTML = pairs.length
+				? pairs.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value == null || value === "" ? "—" : value)}</dd>`).join("")
+				: `<dt>Details</dt><dd>No data stored for this request.</dd>`;
+		}
+		modal.removeAttribute("hidden");
+	}
+
+	function attendeeFormRows(req) {
+		const form = req.attendee_form || {};
+		const answers = form.answers || {};
+		const rows = [
+			["Name", req.attendee_name],
+			["Email", req.attendee_email],
+			["Phone", req.attendee_phone],
+			["Form status", form.status],
+			["Submitted", form.submitted_at]
+		];
+		Object.keys(answers).forEach((key) => {
+			const val = answers[key];
+			rows.push([key, Array.isArray(val) ? val.join(", ") : val]);
+		});
+		return rows;
+	}
+
+	function paymentFormRows(req) {
+		const pay = req.payment_form || {};
+		return [
+			["Ticket", req.ticket_type],
+			["Quantity", req.quantity],
+			["Amount", formatMoney(pay.total_price != null ? pay.total_price : req.total_price)],
+			["GST", pay.gst_amount != null ? formatMoney(pay.gst_amount) : "—"],
+			["Payment mode", pay.payment_mode],
+			["Payment ID", pay.payment_id],
+			["Bank", pay.bank_name],
+			["Transaction ID", pay.transaction_id],
+			["Proof status", pay.proof_status],
+			["Booked at", pay.booked_at]
+		];
+	}
+
+	async function hostCancelTicket(bookingId, btn) {
+		if (!bookingId) return;
+		if (!window.confirm("Cancel this ticket? The attendee will be able to buy again, and this ticket QR will stop working.")) {
+			return;
+		}
+		if (btn) btn.disabled = true;
+		const eventId = resolveActiveEventId() || "";
+		const qs = new URLSearchParams();
+		if (email) qs.set("email", email);
+		if (eventId) qs.set("event_id", eventId);
+		try {
+			const res = await authFetch(`${getHostEventsApiBase()}/bookings/${encodeURIComponent(bookingId)}/cancel?${qs.toString()}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" }
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(data.detail || "Could not cancel this ticket.");
+			await loadSubmissionsData();
+		} catch (err) {
+			alert(err.message || "Could not cancel this ticket.");
+			if (btn) btn.disabled = false;
+		}
+	}
+
+	function renderCancellationRequests(items) {
+		if (cancellationRequestCount) {
+			const n = (items || []).length;
+			cancellationRequestCount.textContent = n === 1 ? "1 pending" : `${n} pending`;
+		}
+		if (!cancellationRequestsBody) return;
+		if (!items || !items.length) {
+			cancellationRequestsBody.innerHTML = `<p style="margin:0; color:#9a3412; font-size:0.88rem;">No cancellation requests yet.</p>`;
+			return;
+		}
+		cancellationRequestsBody.innerHTML = `
+			<table style="width:100%; min-width:760px; border-collapse:collapse; font-size:0.86rem; background:#fff; border-radius:10px; overflow:hidden;">
+				<thead>
+					<tr style="text-align:left; color:#9a3412; font-weight:700; border-bottom:1px solid #fed7aa;">
+						<th style="padding:0.7rem 0.85rem;">Attendee</th>
+						<th style="padding:0.7rem 0.85rem;">Ticket</th>
+						<th style="padding:0.7rem 0.85rem;">Amount</th>
+						<th style="padding:0.7rem 0.85rem; text-align:right;">Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					${items.map((req) => `
+						<tr data-cancel-booking="${escapeHtml(req.booking_id)}" style="border-bottom:1px solid #ffedd5;">
+							<td style="padding:0.75rem 0.85rem;">
+								<div style="font-weight:800; color:#0f172a;">${escapeHtml(req.attendee_name || "—")}</div>
+								<div style="color:#64748b;">${escapeHtml(req.attendee_email || "")}</div>
+							</td>
+							<td style="padding:0.75rem 0.85rem; color:#334155;">${escapeHtml(req.ticket_type || "Ticket")} (x${Number(req.quantity || 1)})</td>
+							<td style="padding:0.75rem 0.85rem; font-weight:700; color:#0f172a;">${formatMoney(req.total_price)}</td>
+							<td style="padding:0.75rem 0.85rem; text-align:right; white-space:nowrap;">
+								<button type="button" class="btn-cancel-attendee-form" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; font-weight:700; font-size:0.76rem; padding:0.32rem 0.6rem; border-radius:6px; cursor:pointer; margin:0 0.15rem 0.25rem 0;">Attendees form</button>
+								<button type="button" class="btn-cancel-payment-form" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; font-weight:700; font-size:0.76rem; padding:0.32rem 0.6rem; border-radius:6px; cursor:pointer; margin:0 0.15rem 0.25rem 0;">Payment form</button>
+								<button type="button" class="btn-cancel-ticket" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-weight:700; font-size:0.76rem; padding:0.32rem 0.6rem; border-radius:6px; cursor:pointer; margin:0 0 0.25rem 0;">Cancel the ticket</button>
+							</td>
+						</tr>
+					`).join("")}
+				</tbody>
+			</table>
+		`;
+		cancellationRequestsBody.querySelectorAll("tr[data-cancel-booking]").forEach((tr) => {
+			const bookingId = tr.getAttribute("data-cancel-booking");
+			const req = items.find((row) => String(row.booking_id) === String(bookingId));
+			if (!req) return;
+			tr.querySelector(".btn-cancel-attendee-form")?.addEventListener("click", () => {
+				openDetailModal(`Attendees form: ${req.attendee_name || req.attendee_email || "attendee"}`, attendeeFormRows(req));
+			});
+			tr.querySelector(".btn-cancel-payment-form")?.addEventListener("click", () => {
+				openDetailModal(`Payment form: ${req.attendee_name || req.attendee_email || "attendee"}`, paymentFormRows(req));
+			});
+			tr.querySelector(".btn-cancel-ticket")?.addEventListener("click", (e) => {
+				hostCancelTicket(bookingId, e.currentTarget);
+			});
+		});
+	}
+
+	async function loadCancellationRequests() {
+		if (!cancellationRequestsBody) return;
+		const eventId = resolveActiveEventId() || "";
+		try {
+			const qs = new URLSearchParams();
+			if (email) qs.set("email", email);
+			if (eventId) qs.set("event_id", eventId);
+			const res = await authFetch(`${getHostEventsApiBase()}/cancellation-requests?${qs.toString()}`);
+			if (!res.ok) throw new Error("Could not load cancellation requests");
+			const data = await res.json();
+			cancellationRequests = Array.isArray(data.requests) ? data.requests : [];
+			renderCancellationRequests(cancellationRequests);
+		} catch (_) {
+			cancellationRequests = [];
+			renderCancellationRequests([]);
+		}
 	}
 
 	if (submissionsSearch) {

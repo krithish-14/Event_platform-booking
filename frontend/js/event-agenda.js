@@ -94,7 +94,7 @@
 			</li>
 		`).join("");
 		return `
-			<section class="ticket-print-agenda-page" style="max-width:640px;margin:24px auto 0;color:#111827;font-family:Outfit,Inter,system-ui,sans-serif;page-break-before:always;break-before:page;">
+			<section class="ticket-print-agenda-page" style="max-width:640px;margin:24px auto 0;color:#111827;font-family:Grift,sans-serif;page-break-before:always;break-before:page;">
 				<p style="margin:0 0 6px;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#ff7508;">Event roadmap</p>
 				<h1 style="margin:0 0 6px;font-size:26px;font-weight:800;color:#111827;">${escapeHtml(eventTitle)}</h1>
 				<p style="margin:0 0 20px;color:#6b7280;font-size:14px;">${escapeHtml([startLabel, venue].filter(Boolean).join(" · "))}</p>

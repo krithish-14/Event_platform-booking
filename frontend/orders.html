@@ -35,7 +35,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 	<title>Your Orders | JOD Events</title>
 	<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
-	<link rel="stylesheet" href="css/style.css?v=50" />
+	<link rel="stylesheet" href="css/style.css?v=51" />
 	<link rel="stylesheet" href="css/responsive.css?v=49" />
 	<style>
 		/* ── Orders Page ─────────────────────────────────────── */
@@ -157,7 +157,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 			margin-bottom: .5rem;
 		}
 		.order-meta span { display: flex; align-items: center; gap: .35rem; }
-		.order-id { font-size: .78rem; color: #9ca3af; font-family: monospace; overflow-wrap: anywhere; }
+		.order-id { font-size: .78rem; color: #9ca3af; font-family: inherit; overflow-wrap: anywhere; }
 
 		.badge {
 			display: inline-flex;
@@ -172,6 +172,8 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		.badge-confirmed { background: rgba(34,197,94,.12); color: #16a34a; }
 		.badge-upcoming { background: rgba(255,117,8,.12); color: var(--primary); }
 		.badge-completed { background: rgba(107,114,128,.12); color: #4b5563; }
+		.badge-checkedin { background: #10b981; color: #fff; }
+		.badge-cancel-requested { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
 		.badge-cancelled { background: rgba(231,76,60,.15); color: #e74c3c; border: 1px solid #e74c3c; }
 
 		.order-action-btns {
@@ -398,11 +400,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		}
 
 		function isCancelledBooking(b) {
-			return (b.status || "").toUpperCase() === "CANCELLED" || (b.status || "").toUpperCase() === "CANCELED";
+			const status = String(b.status || "").toUpperCase();
+			return status === "CANCELLED" || status === "CANCELED" || status === "REFUNDED"
+				|| b.event_is_cancelled === true || String(b.event_is_cancelled || "").toLowerCase() === "true";
 		}
 
 		function isCheckedInBooking(b) {
-			return String(b.ticket_status || "").toUpperCase() === "USED";
+			if (isCancelledBooking(b)) return false;
+			if (b.used_at) return true;
+			const ticketStatus = String(b.ticket_status || "").toUpperCase().replace(/[_-]+/g, " ").trim();
+			return ticketStatus === "USED" || ticketStatus === "CHECKED IN";
+		}
+
+		function isCancellationRequested(b) {
+			return String(b.status || "").toUpperCase() === "CANCELLATION_REQUESTED";
 		}
 
 		function hasGeneratedTicket(b) {
@@ -416,8 +427,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			return hasGeneratedTicket(b) || isCheckedInBooking(b);
 		}
 
+		function canShowViewTicket(b) {
+			return !isCancelledBooking(b) && !isCheckedInBooking(b);
+		}
+
 		function canShowCancel(b) {
-			return !isCancelledBooking(b);
+			return canShowViewTicket(b) && !isCancellationRequested(b);
 		}
 
 		function hoursUntilEvent(b) {
@@ -451,15 +466,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					<p style="margin:0;color:#64748b;font-size:.9rem;">For help, contact JOD Events support at <strong>support@jodevents.com</strong> or <strong>+91 1800-563-383</strong>.</p>`;
 			} else {
 				body = `
-					<p style="margin:0 0 .85rem;color:#334155;line-height:1.55;">You are about to cancel your ticket for <strong>${escapeHtml(title)}</strong>. Please read the cancellation process before you confirm:</p>
+					<p style="margin:0 0 .85rem;color:#334155;line-height:1.55;">You are requesting cancellation for <strong>${escapeHtml(title)}</strong>. The event host will review this request before the ticket is cancelled.</p>
 					<ul style="margin:0 0 1rem;padding-left:1.15rem;color:#475569;font-size:.92rem;line-height:1.55;">
-						<li>Cancellation is allowed up to <strong>24 hours before showtime</strong>.</li>
-						<li>The QR code on this ticket will be invalidated and cannot be used for entry.</li>
+						<li>Requests are accepted up to <strong>24 hours before showtime</strong>.</li>
+						<li>Your QR stays valid until the host confirms cancellation.</li>
+						<li>After the host cancels, this ticket cannot be used for entry.</li>
 						<li>Refunds are processed to the original payment method, usually within 5–7 business days.</li>
-						<li>Convenience fees may be non-refundable as per the host cancellation policy.</li>
 					</ul>
-					<p style="margin:0;font-size:.85rem;color:#64748b;">By confirming, you agree to this cancellation process.</p>`;
-				actions += `<button type="button" id="orderCancelConfirm" style="background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);color:#fff;border:none;padding:.55rem 1.2rem;border-radius:8px;font-weight:700;cursor:pointer;">Confirm cancellation</button>`;
+					<p style="margin:0;font-size:.85rem;color:#64748b;">By confirming, you send this cancellation request to the host.</p>`;
+				actions += `<button type="button" id="orderCancelConfirm" style="background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);color:#fff;border:none;padding:.55rem 1.2rem;border-radius:8px;font-weight:700;cursor:pointer;">Send cancellation request</button>`;
 			}
 
 			const modal = document.createElement("div");
@@ -481,7 +496,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				const statusEl = document.getElementById("orderCancelStatus");
 				const confirmBtn = document.getElementById("orderCancelConfirm");
 				if (confirmBtn) confirmBtn.disabled = true;
-				if (statusEl) statusEl.textContent = "Cancelling your ticket…";
+				if (statusEl) statusEl.textContent = "Sending your cancellation request…";
 				try {
 					const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
 						? window.JodAuth.fetchAuth.bind(window.JodAuth)
@@ -490,9 +505,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						method: "POST"
 					});
 					const data = await res.json().catch(() => ({}));
-					if (!res.ok) throw new Error(data.detail || "Could not cancel this ticket.");
+					if (!res.ok) throw new Error(data.detail || "Could not send this cancellation request.");
 					const idx = allBookingsData.findIndex((b) => String(b.booking_id) === String(bookingId));
-					if (idx >= 0) allBookingsData[idx] = { ...allBookingsData[idx], ...data, status: "CANCELLED" };
+					if (idx >= 0) allBookingsData[idx] = { ...allBookingsData[idx], ...data, status: data.status || "CANCELLATION_REQUESTED" };
 					saveLocalBookingsCache(allBookingsData);
 					closeCancelBookingModal();
 					renderOrders(activeOrdersFilter);
@@ -563,23 +578,35 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				if (cancelled) {
 					statusBadge = `<span class="badge badge-cancelled">Cancelled</span>`;
 				} else if (isCheckedInBooking(b)) {
-					statusBadge = `<span class="badge" style="background:rgba(16,185,129,.15);color:#059669;border:1px solid #10b981;">Checked in</span>`;
+					statusBadge = `<span class="badge badge-checkedin">Checked in</span>`;
+				} else if (isCancellationRequested(b)) {
+					statusBadge = `<span class="badge badge-cancel-requested">Cancellation requested</span>`;
 				}
 
 				const dateStr = b.event_start_date ? new Date(b.event_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Date TBA";
 				const shortId = (b.booking_id || "00000000").substring(0, 8).toUpperCase();
 				const imgSrc = resolveOrderImage(b.card_image || b.image_url);
+				const showView = canShowViewTicket(b);
 				const showCancel = canShowCancel(b);
 
 				const ticketHref = b.qr_token
 					? `ticket-details.html?token=${encodeURIComponent(b.qr_token)}&id=${encodeURIComponent(b.booking_id)}`
 					: `ticket-details.html?id=${encodeURIComponent(b.booking_id)}`;
+				const detailsAttrs = showView
+					? ` style="cursor:pointer;" onclick="window.location.href='${ticketHref}'"`
+					: "";
+				const actionBtns = (showView || showCancel)
+					? `<div class="order-action-btns">
+								${showView ? `<a class="button button-sm button-primary" href="${ticketHref}">View Ticket &amp; QR 🎟️</a>` : ""}
+								${showCancel ? `<button type="button" class="btn-cancel-order" data-cancel-id="${escapeHtml(b.booking_id)}">Cancel</button>` : ""}
+							</div>`
+					: "";
 				html += `
 					<div class="order-card" data-status="${cancelled ? 'cancelled' : 'completed'}">
 						<div class="order-thumb">
 							<img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(b.event_title || 'Event Ticket')}" onerror="this.onerror=null;this.src=(window.JodConfig&&window.JodConfig.assetUrl?window.JodConfig.assetUrl('images/hero-event.jpg'):'https://assets.jodevents.com/images/hero-event.jpg')" />
 						</div>
-						<div class="order-details" style="cursor:pointer;" onclick="window.location.href='${ticketHref}'">
+						<div class="order-details"${detailsAttrs}>
 							${statusBadge}
 							<h3>${escapeHtml(b.event_title || 'Event Booking')}</h3>
 							<div class="order-meta">
@@ -593,10 +620,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						</div>
 						<div class="order-action">
 							<div class="order-price">₹${Number(b.total_price || 0).toLocaleString('en-IN')}</div>
-							<div class="order-action-btns">
-								<a class="button button-sm button-primary" href="${ticketHref}">View Ticket &amp; QR 🎟️</a>
-								${showCancel ? `<button type="button" class="btn-cancel-order" data-cancel-id="${escapeHtml(b.booking_id)}">Cancel</button>` : ""}
-							</div>
+							${actionBtns}
 						</div>
 					</div>`;
 			});

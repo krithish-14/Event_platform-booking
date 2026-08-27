@@ -423,7 +423,7 @@
 		if (window.JodAgenda && typeof window.JodAgenda.printDocumentHtml === "function") {
 			return window.JodAgenda.printDocumentHtml(bookingData && bookingData.agenda, meta);
 		}
-		return `<section class="ticket-print-agenda-page" style="max-width:640px;margin:24px auto 0;page-break-before:always;break-before:page;color:#111827;font-family:Outfit,Inter,system-ui,sans-serif;">
+		return `<section class="ticket-print-agenda-page" style="max-width:640px;margin:24px auto 0;page-break-before:always;break-before:page;color:#111827;font-family:Grift,sans-serif;">
 			<p style="margin:0 0 6px;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#ff7508;">Event roadmap</p>
 			<h1 style="margin:0 0 6px;font-size:26px;">${escapeHtml(eventTitle)}</h1>
 			<p style="margin:0 0 12px;color:#6b7280;">${escapeHtml([startLabel, venue].filter(Boolean).join(" · "))}</p>
@@ -465,11 +465,13 @@
 		if (collapsed) collapsed.classList.remove("collapsed");
 
 		doc.open();
+		const fontsHref = new URL("css/fonts.css?v=1", window.location.href).href;
 		doc.write(`<!DOCTYPE html>
 <html>
 <head>
 	<meta charset="UTF-8" />
 	<title>${printTitle}</title>
+	<link rel="stylesheet" href="${fontsHref}" />
 	<style>
 		@page { size: A4 portrait; margin: 12mm; }
 		html, body {
@@ -477,7 +479,7 @@
 			padding: 0;
 			background: #ffffff !important;
 			color: #111827;
-			font-family: Outfit, Inter, system-ui, sans-serif;
+			font-family: Grift, sans-serif;
 		}
 		body { display: block; padding: 8px; }
 		.print-ticket-page {

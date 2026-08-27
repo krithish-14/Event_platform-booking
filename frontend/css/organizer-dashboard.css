@@ -1,4 +1,5 @@
 /* Organizer Dashboard Styling matching exact user screenshot & rich UI design system */
+@import url('fonts.css?v=1');
 
 :root {
 	--dash-dark-bg: #111827;
@@ -20,13 +21,19 @@
 }
 
 body.dashboard-body {
-	font-family: 'Grift', 'Outfit', system-ui, -apple-system, sans-serif;
+	font-family: 'Grift', sans-serif;
 	background-color: var(--dash-main-bg);
 	color: var(--dash-text-dark);
 	height: 100vh;
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
+}
+
+.leaflet-container,
+.leaflet-container a,
+.leaflet-bar a {
+	font-family: 'Grift', sans-serif !important;
 }
 
 /* ── Top Navigation Bar ──────────────────────────────────────────────────────── */
