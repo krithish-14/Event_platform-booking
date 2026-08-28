@@ -30,6 +30,7 @@ from Services.ticket_pdf import build_ticket_pdf_bytes
 
 from APIs.bookings import (
     _active_booking_for_event,
+    _event_schedule_display,
     _mark_form_submission_paid,
     _same_event_id,
     _serialize_booking,
@@ -701,13 +702,29 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
     return issued
 
 
-def _deliver_ticket(booking: Booking, phone: str) -> dict:
+def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) -> dict:
     tickets = [t for t in (booking.tickets or []) if (t.qr_token or "").strip()]
     if not tickets:
         raise HTTPException(status_code=500, detail="No unique QR ticket was issued for this attendee.")
     ticket = tickets[0]
     token = ticket.qr_token
     event_title = booking.event.title if booking.event else "your event"
+    event_when = "TBA"
+    public_start = booking.event.start_date if booking.event else None
+    if db is not None:
+        try:
+            start_display, _, _, _ = _event_schedule_display(
+                db, booking.event_id, public_start, booking.event.end_date if booking.event else None
+            )
+            event_when = start_display or event_when
+        except Exception:
+            event_when = "TBA"
+    if event_when == "TBA":
+        try:
+            from Utils.datetimes import format_utc_naive_as_ist_when
+            event_when = format_utc_naive_as_ist_when(public_start) or "TBA"
+        except Exception:
+            event_when = str(public_start) if public_start else "TBA"
     ticket_link = public_ticket_url(token)
     image = qr_image_url(token)
     attendee = booking.receiver_name or "there"
@@ -728,7 +745,7 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
         f"Hi {attendee},\n\n"
         f"Your JOD Events ticket for {event_title} is ready.\n"
         f"Booking ID: JOD-{(str(booking.booking_id).replace('-', '')[:8] or '00000000').upper()}\n"
-        f"Event date: {booking.event.start_date if booking.event else 'TBA'}\n"
+        f"Event date: {event_when}\n"
         f"Ticket type: {booking.ticket_type or 'General Admission'}\n"
         f"Your ticket PDF is attached. Open your e-ticket: {ticket_link}\n"
         f"{extra_text + chr(10) if extra_text else ''}"
@@ -753,7 +770,7 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
     pdf_bytes = None
     try:
         from Services.ticket_pdf import build_mticket_pdf_from_booking
-        pdf_bytes = build_mticket_pdf_from_booking(booking, qr_token=token)
+        pdf_bytes = build_mticket_pdf_from_booking(booking, qr_token=token, db=db)
     except Exception:
         pdf_bytes = None
     if not pdf_bytes:
@@ -762,7 +779,7 @@ def _deliver_ticket(booking: Booking, phone: str) -> dict:
             pdf_bytes = build_ticket_pdf_bytes(
                 booking_id=booking.booking_id,
                 event_name=event_title,
-                event_date=event.start_date if event else None,
+                event_date=event_when if event_when != "TBA" else (event.start_date if event else None),
                 qr_token=token,
                 venue=(event.venue or event.location or "") if event else "",
                 language=getattr(event, "language", None) if event else "English",
@@ -983,7 +1000,7 @@ def generate_submission_qr(
     except Exception:
         _db_safe_rollback(db)
     phone = booking.receiver_phone or _answer_value(parse_answers_json(getattr(row, "answers_json", None)), PHONE_KEYS)
-    delivery = _deliver_ticket(booking, phone)
+    delivery = _deliver_ticket(booking, phone, db=db)
     item = _serialize_submission(db, row)
     item["delivery"] = delivery
     item["booking"] = _serialize_booking(booking, db=db)
@@ -1007,7 +1024,7 @@ def generate_payment_qr(
         db.refresh(row)
     except Exception:
         _db_safe_rollback(db)
-    delivery = _deliver_ticket(booking, row.attendee_phone)
+    delivery = _deliver_ticket(booking, row.attendee_phone, db=db)
     item = _serialize_payment_proof(db, row)
     item["delivery"] = delivery
     item["booking"] = _serialize_booking(booking, db=db)

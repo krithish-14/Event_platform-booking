@@ -33,15 +33,24 @@ def _ascii_text(value, fallback: str = "") -> str:
 def _format_event_date(value) -> str:
     if not value:
         return "Date TBA"
-    parsed = value if isinstance(value, datetime) else None
-    if parsed is None:
+    if not isinstance(value, datetime):
         text = str(value).strip()
         if not text:
             return "Date TBA"
+        if "T" not in text:
+            return _ascii_text(text[:56], "Date TBA")
         try:
-            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            value = datetime.fromisoformat(text.replace("Z", "+00:00"))
         except Exception:
             return _ascii_text(text[:48], "Date TBA")
+    try:
+        from Utils.datetimes import format_utc_naive_as_ist_when
+        label = format_utc_naive_as_ist_when(value)
+        if label:
+            return _ascii_text(label, "Date TBA")
+    except Exception:
+        pass
+    parsed = value
     return f"{parsed.strftime('%a, %b')} {parsed.day}, {parsed.strftime('%Y, %I:%M %p')}"
 
 
@@ -413,6 +422,11 @@ def _tj_right(right_x: float, y: float, text: str, char_w: float) -> str:
     return f"1 0 0 1 {right_x - max(1, len(text)) * char_w:.1f} {y:.1f} Tm ({_pdf_escape(text)}) Tj"
 
 
+def _tj_center(center_x: float, y: float, text: str, char_w: float) -> str:
+    width = max(1, len(text)) * char_w
+    return f"1 0 0 1 {center_x - width / 2.0:.1f} {y:.1f} Tm ({_pdf_escape(text)}) Tj"
+
+
 def ticket_pdf_filename(booking_id, kind: str = "ticket") -> str:
     prefix = "JOD-Invoice" if str(kind).strip().lower() == "invoice" else "JOD-Ticket"
     return f"{prefix}-{_short_booking_id(booking_id)}.pdf"
@@ -457,18 +471,17 @@ def build_mticket_pdf_bytes(
         show_qr = bool(include_qr)
         qr_jpeg = _fetch_qr_jpeg(qr_token) if show_qr else b""
         poster = _load_poster_image(_absolute_media_url(poster_url)) if poster_url else None
-        badge_label = "Invoice" if not show_qr else "M-Ticket"
+        badge_label = "Invoice" if not show_qr else "E-Ticket"
 
         poster_w, poster_h = 88.0, 110.0
         qr_size = 180.0
         header_h = poster_h
         seating_h = 58.0
         qr_block_h = (qr_size + 44.0) if show_qr else 0.0
-        policy_h = 16.0
         totals_h = 86.0 if payment_mode else 70.0
         pad_x, pad_y = 22.0, 20.0
         card_w = 451.0
-        card_h = pad_y * 2 + header_h + 18 + seating_h + (16 if show_qr else 8) + qr_block_h + 14 + policy_h + 18 + totals_h
+        card_h = pad_y * 2 + header_h + 18 + seating_h + (16 if show_qr else 8) + qr_block_h + 18 + totals_h
         card_x = (595.0 - card_w) / 2.0
         card_y = max(36.0, (842.0 - card_h) / 2.0)
         inner_x = card_x + pad_x
@@ -530,16 +543,17 @@ def build_mticket_pdf_bytes(
         ])
 
         block_top = poster_box_y - 16
+        center_x = card_x + card_w / 2.0
         ops.extend([
             "0.89 0.91 0.94 RG 0.7 w",
             f"{inner_x:.1f} {block_top + 8:.1f} m {inner_right:.1f} {block_top + 8:.1f} l S",
             "BT",
             "/F2 9 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {inner_x:.1f} {block_top - 6:.1f} Tm ({_pdf_escape(f'{qty} Ticket(s)')}) Tj",
+            _tj_center(center_x, block_top - 6, f"{qty} Ticket(s)", 4.8),
             "/F1 14 Tf 0.07 0.09 0.15 rg",
-            f"1 0 0 1 {inner_x:.1f} {block_top - 26:.1f} Tm ({_pdf_escape(type_label[:34])}) Tj",
+            _tj_center(center_x, block_top - 26, type_label[:34], 8.0),
             "/F2 10 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {inner_x:.1f} {block_top - 42:.1f} Tm ({_pdf_escape(seat_label[:34])}) Tj",
+            _tj_center(center_x, block_top - 42, seat_label[:34], 5.5),
             "ET",
         ])
 
@@ -566,22 +580,16 @@ def build_mticket_pdf_bytes(
                 f"1 0 0 1 {card_x + (card_w - booking_w) / 2.0:.1f} {qr_y - 22:.1f} Tm ({_pdf_escape(booking_text)}) Tj",
                 "ET",
             ])
-            policy_y = qr_y - 42
+            policy_y = qr_y - 38
         else:
-            policy_y = block_top - 60
+            policy_y = block_top - 56
 
-        policy_text = "Cancellation available up to 24h prior to showtime"
-        policy_w = len(policy_text) * 4.35
+        divider_y = policy_y
         ops.extend([
-            "BT",
-            "/F2 8 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {card_x + (card_w - policy_w) / 2.0:.1f} {policy_y:.1f} Tm ({_pdf_escape(policy_text)}) Tj",
-            "ET",
             "[5 4] 0 d 0.80 0.83 0.86 RG 1 w",
-            f"{inner_x:.1f} {policy_y - 14:.1f} m {inner_right:.1f} {policy_y - 14:.1f} l S",
+            f"{inner_x:.1f} {divider_y:.1f} m {inner_right:.1f} {divider_y:.1f} l S",
             "[] 0 d",
         ])
-        divider_y = policy_y - 14
         ops.extend([
             "BT",
             "/F1 11 Tf 0.07 0.09 0.15 rg",
@@ -648,10 +656,30 @@ def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None, include
     qty = max(1, int(getattr(booking, "quantity", 1) or 1))
     total = float(getattr(booking, "total_price", 0) or 0)
     gst = float(getattr(booking, "gst_amount", 0) or 0)
+    event_date = None
+    public_start = getattr(event, "start_date", None) if event is not None else None
+    if db is not None:
+        try:
+            from APIs.bookings import _event_schedule_display
+            start_display, _, _, _ = _event_schedule_display(
+                db,
+                getattr(booking, "event_id", None),
+                public_start,
+                getattr(event, "end_date", None) if event is not None else None,
+            )
+            event_date = start_display
+        except Exception:
+            event_date = None
+    if not event_date:
+        try:
+            from Utils.datetimes import format_utc_naive_as_ist_when
+            event_date = format_utc_naive_as_ist_when(public_start) or public_start
+        except Exception:
+            event_date = public_start
     return build_mticket_pdf_bytes(
         booking_id=getattr(booking, "booking_id", ""),
         event_name=getattr(event, "title", None) if event is not None else "JOD Events",
-        event_date=getattr(event, "start_date", None) if event is not None else None,
+        event_date=event_date,
         venue=(getattr(event, "venue", None) or getattr(event, "location", None) or "") if event is not None else "",
         language=getattr(event, "language", None) if event is not None else "English",
         event_format=getattr(event, "event_format", None) if event is not None else "Live Event",

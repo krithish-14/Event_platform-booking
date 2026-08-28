@@ -37,7 +37,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 	<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
 	<link rel="stylesheet" href="css/style.css?v=51" />
 	<link rel="stylesheet" href="css/responsive.css?v=49" />
-	<link rel="stylesheet" href="css/ticket-details.css?v=16" />
+	<link rel="stylesheet" href="css/ticket-details.css?v=17" />
 	<link rel="stylesheet" href="css/event-agenda.css?v=2" />
 </head>
 <body class="sub-page ticket-page">
@@ -58,7 +58,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				</div>
 			</div>
 
-			<!-- Main BookMyShow Style M-Ticket Card Box -->
+			<!-- Main E-Ticket Card Box -->
 			<div class="ticket-mticket-wrapper">
 				<p class="ticket-flip-hint" id="ticketFlipHint">Tap ticket to view agenda</p>
 				<div class="ticket-flip-scene" id="ticketFlipScene">
@@ -84,7 +84,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								<span id="ticketEventVenue">--</span>
 							</div>
 						</div>
-						<div class="mticket-watermark">M-Ticket</div>
+						<div class="mticket-watermark">E-Ticket</div>
 					</div>
 
 					<!-- Toggle Bar -->
@@ -94,25 +94,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 					<!-- Collapsible Content Section -->
 					<div class="mticket-collapsible-content" id="collapsibleTicketDetails">
-						<!-- Section 2: Seating & Quantity Block -->
-						<div class="mticket-seating-block">
-							<div class="mticket-count" id="ticketCountVal">1 Ticket(s)</div>
-							<div class="mticket-zone-title" id="ticketCategoryVal">Standard Access</div>
-							<div class="mticket-seats" id="ticketSeatVal">General Admission</div>
-						</div>
-
-						<!-- Section 3: Large Center QR Code Section -->
+						<!-- Section 2 + 3: Ticket type above QR -->
 						<div class="mticket-qr-block">
 							<div class="mticket-cancelled-label" id="ticketCancelledLabel" hidden>Cancelled</div>
+							<div class="mticket-seating-block">
+								<div class="mticket-count" id="ticketCountVal">1 Ticket(s)</div>
+								<div class="mticket-zone-title" id="ticketCategoryVal">Standard Access</div>
+								<div class="mticket-seats" id="ticketSeatVal">General Admission</div>
+							</div>
 							<div class="mticket-qr-frame">
 								<img src="" alt="Ticket Secure QR Code" id="ticketQrCodeImg" />
 							</div>
 							<div class="mticket-booking-id-text" id="ticketBookingIdText">BOOKING ID: #JOD-00000000</div>
-						</div>
-
-						<!-- Policy Banner & Support -->
-						<div class="mticket-policy-bar" id="ticketPolicyBanner">
-							<span>Cancellation available up to 24h prior to showtime</span>
 						</div>
 
 						<div class="mticket-support-row">
@@ -209,6 +202,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 	<script src="js/search.js?v=1"></script>
 	<script src="js/script.js?v=27"></script>
 	<script src="js/event-agenda.js?v=3"></script>
-	<script src="js/ticket-details.js?v=22"></script>
+	<script src="js/ticket-details.js?v=23"></script>
 </body>
 </html>

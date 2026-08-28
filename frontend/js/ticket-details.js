@@ -1,5 +1,5 @@
 /**
- * JOD Events — BookMyShow-Style M-Ticket & Invoice Controller
+ * JOD Events — E-Ticket & Invoice Controller
  * Dynamic data rendering, QR code generation, collapsible details toggle, print/download, and ticket cancellation.
  */
 
@@ -53,15 +53,86 @@
 		} catch (_) {}
 	}
 
+	function parseTicketDate(dateStr) {
+		if (!dateStr) return null;
+		if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
+		const text = String(dateStr).trim();
+		if (!text) return null;
+		if (/AM|PM/i.test(text) && text.indexOf("T") < 0) return null;
+		const naiveIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(text);
+		const d = new Date(naiveIso ? text + "Z" : text);
+		return isNaN(d.getTime()) ? null : d;
+	}
+
+	function formatInIst(dateObj) {
+		return dateObj.toLocaleString("en-US", {
+			timeZone: "Asia/Kolkata",
+			weekday: "short",
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit"
+		});
+	}
+
+	function formatHostDateTime(dateStr, timeStr) {
+		if (typeof dateStr === "string" && /AM|PM/i.test(dateStr) && dateStr.indexOf("T") < 0) {
+			return dateStr.trim();
+		}
+		const clock = String(timeStr || "").trim();
+		const d = parseTicketDate(dateStr);
+		if (clock && d) {
+			const datePart = d.toLocaleDateString("en-US", {
+				timeZone: "Asia/Kolkata",
+				weekday: "short",
+				month: "short",
+				day: "numeric",
+				year: "numeric"
+			});
+			return datePart + ", " + clock;
+		}
+		if (clock && !d) return clock;
+		if (d) return formatInIst(d);
+		return "Date TBA";
+	}
+
+	function formatEventWhen(data, which) {
+		const key = which === "end" ? "end" : "start";
+		if (data && data["event_" + key + "_display"]) {
+			return String(data["event_" + key + "_display"]);
+		}
+		return formatHostDateTime(
+			data && data["event_" + key + "_date"],
+			data && data["event_" + key + "_time"]
+		);
+	}
+
 	function formatDateFull(dateStr) {
 		if (!dateStr) return "Date TBA";
+		if (typeof dateStr === "string" && /AM|PM/i.test(dateStr) && dateStr.indexOf("T") < 0) {
+			return dateStr.trim();
+		}
 		try {
-			const d = new Date(dateStr);
-			if (isNaN(d.getTime())) return "Date TBA";
-			return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+			const d = parseTicketDate(dateStr);
+			if (!d) return "Date TBA";
+			return formatInIst(d);
 		} catch (_) {
 			return "Date TBA";
 		}
+	}
+
+	function formatRupees(amount, fractionDigits) {
+		const n = Number(amount);
+		const safe = Number.isFinite(n) ? n : 0;
+		let digits = fractionDigits;
+		if (digits == null) {
+			digits = Math.abs(safe - Math.round(safe)) < 0.005 ? 0 : 2;
+		}
+		return "Rs. " + safe.toLocaleString("en-IN", {
+			minimumFractionDigits: digits,
+			maximumFractionDigits: digits
+		});
 	}
 
 	function authFetch(url, options) {
@@ -278,7 +349,7 @@
 
 		if (titleEl) titleEl.textContent = data.event_title || "Event Booking";
 		if (formatLangEl) formatLangEl.textContent = `${data.language || "English"}, ${data.event_format || "Live Event"}`;
-		if (dateTimeEl) dateTimeEl.textContent = formatDateFull(data.event_start_date);
+		if (dateTimeEl) dateTimeEl.textContent = formatEventWhen(data, "start");
 		if (venueEl) venueEl.textContent = `${data.event_venue || "Venue details at location"}`;
 		if (catBadge) catBadge.textContent = `🎟️ ${data.ticket_type || "Standard Access"}`;
 		const ticketImg = data.card_image || data.image_url;
@@ -296,12 +367,14 @@
 
 		const countVal = document.getElementById("ticketCountVal");
 		const catVal = document.getElementById("ticketCategoryVal");
+		const seatVal = document.getElementById("ticketSeatVal");
 		const idVal = document.getElementById("ticketIdVal");
 		const bookedTimeVal = document.getElementById("ticketBookedTimeVal");
 
 		const bookingIdDisplay = `#JOD-${shortId}`;
 		if (idVal) idVal.textContent = bookingIdDisplay;
 		if (catVal) catVal.textContent = data.ticket_type || "Standard Access Pass";
+		if (seatVal) seatVal.textContent = data.seat_number || "General Admission";
 		if (countVal) countVal.textContent = `${data.quantity || 1} Ticket(s)`;
 		if (bookedTimeVal) bookedTimeVal.textContent = formatDateFull(data.booked_at);
 
@@ -337,11 +410,11 @@
 		const savingsBadge = document.querySelector(".mticket-savings-badge");
 		if (savingsBadge) savingsBadge.remove();
 
-		if (unitPriceEl) unitPriceEl.textContent = `₹${unitPrice.toLocaleString("en-IN")}`;
+		if (unitPriceEl) unitPriceEl.textContent = formatRupees(unitPrice);
 		if (qtyEl) qtyEl.textContent = `x${qty}`;
-		if (subtotalEl) subtotalEl.textContent = `Rs.${(totalPrice - gstAmount).toLocaleString("en-IN")}`;
-		if (gstEl) gstEl.textContent = `Rs.${gstAmount.toLocaleString("en-IN")}`;
-		if (totalEl) totalEl.textContent = `Rs.${totalPrice.toLocaleString("en-IN")}`;
+		if (subtotalEl) subtotalEl.textContent = formatRupees(totalPrice - gstAmount, 2);
+		if (gstEl) gstEl.textContent = formatRupees(gstAmount, 2);
+		if (totalEl) totalEl.textContent = formatRupees(totalPrice);
 		if (paymentIdEl) paymentIdEl.textContent = data.payment_id || `PAY-JOD-${shortId}`;
 		if (paymentModeEl) paymentModeEl.textContent = data.payment_mode || "UPI / Credit Card";
 
@@ -372,8 +445,8 @@
 	function renderAgendaBack(data) {
 		const title = data.event_title || "Event Agenda";
 		const venue = data.event_venue || "";
-		const startLabel = formatDateFull(data.event_start_date);
-		const endLabel = formatDateFull(data.event_end_date);
+		const startLabel = formatEventWhen(data, "start");
+		const endLabel = data.event_end_display || (data.event_end_date ? formatEventWhen(data, "end") : "");
 		const titleEl = document.getElementById("ticketAgendaTitle");
 		const metaEl = document.getElementById("ticketAgendaMeta");
 		if (titleEl) titleEl.textContent = title;
@@ -417,8 +490,10 @@
 	function buildPrintAgendaHtml(bookingData) {
 		const eventTitle = (bookingData && bookingData.event_title) || "Event Agenda";
 		const venue = (bookingData && bookingData.event_venue) || "";
-		const startLabel = formatDateFull(bookingData && bookingData.event_start_date);
-		const endLabel = (bookingData && bookingData.event_end_date) ? formatDateFull(bookingData.event_end_date) : "";
+		const startLabel = formatEventWhen(bookingData, "start");
+		const endLabel = (bookingData && (bookingData.event_end_display || bookingData.event_end_date))
+			? formatEventWhen(bookingData, "end")
+			: "";
 		const meta = { eventTitle, startLabel, endLabel, venue };
 		if (window.JodAgenda && typeof window.JodAgenda.printDocumentHtml === "function") {
 			return window.JodAgenda.printDocumentHtml(bookingData && bookingData.agenda, meta);
@@ -457,7 +532,7 @@
 
 		const doc = iframe.contentDocument || iframe.contentWindow.document;
 		const clone = source.cloneNode(true);
-		clone.querySelectorAll(".mticket-toggle-btn, .mticket-support-row, .mticket-notch, .mticket-savings-badge, .mticket-cancelled-label").forEach((n) => n.remove());
+		clone.querySelectorAll(".mticket-toggle-btn, .mticket-support-row, .mticket-notch, .mticket-savings-badge, .mticket-cancelled-label, .mticket-policy-bar").forEach((n) => n.remove());
 		if (mode === "invoice") {
 			clone.querySelectorAll(".mticket-qr-block").forEach((n) => n.remove());
 		}
@@ -507,8 +582,22 @@
 		.mticket-event-details h1, #ticketEventTitle { font-size: 1.15rem; margin: 0 0 0.35rem; }
 		.mticket-qr-frame img, #ticketQrCodeImg { width: 180px; height: 180px; }
 		.mticket-qr-block { text-align: center; }
+		.mticket-seating-block { text-align: center; margin: 0 0 0.6rem; }
+		.mticket-seats { font-size: 0.9rem; color: #4b5563; }
 		.mticket-stub-divider { border-top: 1px dashed #cbd5e1; margin: 0.25rem 0; }
-		.mticket-item-row, .mticket-total-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; }
+		.mticket-item-row, .mticket-total-row {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) max-content;
+			column-gap: 1rem;
+			align-items: baseline;
+			width: 100%;
+			padding: 0.35rem 0;
+		}
+		.mticket-total-price, .mticket-item-row > span:last-child {
+			text-align: right;
+			white-space: nowrap;
+			font-variant-numeric: tabular-nums;
+		}
 		.mticket-savings-badge,
 		.mticket-cancelled-label { display: none !important; }
 		.mticket-collapsible-content.collapsed { max-height: none !important; opacity: 1 !important; overflow: visible !important; }

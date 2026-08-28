@@ -389,6 +389,10 @@ class BookingResponse(BaseModel):
     image_url: Optional[str] = None
     agenda: Optional[Any] = None
     event_end_date: Optional[datetime] = None
+    event_start_display: Optional[str] = None
+    event_end_display: Optional[str] = None
+    event_start_time: Optional[str] = None
+    event_end_time: Optional[str] = None
     language: Optional[str] = None
     event_format: Optional[str] = None
     has_qr: bool = False
@@ -481,6 +485,38 @@ def _booking_tickets(b: Booking, db: Optional[Session] = None) -> List[Ticket]:
             return []
 
 
+def _event_schedule_display(db: Optional[Session], event_id, public_start, public_end):
+    """Host Manage date/time is the ticket clock. Catalog UTC is only a fallback."""
+    from Utils.datetimes import format_host_event_when, format_utc_naive_as_ist_when
+
+    host = None
+    if db is not None and event_id is not None:
+        host = _lookup_host_event(db, event_id)
+        if host is None:
+            try:
+                for key in _related_event_id_keys(db, event_id):
+                    host = _lookup_host_event(db, key)
+                    if host is not None:
+                        break
+            except Exception:
+                _safe_db_rollback(db)
+                host = None
+    start_time = _as_optional_str(getattr(host, "event_start_time", None)) if host else None
+    end_time = _as_optional_str(getattr(host, "event_end_time", None)) if host else None
+    start_display = ""
+    if host is not None and (getattr(host, "event_start_date", None) or start_time):
+        start_display = format_host_event_when(host.event_start_date, start_time)
+    if not start_display:
+        start_display = format_utc_naive_as_ist_when(public_start)
+    end_display = ""
+    if host is not None and (getattr(host, "event_end_date", None) or end_time):
+        end_src = host.event_end_date or host.event_start_date
+        end_display = format_host_event_when(end_src, end_time)
+    if not end_display:
+        end_display = format_utc_naive_as_ist_when(public_end)
+    return start_display or None, end_display or None, start_time, end_time
+
+
 def _serialize_booking(b: Booking, db: Optional[Session] = None) -> dict:
     event_title = b.event.title if b.event else "Event"
     event_venue = (b.event.venue or b.event.location) if b.event else None
@@ -502,6 +538,9 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None) -> dict:
     ticket_status = primary_ticket.ticket_status if primary_ticket else (b.status or None)
     used_at = primary_ticket.used_at if primary_ticket else None
     ticket_image, card_image, hero_image = _booking_event_images(b, db=db)
+    start_display, end_display, start_time, end_time = _event_schedule_display(
+        db, b.event_id, event_start, b.event.end_date if b.event else None
+    )
 
     return {
         "booking_id": str(b.booking_id),
@@ -518,6 +557,10 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None) -> dict:
         "event_title": event_title,
         "event_venue": event_venue,
         "event_start_date": event_start,
+        "event_start_display": start_display,
+        "event_end_display": end_display,
+        "event_start_time": start_time,
+        "event_end_time": end_time,
         "event_is_cancelled": bool(getattr(b.event, "is_cancelled", False)) if b.event else False,
         "event_is_published": bool(getattr(b.event, "is_published", True)) if b.event else True,
         "event_updated_at": getattr(b.event, "updated_at", None) if b.event else None,

@@ -54,7 +54,9 @@ def test_mticket_pdf_without_qr():
     assert b"Makeup" in pdf
     assert b"Boutique Workshop" in pdf or b"Makeup & Boutique Workshop" in pdf
     assert b"BOOKING ID: #JOD-323560F3" in pdf
-    assert b"M-Ticket" in pdf
+    assert b"E-Ticket" in pdf
+    assert b"24h" not in pdf
+    assert b"Cancellation available" not in pdf
     assert b"1 0.46 0.03 rg" not in pdf
     assert b"saved" not in pdf.lower()
     assert ticket_pdf_filename("323560f3") == "JOD-Ticket-323560F3.pdf"
