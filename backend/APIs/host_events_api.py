@@ -688,16 +688,13 @@ def _capacity_for_event(db: Session, event_mgt: EventManagement) -> int:
 
 def _form_submissions_for_event(db: Session, event_mgt: EventManagement) -> list:
     from Models.form_definitions import FormDefinition
-    from Models.form_submissions import FormSubmission
-    from sqlalchemy import func, or_
+    from sqlalchemy import func
+    from Utils.form_submission_query import event_id_compact, fetch_form_submissions
 
-    id_strs = {str(eid).lower().strip() for eid in _event_public_ids(db, event_mgt)}
-    id_strs.add(str(event_mgt.event_id).lower().strip())
-    compact = {value.replace("-", "") for value in id_strs}
+    compact = _host_event_id_compacts(db, event_mgt)
+    compact.add(event_id_compact(event_mgt.event_id))
     organizer_email = (event_mgt.organizer_email or "").lower().strip()
 
-    forms = []
-    form_ids = []
     form_event_by_id = {}
     if organizer_email:
         try:
@@ -705,46 +702,35 @@ def _form_submissions_for_event(db: Session, event_mgt: EventManagement) -> list
         except Exception:
             db.rollback()
             forms = []
-        form_ids = [form.id for form in forms if form.id is not None]
         form_event_by_id = {
-            form.id: str(form.event_id or "").lower().strip()
+            form.id: event_id_compact(form.event_id)
             for form in forms
+            if form.id is not None
         }
 
-    filters = []
-    if form_ids:
-        filters.append(FormSubmission.form_id.in_(form_ids))
-    for value in id_strs:
-        if value:
-            filters.append(func.lower(FormSubmission.event_id) == value)
-    if not filters:
-        return []
-
     try:
-        rows = db.query(FormSubmission).filter(or_(*filters)).all()
+        rows = fetch_form_submissions(db)
     except Exception:
         db.rollback()
         return []
 
     found = {}
+    hidden = {"abandoned", "draft", "cancelled", "canceled"}
     for row in rows:
-        stored = str(row.event_id or "").lower().strip()
-        compact_stored = stored.replace("-", "")
-        form_eid = form_event_by_id.get(row.form_id, "")
-        compact_form = form_eid.replace("-", "")
-        if compact_stored:
-            if compact_stored not in compact:
+        stored = event_id_compact(getattr(row, "event_id", None))
+        form_eid = form_event_by_id.get(getattr(row, "form_id", None), "")
+        if stored:
+            if stored not in compact:
                 continue
-        elif compact_form:
-            if compact_form not in compact:
+        elif form_eid:
+            if form_eid not in compact:
                 continue
         else:
             continue
+        if (getattr(row, "status", None) or "").lower() in hidden:
+            continue
         found[row.id] = row
-    return [
-        row for row in found.values()
-        if (row.status or "").lower() not in ("abandoned", "draft", "cancelled", "canceled")
-    ]
+    return list(found.values())
 
 
 def _tickets_for_event(db: Session, event_mgt: EventManagement) -> list:

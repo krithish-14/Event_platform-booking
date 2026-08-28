@@ -16,6 +16,13 @@ from pydantic import BaseModel, EmailStr, field_validator
 from Models import get_db, FormDefinition, FormSubmission, EventRegistrationForm
 from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.user import User
+from Utils.form_submission_query import (
+	fetch_form_submissions,
+	form_submission_booking_id,
+	form_submission_by_id,
+	hydrate_customers,
+	parse_answers_json,
+)
 
 try:
 	from Utils.text_sanitize import pick_attendee_identity
@@ -133,7 +140,66 @@ def _insert_form_submission(db: Session, values: Dict[str, Any]) -> FormSubmissi
 	result = db.execute(sa_insert(table).values(**clean).returning(table.c.id))
 	new_id = result.scalar_one()
 	db.commit()
-	return db.query(FormSubmission).filter(FormSubmission.id == new_id).one()
+	row = form_submission_by_id(db, new_id)
+	if row is not None:
+		return row
+	from types import SimpleNamespace
+	return SimpleNamespace(
+		id=new_id,
+		status=clean.get("status") or "payment_pending",
+		submission_time=clean.get("submission_time"),
+		answers_json=clean.get("answers_json") or {},
+	)
+
+
+def _update_form_submission_row(
+	db: Session,
+	submission_id: int,
+	*,
+	answers: Dict[str, Any],
+	status: str,
+	form_id: Optional[int],
+	event_id: Optional[str],
+	customer_id: Optional[str],
+	ticket_type: Optional[str],
+	ticket_price: Optional[float],
+	clear_booking_id: bool = False,
+) -> None:
+	import json as json_lib
+
+	params = {
+		"id": submission_id,
+		"answers": json_lib.dumps(answers or {}),
+		"status": status,
+		"form_id": form_id,
+		"event_id": event_id,
+		"ticket_type": ticket_type,
+		"ticket_price": ticket_price,
+		"customer_id": customer_id,
+	}
+	sets = [
+		"answers_json = CAST(:answers AS jsonb)",
+		"status = :status",
+		"form_id = COALESCE(:form_id, form_id)",
+		"event_id = COALESCE(:event_id, event_id)",
+		"ticket_type = COALESCE(:ticket_type, ticket_type)",
+		"ticket_price = COALESCE(:ticket_price, ticket_price)",
+	]
+	if customer_id:
+		sets.append("customer_id = COALESCE(customer_id, :customer_id)")
+	if clear_booking_id:
+		sets.append("booking_id = NULL")
+	sql = "UPDATE form_submissions SET " + ", ".join(sets) + " WHERE id = :id"
+	try:
+		db.execute(text(sql), params)
+		db.commit()
+		return
+	except Exception:
+		db.rollback()
+	params["answers"] = json_lib.dumps(answers or {})
+	sql_json = sql.replace("CAST(:answers AS jsonb)", "CAST(:answers AS json)")
+	db.execute(text(sql_json), params)
+	db.commit()
 
 
 @router.post("/save-draft")
@@ -154,8 +220,8 @@ def save_form_draft(
 	if not form:
 		# Only reuse an unscoped/latest form when it belongs to this event (or has no event yet).
 		candidate = db.query(FormDefinition).filter(
-			FormDefinition.organizer_email == email
-		).order_by(FormDefinition.id.desc()).first()
+		FormDefinition.organizer_email == email
+	).order_by(FormDefinition.id.desc()).first()
 		if candidate:
 			if not payload.event_id or not candidate.event_id or str(candidate.event_id) == str(payload.event_id):
 				form = candidate
@@ -596,14 +662,16 @@ def submit_attendee_response(
 		existing = None
 		if event_id_str:
 			event_keys = {event_id_str.lower(), event_id_str.lower().replace("-", "")}
-			owner_filters = [func.lower(FormSubmission.user_email) == user_email]
-			if customer_id:
-				owner_filters.append(FormSubmission.customer_id == customer_id)
-			candidates = (
-				db.query(FormSubmission)
-				.filter(or_(*owner_filters))
-				.order_by(FormSubmission.submission_time.desc())
-				.all()
+			candidates = []
+			for row in fetch_form_submissions(db):
+				row_email = (getattr(row, "user_email", None) or "").lower().strip()
+				row_customer = str(getattr(row, "customer_id", None) or "").strip()
+				if row_email != user_email and not (customer_id and row_customer == customer_id):
+					continue
+				candidates.append(row)
+			candidates.sort(
+				key=lambda row: getattr(row, "submission_time", None) or datetime.min,
+				reverse=True,
 			)
 			for row in candidates:
 				stored = str(row.event_id or "").strip().lower()
@@ -615,30 +683,23 @@ def submit_attendee_response(
 			status_val = (existing.status or "").lower()
 			if status_val == "paid":
 				return _submission_payload(existing, "Registration already completed.")
+			_update_form_submission_row(
+				db,
+				existing.id,
+				answers=answers,
+				status="payment_pending",
+				form_id=form_id,
+				event_id=event_id_str,
+				customer_id=customer_id,
+				ticket_type=ticket_type,
+				ticket_price=ticket_price,
+				clear_booking_id=status_val in ("cancelled", "canceled", "refunded"),
+			)
 			existing.answers_json = answers
 			existing.status = "payment_pending"
 			existing.form_id = form_id
 			if event_id_str:
 				existing.event_id = event_id_str
-			if customer_id:
-				existing.customer_id = customer_id
-			if ticket_type:
-				existing.ticket_type = ticket_type
-			if ticket_price is not None:
-				existing.ticket_price = ticket_price
-			db.commit()
-			db.refresh(existing)
-			# After a host cancel the old booking_id can remain on this row. Clear it with
-			# SQL so a new buy is listed in the admin portal instead of staying hidden.
-			if status_val in ("cancelled", "canceled", "refunded"):
-				try:
-					db.execute(
-						text("UPDATE form_submissions SET booking_id = NULL WHERE id = :id"),
-						{"id": existing.id},
-					)
-					db.commit()
-				except Exception:
-					db.rollback()
 			return _submission_payload(existing, "Registration submitted successfully!")
 
 		sub = _insert_form_submission(
@@ -687,14 +748,7 @@ def _pretty_answer(value: Any) -> str:
 
 
 def _answers_dict(row: FormSubmission) -> dict:
-	raw = row.answers_json
-	if isinstance(raw, str):
-		try:
-			import json
-			raw = json.loads(raw)
-		except Exception:
-			raw = {}
-	return raw if isinstance(raw, dict) else {}
+	return parse_answers_json(getattr(row, "answers_json", None))
 
 
 def _pick_answer(answers: dict, *needles: str) -> str:
@@ -780,9 +834,16 @@ def _lookup_related_ticket_data(db: Session, row: FormSubmission) -> tuple:
 	customer_id = str(row.customer_id or "").strip()
 	event_id = row.event_id
 
-	if row.booking_id:
+	bid = form_submission_booking_id(db, getattr(row, "id", None))
+	if bid:
+		booking = None
 		try:
-			booking = db.query(Booking).filter(Booking.booking_id == row.booking_id).first()
+			from sqlalchemy import String, cast
+			booking = (
+				db.query(Booking)
+				.filter(cast(Booking.booking_id, String) == str(bid))
+				.first()
+			)
 		except Exception:
 			booking = None
 		if booking:
@@ -885,7 +946,6 @@ def _submission_ticket(
 		key = (
 			(row.user_email or "").lower().strip(),
 			str(row.event_id or ""),
-			str(row.booking_id or ""),
 			str(row.id or ""),
 		)
 		if key not in cache:
@@ -1070,9 +1130,28 @@ def get_form_submissions(
 		key=lambda row: row.submission_time or datetime.min,
 		reverse=True,
 	)
+	hydrate_customers(db, submissions)
 	columns = _question_columns(db, event, submissions)
 	ticket_cache = {}
-	items = [_serialize_submission(row, columns, db, ticket_cache, event) for row in submissions]
+	items = []
+	for row in submissions:
+		try:
+			items.append(_serialize_submission(row, columns, db, ticket_cache, event))
+		except Exception:
+			logger.exception("form_submission_serialize_failed")
+			answers = _answers_dict(row)
+			items.append({
+				"id": getattr(row, "id", None),
+				"user_email": getattr(row, "user_email", None) or "",
+				"attendee_name": getattr(row, "user_email", None) or "Guest",
+				"phone": "",
+				"ticket_type": getattr(row, "ticket_type", None) or "",
+				"submitted_at": "",
+				"submitted_at_iso": "",
+				"status": getattr(row, "status", None) or "submitted",
+				"answers": {k: v for k, v in answers.items() if not str(k).startswith("_")},
+				"answer_values": {},
+			})
 	columns = _extend_columns_from_items(columns, items)
 	total_count = len(items)
 	paid_count = sum(1 for item in items if str(item.get("status") or "").lower() in ("paid", "completed", "confirmed"))
@@ -1111,7 +1190,12 @@ def export_submissions_csv(
 	)
 	columns = _question_columns(db, event, submissions)
 	ticket_cache = {}
-	items = [_serialize_submission(row, columns, db, ticket_cache, event) for row in submissions]
+	items = []
+	for row in submissions:
+		try:
+			items.append(_serialize_submission(row, columns, db, ticket_cache, event))
+		except Exception:
+			logger.exception("form_submission_csv_serialize_failed")
 	columns = _extend_columns_from_items(columns, items)
 
 	output = io.StringIO()

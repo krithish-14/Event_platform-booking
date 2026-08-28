@@ -27,7 +27,7 @@ class FormSubmission(Base):
     submission_time = Column(DateTime, default=datetime.utcnow, nullable=True)
 
     customer = relationship("User", back_populates="form_submissions")
-    booking  = relationship("Booking", back_populates="form_submissions")
+    booking  = relationship("Booking", back_populates="form_submissions", lazy="noload")
 
     def __repr__(self):
         return f"<FormSubmission(id={self.id}, customer_id={self.customer_id}, event_id={self.event_id})>"

@@ -65,9 +65,9 @@ function initFormBuilder() {
 			schema: schema,
 			theme_json: theme || {}
 		};
-		const res = await fetch(`${getHostEventsApiBase()}/registration-form`, {
+		const res = await authFetch(`${getHostEventsApiBase()}/registration-form`, {
 			method: "POST",
-			headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
 				organizer_email: email,
 				event_id: eventId || undefined,
@@ -916,9 +916,9 @@ function initFormBuilder() {
 		if (btn) { btn.textContent = "Saving..."; btn.disabled = true; }
 
 		try {
-			const res = await fetch(`${API_BASE}/save-draft`, {
+			const res = await authFetch(`${API_BASE}/save-draft`, {
 				method: "POST",
-				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload)
 			});
 			const data = await res.json();
@@ -1010,9 +1010,9 @@ function initFormBuilder() {
 		}
 
 		try {
-			const res = await fetch(`${API_BASE}/publish`, {
+			const res = await authFetch(`${API_BASE}/publish`, {
 				method: "POST",
-				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload)
 			});
 			const data = await res.json();
@@ -1089,9 +1089,9 @@ function initFormBuilder() {
 				page_bg_url: pageBgSrc
 			}
 		};
-		const res = await fetch(`${API_BASE}/publish`, {
+		const res = await authFetch(`${API_BASE}/publish`, {
 			method: "POST",
-			headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(payload)
 		});
 		const data = await res.json();
@@ -1129,9 +1129,8 @@ function initFormBuilder() {
 	// Load Form Definition from API
 	async function loadFormDefinition() {
 		try {
-			const hostRes = await fetch(
-				`${getHostEventsApiBase()}/current?email=${encodeURIComponent(email)}`,
-				{ headers: getAuthHeaders(), cache: "no-store" }
+			const hostRes = await authFetch(
+				`${getHostEventsApiBase()}/current?email=${encodeURIComponent(email)}`
 			);
 			if (hostRes.ok) {
 				const hostData = await hostRes.json();
@@ -1148,8 +1147,8 @@ function initFormBuilder() {
 		try {
 			const activeEventId = typeof resolveActiveEventId === "function" ? resolveActiveEventId() : "";
 			const eventQs = activeEventId ? `&event_id=${encodeURIComponent(activeEventId)}` : "";
-			const res = await fetch(`${API_BASE}/get-form?email=${encodeURIComponent(email)}${eventQs}`, {
-				headers: getAuthHeaders()
+			const res = await authFetch(`${API_BASE}/get-form?email=${encodeURIComponent(email)}${eventQs}`, {
+				headers: { Accept: "application/json" }
 			});
 			if (res.ok) {
 				const data = await res.json();
@@ -1204,9 +1203,8 @@ function initFormBuilder() {
 			const qs = new URLSearchParams();
 			if (email) qs.set("email", email);
 			if (eventId) qs.set("event_id", eventId);
-			const res = await fetch(`${API_BASE}/submissions?${qs.toString()}`, {
-				headers: Object.assign({ Accept: "application/json" }, getAuthHeaders()),
-				cache: "no-store"
+			const res = await authFetch(`${API_BASE}/submissions?${qs.toString()}`, {
+				headers: { Accept: "application/json" }
 			});
 			if (!res.ok) throw new Error("Could not load submissions");
 			const data = await res.json();
@@ -1610,9 +1608,8 @@ function initFormBuilder() {
 			if (email) qs.set("email", email);
 			if (eventId) qs.set("event_id", eventId);
 			try {
-				const res = await fetch(`${API_BASE}/export-csv?${qs.toString()}`, {
-					headers: getAuthHeaders(),
-					cache: "no-store"
+				const res = await authFetch(`${API_BASE}/export-csv?${qs.toString()}`, {
+					headers: { Accept: "text/csv" }
 				});
 				if (!res.ok) {
 					const data = await res.json().catch(() => ({}));

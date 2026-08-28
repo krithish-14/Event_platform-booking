@@ -36,6 +36,13 @@ from APIs.bookings import (
     _sql_set_booking_id,
     _ticket_from_answers,
 )
+from Utils.form_submission_query import (
+    fetch_form_submissions,
+    form_submission_booking_id,
+    form_submission_by_id,
+    hydrate_customers,
+    parse_answers_json,
+)
 
 try:
     from Utils.text_sanitize import pick_attendee_identity
@@ -355,17 +362,15 @@ def _form_submission_for_booking(db: Session, booking) -> Optional[FormSubmissio
         return None
     compact = _event_id_compact(getattr(booking, "event_id", None))
     try:
-        rows = (
-            db.query(FormSubmission)
-            .options(defer(FormSubmission.booking_id))
-            .filter(func.lower(FormSubmission.user_email) == email)
-            .order_by(FormSubmission.submission_time.desc())
-            .all()
-        )
+        rows = fetch_form_submissions(db)
     except Exception:
         _db_safe_rollback(db)
         rows = []
+    email_l = email
     for row in rows:
+        row_email = (getattr(row, "user_email", None) or "").lower().strip()
+        if row_email != email_l:
+            continue
         stored = _event_id_compact(getattr(row, "event_id", None))
         if compact and stored and stored != compact:
             continue
@@ -467,14 +472,16 @@ def _serialize_admin_cancellation(db: Session, booking: Booking) -> dict:
 
 
 def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Optional[str] = None) -> dict:
-    answers = row.answers_json if isinstance(row.answers_json, dict) else {}
+    answers = parse_answers_json(getattr(row, "answers_json", None))
     ticket_type, price = _ticket_from_answers(answers)
     if not ticket_type:
         ticket_type = row.ticket_type or "General Admission"
     if price is None:
         price = row.ticket_price
     event = _lookup_event(db, row.event_id)
-    booking = _reload_booking(db, booking_id_text if booking_id_text is not None else getattr(row, "booking_id", None))
+    if booking_id_text is None:
+        booking_id_text = form_submission_booking_id(db, getattr(row, "id", None))
+    booking = _reload_booking(db, booking_id_text)
     status_val = (row.status or "payment_pending").lower()
     if booking and _booking_status_value(booking) in HIDDEN_ADMIN_BOOKING_STATUSES and status_val not in ("paid", "qr_ready"):
         booking = None
@@ -837,24 +844,11 @@ def list_form_submissions(
             _db_safe_rollback(db)
             pay_rows = []
     try:
-        form_rows = (
-            db.query(FormSubmission)
-            .options(joinedload(FormSubmission.customer), defer(FormSubmission.booking_id))
-            .order_by(FormSubmission.submission_time.desc())
-            .all()
-        )
+        form_rows = fetch_form_submissions(db)
+        hydrate_customers(db, form_rows)
     except Exception:
         _db_safe_rollback(db)
-        try:
-            form_rows = (
-                db.query(FormSubmission)
-                .options(defer(FormSubmission.booking_id))
-                .order_by(FormSubmission.submission_time.desc())
-                .all()
-            )
-        except Exception:
-            _db_safe_rollback(db)
-            form_rows = []
+        form_rows = []
 
     items = []
     for row in pay_rows:
@@ -906,12 +900,12 @@ def list_form_submissions(
                 _serialize_submission(
                     db,
                     row,
-                    booking_id_text=_column_as_text(db, "form_submissions", "id", row.id, "booking_id"),
+                    booking_id_text=form_submission_booking_id(db, row.id),
                 )
             )
         except Exception:
             _db_safe_rollback(db)
-            answers = row.answers_json if isinstance(getattr(row, "answers_json", None), dict) else {}
+            answers = parse_answers_json(getattr(row, "answers_json", None))
             items.append({
                 "kind": "form",
                 "id": row.id,
@@ -965,14 +959,10 @@ def generate_submission_qr(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
-    row = (
-        db.query(FormSubmission)
-        .options(joinedload(FormSubmission.customer), defer(FormSubmission.booking_id))
-        .filter(FormSubmission.id == submission_id)
-        .first()
-    )
+    row = form_submission_by_id(db, submission_id)
     if not row:
         raise HTTPException(status_code=404, detail="Form submission not found.")
+    hydrate_customers(db, [row])
 
     booking = _issue_tickets(db, row)
     if not booking:
@@ -982,7 +972,7 @@ def generate_submission_qr(
         db.refresh(row)
     except Exception:
         _db_safe_rollback(db)
-    phone = booking.receiver_phone or _answer_value(row.answers_json, PHONE_KEYS)
+    phone = booking.receiver_phone or _answer_value(parse_answers_json(getattr(row, "answers_json", None)), PHONE_KEYS)
     delivery = _deliver_ticket(booking, phone)
     item = _serialize_submission(db, row)
     item["delivery"] = delivery
