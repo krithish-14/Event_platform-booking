@@ -16,6 +16,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 from Models import get_db, FormDefinition, FormSubmission, EventRegistrationForm
 from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.user import User
+from Utils.datetimes import ist_display, json_datetime, utc_now
 from Utils.form_submission_query import (
 	fetch_form_submissions,
 	form_submission_booking_id,
@@ -124,7 +125,7 @@ def _submission_payload(row: FormSubmission, message: str) -> dict:
 		"message": message,
 		"submission_id": row.id,
 		"status": row.status or "payment_pending",
-		"submitted_at": row.submission_time.isoformat() if row.submission_time else None,
+		"submitted_at": json_datetime(row.submission_time),
 	}
 
 
@@ -714,7 +715,7 @@ def submit_attendee_response(
 				"form_version": 1,
 				"answers_json": answers,
 				"status": "payment_pending",
-				"submission_time": datetime.utcnow(),
+				"submission_time": utc_now(),
 			},
 		)
 		return _submission_payload(sub, "Registration submitted successfully!")
@@ -1093,8 +1094,8 @@ def _serialize_submission(
 		"attendee_name": name,
 		"phone": phone,
 		"ticket_type": ticket_type or row.ticket_type or "",
-		"submitted_at": submitted.strftime("%b %d, %Y %I:%M %p") if submitted else "",
-		"submitted_at_iso": submitted.isoformat() if submitted else "",
+		"submitted_at": ist_display(submitted),
+		"submitted_at_iso": json_datetime(submitted),
 		"status": row.status or "submitted",
 		"answers": {k: v for k, v in answers.items() if not str(k).startswith("_")},
 		"answer_values": answer_values,

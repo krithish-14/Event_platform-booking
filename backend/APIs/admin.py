@@ -36,6 +36,7 @@ from APIs.bookings import (
     _sql_set_booking_id,
     _ticket_from_answers,
 )
+from Utils.datetimes import json_datetime
 from Utils.form_submission_query import (
     fetch_form_submissions,
     form_submission_booking_id,
@@ -324,6 +325,12 @@ def _hide_from_admin_lists(item: dict) -> bool:
     booking_status = str(item.get("booking_status") or "").upper()
     row_status = str(item.get("form_status") or "").lower()
     kind = str(item.get("kind") or "form")
+    if kind == "form":
+        if booking_status == "CANCELLATION_REQUESTED":
+            return True
+        if row_status in ("cancelled", "canceled", "refunded"):
+            return True
+        return False
     if booking_status == "CANCELLATION_REQUESTED":
         return True
     in_progress = row_status in (
@@ -522,7 +529,7 @@ def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Opt
         "status": "qr_ready" if has_qr else status_val,
         "form_status": status_val,
         "booking_status": _booking_status_value(booking) if booking else "",
-        "submitted_at": row.submission_time.isoformat() if row.submission_time else None,
+        "submitted_at": json_datetime(row.submission_time),
         "answers": _pretty_answers(answers),
         "booking_id": str(booking.booking_id) if booking else booking_id_text,
         "has_qr": has_qr,
@@ -608,7 +615,7 @@ def _serialize_payment_proof(db: Session, row: PaymentProof, booking_id_text: Op
         "status": "qr_ready" if has_qr else (row.status or "payment_submitted"),
         "form_status": (row.status or "payment_submitted"),
         "booking_status": _booking_status_value(booking) if booking else "",
-        "submitted_at": row.created_at.isoformat() if row.created_at else None,
+        "submitted_at": json_datetime(row.created_at),
         "answers": answers,
         "screenshot_url": shot,
         "bank_name": row.bank_name,
@@ -845,10 +852,13 @@ def list_form_submissions(
             pay_rows = []
     try:
         form_rows = fetch_form_submissions(db)
-        hydrate_customers(db, form_rows)
     except Exception:
         _db_safe_rollback(db)
         form_rows = []
+    try:
+        hydrate_customers(db, form_rows)
+    except Exception:
+        _db_safe_rollback(db)
 
     items = []
     for row in pay_rows:
@@ -876,7 +886,7 @@ def list_form_submissions(
                 "ticket_type": getattr(row, "ticket_type", None) or "General Admission",
                 "ticket_price": float(getattr(row, "amount", 0) or 0),
                 "status": getattr(row, "status", None) or "payment_submitted",
-                "submitted_at": row.created_at.isoformat() if getattr(row, "created_at", None) else None,
+                "submitted_at": json_datetime(getattr(row, "created_at", None)),
                 "answers": {
                     "Name": getattr(row, "attendee_name", None),
                     "Email": getattr(row, "attendee_email", None),
@@ -921,7 +931,7 @@ def list_form_submissions(
                 "status": getattr(row, "status", None) or "payment_pending",
                 "form_status": getattr(row, "status", None) or "payment_pending",
                 "booking_status": "",
-                "submitted_at": row.submission_time.isoformat() if getattr(row, "submission_time", None) else None,
+                "submitted_at": json_datetime(getattr(row, "submission_time", None)),
                 "answers": _pretty_answers(answers),
                 "booking_id": None,
                 "has_qr": False,

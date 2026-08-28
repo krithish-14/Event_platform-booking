@@ -30,11 +30,26 @@
 			.replace(/"/g, "&quot;");
 	}
 
+	function compactEventId(value) {
+		return String(value || "").replace(/-/g, "").toLowerCase().trim();
+	}
+
 	function formatWhen(iso) {
 		if (!iso) return "—";
-		const d = new Date(iso);
+		let raw = String(iso).trim();
+		if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)) {
+			raw = raw.replace(" ", "T") + "Z";
+		}
+		const d = new Date(raw);
 		if (Number.isNaN(d.getTime())) return "—";
-		return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+		return d.toLocaleString("en-IN", {
+			timeZone: "Asia/Kolkata",
+			day: "2-digit",
+			month: "short",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit"
+		});
 	}
 
 	function authHeaders(extra) {
@@ -182,8 +197,8 @@
 	}
 
 	function eventKey(row) {
-		const id = String((row && row.event_id) || "").trim();
-		if (id) return `id:${id}`;
+		const compact = compactEventId(row && row.event_id);
+		if (compact) return `id:${compact}`;
 		const title = String((row && row.event_title) || "Event").trim() || "Event";
 		return `title:${title.toLowerCase()}`;
 	}

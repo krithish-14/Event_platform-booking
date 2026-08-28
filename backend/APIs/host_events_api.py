@@ -696,6 +696,7 @@ def _form_submissions_for_event(db: Session, event_mgt: EventManagement) -> list
     organizer_email = (event_mgt.organizer_email or "").lower().strip()
 
     form_event_by_id = {}
+    this_event_form_ids = set()
     if organizer_email:
         try:
             forms = db.query(FormDefinition).filter(func.lower(FormDefinition.organizer_email) == organizer_email).all()
@@ -707,6 +708,27 @@ def _form_submissions_for_event(db: Session, event_mgt: EventManagement) -> list
             for form in forms
             if form.id is not None
         }
+        this_event_form_ids = {
+            form_id for form_id, form_eid in form_event_by_id.items()
+            if form_eid and form_eid in compact
+        }
+
+    payment_emails = set()
+    try:
+        from Models.payment_proof import PaymentProof
+        from sqlalchemy.orm import defer
+        proofs = (
+            db.query(PaymentProof)
+            .options(defer(PaymentProof.booking_id), defer(PaymentProof.screenshot_file_id))
+            .all()
+        )
+        for proof in proofs:
+            if event_id_compact(getattr(proof, "event_id", None)) in compact:
+                payment_emails.add((getattr(proof, "attendee_email", None) or "").lower().strip())
+        payment_emails.discard("")
+    except Exception:
+        db.rollback()
+        payment_emails = set()
 
     try:
         rows = fetch_form_submissions(db)
@@ -718,14 +740,20 @@ def _form_submissions_for_event(db: Session, event_mgt: EventManagement) -> list
     hidden = {"abandoned", "draft", "cancelled", "canceled"}
     for row in rows:
         stored = event_id_compact(getattr(row, "event_id", None))
-        form_eid = form_event_by_id.get(getattr(row, "form_id", None), "")
-        if stored:
-            if stored not in compact:
-                continue
-        elif form_eid:
-            if form_eid not in compact:
-                continue
-        else:
+        form_id = getattr(row, "form_id", None)
+        try:
+            form_id_key = int(form_id) if form_id is not None and str(form_id).isdigit() else form_id
+        except Exception:
+            form_id_key = form_id
+        form_eid = form_event_by_id.get(form_id_key, "")
+        row_email = (getattr(row, "user_email", None) or "").lower().strip()
+        matched = (
+            (stored and stored in compact)
+            or (form_id_key in this_event_form_ids)
+            or (form_eid and form_eid in compact)
+            or (row_email and row_email in payment_emails)
+        )
+        if not matched:
             continue
         if (getattr(row, "status", None) or "").lower() in hidden:
             continue
@@ -776,7 +804,26 @@ def _bookings_for_host_event(db: Session, event_mgt: EventManagement) -> list:
 
 
 def _host_event_id_compacts(db: Session, event_mgt: EventManagement) -> set:
-    return {str(eid).replace("-", "").lower() for eid in _event_public_ids(db, event_mgt) if eid}
+    from Utils.form_submission_query import event_id_compact
+
+    compact = {event_id_compact(eid) for eid in _event_public_ids(db, event_mgt) if eid}
+    compact.add(event_id_compact(event_mgt.event_id))
+    title = (event_mgt.event_title or "").strip().lower()
+    try:
+        from Models.event import Event
+        rows = []
+        if event_mgt.customer_id:
+            rows = db.query(Event).filter(Event.customer_id == event_mgt.customer_id).all()
+        elif event_mgt.host_id:
+            rows = db.query(Event).filter(Event.host_id == event_mgt.host_id).all()
+        for ev in rows:
+            ev_title = (getattr(ev, "title", None) or "").strip().lower()
+            if title and ev_title and ev_title != title:
+                continue
+            compact.add(event_id_compact(ev.id))
+    except Exception:
+        db.rollback()
+    return {value for value in compact if value}
 
 
 def _booking_on_host_event(db: Session, booking, event_mgt: EventManagement) -> bool:

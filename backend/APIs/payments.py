@@ -15,6 +15,7 @@ from Models.user import User
 from Services.file_storage import store_bytes
 from Services.rate_limit import limit_payment
 from Utils.categories import is_allowed_image_bytes, is_allowed_image_filename
+from Utils.datetimes import utc_now
 from Utils.text_sanitize import sanitize_text
 
 router = APIRouter()
@@ -86,6 +87,7 @@ async def submit_payment_proof(
         existing.screenshot_file_id = stored.id
         existing.customer_id = current_user.customer_id
         existing.status = "payment_submitted"
+        existing.created_at = utc_now()
         db.commit()
         db.refresh(existing)
         try:
@@ -108,6 +110,7 @@ async def submit_payment_proof(
             transaction_id=txn,
             screenshot_file_id=stored.id,
             status="payment_submitted",
+            created_at=utc_now(),
         )
         db.add(row)
         db.commit()
