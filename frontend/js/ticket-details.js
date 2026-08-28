@@ -680,7 +680,6 @@
 		const btnDownloadTicket = document.getElementById("btnDownloadTicket");
 		const btnDownloadInvoice = document.getElementById("btnDownloadInvoice");
 		const btnToggleDetails = document.getElementById("btnToggleDetails");
-		const btnContactSupport = document.getElementById("btnContactSupport");
 		const collapsibleContent = document.getElementById("collapsibleTicketDetails");
 		const toggleText = document.getElementById("toggleDetailsText");
 
@@ -698,10 +697,6 @@
 				}
 				window.requestAnimationFrame(syncFlipHeight);
 			}
-		});
-
-		btnContactSupport?.addEventListener("click", () => {
-			alert(`JOD Events 24/7 Helpline & Support:\n\n📞 Phone: +91 1800-JOD-EVENTS (+91 1800-563-383)\n✉️ Email: support@jodevents.com\n💬 Booking ID: #${(bookingData.booking_id || "00000000").substring(0,8).toUpperCase()}`);
 		});
 
 		btnDownloadTicket?.addEventListener("click", () => {

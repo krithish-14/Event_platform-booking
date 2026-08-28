@@ -4366,11 +4366,11 @@ async function initOrganizerDashboard() {
 						throw new Error(apiErrorMessage(data, "Could not cancel event."));
 					}
 				}
-				sessionStorage.removeItem(`has_event_${email}`);
+					sessionStorage.removeItem(`has_event_${email}`);
 				sessionStorage.removeItem(`active_event_id_${email}`);
 				hostEventCancelled = true;
-				hasEvent = false;
-				activeEventId = null;
+					hasEvent = false;
+					activeEventId = null;
 				currentLifecycle = "draft";
 				canPublishNew = true;
 				canCreateNew = true;
@@ -4380,7 +4380,7 @@ async function initOrganizerDashboard() {
 				paintEmptyHostDashboard();
 				try { window.dispatchEvent(new Event("jod:inbox-refresh")); } catch (_) {}
 				showNotification("Event cancelled. It is no longer listed on Home, Category, or Event Details.");
-				switchTab("overview");
+					switchTab("overview");
 				} catch (err) {
 				console.warn("Could not cancel event:", err);
 				showNotification((err && err.message) || "Could not cancel event. Please try again.");
@@ -5258,7 +5258,7 @@ async function initOrganizerDashboard() {
 					loadEventDayVolunteerStats();
 					if (data.email_sent === false) {
 						showNotification(`Volunteer added. Email could not be sent — copy the live invitation link.`);
-					} else {
+				} else {
 						showNotification(`Invitation sent to ${volunteerEmail}.`);
 					}
 				} else {
