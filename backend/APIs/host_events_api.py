@@ -1792,7 +1792,22 @@ def save_manage_event(
     # Do not invent start+4h when end is blank — that prematurely ended live events.
     if payload.tickets_json is not None: event.tickets_json = payload.tickets_json
     if payload.agenda_json is not None: event.agenda_json = payload.agenda_json
-    if payload.policies_json is not None: event.policies_json = payload.policies_json
+    if payload.policies_json is not None:
+        policies = dict(payload.policies_json)
+        raw_purchase = policies.get("_ticket_purchase") if isinstance(policies.get("_ticket_purchase"), dict) else policies
+        mode = str((raw_purchase or {}).get("mode") or "single").strip().lower()
+        if mode not in ("single", "multiple"):
+            mode = "single"
+        try:
+            limit = int((raw_purchase or {}).get("per_person_limit") or 1)
+        except (TypeError, ValueError):
+            limit = 1
+        if mode == "single":
+            limit = 1
+        else:
+            limit = max(2, min(limit, 20))
+        policies["_ticket_purchase"] = {"mode": mode, "per_person_limit": limit}
+        event.policies_json = policies
     event.updated_at = datetime.utcnow()
 
     if payload.about_event is not None:

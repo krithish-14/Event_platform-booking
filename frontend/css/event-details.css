@@ -738,6 +738,58 @@ body.category-theme-workshop .performer-avatar {
     gap: 0.6rem;
 }
 
+.ticket-qty-wrap {
+    margin-top: 0.85rem;
+    padding: 0.85rem 0.9rem;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--radius-sm);
+    background: #f8fafc;
+}
+
+.ticket-qty-label {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.45rem;
+}
+
+.ticket-qty-stepper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ticket-qty-stepper button {
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 1.15rem;
+    font-weight: 800;
+    cursor: pointer;
+    color: #0f172a;
+}
+
+.ticket-qty-stepper input {
+    width: 4.2rem;
+    height: 2.25rem;
+    text-align: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 800;
+}
+
+.ticket-qty-hint {
+    margin: 0.45rem 0 0;
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
 #ticketsList > p,
 .tickets-list > p {
     margin: 0;
@@ -1373,10 +1425,18 @@ html[data-theme="dark"] .section-block,
 html[data-theme="dark"] .info-box-card,
 html[data-theme="dark"] .performer-card,
 html[data-theme="dark"] .tickets-section,
-html[data-theme="dark"] .ticket-type-option {
+html[data-theme="dark"] .ticket-type-option,
+html[data-theme="dark"] .ticket-qty-wrap {
     background: #1c1814;
     border-color: rgba(255, 138, 31, 0.22);
     color: #f6f0e8;
+}
+
+html[data-theme="dark"] .ticket-qty-stepper button,
+html[data-theme="dark"] .ticket-qty-stepper input {
+    background: #0e0c0a;
+    color: #f6f0e8;
+    border-color: rgba(255, 138, 31, 0.32);
 }
 
 html[data-theme="dark"] .price-main-display,

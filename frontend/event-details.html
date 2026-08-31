@@ -40,7 +40,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/style.css?v=51" />
     <link rel="stylesheet" href="css/responsive.css?v=49" />
-    <link rel="stylesheet" href="css/event-details.css?v=29" />
+    <link rel="stylesheet" href="css/event-details.css?v=30" />
 </head>
 
 <body class="event-details-page category-theme-comedy" id="eventBody">
@@ -185,6 +185,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <div id="ticketsList" class="tickets-list">
                                 <p style="color:#64748b; font-size:0.9rem;">Loading tickets…</p>
                             </div>
+                            <div id="ticketQtyWrap" class="ticket-qty-wrap" hidden>
+                                <div class="ticket-qty-label">Quantity</div>
+                                <div class="ticket-qty-stepper">
+                                    <button type="button" id="ticketQtyMinus" aria-label="Fewer tickets">−</button>
+                                    <input type="number" id="ticketQtyInput" min="1" max="1" value="1" inputmode="numeric" />
+                                    <button type="button" id="ticketQtyPlus" aria-label="More tickets">+</button>
+                                </div>
+                                <p class="ticket-qty-hint" id="ticketQtyHint"></p>
+                            </div>
                         </div>
 
                         <!-- Book Now Primary CTA Button -->
@@ -248,7 +257,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <script src="js/script.js?v=27"></script>
     <script src="js/events-public.js?v=20260831_v21"></script>
     <script src="js/wishlist.js?v=1"></script>
-    <script src="js/event-details.js?v=35"></script>
+    <script src="js/event-details.js?v=36"></script>
 </body>
 
 </html>

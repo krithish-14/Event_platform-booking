@@ -566,14 +566,37 @@ async function initOrganizerDashboard() {
 	}
 
 	function collectPoliciesJson() {
+		const modeEl = document.getElementById("ticketPurchaseModeInput");
+		const mode = (modeEl && modeEl.value === "multiple") ? "multiple" : "single";
+		let limit = Number(document.getElementById("ticketPerPersonLimitInput")?.value || 4);
+		if (!Number.isFinite(limit)) limit = 4;
+		if (mode === "single") limit = 1;
+		else limit = Math.max(2, Math.min(20, Math.round(limit)));
 		return {
 			event_policy: document.getElementById("policyEventInput")?.value?.trim() || "",
 			cancellation_policy: document.getElementById("policyCancellationInput")?.value?.trim() || "",
 			refund_policy: document.getElementById("policyRefundInput")?.value?.trim() || "",
 			terms_and_conditions: document.getElementById("policyTermsInput")?.value?.trim() || "",
 			privacy_policy: document.getElementById("policyPrivacyInput")?.value?.trim() || "",
-			age_policy: document.getElementById("policyAgeInput")?.value?.trim() || ""
+			age_policy: document.getElementById("policyAgeInput")?.value?.trim() || "",
+			_ticket_purchase: { mode, per_person_limit: limit }
 		};
+	}
+
+	function applyTicketPurchaseMode(mode, limit) {
+		const normalized = mode === "multiple" ? "multiple" : "single";
+		const modeEl = document.getElementById("ticketPurchaseModeInput");
+		if (modeEl) modeEl.value = normalized;
+		document.querySelectorAll("#ticketModePills .ticket-mode-pill").forEach((pill) => {
+			pill.classList.toggle("active", pill.getAttribute("data-ticket-mode") === normalized);
+		});
+		const wrap = document.getElementById("ticketPerPersonLimitWrap");
+		if (wrap) wrap.hidden = normalized !== "multiple";
+		const limitEl = document.getElementById("ticketPerPersonLimitInput");
+		if (limitEl && normalized === "multiple") {
+			const n = Number(limit);
+			limitEl.value = String(Number.isFinite(n) && n >= 2 ? Math.min(20, Math.round(n)) : 4);
+		}
 	}
 
 	function populatePoliciesFromJson(policies) {
@@ -1387,6 +1410,7 @@ async function initOrganizerDashboard() {
 				ticketHost.appendChild(createTicketTierRowHtml("", "", ""));
 			}
 		}
+		if (typeof applyTicketPurchaseMode === "function") applyTicketPurchaseMode("single", 4);
 		const agendaHost = document.getElementById("agendaRows");
 		if (agendaHost) {
 			agendaHost.innerHTML = "";
@@ -3299,7 +3323,7 @@ async function initOrganizerDashboard() {
 	});
 
 	// Interactive Format Pills
-	const formatPills = document.querySelectorAll(".format-pill");
+	const formatPills = document.querySelectorAll("#formatPillsGroup .format-pill");
 	const eventFormatInput = document.getElementById("eventFormatInput");
 	formatPills.forEach(pill => {
 		pill.addEventListener("click", () => {
@@ -3310,6 +3334,23 @@ async function initOrganizerDashboard() {
 			triggerManageAutoSave();
 		});
 	});
+
+	document.querySelectorAll("#ticketModePills .ticket-mode-pill").forEach((pill) => {
+		pill.addEventListener("click", () => {
+			applyTicketPurchaseMode(pill.getAttribute("data-ticket-mode") || "single");
+			triggerManageAutoSave();
+		});
+	});
+	const ticketLimitInput = document.getElementById("ticketPerPersonLimitInput");
+	if (ticketLimitInput) {
+		ticketLimitInput.addEventListener("change", () => {
+			let n = Number(ticketLimitInput.value);
+			if (!Number.isFinite(n) || n < 2) n = 2;
+			if (n > 20) n = 20;
+			ticketLimitInput.value = String(Math.round(n));
+			triggerManageAutoSave();
+		});
+	}
 
 	function readVenueCoord(id) {
 		const el = document.getElementById(id);
@@ -3913,7 +3954,7 @@ async function initOrganizerDashboard() {
 		const formatInput = document.getElementById("eventFormatInput");
 		const mode = event.event_mode || "Hybrid";
 		if (formatInput) formatInput.value = mode;
-		document.querySelectorAll(".format-pill").forEach((pill) => {
+		document.querySelectorAll("#formatPillsGroup .format-pill").forEach((pill) => {
 			pill.classList.toggle("active", pill.getAttribute("data-value") === mode);
 		});
 		const dateInput = document.getElementById("eventDateInput");
@@ -3943,6 +3984,8 @@ async function initOrganizerDashboard() {
 			}
 		}, 250);
 		if (event.policies) populatePoliciesFromJson(event.policies);
+		const purchase = (event.policies && event.policies._ticket_purchase) || event.ticket_purchase || {};
+		applyTicketPurchaseMode(purchase.mode || "single", purchase.per_person_limit);
 		if (ticketTiersRows && Array.isArray(event.tickets) && event.tickets.length) {
 			ticketTiersRows.innerHTML = "";
 			event.tickets.forEach((t) => {
@@ -3994,6 +4037,7 @@ async function initOrganizerDashboard() {
 				ticketTiersRows.innerHTML = "";
 				ticketTiersRows.appendChild(createTicketTierRowHtml("", "", ""));
 			}
+			applyTicketPurchaseMode("single", 4);
 			if (agendaRows) {
 				agendaRows.innerHTML = "";
 				agendaRows.appendChild(createAgendaRowHtml("", "", ""));

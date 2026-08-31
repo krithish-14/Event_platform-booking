@@ -90,6 +90,21 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		.row span:first-child { color: #64748b; font-weight: 600; }
 		.row span:last-child { font-weight: 700; text-align: right; }
 		.row.is-total span:last-child { color: #2563eb; font-weight: 800; }
+		.pay-method {
+			display: inline-flex;
+			align-items: center;
+			justify-content: flex-end;
+			gap: 0.4rem;
+			font-weight: 800;
+			letter-spacing: 0.01em;
+		}
+		.pay-method svg {
+			width: 1.2rem;
+			height: 1.2rem;
+			display: block;
+			flex-shrink: 0;
+			border-radius: 0.28rem;
+		}
 		.status {
 			display: inline-block;
 			background: #fff7ed;
@@ -254,6 +269,9 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		html[data-theme="dark"] .bill-card .row.is-total > span:last-child {
 			color: #60a5fa !important;
 		}
+		html[data-theme="dark"] .pay-method {
+			color: #fff8f0 !important;
+		}
 		html[data-theme="dark"] .status {
 			background: rgba(194, 65, 12, 0.28) !important;
 			color: #fdba74 !important;
@@ -355,6 +373,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			<div class="row"><span>Ticket</span><span id="payTicket">—</span></div>
 			<div class="row"><span>Quantity</span><span id="payQty">1</span></div>
 			<div class="row is-total"><span>Amount</span><span id="payAmount">—</span></div>
+			<div class="row">
+				<span>Payment method</span>
+				<span class="pay-method">
+					<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+						<title>Razorpay</title>
+						<rect width="24" height="24" rx="5.5" fill="#072654"/>
+						<path fill="#ffffff" d="M18.7 4.2 10.1 9.8l-1.22 9.95-1.23-9.49L5.3 9.8 13.9 4.2z"/>
+					</svg>
+					Razorpay
+				</span>
+			</div>
 			<div class="row"><span>Status</span><span><span class="status" id="payStatus">Payment pending</span></span></div>
 		</div>
 		<button type="button" class="pay-btn" id="payNowBtn">Pay now</button>
@@ -501,7 +530,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 			if (ticketEl) ticketEl.textContent = ticket;
 			if (qtyEl) qtyEl.textContent = String(qty);
-			if (amountEl) amountEl.textContent = price > 0 ? ("₹" + price.toLocaleString("en-IN")) : "Free";
+			if (amountEl) amountEl.textContent = price > 0
+				? ("₹" + (price * qty).toLocaleString("en-IN"))
+				: "Free";
 			if (eventEl && saved.eventTitle) eventEl.textContent = saved.eventTitle;
 			if (saved.venue && venueEl && venueRow) {
 				venueEl.textContent = saved.venue;
@@ -659,7 +690,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				const body = new FormData();
 				body.append("event_id", eventId);
 				body.append("ticket_type", ticket);
-				body.append("amount", String(price || 0));
+				body.append("amount", String((Number(price) || 0) * (qty || 1)));
 				body.append("quantity", String(qty || 1));
 				body.append("attendee_name", document.getElementById("payName").value.trim());
 				body.append("attendee_email", document.getElementById("payEmail").value.trim());

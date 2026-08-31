@@ -112,6 +112,7 @@ class EventResponse(BaseModel):
     policies: Optional[Any] = None
     agenda: Optional[Any] = None
     performers_title: Optional[str] = None
+    ticket_purchase: Optional[Any] = None
     is_published: bool
     is_cancelled: bool
     customer_id: Optional[str] = None
@@ -286,6 +287,37 @@ def _host_design_for_event(db: Session, event_id) -> tuple:
     )
 
 
+def _ticket_purchase_from_raw(raw: Any) -> dict:
+    meta = raw if isinstance(raw, dict) else {}
+    if isinstance(meta.get("_ticket_purchase"), dict):
+        meta = meta.get("_ticket_purchase") or {}
+    mode = str(meta.get("mode") or "single").strip().lower()
+    if mode not in ("single", "multiple"):
+        mode = "single"
+    try:
+        limit = int(meta.get("per_person_limit") or 1)
+    except (TypeError, ValueError):
+        limit = 1
+    if mode == "single":
+        limit = 1
+    else:
+        limit = max(2, min(limit, 20))
+    return {"mode": mode, "per_person_limit": limit}
+
+
+def _host_ticket_purchase_for_event(db: Session, event_id) -> dict:
+    from Models.event_management import EventManagement
+    host = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
+    if not host:
+        try:
+            host = db.query(EventManagement).filter(EventManagement.event_id == str(event_id)).first()
+        except Exception:
+            host = None
+    if not host:
+        return {"mode": "single", "per_person_limit": 1}
+    return _ticket_purchase_from_raw(getattr(host, "policies_json", None))
+
+
 def _host_policies_for_event(db: Session, event_id) -> Optional[dict]:
     from Models.event_management import EventManagement
     host = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
@@ -370,6 +402,7 @@ def _event_to_response(
     agenda: Optional[Any] = None,
     performers_title: Optional[str] = None,
     ticket_types: Optional[Any] = None,
+    ticket_purchase: Optional[Any] = None,
 ) -> EventResponse:
     terms = event.terms
     if not terms and policies:
@@ -415,6 +448,7 @@ def _event_to_response(
         policies=policies or None,
         agenda=agenda or [],
         performers_title=(str(performers_title).strip() if performers_title else None),
+        ticket_purchase=ticket_purchase or {"mode": "single", "per_person_limit": 1},
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
         customer_id=getattr(event, "customer_id", None) or "CUST-SYSTEM",
@@ -512,6 +546,7 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
         agenda=_host_agenda_for_event(db, event.id),
         performers_title=performers_title,
         ticket_types=host_tickets,
+        ticket_purchase=_host_ticket_purchase_for_event(db, event.id),
     )
 
 
@@ -569,6 +604,8 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
         sponsors=sponsors,
         agenda=_host_agenda_for_event(db, event.id),
         performers_title=performers_title,
+        ticket_types=_host_tickets_for_event(db, event.id),
+        ticket_purchase=_host_ticket_purchase_for_event(db, event.id),
     )
 
 

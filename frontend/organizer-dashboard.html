@@ -35,7 +35,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Organizer Event Dashboard - JOD Events</title>
 		<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
 		<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=28" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=29" />
 		<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -598,23 +598,25 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								<textarea id="eventDescInput" class="setup-textarea" placeholder="Provide an exciting overview of the event, key speakers, schedule, and guidelines..." required></textarea>
 							</div>
 
-							<!-- SECTION 7: REGISTRATION FORM QUESTIONS -->
+							<!-- SECTION 7: TICKET PURCHASE MODE -->
 							<div class="form-section-divider">
-								7. Attendee Registration Form Questions
+								7. Ticket purchase
 							</div>
 
-							<div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
-								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
-									<div>
-										<h4 style="font-size: 0.98rem; font-weight: 700; color: #0f172a; margin: 0;">Attendee Registration Questions</h4>
-										<p style="font-size: 0.82rem; color: #64748b; margin: 0.2rem 0 0 0;">Questions attendees will fill out when registering for this event.</p>
-									</div>
-									<button type="button" id="btnOpenFormStudio" style="background: #eff6ff; border: 1.5px solid #bfdbfe; color: #2563eb; padding: 0.45rem 1.1rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
-										Open Form Studio &rarr;
-									</button>
+							<div class="ticket-purchase-card" style="margin-bottom: 1.5rem;">
+								<p class="ticket-offer-hint" style="margin: 0 0 0.85rem;">Choose whether each attendee can buy one ticket or several. Ticket types (VIP, Early Bird, etc.) are still set in section 3.</p>
+								<label>Purchase type <span style="color: #ef4444;">*</span></label>
+								<div class="format-pills" id="ticketModePills" style="margin-top: 0.45rem;">
+									<div class="ticket-mode-pill active" data-ticket-mode="single">Single ticket</div>
+									<div class="ticket-mode-pill" data-ticket-mode="multiple">Multiple tickets</div>
 								</div>
-								<div id="manageWizardQuestionsPreview" class="builder-panel-card" style="display: flex; flex-direction: column; gap: 0.6rem; background: #ffffff; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-									<!-- Quick preview of active questions -->
+								<input type="hidden" id="ticketPurchaseModeInput" value="single" />
+								<div id="ticketPerPersonLimitWrap" class="ticket-limit-panel" hidden>
+									<div class="setup-form-group" style="margin: 0;">
+										<label for="ticketPerPersonLimitInput">Each person limit of buying tickets</label>
+										<input type="number" id="ticketPerPersonLimitInput" class="setup-input" min="2" max="20" value="4" style="padding-left: 0.9rem; max-width: 12rem;" />
+										<p class="ticket-offer-hint" style="margin: 0.4rem 0 0;">Maximum tickets one attendee can buy in one purchase (2–20).</p>
+									</div>
 								</div>
 							</div>
 
@@ -2018,7 +2020,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		<script src="js/profile.js?v=12"></script>
 		<script src="js/script.js?v=27"></script>
 		<script src="js/form-builder.js?v=20260828_v1"></script>
-		<script src="js/organizer-dashboard.js?v=20260831_v48"></script>
+		<script src="js/organizer-dashboard.js?v=20260831_v49"></script>
 	</body>
 </html>
 

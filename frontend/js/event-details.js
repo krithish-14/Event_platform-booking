@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
 let currentSelectedPrice = 0;
 let currentSelectedTicketType = "General Admission";
 let currentSelectedPaymentQr = "";
+let currentSelectedQty = 1;
+let currentTicketPurchase = { mode: "single", per_person_limit: 1 };
 let currentEventData = null;
 let galleryImages = [];
 let galleryIndex = 0;
@@ -579,6 +581,77 @@ function setBuyTicketEnabled(enabled, label) {
     });
 }
 
+function maxTicketsPerPerson(event) {
+    const purchase = (event && event.ticket_purchase) || currentTicketPurchase || {};
+    const mode = String(purchase.mode || "single").toLowerCase();
+    if (mode !== "multiple") return 1;
+    const n = Number(purchase.per_person_limit);
+    return Number.isFinite(n) && n >= 2 ? Math.min(20, Math.round(n)) : 2;
+}
+
+function selectedTicketQty() {
+    const max = maxTicketsPerPerson(currentEventData);
+    const input = document.getElementById("ticketQtyInput");
+    let n = Number(input && input.value);
+    if (!Number.isFinite(n) || n < 1) n = 1;
+    n = Math.min(max, Math.round(n));
+    currentSelectedQty = n;
+    if (input) input.value = String(n);
+    return n;
+}
+
+function applyTicketPurchaseFromEvent(event) {
+    currentTicketPurchase = (event && event.ticket_purchase) || { mode: "single", per_person_limit: 1 };
+    const max = maxTicketsPerPerson(event);
+    const wrap = document.getElementById("ticketQtyWrap");
+    const input = document.getElementById("ticketQtyInput");
+    const hint = document.getElementById("ticketQtyHint");
+    if (wrap) wrap.hidden = max <= 1;
+    if (input) {
+        input.max = String(max);
+        input.min = "1";
+        if (Number(input.value) > max || Number(input.value) < 1) input.value = "1";
+    }
+    currentSelectedQty = selectedTicketQty();
+    if (hint) {
+        hint.textContent = max > 1
+            ? ("You can buy up to " + max + " tickets.")
+            : "";
+    }
+    updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+}
+
+function bindTicketQtyControls() {
+    const minus = document.getElementById("ticketQtyMinus");
+    const plus = document.getElementById("ticketQtyPlus");
+    const input = document.getElementById("ticketQtyInput");
+    if (minus && !minus.dataset.bound) {
+        minus.dataset.bound = "1";
+        minus.addEventListener("click", () => {
+            const max = maxTicketsPerPerson(currentEventData);
+            currentSelectedQty = Math.max(1, selectedTicketQty() - 1);
+            if (input) input.value = String(Math.min(max, currentSelectedQty));
+            updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+        });
+    }
+    if (plus && !plus.dataset.bound) {
+        plus.dataset.bound = "1";
+        plus.addEventListener("click", () => {
+            const max = maxTicketsPerPerson(currentEventData);
+            currentSelectedQty = Math.min(max, selectedTicketQty() + 1);
+            if (input) input.value = String(currentSelectedQty);
+            updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+        });
+    }
+    if (input && !input.dataset.bound) {
+        input.dataset.bound = "1";
+        input.addEventListener("change", () => {
+            selectedTicketQty();
+            updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+        });
+    }
+}
+
 function paintTicketTypes(event) {
     const tList = document.getElementById("ticketsList");
     if (!tList) return;
@@ -591,6 +664,8 @@ function paintTicketTypes(event) {
         tList.innerHTML = '<p class="ticket-unavailable">This event has ended.</p>';
         setBuyTicketEnabled(false, "Event ended");
         setStartingPriceDisplay(0);
+        const qtyWrap = document.getElementById("ticketQtyWrap");
+        if (qtyWrap) qtyWrap.hidden = true;
         return;
     }
     const types = liveTickets(event);
@@ -598,6 +673,8 @@ function paintTicketTypes(event) {
         const hadTimed = Array.isArray(event.ticket_types) && event.ticket_types.length > 0;
         tList.innerHTML = `<p class="ticket-unavailable">${hadTimed ? "This ticket offer is not on sale right now." : "Tickets will be announced soon."}</p>`;
         setBuyTicketEnabled(false, hadTimed ? "Offer closed" : "Unavailable");
+        const qtyWrap = document.getElementById("ticketQtyWrap");
+        if (qtyWrap) qtyWrap.hidden = true;
         return;
     }
     setBuyTicketEnabled(true, "Buy Ticket");
@@ -624,6 +701,8 @@ function paintTicketTypes(event) {
     currentSelectedTicketType = first.name || "General Admission";
     currentSelectedPrice = Number(first.price) || 0;
     currentSelectedPaymentQr = first.payment_qr_url || first.qr_url || first.payment_qr || "";
+    bindTicketQtyControls();
+    applyTicketPurchaseFromEvent(event);
     updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
     if (EP && typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
 }
@@ -695,7 +774,9 @@ function setStartingPriceDisplay(price) {
 }
 
 function updateSelectedPriceUI(price, ticketName) {
-    setStartingPriceDisplay(price);
+    const qty = selectedTicketQty();
+    const total = (Number(price) || 0) * qty;
+    setStartingPriceDisplay(total);
     const label = String(ticketName || "").trim();
     document.querySelectorAll(".bar-price-group p").forEach((el) => {
         if (el.textContent === "Your ticket") return;
@@ -1006,7 +1087,7 @@ async function triggerBookingModal() {
             venue: status.venue || (currentEventData && (currentEventData.venue || currentEventData.location)) || "",
             ticket: pendingTicket,
             price: String(pendingPrice),
-            quantity: 1,
+            quantity: selectedTicketQty(),
             paymentQrUrl: pendingQr
         }));
             } catch (_) {}

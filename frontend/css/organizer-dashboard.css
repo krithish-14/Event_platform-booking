@@ -1299,6 +1299,46 @@ html[data-theme="dark"] .ticket-offer-hint {
 	color: #2563eb;
 }
 
+.ticket-mode-pill {
+	flex: 1;
+	padding: 0.65rem 0.5rem;
+	border: 1.5px solid #cbd5e1;
+	background: #f8fafc;
+	border-radius: 8px;
+	font-size: 0.88rem;
+	font-weight: 600;
+	color: #475569;
+	text-align: center;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.ticket-mode-pill.active,
+.ticket-mode-pill:hover {
+	border-color: #2563eb;
+	background: #eff6ff;
+	color: #2563eb;
+}
+
+.ticket-purchase-card label {
+	font-size: 0.82rem;
+	font-weight: 700;
+	color: #475569;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.ticket-limit-panel {
+	margin-top: 1rem;
+	padding: 1rem 1.05rem;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 12px;
+}
+
 /* Gradient Publish Button */
 .publish-gradient-btn {
 	background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
@@ -1712,6 +1752,28 @@ html[data-theme="dark"] .format-pill:hover {
 	background: rgba(255, 117, 8, 0.16);
 	color: #FF8A1F;
 	border-color: #FF8A1F;
+}
+
+html[data-theme="dark"] .ticket-mode-pill {
+	background: #1a1612;
+	color: #f6f0e8;
+	border-color: rgba(255, 138, 31, 0.32);
+}
+
+html[data-theme="dark"] .ticket-mode-pill.active,
+html[data-theme="dark"] .ticket-mode-pill:hover {
+	background: rgba(255, 117, 8, 0.16);
+	color: #FF8A1F;
+	border-color: #FF8A1F;
+}
+
+html[data-theme="dark"] .ticket-purchase-card label {
+	color: #FFA136;
+}
+
+html[data-theme="dark"] .ticket-limit-panel {
+	background: #1a1612;
+	border-color: rgba(255, 138, 31, 0.24);
 }
 
 html[data-theme="dark"] .dash-card,

@@ -755,13 +755,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 			function savePendingTicketBill() {
 				const ticketName = canonicalTicketName(resolvedTicketName || ticketType);
+				let qty = 1;
+				try {
+					const prev = JSON.parse(sessionStorage.getItem("jod_pending_ticket_bill") || "{}") || {};
+					qty = Math.max(1, Number(prev.quantity) || 1);
+				} catch (_) {}
 				const bill = {
 					eventId: (formData && formData.event_id) || eventId || "",
 					eventTitle: eventMeta.title || (formData && formData.form_title) || "",
 					venue: eventMeta.venue || "",
 					ticket: ticketName,
 					price: String(resolvedTicketPrice || ticketPrice || "0"),
-					quantity: 1,
+					quantity: qty,
 					paymentQrUrl: paymentQrForTicket(ticketName)
 				};
 				try { sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify(bill)); } catch (_) {}

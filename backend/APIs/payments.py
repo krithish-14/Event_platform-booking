@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from Authentication.dependencies import get_current_user
 from Models.base import get_db
+from Models.event_management import EventManagement
 from Models.payment_proof import PaymentProof
 from Models.user import User
 from Services.file_storage import store_bytes
@@ -19,6 +20,32 @@ from Utils.datetimes import utc_now
 from Utils.text_sanitize import sanitize_text
 
 router = APIRouter()
+
+
+def _clamp_purchase_quantity(db: Session, event_id: str, requested) -> int:
+    try:
+        qty = int(requested or 1)
+    except (TypeError, ValueError):
+        qty = 1
+    qty = max(1, qty)
+    host = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
+    if not host:
+        try:
+            host = db.query(EventManagement).filter(EventManagement.event_id == str(event_id)).first()
+        except Exception:
+            host = None
+    meta = {}
+    if host and isinstance(getattr(host, "policies_json", None), dict):
+        meta = host.policies_json.get("_ticket_purchase") or {}
+    mode = str(meta.get("mode") or "single").strip().lower()
+    if mode != "multiple":
+        return 1
+    try:
+        limit = int(meta.get("per_person_limit") or 2)
+    except (TypeError, ValueError):
+        limit = 2
+    limit = max(2, min(limit, 20))
+    return min(qty, limit)
 
 
 @router.post("/proof", status_code=status.HTTP_201_CREATED)
@@ -83,7 +110,7 @@ async def submit_payment_proof(
         existing.transaction_id = txn
         existing.ticket_type = (ticket_type or "").strip() or existing.ticket_type
         existing.amount = float(amount or 0)
-        existing.quantity = max(1, int(quantity or 1))
+        existing.quantity = _clamp_purchase_quantity(db, str(event_id), quantity)
         existing.screenshot_file_id = stored.id
         existing.customer_id = current_user.customer_id
         existing.status = "payment_submitted"
@@ -102,7 +129,7 @@ async def submit_payment_proof(
             event_id=str(event_id),
             ticket_type=(ticket_type or "").strip() or "General Admission",
             amount=float(amount or 0),
-            quantity=max(1, int(quantity or 1)),
+            quantity=_clamp_purchase_quantity(db, str(event_id), quantity),
             attendee_name=name,
             attendee_email=email,
             attendee_phone=phone,
