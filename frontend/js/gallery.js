@@ -51,6 +51,9 @@
 	const empty = document.getElementById("galleryEmpty");
 	const lightbox = document.getElementById("galleryLightbox");
 	const stage = document.getElementById("galleryLbStage");
+	const countEl = document.getElementById("galleryLbCount");
+	const prevBtn = document.getElementById("galleryLbPrev");
+	const nextBtn = document.getElementById("galleryLbNext");
 
 	function escapeHtml(str) {
 		return String(str || "")
@@ -131,38 +134,17 @@
 
 	let lightboxPhoto = null;
 
-	function fitLightboxPhoto(img) {
-		if (!img) return;
-		const maxW = Math.min(window.innerWidth * 0.92, 1100);
-		const maxH = window.innerHeight * 0.82;
-		const nw = img.naturalWidth || 0;
-		const nh = img.naturalHeight || 0;
-		const set = (prop, value) => img.style.setProperty(prop, value, "important");
-		if (!nw || !nh) {
-			set("width", "auto");
-			set("height", "auto");
-			set("max-width", maxW + "px");
-			set("max-height", maxH + "px");
-			set("object-fit", "contain");
-			return;
-		}
-		const scale = Math.min(1, maxW / nw, maxH / nh);
-		set("width", Math.round(nw * scale) + "px");
-		set("height", Math.round(nh * scale) + "px");
-		set("max-width", "none");
-		set("max-height", "none");
-		set("object-fit", "contain");
-	}
-
 	function paintLightbox() {
 		const item = visible[lightboxIndex];
 		if (!item || !stage) return;
 		stage.innerHTML = mediaHtml(item);
 		lightboxPhoto = stage.querySelector(".gallery-lb-photo");
-		if (!lightboxPhoto) return;
-		const apply = () => fitLightboxPhoto(lightboxPhoto);
-		if (lightboxPhoto.complete && lightboxPhoto.naturalWidth) apply();
-		else lightboxPhoto.addEventListener("load", apply, { once: true });
+		if (countEl) {
+			countEl.textContent = visible.length ? (lightboxIndex + 1) + " / " + visible.length : "";
+		}
+		const showNav = visible.length > 1;
+		if (prevBtn) prevBtn.hidden = !showNav;
+		if (nextBtn) nextBtn.hidden = !showNav;
 	}
 
 	function openLightbox(index) {
@@ -187,16 +169,53 @@
 		paintLightbox();
 	}
 
+	function bindLightboxSwipe() {
+		if (!lightbox || lightbox.dataset.swipeBound === "1") return;
+		lightbox.dataset.swipeBound = "1";
+		let startX = 0;
+		let startY = 0;
+		let tracking = false;
+
+		lightbox.addEventListener("touchstart", (e) => {
+			if (lightbox.hidden || !e.touches[0]) return;
+			if (e.target.closest(".gallery-lb-close, .gallery-lb-nav")) return;
+			tracking = true;
+			startX = e.touches[0].clientX;
+			startY = e.touches[0].clientY;
+		}, { passive: true });
+
+		lightbox.addEventListener("touchmove", (e) => {
+			if (!tracking || !e.touches[0]) return;
+			const dx = e.touches[0].clientX - startX;
+			const dy = e.touches[0].clientY - startY;
+			if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+				e.preventDefault();
+			}
+		}, { passive: false });
+
+		lightbox.addEventListener("touchend", (e) => {
+			if (!tracking) return;
+			tracking = false;
+			const t = e.changedTouches && e.changedTouches[0];
+			if (!t) return;
+			const dx = t.clientX - startX;
+			const dy = t.clientY - startY;
+			if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+			stepLightbox(dx < 0 ? 1 : -1);
+		}, { passive: true });
+	}
+
 	function bindUi() {
 		document.querySelectorAll(".gallery-filter").forEach((btn) => {
 			btn.addEventListener("click", () => applyFilter(btn.dataset.filter || "all"));
 		});
 		document.getElementById("galleryLbClose")?.addEventListener("click", closeLightbox);
-		document.getElementById("galleryLbPrev")?.addEventListener("click", () => stepLightbox(-1));
-		document.getElementById("galleryLbNext")?.addEventListener("click", () => stepLightbox(1));
+		prevBtn?.addEventListener("click", () => stepLightbox(-1));
+		nextBtn?.addEventListener("click", () => stepLightbox(1));
 		lightbox?.addEventListener("click", (e) => {
 			if (e.target === lightbox) closeLightbox();
 		});
+		bindLightboxSwipe();
 		document.addEventListener("keydown", (e) => {
 			if (lightbox && !lightbox.hidden) {
 				if (e.key === "Escape") closeLightbox();
@@ -210,8 +229,5 @@
 		bindUi();
 		setStats();
 		applyFilter("all");
-		window.addEventListener("resize", () => {
-			if (lightbox && !lightbox.hidden && lightboxPhoto) fitLightboxPhoto(lightboxPhoto);
-		});
 	});
 })();

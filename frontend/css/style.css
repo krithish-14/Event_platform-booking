@@ -2337,6 +2337,68 @@ html[data-theme="dark"] .marquee {
 	margin: 0;
 }
 
+/* ── Past Events (home, logged-in) ─────────────────────────── */
+.home-past-events {
+	background: var(--cream);
+}
+
+.past-events-card {
+	display: grid;
+	grid-template-columns: minmax(0, 1.15fr) minmax(15rem, 0.95fr);
+	gap: 2rem;
+	align-items: center;
+	background: var(--card);
+	border: 1px solid var(--border);
+	border-radius: 1.5rem;
+	padding: 2rem 2.25rem;
+	box-shadow: 0 4px 24px rgba(38, 35, 31, .06);
+}
+
+.past-events-copy .pill {
+	margin-bottom: 0.85rem;
+}
+
+.past-events-copy h2 {
+	font-size: 1.65rem;
+	margin: 0 0 0.75rem;
+	line-height: 1.25;
+}
+
+.past-events-copy p {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.95rem;
+	line-height: 1.6;
+	max-width: 36rem;
+}
+
+.past-events-gallery-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin-top: 1.15rem;
+	font-size: 0.95rem;
+	font-weight: 700;
+	color: var(--primary);
+	text-decoration: none;
+}
+
+.past-events-gallery-link:hover {
+	color: var(--light-orange);
+}
+
+.past-events-collage img {
+	height: 8.75rem;
+}
+
+.past-events-collage img:last-child {
+	height: 7rem;
+}
+
+.past-events-collage img:nth-child(2) {
+	margin-top: 1.15rem;
+}
+
 .teaser-list {
 	list-style: none;
 	padding: 0;
@@ -4367,6 +4429,7 @@ html[data-theme="dark"] .setup-input {
 
 html[data-theme="dark"] .event-card,
 html[data-theme="dark"] .service-card,
+html[data-theme="dark"] .past-events-card,
 html[data-theme="dark"] .team-card,
 html[data-theme="dark"] .stat-item,
 html[data-theme="dark"] .profile-dropdown,

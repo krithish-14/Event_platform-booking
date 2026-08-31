@@ -239,6 +239,7 @@
 		gap: 0.2rem;
 	}
 	.split-grid { grid-template-columns: 1fr; }
+	.past-events-card { grid-template-columns: 1fr; }
 	.stats-grid { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
 	.stats-section { padding: 1.5rem 0 1.25rem; }
 	.section { padding: 2rem 0; }
@@ -497,6 +498,11 @@
 	.testimonial { position: relative; right: auto; bottom: auto; left: auto; max-width: none; margin-top: 1rem; }
 	.collage img { height: 11rem; }
 	.collage img:last-child { height: 8rem; }
+	.past-events-card { padding: 1.35rem 1.2rem; }
+	.past-events-copy h2 { font-size: 1.3rem; }
+	.past-events-collage img { height: 8.5rem; }
+	.past-events-collage img:last-child { height: 6.5rem; }
+	.past-events-collage img:nth-child(2) { margin-top: 0; }
 	.footer-grid {
 		grid-template-columns: 1fr 1fr;
 		gap: 1rem 0.85rem;
