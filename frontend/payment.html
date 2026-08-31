@@ -138,8 +138,11 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		.header-back-btn svg { width: 1.05rem; height: 1.05rem; display: block; }
 		.err { color: #b91c1c; font-size: 0.85rem; margin-top: 0.75rem; min-height: 1.1em; }
 		.ok { color: #166534; font-size: 0.9rem; margin-top: 0.75rem; font-weight: 700; }
-		#payFormPanel { display: block; margin-top: 1.2rem; }
+		#payFormPanel { display: none; margin-top: 1.2rem; }
 		#payFormPanel.is-hidden { display: none; }
+		#payFormPanel.is-open { display: block; }
+		#payNowBtn { margin-top: 1.2rem; }
+		#payNowBtn.is-hidden { display: none; }
 		.pay-wait {
 			display: none;
 			margin-top: 1.1rem;
@@ -344,7 +347,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			<span>Back</span>
 		</a>
 		<h1>Ticket bill</h1>
-		<p class="sub">For payment use QR. Your ticket is held until support verifies this form.</p>
+		<p class="sub" id="paySub">Review your ticket details, then tap Pay now to complete payment. Your ticket is issued after support verifies the payment.</p>
 		<div class="bill-card">
 			<h2>Selected ticket</h2>
 			<div class="row"><span>Event</span><span id="payEvent">Loading…</span></div>
@@ -354,17 +357,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			<div class="row is-total"><span>Amount</span><span id="payAmount">—</span></div>
 			<div class="row"><span>Status</span><span><span class="status" id="payStatus">Payment pending</span></span></div>
 		</div>
+		<button type="button" class="pay-btn" id="payNowBtn">Pay now</button>
 		<div class="pay-wait" id="payWaitNote">Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.</div>
-		<div id="payFormPanel">
+		<div id="payFormPanel" class="is-hidden">
 			<div class="qr-pay-card">
 				<h2>Pay with this QR</h2>
-				<p id="payQrCaption">For payment use QR. Scan the QR for this ticket, then fill the details below.</p>
+				<p id="payQrCaption">Scan the QR for this ticket, then fill the details below.</p>
 				<img id="payQrImage" alt="Payment QR for selected ticket" hidden />
 				<p class="qr-missing" id="payQrMissing">Payment QR for this ticket is not available. Ask the host to upload the ticket QR.</p>
 			</div>
 			<form class="proof-card" id="payProofForm">
 				<h2 style="font-size:0.95rem;margin-bottom:0.2rem;">Payment details</h2>
-				<p class="sub" style="margin-bottom:0.2rem;">For payment use QR. After submit, support verifies and then issues your ticket.</p>
+				<p class="sub" style="margin-bottom:0.2rem;">After you submit, support verifies the payment and then issues your ticket.</p>
 				<label for="payName">Name</label>
 				<input type="text" id="payName" name="attendee_name" required autocomplete="name" />
 				<label for="payEmail">Email</label>
@@ -429,8 +433,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				const resolved = resolveMediaUrl(url);
 				if (caption) {
 					caption.textContent = ticketName
-						? ("For payment use QR. Scan this QR for " + ticketName + ", then fill the form.")
-						: "For payment use QR. Scan the ticket QR, then fill the form.";
+						? ("Scan this QR for " + ticketName + ", then fill the form.")
+						: "Scan the ticket QR, then fill the form.";
 				}
 				if (!resolved) {
 					if (img) {
@@ -474,6 +478,26 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			const statusEl = document.getElementById("payStatus");
 			const proofForm = document.getElementById("payProofForm");
 			const submitBtn = document.getElementById("paySubmitBtn");
+			const payNowBtn = document.getElementById("payNowBtn");
+			const subEl = document.getElementById("paySub");
+
+			function hidePayNow() {
+				if (payNowBtn) payNowBtn.classList.add("is-hidden");
+			}
+
+			function openPaymentStep() {
+				hidePayNow();
+				if (formPanel) {
+					formPanel.classList.remove("is-hidden");
+					formPanel.classList.add("is-open");
+				}
+				if (subEl) {
+					subEl.textContent = "Scan the QR, then submit your payment details. Your ticket is issued after support verifies the payment.";
+				}
+				if (formPanel && typeof formPanel.scrollIntoView === "function") {
+					formPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+				}
+			}
 
 			if (ticketEl) ticketEl.textContent = ticket;
 			if (qtyEl) qtyEl.textContent = String(qty);
@@ -605,7 +629,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			function showHoldState() {
 				if (statusEl) statusEl.textContent = "Waiting for support verification";
 				if (waitNote) waitNote.classList.add("is-visible");
-				if (formPanel) formPanel.classList.add("is-hidden");
+				hidePayNow();
+				if (formPanel) {
+					formPanel.classList.add("is-hidden");
+					formPanel.classList.remove("is-open");
+				}
+				if (subEl) {
+					subEl.textContent = "Your payment details were submitted. Support will verify and then issue your ticket.";
+				}
 			}
 
 			async function submitProof(event) {
@@ -661,6 +692,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				}
 			}
 
+			if (payNowBtn) payNowBtn.addEventListener("click", openPaymentStep);
 			if (proofForm) proofForm.addEventListener("submit", submitProof);
 			const shotInput = document.getElementById("payShot");
 			const shotPreview = document.getElementById("payShotPreview");

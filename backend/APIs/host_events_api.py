@@ -322,8 +322,13 @@ def _effective_end_datetime(event: EventManagement):
 
     Never invent a short +4h end — that made live events look "ended" too early.
     Missing end means the event stays open until an explicit end is saved.
+    End-before-start is invalid and is ignored so a future event is not marked ended.
     """
-    return _resolve_event_end_datetime(event)
+    end = _resolve_event_end_datetime(event)
+    start = _resolve_event_start_datetime(event)
+    if end and start and end <= start:
+        return None
+    return end
 
 
 def apply_host_schedule_to_public_events(db: Session, events) -> None:
@@ -350,7 +355,9 @@ def apply_host_schedule_to_public_events(db: Session, events) -> None:
             if public_event.end_date != end:
                 public_event.end_date = end
                 changed = True
-        elif host.event_end_date is None and public_event.end_date is not None:
+        elif public_event.end_date is not None:
+            # Missing or invalid host end (end-before-start). A stale past
+            # catalog end hides upcoming events from Home / banner / cards.
             public_event.end_date = None
             changed = True
     if changed:
@@ -378,6 +385,8 @@ def compute_event_lifecycle(event: EventManagement) -> str:
     if stored == "published":
         start = _resolve_event_start_datetime(event)
         end = _effective_end_datetime(event)
+        if start and now < start:
+            return "published"
         if end and now >= end:
             return "ended"
         if start and now >= start:

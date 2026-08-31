@@ -4,7 +4,7 @@ Event business logic service.
 
 from typing import List, Optional, Tuple
 from uuid import UUID
-from sqlalchemy import String, cast, desc, extract, func, or_
+from sqlalchemy import String, and_, cast, desc, extract, func, or_
 from sqlalchemy.orm import Session
 
 from Models.user import User
@@ -68,6 +68,8 @@ def is_ticket_on_sale(ticket, now=None) -> bool:
     end = _parse_ticket_datetime(
         ticket.get("sales_end") or ticket.get("offer_end") or ticket.get("sale_end")
     )
+    if start and end and end <= start:
+        end = None
     if start and now < start:
         return False
     if end and now >= end:
@@ -75,10 +77,27 @@ def is_ticket_on_sale(ticket, now=None) -> bool:
     return True
 
 
+def _event_has_ended(event, now=None) -> bool:
+    """Ended only after a valid end (end after start). Upcoming start is never ended."""
+    now = now or datetime.utcnow()
+    start = getattr(event, "start_date", None)
+    end = getattr(event, "end_date", None)
+    if start and end and end <= start:
+        end = None
+    if start and now < start:
+        return False
+    if end and now >= end:
+        return True
+    return False
+
+
 def event_currently_visible(event, now=None) -> bool:
     now = now or datetime.utcnow()
-    if getattr(event, "end_date", None) and event.end_date <= now:
+    if _event_has_ended(event, now):
         return False
+    start = getattr(event, "start_date", None)
+    if start and now < start:
+        return True
     tickets = _parse_json_maybe(getattr(event, "ticket_types", None))
     if not isinstance(tickets, list) or not tickets:
         return True
@@ -104,12 +123,27 @@ def _apply_category_filter(query, category: Optional[str]):
     return query.filter(Event.category == canonical)
 
 
+def _not_ended_clause(now=None):
+    """Keep upcoming events public even when a mistaken end date is already in the past."""
+    now = now or datetime.utcnow()
+    return or_(
+        Event.start_date > now,
+        Event.end_date.is_(None),
+        Event.end_date > now,
+        and_(
+            Event.start_date.isnot(None),
+            Event.end_date.isnot(None),
+            Event.end_date <= Event.start_date,
+        ),
+    )
+
+
 def _published_events_query(db: Session):
     now = datetime.utcnow()
     return db.query(Event).filter(
         Event.is_published == True,
         or_(Event.is_cancelled.is_(False), Event.is_cancelled.is_(None)),
-        or_(Event.end_date.is_(None), Event.end_date > now),
+        _not_ended_clause(now),
     )
 
 
@@ -253,6 +287,7 @@ def list_nearby_events(
     query = _published_events_query(db)
     query = _apply_category_filter(query, category)
     candidates = query.all()
+    _heal_host_schedule(db, candidates)
     nearby = [
         pair for pair in filter_by_radius(candidates, lat, lon, radius_km=radius_km)
         if event_currently_visible(pair[0])
@@ -292,7 +327,7 @@ def search_events(
         .filter(
             Event.is_published == True,
             Event.is_cancelled == False,
-            or_(Event.end_date.is_(None), Event.end_date > datetime.utcnow()),
+            _not_ended_clause(datetime.utcnow()),
         )
     )
 

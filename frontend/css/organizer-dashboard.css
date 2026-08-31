@@ -1145,50 +1145,6 @@ html[data-theme="dark"] .ticket-offer-hint {
 	color: #b8aea2;
 }
 
-.ticket-qr-upload {
-	display: flex;
-	flex-direction: column;
-	gap: 0.35rem;
-}
-
-.ticket-qr-upload > label {
-	font-size: 0.82rem;
-	font-weight: 700;
-	color: #475569;
-	text-transform: uppercase;
-	letter-spacing: 0.03em;
-}
-
-.ticket-qr-row {
-	display: flex;
-	align-items: center;
-	gap: 0.85rem;
-	flex-wrap: wrap;
-}
-
-.ticket-qr-input {
-	flex: 1;
-	min-width: 180px;
-}
-
-.ticket-qr-preview {
-	width: 96px;
-	height: 96px;
-	object-fit: contain;
-	background: #fff;
-	border: 1px solid #e2e8f0;
-	border-radius: 10px;
-	padding: 4px;
-}
-
-html[data-theme="dark"] .ticket-qr-upload > label {
-	color: #e8dcc8;
-}
-
-html[data-theme="dark"] .ticket-qr-preview {
-	border-color: rgba(255, 138, 31, 0.28);
-}
-
 .setup-form-group {
 	display: flex;
 	flex-direction: column;

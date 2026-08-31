@@ -134,7 +134,8 @@
 		const now = Date.now();
 		if (!startMs) return "unknown";
 		if (now < startMs) return "upcoming";
-		if (endMs && now >= endMs) return "ended";
+		const validEnd = endMs && endMs > startMs;
+		if (validEnd && now >= endMs) return "ended";
 		return "live";
 	}
 
@@ -153,6 +154,10 @@
 		const endMs = parseEventMs(ticketSaleEnd(ticket));
 		const now = Date.now();
 		if (!startMs && !endMs) return "always";
+		if (startMs && endMs && endMs <= startMs) {
+			if (now < startMs) return "upcoming";
+			return "live";
+		}
 		if (startMs && now < startMs) return "upcoming";
 		if (endMs && now >= endMs) return "ended";
 		return "live";
@@ -171,7 +176,9 @@
 	function isEventCurrentlyVisible(event) {
 		if (!event) return false;
 		if (event.is_cancelled === true || event.is_published === false) return false;
-		if (getEventPhase(event) === "ended") return false;
+		const phase = getEventPhase(event);
+		if (phase === "ended") return false;
+		if (phase === "upcoming") return true;
 		const types = Array.isArray(event.ticket_types) ? event.ticket_types : [];
 		if (!types.length) return true;
 		return types.some(isTicketOnSale);

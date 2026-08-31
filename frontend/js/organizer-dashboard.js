@@ -306,6 +306,15 @@ async function initOrganizerDashboard() {
 		return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 	}
 
+	function endIsBeforeStart() {
+		const dateInput = document.getElementById("eventDateInput");
+		const endDateInput = document.getElementById("eventEndDateInput");
+		if (!dateInput || !endDateInput || !dateInput.value || !endDateInput.value) return false;
+		const startMs = new Date(dateInput.value).getTime();
+		const endMs = new Date(endDateInput.value).getTime();
+		return Number.isFinite(startMs) && Number.isFinite(endMs) && endMs <= startMs;
+	}
+
 	function attrEscape(value) {
 		return String(value ?? "")
 			.replace(/&/g, "&amp;")
@@ -325,14 +334,6 @@ async function initOrganizerDashboard() {
 		if (qty) qty.value = "";
 		if (start) start.value = "";
 		if (end) end.value = "";
-		row.dataset.paymentQrUrl = "";
-		const qrInput = row.querySelector(".ticket-qr-input");
-		const qrPreview = row.querySelector(".ticket-qr-preview");
-		if (qrInput) qrInput.value = "";
-		if (qrPreview) {
-			qrPreview.removeAttribute("src");
-			qrPreview.hidden = true;
-		}
 	}
 
 	function collectTicketsJson() {
@@ -349,8 +350,6 @@ async function initOrganizerDashboard() {
 				sales_start: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-start-input")?.value || "") || null,
 				sales_end: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-end-input")?.value || "") || null
 			};
-			const qrUrl = (row.dataset.paymentQrUrl || "").trim();
-			if (qrUrl) item.payment_qr_url = qrUrl;
 			out.push(item);
 		});
 		return out;
@@ -3167,6 +3166,11 @@ async function initOrganizerDashboard() {
 			if (endDateInput) endDateInput.focus();
 			return false;
 		}
+		if (endIsBeforeStart()) {
+			showNotification("Event end date & time must be after the start. The event is not ended until after it starts.");
+			endDateInput.focus();
+			return false;
+		}
 		return true;
 	}
 
@@ -3752,7 +3756,7 @@ async function initOrganizerDashboard() {
 	const ticketTiersRows = document.getElementById("ticketTiersRows");
 	const btnAddTicketTier = document.getElementById("btnAddTicketTier");
 
-	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "", paymentQrUrl = "") {
+	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "") {
 		const div = document.createElement("div");
 		div.className = "ticket-tier-row";
 		div.innerHTML = `
@@ -3793,14 +3797,6 @@ async function initOrganizerDashboard() {
 				</div>
 			</div>
 			<p class="ticket-offer-hint">Leave blank to keep this ticket on sale for the whole event. Set dates for a same-day or limited-time offer.</p>
-			<div class="ticket-qr-upload">
-				<label>Payment QR code</label>
-				<p class="ticket-offer-hint">Upload the UPI QR for this ticket. The payment form shows this QR when an attendee chooses this ticket.</p>
-				<div class="ticket-qr-row">
-					<input type="file" class="setup-input ticket-qr-input" accept="image/png,image/jpeg,image/jpg,image/webp" />
-					<img class="ticket-qr-preview" alt="Payment QR preview" hidden />
-				</div>
-			</div>
 		`;
 
 		const removeBtn = div.querySelector(".btn-remove-ticket");
@@ -3811,44 +3807,7 @@ async function initOrganizerDashboard() {
 				clearTicketTierRow(div);
 			}
 		});
-		bindTicketPaymentQr(div, paymentQrUrl);
 		return div;
-	}
-
-	function showTicketQrPreview(row, url) {
-		const preview = row.querySelector(".ticket-qr-preview");
-		if (!preview) return;
-		if (!url) {
-			preview.removeAttribute("src");
-			preview.hidden = true;
-			return;
-		}
-		preview.src = resolveUploadUrl(url);
-		preview.hidden = false;
-	}
-
-	function bindTicketPaymentQr(row, existingUrl) {
-		if (!row || row.dataset.qrBound === "1") return;
-		row.dataset.qrBound = "1";
-		const input = row.querySelector(".ticket-qr-input");
-		if (existingUrl) {
-			row.dataset.paymentQrUrl = existingUrl;
-			showTicketQrPreview(row, existingUrl);
-		}
-		if (!input) return;
-		input.addEventListener("change", async () => {
-			const file = input.files && input.files[0];
-			if (!file) return;
-			try {
-				const url = await uploadDesignAsset(file, "payment_qr");
-				row.dataset.paymentQrUrl = url || "";
-				showTicketQrPreview(row, url);
-				if (typeof triggerManageAutoSave === "function") triggerManageAutoSave();
-			} catch (err) {
-				input.value = "";
-				showNotification(err.message || "Could not upload the payment QR.");
-			}
-		});
 	}
 
 	if (btnAddTicketTier) {
@@ -3857,7 +3816,7 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-	if (ticketTiersRows) {
+		if (ticketTiersRows) {
 		const initialRemoveBtn = ticketTiersRows.querySelector(".btn-remove-ticket");
 		if (initialRemoveBtn) {
 			initialRemoveBtn.addEventListener("click", (e) => {
@@ -3869,7 +3828,6 @@ async function initOrganizerDashboard() {
 				}
 			});
 		}
-		ticketTiersRows.querySelectorAll(".ticket-tier-row").forEach((row) => bindTicketPaymentQr(row));
 	}
 
 	// Dynamic Agenda Session Rows Adder
@@ -3993,8 +3951,7 @@ async function initOrganizerDashboard() {
 					t.price != null ? t.price : "",
 					t.qty != null ? t.qty : (t.quantity != null ? t.quantity : ""),
 					isoToDatetimeLocal(t.sales_start || t.offer_start || t.sale_start || ""),
-					isoToDatetimeLocal(t.sales_end || t.offer_end || t.sale_end || ""),
-					t.payment_qr_url || t.qr_url || t.payment_qr || ""
+					isoToDatetimeLocal(t.sales_end || t.offer_end || t.sale_end || "")
 				));
 			});
 		}
@@ -5772,6 +5729,10 @@ async function initOrganizerDashboard() {
 
 		if (!canPublishNew && !isPublishedLifecycle()) {
 			showNotification("You already have an active event. You can create and publish a new event only after your current event has ended.");
+			return;
+		}
+		if (endIsBeforeStart()) {
+			showNotification("Event end date & time must be after the start. Fix the schedule in Manage, then publish again.");
 			return;
 		}
 
