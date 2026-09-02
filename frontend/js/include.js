@@ -163,9 +163,9 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=23"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=24"));
 	const footerEl = document.getElementById("footer");
-	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=9"));
+	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=10"));
 	const privacyBodyEl = document.getElementById("privacyPolicyBody");
 	if (privacyBodyEl) promises.push(loadComponent("privacyPolicyBody", "components/privacy-policy-body.html?v=1"));
 	const refundBodyEl = document.getElementById("refundPolicyBody");

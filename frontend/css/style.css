@@ -829,6 +829,18 @@ mark.search-highlight {
 	object-position: left center;
 }
 
+.brand-fallback {
+	font-family: var(--display);
+	font-size: 1.05rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	color: inherit;
+}
+
+.brand-fallback[hidden] {
+	display: none !important;
+}
+
 .brand-mark {
 	background: var(--brand-gradient);
 	background-clip: text;

@@ -644,21 +644,34 @@
 }
 
 .privacy-policy-modal {
+	box-sizing: border-box;
+	border: 0;
+	padding: 1.25rem;
+	background: transparent;
+	color: inherit;
+}
+.privacy-policy-modal:not([open]):not(.is-open) {
+	display: none !important;
+}
+.privacy-policy-modal[open],
+.privacy-policy-modal.is-open {
 	position: fixed;
 	inset: 0;
-	z-index: 120;
+	width: 100vw;
+	max-width: none;
+	height: 100%;
+	max-height: none;
+	margin: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 1.25rem;
+	z-index: 999999;
 }
-.privacy-policy-modal[hidden] {
-	display: none !important;
+.privacy-policy-modal::backdrop {
+	background: rgba(15, 23, 42, 0.55);
 }
 .privacy-policy-modal-backdrop {
-	position: absolute;
-	inset: 0;
-	background: rgba(15, 23, 42, 0.55);
+	display: none;
 }
 .privacy-policy-card {
 	position: relative;

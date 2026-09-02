@@ -16,6 +16,11 @@ class PrettyHTMLHandler(SimpleHTTPRequestHandler):
 		path = parsed.path or "/"
 		query = ("?" + parsed.query) if parsed.query else ""
 		if "/components/" in path:
+			if not os.path.splitext(path)[1]:
+				candidate = path.rstrip("/") + ".html"
+				fs_path = self.translate_path(candidate)
+				if os.path.isfile(fs_path):
+					self.path = candidate + query
 			return
 		ext = os.path.splitext(path)[1].lower()
 		if ext == ".html":

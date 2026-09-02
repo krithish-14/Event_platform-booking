@@ -1062,7 +1062,10 @@ window.JodAuth = (() => {
 
 		function closePrivacyModal() {
 			if (!privacyModal) return;
-			privacyModal.hidden = true;
+			if (typeof privacyModal.close === "function" && privacyModal.open) {
+				privacyModal.close();
+			}
+			privacyModal.classList.remove("is-open");
 			document.body.style.overflow = "";
 			if (openPrivacyBtn) openPrivacyBtn.focus();
 		}
@@ -1072,15 +1075,32 @@ window.JodAuth = (() => {
 			if (privacyBody && !privacyBodyLoaded) {
 				privacyBody.innerHTML = "<p>Loading privacy policy…</p>";
 				try {
-					const res = await fetch("components/privacy-policy-body.html?v=1", { cache: "no-store" });
-					if (!res.ok) throw new Error("load failed");
-					privacyBody.innerHTML = await res.text();
+					const urls = [
+						"/components/privacy-policy-body.html?v=2",
+						"/components/privacy-policy-body?v=2",
+					];
+					let html = "";
+					for (const url of urls) {
+						const res = await fetch(url, { cache: "no-store", redirect: "follow" });
+						if (!res.ok) continue;
+						const text = await res.text();
+						if (text.includes("Privacy Policy") && text.includes("<h3>")) {
+							html = text;
+							break;
+						}
+					}
+					if (!html) throw new Error("load failed");
+					privacyBody.innerHTML = html;
 					privacyBodyLoaded = true;
 				} catch (_) {
 					privacyBody.innerHTML = '<p>Unable to load the policy here. <a href="/privacy-policy" target="_blank" rel="noopener">Open Privacy Policy</a></p>';
 				}
 			}
-			privacyModal.hidden = false;
+			privacyModal.classList.add("is-open");
+			document.body.appendChild(privacyModal);
+			if (typeof privacyModal.showModal === "function") {
+				if (!privacyModal.open) privacyModal.showModal();
+			}
 			document.body.style.overflow = "hidden";
 			const closeBtn = privacyModal.querySelector(".privacy-policy-close");
 			if (closeBtn) closeBtn.focus();
@@ -1104,11 +1124,18 @@ window.JodAuth = (() => {
 		}
 
 		if (privacyModal) {
+			privacyModal.addEventListener("close", () => {
+				privacyModal.classList.remove("is-open");
+				document.body.style.overflow = "";
+			});
+			privacyModal.addEventListener("click", (e) => {
+				if (e.target === privacyModal) closePrivacyModal();
+			});
 			privacyModal.querySelectorAll("[data-privacy-close]").forEach((el) => {
 				el.addEventListener("click", closePrivacyModal);
 			});
 			document.addEventListener("keydown", (e) => {
-				if (e.key === "Escape" && !privacyModal.hidden) closePrivacyModal();
+				if (e.key === "Escape" && (privacyModal.open || privacyModal.classList.contains("is-open"))) closePrivacyModal();
 			});
 		}
 
