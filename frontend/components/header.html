@@ -17,15 +17,21 @@
 	<div class="container nav-inner">
 		<div class="header-leading">
 			<a class="brand" href="/" aria-label="JOD Events home">
+				<span class="brand-logo-slot">
 				<img
 					class="brand-logo"
-					src="/images/jod-logo.png"
-					data-logo-light="/images/jod-logo.png"
-					data-logo-dark="/images/jod-logo.png"
+					src="/images/JOD%20Events%20Logo.png?v=2"
+					data-logo-light="/images/JOD Events Logo.png"
+					data-logo-dark="/images/Jod_log_Dark.webp"
 					alt="JOD Events"
-					width="200"
-					height="200"
+					width="274"
+					height="104"
+					loading="eager"
+					fetchpriority="high"
+					decoding="sync"
+					style="height:6.5rem;max-height:6.5rem;width:auto;max-width:17.125rem;object-fit:contain;display:block"
 				/>
+				</span>
 				<span class="brand-fallback" hidden>JOD Events</span>
 			</a>
 			<button type="button" class="header-back-btn" data-header-back aria-label="Go back">
@@ -51,7 +57,7 @@
 		<button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Dark mode"></button>
 		<div class="nav-auth" id="navAuth">
 			<a class="button button-sm button-login" href="/login" id="nav-login-btn">Login</a>
-			<a class="button button-sm button-primary" href="/signup" id="nav-signup-btn">Sign Up &#8599;</a>
+			<a class="button button-sm button-primary" href="/signup" id="nav-signup-btn"><span>Sign Up</span><span aria-hidden="true">&#8599;</span></a>
 		</div>
 		<button class="menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" data-menu-toggle>
 			<span></span><span></span>
@@ -68,4 +74,4 @@
 			<a class="button button-primary" href="/signup">Sign Up</a>
 		</div>
 	</nav>
-</header> 
+</header>

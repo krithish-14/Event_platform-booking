@@ -138,6 +138,21 @@
 	var GUEST_KEY = "guest";
 	var clickBound = false;
 
+	(function injectLogoLockCss() {
+		if (document.getElementById("jod-logo-lock-css")) return;
+		var el = document.createElement("style");
+		el.id = "jod-logo-lock-css";
+		el.textContent = "#header:empty{min-height:6.75rem;display:block}"
+			+ ".site-header .brand-logo-slot{display:flex;align-items:center;height:6.5rem!important;max-height:6.5rem!important;max-width:17.125rem!important;overflow:hidden;flex-shrink:0}"
+			+ ".site-header .brand-logo,.site-header .brand img.brand-logo{height:6.5rem!important;max-height:6.5rem!important;width:auto!important;max-width:17.125rem!important;min-height:0!important;min-width:0!important;object-fit:contain!important;object-position:left center!important;display:block!important}"
+			+ "@media (max-width:1100px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:5.75rem!important;max-height:5.75rem!important;max-width:15.125rem!important}}"
+			+ "@media (max-width:800px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:5rem!important;max-height:5rem!important;max-width:13.125rem!important}}"
+			+ "@media (max-width:520px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:4.25rem!important;max-height:4.25rem!important;max-width:11.125rem!important}}"
+			+ ".site-header .nav-inner{min-height:0;padding:.2rem 0;align-items:center}"
+			+ ".site-header .desktop-nav>a,.site-header .nav-auth>a.button{white-space:nowrap}";
+		(document.head || document.documentElement).appendChild(el);
+	})();
+
 	function normalize(value) {
 		return value === "dark" ? "dark" : "light";
 	}
@@ -270,24 +285,29 @@
 		}
 	}
 
-	var LOCAL_LOGO = "/images/jod-logo.png";
+	var LIGHT_LOGO = "/images/JOD Events Logo.png";
+	var DARK_LOGO = "/images/Jod_log_Dark.webp";
 
 	function publicImage(path) {
-		var raw = String(path || LOCAL_LOGO).trim();
+		var raw = String(path || LIGHT_LOGO).trim();
 		if (/^https?:\/\//i.test(raw)) return raw;
 		var rel = raw.replace(/^\/+/, "").replace(/^images\//, "");
-		if (!rel) rel = "jod-logo.png";
+		if (!rel) rel = "JOD Events Logo.png";
 		return "/images/" + rel.split("/").map(encodeURIComponent).join("/");
+	}
+
+	function logoPathKey(url) {
+		var s = String(url || "").split("?")[0].split("#")[0];
+		try {
+			s = decodeURIComponent(s);
+		} catch (_) {}
+		return s.replace(/\/+$/, "").toLowerCase();
 	}
 
 	function bindLogoFallback(img) {
 		if (img.dataset.logoBound === "1") return;
 		img.dataset.logoBound = "1";
 		img.addEventListener("error", function () {
-			if (img.getAttribute("src") !== LOCAL_LOGO) {
-				img.setAttribute("src", LOCAL_LOGO);
-				return;
-			}
 			img.style.display = "none";
 			var fallback = img.parentElement && img.parentElement.querySelector(".brand-fallback");
 			if (fallback) fallback.hidden = false;
@@ -295,11 +315,15 @@
 	}
 
 	function syncBrandLogos() {
-		document.querySelectorAll(".site-header .brand-logo, .site-header .brand img, .site-footer .brand-logo, .site-footer .brand img, .auth-brand-logo img").forEach(function (img) {
+		var theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+		document.querySelectorAll(".site-header .brand-logo, .site-footer .brand-logo").forEach(function (img) {
 			bindLogoFallback(img);
-			var lightPath = img.getAttribute("data-logo-light") || LOCAL_LOGO;
-			var next = publicImage(lightPath);
-			if (img.getAttribute("src") !== next) img.setAttribute("src", next);
+			var lightPath = img.getAttribute("data-logo-light") || LIGHT_LOGO;
+			var darkPath = img.getAttribute("data-logo-dark") || DARK_LOGO;
+			var next = publicImage(theme === "dark" ? darkPath : lightPath);
+			if (logoPathKey(img.getAttribute("src")) !== logoPathKey(next)) {
+				img.setAttribute("src", next);
+			}
 		});
 	}
 

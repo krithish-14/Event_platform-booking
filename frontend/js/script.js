@@ -9,11 +9,17 @@
 	const pageName = (window.JodUrls && window.JodUrls.currentPageFile)
 		? window.JodUrls.currentPageFile()
 		: (window.location.pathname.split("/").pop() || "index.html");
-	const isHome = pageName === "index.html";
+	const path = String(window.location.pathname || "/").replace(/\/+$/, "") || "/";
+	const isHome = pageName === "index.html"
+		|| document.body.classList.contains("home-page")
+		|| path === "/" || path === "/index" || path === "/index.html";
 
-	let splashShown = false;
+	const SPLASH_MS = 5000;
+	const SPLASH_KEY = "jod-splash-seen-v2";
+
+	let splashSeen = false;
 	try {
-		splashShown = sessionStorage.getItem("jod-splash-shown") === "true";
+		splashSeen = sessionStorage.getItem(SPLASH_KEY) === "1";
 	} catch (err) {
 		void err;
 	}
@@ -32,57 +38,39 @@
 		if (!splashScreen) return;
 		clearSplashTimers();
 		splashScreen.classList.add("is-hidden");
+		try {
+			sessionStorage.setItem(SPLASH_KEY, "1");
+			document.documentElement.classList.add("jod-splash-seen");
+		} catch (err) {
+			void err;
+		}
 		splashTimer = setTimeout(() => {
 			splashScreen.style.display = "none";
 			splashTimer = null;
-			try {
-				sessionStorage.setItem("jod-splash-shown", "true");
-			} catch (err) {
-				void err;
-			}
 		}, 650);
 	}
 
-	function showSplash() {
+	function armSplashAutoHide() {
 		if (!splashScreen || prefersReduced) return;
 		clearSplashTimers();
-		splashScreen.style.display = "";
+		splashScreen.style.display = "flex";
 		splashScreen.classList.remove("is-hidden");
-		void splashScreen.offsetWidth;
-		splashScreen.classList.add("is-replay");
-		void splashScreen.offsetWidth;
-		splashScreen.classList.remove("is-replay");
-		const skip = () => hideSplash();
-		splashScreen.addEventListener("click", skip, { once: true });
+		document.documentElement.classList.remove("jod-splash-seen");
 		splashKeyHandler = (e) => {
-			if (e.key === "Escape" || e.key === " " || e.key === "Enter") skip();
+			if (e.key === "Escape") hideSplash();
 		};
 		window.addEventListener("keydown", splashKeyHandler, { once: true });
+		splashTimer = setTimeout(hideSplash, SPLASH_MS);
 	}
 
 	if (splashScreen) {
-		if (prefersReduced || !isHome || splashShown) {
+		if (prefersReduced || !isHome || splashSeen) {
 			splashScreen.style.display = "none";
 			splashScreen.classList.add("is-hidden");
 		} else {
-			showSplash();
-			// Auto-hide after 2.5s
-			splashTimer = setTimeout(hideSplash, 2500);
+			armSplashAutoHide();
 		}
 	}
-
-	document.addEventListener("click", (e) => {
-		if (!splashScreen || prefersReduced) return;
-		const logo = e.target.closest("a[href='index.html'] img, a[href='./index.html'] img, a[href='/'] img, img[alt='JOD Events']");
-		if (!logo || logo.closest(".site-footer")) return;
-		if (isHome) {
-			e.preventDefault();
-			showSplash();
-			// Auto-hide after 2.5s
-			clearSplashTimers();
-			splashTimer = setTimeout(hideSplash, 2500);
-		}
-	});
 
 	if (!canvas) return;
 	const ctx = canvas.getContext("2d");

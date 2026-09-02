@@ -64,9 +64,9 @@
 	gap: .75rem;
 }
 .auth-brand-logo img {
-	height: 5.75rem;
+	height: 4.15rem;
 	width: auto;
-	max-width: min(20rem, 70%);
+	max-width: min(18rem, 82%);
 	object-fit: contain;
 	object-position: left center;
 	filter: none;
@@ -165,7 +165,7 @@
 
 @media (max-width: 1100px) {
 	.auth-brand-logo img {
-		height: 4.85rem;
+		height: 3.5rem;
 	}
 	.auth-reset-steps {
 		gap: .35rem;

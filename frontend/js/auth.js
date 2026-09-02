@@ -1076,8 +1076,8 @@ window.JodAuth = (() => {
 				privacyBody.innerHTML = "<p>Loading privacy policy…</p>";
 				try {
 					const urls = [
-						"/components/privacy-policy-body.html?v=2",
-						"/components/privacy-policy-body?v=2",
+						"/components/privacy-policy-body.html?v=3",
+						"/components/privacy-policy-body?v=3",
 					];
 					let html = "";
 					for (const url of urls) {

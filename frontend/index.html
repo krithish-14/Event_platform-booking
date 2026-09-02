@@ -36,12 +36,43 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 
 		
 	<title>JOD Events - Creating Events That People Remember</title>
-	<link rel="icon" type="image/png" href="/images/jod-logo.png" />
-	<link rel="apple-touch-icon" href="/images/jod-logo.png" />
-	<script src="js/theme.js?v=15"></script>
+	<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
+	<link rel="apple-touch-icon" href="/images/JOD%20Logo.png" />
+	<link rel="preload" as="image" href="/images/JOD%20Logo.png" />
+	<script>
+		(function () {
+			try {
+				if (sessionStorage.getItem("jod-splash-seen-v2") === "1") {
+					document.documentElement.classList.add("jod-splash-seen");
+				}
+			} catch (err) {
+				void err;
+			}
+		})();
+	</script>
+	<style>
+		html.jod-splash-seen #splashScreen {
+			display: none !important;
+			visibility: hidden !important;
+		}
+	</style>
+	<style id="jod-header-logo-critical">
+:root{--header-logo-height:6.5rem;--site-header-height:6.75rem}
+#header:empty{min-height:6.75rem;display:block}
+.site-header .brand-logo-slot{display:flex;align-items:center;height:6.5rem!important;max-height:6.5rem!important;max-width:17.125rem!important;overflow:hidden;flex-shrink:0}
+.site-header .brand-logo,.site-header .brand img.brand-logo{height:6.5rem!important;max-height:6.5rem!important;width:auto!important;max-width:17.125rem!important;min-height:0!important;min-width:0!important;object-fit:contain!important;object-position:left center!important;display:block!important}
+@media (max-width:1100px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:5.75rem!important;max-height:5.75rem!important;max-width:15.125rem!important}}
+@media (max-width:800px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:5rem!important;max-height:5rem!important;max-width:13.125rem!important}}
+@media (max-width:520px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:4.25rem!important;max-height:4.25rem!important;max-width:11.125rem!important}}
+.site-header .nav-inner{min-height:0;padding:.2rem 0;align-items:center}
+.site-header .desktop-nav>a,.site-header .nav-auth>a.button{white-space:nowrap}
+</style>
+<link rel="preload" as="image" href="/images/JOD%20Events%20Logo.png" fetchpriority="high" />
+<link rel="stylesheet" href="css/fonts.css?v=2" />
+<script src="js/theme.js?v=23"></script>
 		<script src="js/api-config.js?v=5"></script>
-	<link rel="stylesheet" href="css/style.css?v=53" />
-	<link rel="stylesheet" href="css/responsive.css?v=50" />
+	<link rel="stylesheet" href="css/style.css?v=66" />
+	<link rel="stylesheet" href="css/responsive.css?v=59" />
 </head>
 
 <body class="home-page">
@@ -60,7 +91,15 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<div class="splash-content">
 			<div class="splash-logo-wrap">
 				<div class="splash-logo-ring"></div>
-				<img class="splash-logo" src="/images/jod-logo.png" alt="JOD Events" />
+				<img
+					class="splash-logo"
+					src="/images/JOD%20Logo.png"
+					alt="JOD Events"
+					width="256"
+					height="256"
+					decoding="async"
+					onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='/images/jod-logo.png';}"
+				/>
 			</div>
 			<div class="splash-text">
 				<h1 class="splash-title">JOD Events</h1>
@@ -69,20 +108,21 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		</div>
 	</div>
 	<script>
-		(function() {
-			function autoDismissSplash() {
-				var s = document.getElementById("splashScreen");
-				if (s) {
-					s.classList.add("is-hidden");
-					setTimeout(function() { s.style.display = "none"; }, 650);
+		(function () {
+			var splash = document.getElementById("splashScreen");
+			if (!splash) return;
+			try {
+				if (sessionStorage.getItem("jod-splash-seen-v2") === "1") {
+					splash.style.display = "none";
+					splash.classList.add("is-hidden");
+					return;
 				}
+			} catch (err) {
+				void err;
 			}
-			setTimeout(autoDismissSplash, 1800);
-			if (document.readyState === "complete" || document.readyState === "interactive") {
-				setTimeout(autoDismissSplash, 1000);
-			} else {
-				window.addEventListener("DOMContentLoaded", function() { setTimeout(autoDismissSplash, 1000); });
-			}
+			splash.style.display = "flex";
+			splash.classList.remove("is-hidden");
+			document.documentElement.classList.remove("jod-splash-seen");
 		})();
 	</script>
 
@@ -397,13 +437,13 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		</div>
 	</div>
 
-	<script src="js/include.js?v=39"></script>
+	<script src="js/include.js?v=49"></script>
 	<script src="js/health.js?v=3"></script>
 	<script src="js/auth.js?v=33"></script>
 	<script src="js/profile.js?v=12"></script>
 	<script src="js/location.js?v=14"></script>
 	<script src="js/search.js?v=1"></script>
-	<script src="js/script.js?v=32"></script>
+	<script src="js/script.js?v=35"></script>
         <script src="js/events-public.js?v=20260831_v21"></script>
 	<script src="js/wishlist.js?v=1"></script>
 	<script src="js/home-events.js?v=11"></script>

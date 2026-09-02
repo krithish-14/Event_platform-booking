@@ -83,14 +83,14 @@
 		}).then((html) => {
 			if (id === "privacyPolicyBody" || id === "refundPolicyBody") {
 				target.innerHTML = html;
-			} else {
-				target.outerHTML = html;
-			}
-			if (id === "header") {
+			} else if (id === "header") {
+				target.innerHTML = html;
 				syncHeaderOffset();
 				if (typeof window.updateNavAuth === "function") {
 					try { window.updateNavAuth(); } catch (_) {}
 				}
+			} else {
+				target.outerHTML = html;
 			}
 		});
 	}
@@ -163,13 +163,13 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=24"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=34"));
 	const footerEl = document.getElementById("footer");
-	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=10"));
+	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=14"));
 	const privacyBodyEl = document.getElementById("privacyPolicyBody");
-	if (privacyBodyEl) promises.push(loadComponent("privacyPolicyBody", "components/privacy-policy-body.html?v=1"));
+	if (privacyBodyEl) promises.push(loadComponent("privacyPolicyBody", "components/privacy-policy-body.html?v=3"));
 	const refundBodyEl = document.getElementById("refundPolicyBody");
-	if (refundBodyEl) promises.push(loadComponent("refundPolicyBody", "components/refund-policy-body.html?v=1"));
+	if (refundBodyEl) promises.push(loadComponent("refundPolicyBody", "components/refund-policy-body.html?v=2"));
 
 	window.includesReady = Promise.all(promises).then(() => {
 		watchHeaderOffset();
