@@ -167,6 +167,7 @@ class CriticalEndpointAuthTests(unittest.TestCase):
                 "password": "Passw0rd1",
                 "full_name": "Security Tester",
                 "phone": "9876543210",
+                "accepted_privacy_policy": True,
             },
         )
         return client, email, res

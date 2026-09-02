@@ -1,0 +1,214 @@
+@media (prefers-reduced-motion: reduce) {
+	[data-about-play] .about-play-shot,
+	[data-about-play] .collage img,
+	[data-about-play] .about-image-wrap img,
+	#services .service-card::before {
+		transform: none !important;
+		animation: none !important;
+	}
+}
+
+/* ── Per-section play (mouse + scroll, copy stays on top) ── */
+
+[data-about-play] {
+	--mx: 0;
+	--my: 0;
+	--in: 0;
+	position: relative;
+}
+
+.about-play-media {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.about-hero .container,
+.capabilities .container {
+	position: relative;
+	z-index: 1;
+}
+
+.about-play-shot {
+	position: absolute;
+	border-radius: 1.15rem;
+	background-color: #1a120c;
+	background-position: center;
+	background-size: cover;
+	background-repeat: no-repeat;
+	box-shadow: 0 22px 50px rgba(0, 0, 0, 0.4);
+}
+
+.about-play-hero .about-play-shot-a {
+	top: 16%;
+	right: 5%;
+	width: min(36vw, 22rem);
+	height: 62%;
+	background-image: url("https://assets.jodevents.com/images/event-festival.jpg");
+	opacity: calc(0.25 + var(--in) * 0.7);
+	transform: translate3d(
+		calc((1 - var(--in)) * 48px + var(--mx) * -18px),
+		calc(var(--my) * 14px),
+		0
+	);
+}
+
+.about-play-hero .about-play-shot-b {
+	right: 28%;
+	bottom: 14%;
+	width: min(20vw, 11.5rem);
+	height: 34%;
+	background-image: url("https://assets.jodevents.com/images/event-launch.jpg");
+	opacity: calc(0.15 + var(--in) * 0.75);
+	transform: translate3d(
+		calc((1 - var(--in)) * -36px + var(--mx) * 12px),
+		calc((1 - var(--in)) * 28px + var(--my) * -10px),
+		0
+	);
+}
+
+.about-play-hero .about-play-shot-c {
+	right: 4%;
+	bottom: 10%;
+	width: min(16vw, 9.5rem);
+	height: 30%;
+	background-image: url("https://assets.jodevents.com/images/event-wedding.jpg");
+	opacity: calc(0.12 + var(--in) * 0.7);
+	transform: translate3d(
+		calc((1 - var(--in)) * 40px + var(--mx) * -8px),
+		calc(var(--my) * 8px),
+		0
+	);
+}
+
+.about-play-hero::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, rgba(12, 10, 8, 0.92) 18%, rgba(12, 10, 8, 0.45) 48%, transparent 72%);
+	pointer-events: none;
+}
+
+.about-play-caps .about-play-shot-a {
+	inset: 0;
+	border-radius: 0;
+	width: auto;
+	height: auto;
+	background-image: url("https://assets.jodevents.com/images/event-conference.jpg");
+	opacity: calc(0.12 + var(--in) * 0.22);
+	transform: translate3d(calc(var(--mx) * -16px), calc(var(--my) * -12px), 0) scale(1.08);
+	filter: saturate(0.85);
+}
+
+.about-story .collage img,
+#why-us .collage img {
+	transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+	transform: translate3d(
+		calc(var(--mx) * -10px),
+		calc(var(--my) * 8px + (1 - var(--in)) * 22px),
+		0
+	);
+}
+
+.about-story .collage img:nth-child(2),
+#why-us .collage img:nth-child(2) {
+	transform: translate3d(
+		calc(var(--mx) * 12px),
+		calc(var(--my) * -6px + (1 - var(--in)) * 30px),
+		0
+	);
+}
+
+.about-story .collage img:nth-child(3),
+#why-us .collage img:nth-child(3) {
+	transform: translate3d(
+		calc(var(--mx) * -6px),
+		calc(var(--my) * 10px + (1 - var(--in)) * 18px),
+		0
+	);
+}
+
+.about-overview .about-image-wrap img {
+	transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+	transform: translate3d(
+		calc(var(--mx) * -14px),
+		calc(var(--my) * 10px),
+		0
+	) scale(calc(1.02 + var(--in) * 0.03));
+}
+
+#services .service-card::before {
+	content: "";
+	position: absolute;
+	inset: 0 0 auto;
+	height: 42%;
+	background-size: cover;
+	background-position: center;
+	opacity: calc(0.14 + var(--in) * 0.28);
+	mask-image: linear-gradient(to bottom, #000 20%, transparent 100%);
+	-webkit-mask-image: linear-gradient(to bottom, #000 20%, transparent 100%);
+	pointer-events: none;
+	transform: translate3d(calc(var(--mx) * -6px), calc(var(--my) * 4px), 0) scale(1.06);
+}
+
+#services .service-card:nth-child(1)::before {
+	background-image: url("https://assets.jodevents.com/images/event-conference.jpg");
+}
+#services .service-card:nth-child(2)::before {
+	background-image: url("https://assets.jodevents.com/images/event-launch.jpg");
+}
+#services .service-card:nth-child(3)::before {
+	background-image: url("https://assets.jodevents.com/images/event-conference.jpg");
+}
+#services .service-card:nth-child(4)::before {
+	background-image: url("https://assets.jodevents.com/images/event-wedding.jpg");
+}
+#services .service-card:nth-child(5)::before {
+	background-image: url("https://assets.jodevents.com/images/event-festival.jpg");
+}
+#services .service-card:nth-child(6)::before {
+	background-image: url("https://assets.jodevents.com/images/event-festival.jpg");
+}
+
+#services .service-card > * {
+	position: relative;
+	z-index: 1;
+}
+
+#services .service-card:hover::before {
+	opacity: 0.5;
+}
+
+.about-values .value-card,
+#process .process-grid article,
+.about-team .team-card {
+	box-shadow: calc(var(--mx) * -8px) calc(var(--my) * 8px) 28px -18px rgba(255, 117, 8, 0.35);
+}
+
+.capabilities .capability-list span {
+	transform: translate3d(calc(var(--mx) * -4px), calc(var(--my) * 3px + (1 - var(--in)) * 10px), 0);
+	transition: transform 0.4s ease, border-color 0.3s, background 0.3s;
+}
+
+@media (max-width: 720px) {
+	.about-play-hero .about-play-shot-b,
+	.about-play-hero .about-play-shot-c {
+		display: none;
+	}
+
+	.about-play-hero .about-play-shot-a {
+		inset: 0;
+		width: auto;
+		height: auto;
+		right: 0;
+		top: 0;
+		border-radius: 0;
+		opacity: calc(0.18 + var(--in) * 0.2);
+	}
+
+	.about-play-hero::after {
+		background: linear-gradient(180deg, rgba(12, 10, 8, 0.55), rgba(12, 10, 8, 0.88) 70%);
+	}
+}

@@ -611,6 +611,113 @@
 .form-alert.alert-error { background: rgba(224,48,48,.08); border: 1px solid rgba(224,48,48,.25); color: #c02020; }
 .form-alert.alert-success { background: rgba(39,194,123,.08); border: 1px solid rgba(39,194,123,.3); color: #1a9060; }
 
+.privacy-agree-group {
+	margin-bottom: 1.15rem;
+}
+.privacy-agree-label {
+	align-items: flex-start;
+	line-height: 1.45;
+	color: var(--foreground);
+	font-size: .875rem;
+}
+.privacy-agree-label input[type="checkbox"] {
+	margin-top: .15rem;
+	flex-shrink: 0;
+	width: 1.1rem;
+	height: 1.1rem;
+}
+.privacy-policy-link {
+	display: inline;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: #2563eb;
+	font: inherit;
+	font-weight: 700;
+	text-decoration: underline;
+	cursor: pointer;
+}
+.privacy-policy-link:hover,
+.privacy-policy-link:focus-visible {
+	color: #1d4ed8;
+	outline: none;
+}
+
+.privacy-policy-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 120;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.25rem;
+}
+.privacy-policy-modal[hidden] {
+	display: none !important;
+}
+.privacy-policy-modal-backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(15, 23, 42, 0.55);
+}
+.privacy-policy-card {
+	position: relative;
+	z-index: 1;
+	width: min(42rem, 100%);
+	max-height: min(86vh, 44rem);
+	display: flex;
+	flex-direction: column;
+	background: #fff;
+	border: 1px solid #e5dfd5;
+	border-radius: 1.15rem;
+	box-shadow: 0 24px 60px -20px rgba(15, 23, 42, 0.45);
+	overflow: hidden;
+}
+.privacy-policy-close {
+	position: absolute;
+	top: 0.7rem;
+	right: 0.75rem;
+	z-index: 2;
+	width: 2.1rem;
+	height: 2.1rem;
+	border: 0;
+	border-radius: 999px;
+	background: #f8f4eb;
+	color: #201d19;
+	font-size: 1.35rem;
+	line-height: 1;
+	cursor: pointer;
+}
+.privacy-policy-close:hover {
+	background: #ffe8d2;
+	color: #c2410c;
+}
+.privacy-policy-card-scroll {
+	overflow: auto;
+	padding: 1.5rem 1.4rem 1.75rem;
+	-webkit-overflow-scrolling: touch;
+}
+.privacy-policy-card-scroll h3 {
+	margin: 1.35rem 0 0.5rem;
+	font-size: 1.02rem;
+	color: #201d19;
+}
+.privacy-policy-card-scroll p,
+.privacy-policy-card-scroll li {
+	margin: 0 0 0.7rem;
+	color: #4b453e;
+	font-size: 0.88rem;
+	line-height: 1.65;
+}
+.privacy-policy-card-scroll ul {
+	margin: 0 0 0.85rem 1.1rem;
+	padding: 0;
+}
+.privacy-policy-card-scroll a {
+	color: #2563eb;
+	font-weight: 600;
+}
+
 /* ── Terms note ────────────────────────────────────────────── */
 .auth-terms {
 	margin-top: 1rem;

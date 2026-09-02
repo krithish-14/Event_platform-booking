@@ -470,6 +470,14 @@ html[data-theme="dark"] .price-main-display span {
 	color: #FFA136 !important;
 }
 
+html[data-theme="dark"] .performer-name,
+html[data-theme="dark"] .performer-role,
+html[data-theme="dark"] .ticket-qty-label,
+html[data-theme="dark"] .ticket-qty-hint,
+html[data-theme="dark"] .ticket-status {
+	color: #fff8f0 !important;
+}
+
 html[data-theme="dark"] .venue-maps-link #infoLocation,
 html[data-theme="dark"] .venue-maps-link:hover #infoVenue,
 html[data-theme="dark"] .venue-maps-link:hover #infoLocation {
@@ -578,7 +586,7 @@ html[data-theme="dark"] .bill-card .row > span:last-child {
 }
 
 html[data-theme="dark"] .bill-card .row.is-total > span:last-child {
-	color: #60a5fa !important;
+	color: #ffffff !important;
 }
 
 html[data-theme="dark"] .proof-card input[type="text"],
@@ -1133,4 +1141,69 @@ html[data-theme="dark"] body.admin-portal-body .admin-theme-toggle {
 	background: #1a1612 !important;
 	color: #fff8f0 !important;
 	border-color: rgba(255, 138, 31, 0.4) !important;
+}
+
+/* ── Leftover blue / navy copy → white ─────────────────────── */
+html[data-theme="dark"] .suggestion-title,
+html[data-theme="dark"] .search-empty-state p,
+html[data-theme="dark"] .policy-block-title,
+html[data-theme="dark"] .policy-block-body,
+html[data-theme="dark"] .ticket-price,
+html[data-theme="dark"] .event-page-cta,
+html[data-theme="dark"] .event-page-preview:hover .event-page-cta,
+html[data-theme="dark"] .icon-attendees,
+html[data-theme="dark"] .info-details-btn,
+html[data-theme="dark"] .status-in_progress,
+html[data-theme="dark"] .agenda-page-card h1,
+html[data-theme="dark"] .agenda-stop-time,
+html[data-theme="dark"] .agenda-stop-title,
+html[data-theme="dark"] .agenda-milestone-copy span,
+html[data-theme="dark"] .leaflet-container a,
+html[data-theme="dark"] .leaflet-popup-content,
+html[data-theme="dark"] .leaflet-popup-content a {
+	color: #ffffff !important;
+}
+
+html[data-theme="dark"] .status-in_progress {
+	background: rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme="dark"] .icon-attendees {
+	background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme="dark"] .info-details-btn {
+	background: #241c14 !important;
+	border-color: rgba(255, 138, 31, 0.32) !important;
+}
+
+html[data-theme="dark"] .agenda-page-card,
+html[data-theme="dark"] .agenda-stop-card {
+	background: #1c1814 !important;
+	color: #ffffff !important;
+	border-color: rgba(255, 138, 31, 0.22) !important;
+}
+
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #2563eb"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#2563eb"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #1d4ed8"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#1d4ed8"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #1e40af"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#1e40af"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #1e3a8a"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#1e3a8a"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #3b82f6"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#3b82f6"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #60a5fa"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#60a5fa"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #0284c7"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#0284c7"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #0f172a"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#0f172a"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #1e293b"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#1e293b"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color: #1e2a3a"],
+html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#1e2a3a"] {
+	color: #ffffff !important;
+	-webkit-text-fill-color: #ffffff !important;
 }

@@ -269,6 +269,7 @@ class CookieAuthTests(unittest.TestCase):
             "password": "Passw0rd1",
             "full_name": "Stage Two",
             "phone": "9876543210",
+            "accepted_privacy_policy": True,
         })
         self.assertIn(res.status_code, (200, 201), res.text)
         body = res.json()
@@ -279,6 +280,22 @@ class CookieAuthTests(unittest.TestCase):
         check = self.client.get("/api/auth/check", params={"email": email})
         self.assertEqual(check.status_code, 200)
         self.assertTrue(check.json().get("email_available"))
+
+    def test_register_requires_privacy_policy_agreement(self):
+        payload = {
+            "email": f"nopolicy_{os.urandom(4).hex()}@example.com",
+            "username": f"n{os.urandom(4).hex()}",
+            "password": "Passw0rd1",
+            "full_name": "No Policy",
+            "phone": "9876543210",
+        }
+        missing = self.client.post("/api/auth/register", json=payload)
+        self.assertEqual(missing.status_code, 422, missing.text)
+        payload["email"] = f"nopolicy_{os.urandom(4).hex()}@example.com"
+        payload["username"] = f"n{os.urandom(4).hex()}"
+        payload["accepted_privacy_policy"] = False
+        denied = self.client.post("/api/auth/register", json=payload)
+        self.assertEqual(denied.status_code, 422, denied.text)
 
 
 class CsrfCookieTests(unittest.TestCase):
@@ -295,6 +312,7 @@ class CsrfCookieTests(unittest.TestCase):
                 "password": "Passw0rd1",
                 "full_name": "Csrf User",
                 "phone": "9876543210",
+                "accepted_privacy_policy": True,
             })
             self.assertIn(res.status_code, (200, 201), res.text)
             blocked = client.post("/api/organizers/resubmit-verification", json={"action": "submitted"})

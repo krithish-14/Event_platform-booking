@@ -126,7 +126,7 @@
 	var PREFS_KEY = "jod_theme_prefs";
 	var EVENT_NAME = "jod-theme-change";
 	var DARK_CSS_ID = "jod-theme-dark-css";
-	var DARK_CSS_HREF = "css/theme-dark.css?v=9";
+	var DARK_CSS_HREF = "css/theme-dark.css?v=11";
 	var AUTH_PAGES = {
 		"login.html": 1,
 		"signup.html": 1,
@@ -270,26 +270,17 @@
 		}
 	}
 
-	function isLocalFrontend() {
-		if (!global.location) return false;
-		var host = global.location.hostname || "";
-		var port = String(global.location.port || "");
-		var localHost = host === "127.0.0.1" || host === "localhost";
-		return localHost && (port === "5500" || port === "5501" || port === "5173");
+	function publicImage(path) {
+		var rel = String(path || "images/jod-logo.png").replace(/^\/?images\//, "");
+		return "/images/" + rel.split("/").map(encodeURIComponent).join("/");
 	}
 
 	function syncBrandLogos() {
 		var theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
-		var asset = global.JodConfig && global.JodConfig.assetUrl
-			? global.JodConfig.assetUrl.bind(global.JodConfig)
-			: function (path) { return path; };
 		document.querySelectorAll(".site-header .brand-logo, .site-header .brand img, .site-footer .brand-logo, .site-footer .brand img").forEach(function (img) {
-			var lightPath = img.getAttribute("data-logo-light") || "images/JOD Events Logo.png";
-			var darkPath = img.getAttribute("data-logo-dark") || "images/Jod_log_Dark.webp";
-			var next = theme === "dark" ? asset(darkPath) : asset(lightPath);
-			if (theme === "dark" && isLocalFrontend()) {
-				next = "Jod_log_Dark.webp";
-			}
+			var lightPath = img.getAttribute("data-logo-light") || "images/jod-logo.png";
+			var darkPath = img.getAttribute("data-logo-dark") || "images/jod-logo-dark.webp";
+			var next = publicImage(theme === "dark" ? darkPath : lightPath);
 			if (img.getAttribute("src") !== next) img.setAttribute("src", next);
 		});
 	}

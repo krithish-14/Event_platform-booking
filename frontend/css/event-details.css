@@ -1450,3 +1450,24 @@ html[data-theme="dark"] .info-text-group h4,
 html[data-theme="dark"] .price-main-display span {
     color: #FFA136;
 }
+
+html[data-theme="dark"] .performer-name,
+html[data-theme="dark"] .performer-role,
+html[data-theme="dark"] .ticket-qty-label,
+html[data-theme="dark"] .ticket-qty-hint,
+html[data-theme="dark"] .ticket-status {
+    color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .venue-maps-link:hover #infoVenue,
+html[data-theme="dark"] .venue-maps-link:hover #infoLocation,
+html[data-theme="dark"] .venue-maps-link:focus-visible #infoVenue,
+html[data-theme="dark"] .venue-maps-link:focus-visible #infoLocation {
+    color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .policy-block-title,
+html[data-theme="dark"] .policy-block-body,
+html[data-theme="dark"] .ticket-price {
+    color: #ffffff !important;
+}

@@ -1049,6 +1049,69 @@ window.JodAuth = (() => {
 			});
 		}
 
+		const privacyAgree = signupForm.querySelector("#signupPrivacyAgree");
+		const privacyModal = document.getElementById("privacyPolicyModal");
+		const privacyBody = document.getElementById("privacyPolicyCardBody");
+		const openPrivacyBtn = document.getElementById("openPrivacyPolicy");
+		let privacyBodyLoaded = false;
+
+		function syncSignupSubmitState() {
+			if (!submitBtn || submitBtn.classList.contains("is-loading")) return;
+			submitBtn.disabled = !(privacyAgree && privacyAgree.checked);
+		}
+
+		function closePrivacyModal() {
+			if (!privacyModal) return;
+			privacyModal.hidden = true;
+			document.body.style.overflow = "";
+			if (openPrivacyBtn) openPrivacyBtn.focus();
+		}
+
+		async function openPrivacyModal() {
+			if (!privacyModal) return;
+			if (privacyBody && !privacyBodyLoaded) {
+				privacyBody.innerHTML = "<p>Loading privacy policy…</p>";
+				try {
+					const res = await fetch("components/privacy-policy-body.html?v=1", { cache: "no-store" });
+					if (!res.ok) throw new Error("load failed");
+					privacyBody.innerHTML = await res.text();
+					privacyBodyLoaded = true;
+				} catch (_) {
+					privacyBody.innerHTML = '<p>Unable to load the policy here. <a href="/privacy-policy" target="_blank" rel="noopener">Open Privacy Policy</a></p>';
+				}
+			}
+			privacyModal.hidden = false;
+			document.body.style.overflow = "hidden";
+			const closeBtn = privacyModal.querySelector(".privacy-policy-close");
+			if (closeBtn) closeBtn.focus();
+		}
+
+		if (privacyAgree) {
+			privacyAgree.addEventListener("change", () => {
+				setError(privacyAgree, privacyAgree.checked ? "" : "");
+				if (privacyAgree.checked) setError(privacyAgree, "");
+				syncSignupSubmitState();
+			});
+			syncSignupSubmitState();
+		}
+
+		if (openPrivacyBtn) {
+			openPrivacyBtn.addEventListener("click", (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				openPrivacyModal();
+			});
+		}
+
+		if (privacyModal) {
+			privacyModal.querySelectorAll("[data-privacy-close]").forEach((el) => {
+				el.addEventListener("click", closePrivacyModal);
+			});
+			document.addEventListener("keydown", (e) => {
+				if (e.key === "Escape" && !privacyModal.hidden) closePrivacyModal();
+			});
+		}
+
 		/* live confirm-password match check */
 		if (confirmInput && passwordInput) {
 			confirmInput.addEventListener("input", () => {
@@ -1118,6 +1181,11 @@ window.JodAuth = (() => {
 			if (!confirm) { setError(signupForm.querySelector("#signupConfirmPassword"), "Please confirm your password."); valid = false; }
 			else if (password !== confirm) { setError(signupForm.querySelector("#signupConfirmPassword"), "Passwords do not match."); valid = false; }
 
+			if (!privacyAgree || !privacyAgree.checked) {
+				setError(privacyAgree, "Please agree to the Privacy Policy to create an account.");
+				valid = false;
+			}
+
 			if (!valid) return;
 
 			signupBusy = true;
@@ -1145,7 +1213,14 @@ window.JodAuth = (() => {
 					usernameAvailable = null;
 				}
 
-				const payload = { username, email, password, full_name: fullName, phone };
+				const payload = {
+					username,
+					email,
+					password,
+					full_name: fullName,
+					phone,
+					accepted_privacy_policy: true,
+				};
 
 				const res = await fetch(`${getApiBase()}/api/auth/register`, {
 					method: "POST",
@@ -1168,6 +1243,8 @@ window.JodAuth = (() => {
 						setError(signupForm.querySelector("#signupEmail"), detail);
 						setLiveStatus(emailInput, false, detail);
 						emailAvailable = false;
+					} else if (lower.includes("privacy") || lower.includes("agree")) {
+						setError(privacyAgree, detail);
 					} else if (lower.includes("username")) {
 						setError(signupForm.querySelector("#signupUsername"), detail);
 					} else if (lower.includes("password")) {
@@ -1190,6 +1267,7 @@ window.JodAuth = (() => {
 			} finally {
 				signupBusy = false;
 				setLoading(submitBtn, false);
+				syncSignupSubmitState();
 			}
 		}
 
@@ -1294,6 +1372,23 @@ window.JodAuth = (() => {
 	}
 
 	async function triggerGoogleFlow(btn, alertElement) {
+		const signupForm = document.getElementById("signupForm");
+		const privacyAgree = document.getElementById("signupPrivacyAgree");
+		if (signupForm && (!privacyAgree || !privacyAgree.checked)) {
+			if (privacyAgree) {
+				const wrap = privacyAgree.closest(".form-group");
+				const err = wrap && wrap.querySelector(".field-error");
+				if (err) {
+					err.textContent = "Please agree to the Privacy Policy to create an account.";
+					err.classList.add("is-visible");
+				}
+				privacyAgree.classList.add("has-error");
+				privacyAgree.focus();
+			}
+			if (alertElement) showAlert(alertElement, "error", "Please agree to the Privacy Policy to continue.");
+			return;
+		}
+
 		if (btn) btn.classList.add("is-loading");
 		
 		// Preserve redirect URI if present

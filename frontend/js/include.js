@@ -81,7 +81,11 @@
 			if (!response.ok) throw new Error(`Could not load ${path}: ${response.status}`);
 			return response.text();
 		}).then((html) => {
-			target.outerHTML = html;
+			if (id === "privacyPolicyBody" || id === "refundPolicyBody") {
+				target.innerHTML = html;
+			} else {
+				target.outerHTML = html;
+			}
 			if (id === "header") {
 				syncHeaderOffset();
 				if (typeof window.updateNavAuth === "function") {
@@ -159,9 +163,13 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=22"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=23"));
 	const footerEl = document.getElementById("footer");
 	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=9"));
+	const privacyBodyEl = document.getElementById("privacyPolicyBody");
+	if (privacyBodyEl) promises.push(loadComponent("privacyPolicyBody", "components/privacy-policy-body.html?v=1"));
+	const refundBodyEl = document.getElementById("refundPolicyBody");
+	if (refundBodyEl) promises.push(loadComponent("refundPolicyBody", "components/refund-policy-body.html?v=1"));
 
 	window.includesReady = Promise.all(promises).then(() => {
 		watchHeaderOffset();

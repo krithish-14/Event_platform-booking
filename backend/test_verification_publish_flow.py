@@ -133,7 +133,8 @@ def signup(email, password="Test@1234"):
         "username": username,
         "password": password,
         "full_name": "Test User",
-        "phone": "9876543210"
+        "phone": "9876543210",
+        "accepted_privacy_policy": True,
     })
 
 

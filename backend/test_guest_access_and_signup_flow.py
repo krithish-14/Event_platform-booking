@@ -47,7 +47,8 @@ def test_guest_access_and_signup_persistence():
         password=test_password,
         avatar_url=test_avatar,
         city=test_city,
-        location_pincode=test_pin
+        location_pincode=test_pin,
+        accepted_privacy_policy=True,
     )
 
     reg_resp = register(req, db)
@@ -87,7 +88,8 @@ def test_guest_access_and_signup_persistence():
         username=f"different_{secrets.token_hex(3)}",
         full_name="Dup Email User",
         phone="9876543211",
-        password="ValidPassword123!"
+        password="ValidPassword123!",
+        accepted_privacy_policy=True,
     )
     try:
         register(dup_req_email, db)
@@ -103,7 +105,8 @@ def test_guest_access_and_signup_persistence():
         username=test_username.upper(),
         full_name="Dup Username User",
         phone="9876543212",
-        password="ValidPassword123!"
+        password="ValidPassword123!",
+        accepted_privacy_policy=True,
     )
     try:
         register(dup_req_username, db)

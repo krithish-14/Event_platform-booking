@@ -27,7 +27,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <!-- End Meta Pixel Code -->
 
 <meta name="google-site-verification" content="NZqKNPeMc18zMdyTI3izDvSSlpvp-k5-QxDip8XCFw8" />
-			<script src="js/theme.js?v=12"></script>
+			<script src="js/theme.js?v=14"></script>
 		<script src="js/api-config.js?v=4"></script>
 <meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -36,7 +36,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<link rel="icon" type="image/png" href="https://assets.jodevents.com/images/JOD Logo.png" />
 		<link rel="apple-touch-icon" href="https://assets.jodevents.com/images/JOD Logo.png" />
 		<link rel="stylesheet" href="css/style.css?v=51" />
-		<link rel="stylesheet" href="css/auth.css?v=19" />
+		<link rel="stylesheet" href="css/auth.css?v=20" />
 		<link rel="stylesheet" href="css/responsive.css?v=49" />
 	</head>
 	<body class="auth-page-body sub-page">
@@ -152,8 +152,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 							<div class="field-error" id="signupConfirmPasswordError"></div>
 						</div>
 
+						<div class="form-group privacy-agree-group">
+							<label class="checkbox-label privacy-agree-label" for="signupPrivacyAgree">
+								<input type="checkbox" id="signupPrivacyAgree" name="accepted_privacy_policy" required />
+								<span>I agree to the <button type="button" class="privacy-policy-link" id="openPrivacyPolicy">Privacy Policy</button> <span class="req" aria-hidden="true">*</span></span>
+							</label>
+							<div class="field-error" id="signupPrivacyAgreeError"></div>
+						</div>
+
 						<!-- Submit -->
-						<button class="btn-auth-submit" type="button" id="signupSubmit" style="margin-top: .5rem;">
+						<button class="btn-auth-submit" type="button" id="signupSubmit" style="margin-top: .5rem;" disabled>
 							<span class="btn-spinner"></span>
 							<span class="btn-label">Create Account</span>
 							<span aria-hidden="true">&#8599;</span>
@@ -167,15 +175,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 					<!-- Terms -->
 					<div class="auth-terms">
-						By creating an account, you agree to our <a href="/terms-and-conditions">Terms &amp; Conditions</a> and <a href="/privacy-policy">Privacy Policy</a>.
+						By creating an account, you also agree to our <a href="/terms-and-conditions">Terms &amp; Conditions</a>.
 					</div>
 				</div>
 			</div>
 		</div>
 
+		<div class="privacy-policy-modal" id="privacyPolicyModal" hidden>
+			<div class="privacy-policy-modal-backdrop" data-privacy-close></div>
+			<div class="privacy-policy-card" role="dialog" aria-modal="true" aria-labelledby="privacyPolicyTitle">
+				<button type="button" class="privacy-policy-close" data-privacy-close aria-label="Close privacy policy">&times;</button>
+				<div class="privacy-policy-card-scroll" id="privacyPolicyCardBody"></div>
+			</div>
+		</div>
+
 		<script src="js/health.js?v=3"></script>
 		<script src="js/location.js?v=14"></script>
-		<script src="js/auth.js?v=35"></script>
+		<script src="js/auth.js?v=36"></script>
 	</body>
 </html>
 

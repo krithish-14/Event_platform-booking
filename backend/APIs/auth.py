@@ -14,6 +14,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, field_validator
+from typing import Literal
 import httpx
 
 from Models.base import get_db
@@ -183,6 +184,7 @@ class UserRegisterRequest(BaseModel):
     bio: str | None = None
     city: str | None = None
     location_pincode: str | None = None
+    accepted_privacy_policy: Literal[True]
 
     @field_validator("full_name")
     @classmethod

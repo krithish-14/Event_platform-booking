@@ -482,7 +482,7 @@ def _booking_tickets(b: Booking, db: Optional[Session] = None) -> List[Ticket]:
                 db.rollback()
             except Exception:
                 pass
-            return []
+        return []
 
 
 def _event_schedule_display(db: Optional[Session], event_id, public_start, public_end):

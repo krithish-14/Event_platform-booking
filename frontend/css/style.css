@@ -192,6 +192,70 @@ body.sub-page .announcement-bar {
 	max-width: 56rem;
 }
 
+.policy-card {
+	background: var(--card);
+	border: 1px solid var(--border);
+	border-radius: 1.25rem;
+	padding: 2rem 1.75rem 2.25rem;
+	box-shadow: var(--shadow);
+	color: var(--foreground);
+}
+
+.policy-card h2,
+.policy-card h3 {
+	margin: 1.75rem 0 0.65rem;
+	font-size: 1.15rem;
+	line-height: 1.35;
+}
+
+.policy-card h2:first-child,
+.policy-card h3:first-of-type,
+.policy-card .privacy-policy-masthead + h3 {
+	margin-top: 0;
+}
+
+.policy-card p,
+.policy-card li {
+	color: var(--muted);
+	font-size: 0.95rem;
+	line-height: 1.7;
+}
+
+.policy-card ul {
+	margin: 0 0 1rem 1.15rem;
+	padding: 0;
+}
+
+.policy-card a {
+	color: #2563eb;
+	font-weight: 600;
+}
+
+.privacy-policy-masthead {
+	margin-bottom: 1.5rem;
+	padding-bottom: 1.15rem;
+	border-bottom: 1px solid var(--border);
+}
+
+.privacy-policy-kicker {
+	margin: 0 0 0.35rem;
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--primary);
+}
+
+.privacy-policy-masthead h2 {
+	margin: 0 0 0.5rem;
+	font-size: 1.45rem;
+}
+
+.privacy-policy-meta {
+	margin: 0;
+	font-size: 0.82rem;
+}
+
 .glow-layer {
 	position: absolute;
 	inset: 0;
@@ -860,17 +924,6 @@ mark.search-highlight {
 }
 .theme-toggle[hidden] {
 	display: none !important;
-}
-
-.mobile-theme-toggle {
-	margin: 0.35rem 0 0.15rem;
-	align-self: flex-start;
-}
-
-@media (max-width: 800px) {
-	.mobile-nav .mobile-theme-toggle {
-		display: inline-flex;
-	}
 }
 
 /* ── Nav Auth Buttons ──────────────────────────────────────── */

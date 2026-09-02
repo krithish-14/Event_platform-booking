@@ -63,6 +63,7 @@ class NotificationApiCaseTests(unittest.TestCase):
                 "password": password,
                 "full_name": "Notif Case",
                 "phone": "9876543210",
+                "accepted_privacy_policy": True,
             },
         )
         self.assertIn(reg.status_code, (200, 201), reg.text)
