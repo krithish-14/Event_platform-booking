@@ -142,12 +142,12 @@
 		if (document.getElementById("jod-logo-lock-css")) return;
 		var el = document.createElement("style");
 		el.id = "jod-logo-lock-css";
-		el.textContent = "#header:empty{min-height:6.75rem;display:block}"
-			+ ".site-header .brand-logo-slot{display:flex;align-items:center;height:6.5rem!important;max-height:6.5rem!important;max-width:17.125rem!important;overflow:hidden;flex-shrink:0}"
-			+ ".site-header .brand-logo,.site-header .brand img.brand-logo{height:6.5rem!important;max-height:6.5rem!important;width:auto!important;max-width:17.125rem!important;min-height:0!important;min-width:0!important;object-fit:contain!important;object-position:left center!important;display:block!important}"
-			+ "@media (max-width:1100px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:5.75rem!important;max-height:5.75rem!important;max-width:15.125rem!important}}"
-			+ "@media (max-width:800px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:5rem!important;max-height:5rem!important;max-width:13.125rem!important}}"
-			+ "@media (max-width:520px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:4.25rem!important;max-height:4.25rem!important;max-width:11.125rem!important}}"
+		el.textContent = "#header:empty{min-height:4.6rem;display:block}"
+			+ ".site-header .brand-logo-slot{display:flex;align-items:center;height:4.25rem!important;max-height:4.25rem!important;max-width:11.2rem!important;overflow:hidden;flex-shrink:0}"
+			+ ".site-header .brand-logo,.site-header .brand img.brand-logo{height:4.25rem!important;max-height:4.25rem!important;width:auto!important;max-width:11.2rem!important;min-height:0!important;min-width:0!important;object-fit:contain!important;object-position:left center!important;display:block!important}"
+			+ "@media (max-width:1100px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:3.85rem!important;max-height:3.85rem!important;max-width:10.15rem!important}}"
+			+ "@media (max-width:800px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:3.5rem!important;max-height:3.5rem!important;max-width:9.2rem!important}}"
+			+ "@media (max-width:520px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:3.1rem!important;max-height:3.1rem!important;max-width:8.2rem!important}}"
 			+ ".site-header .nav-inner{min-height:0;padding:.2rem 0;align-items:center}"
 			+ ".site-header .desktop-nav>a,.site-header .nav-auth>a.button{white-space:nowrap}";
 		(document.head || document.documentElement).appendChild(el);

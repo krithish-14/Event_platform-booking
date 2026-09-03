@@ -571,11 +571,12 @@
 
 	function showEmptyState(container, title, message) {
 		if (!container) return;
+		container.classList.add("is-empty");
 		container.innerHTML = `
-			<div class="events-empty-state" style="grid-column:1/-1;text-align:center;padding:2.5rem 1rem;color:#64748b;">
-				<div style="margin-bottom:0.75rem;font-size:2rem;">📭</div>
-				<h3 style="margin:0 0 0.5rem;color:#0f172a;">${escapeHtml(title || "No events available")}</h3>
-				<p style="margin:0;">${escapeHtml(message || "Check back later for upcoming events.")}</p>
+			<div class="events-empty-state">
+				<div class="empty-icon" aria-hidden="true">📭</div>
+				<h3>${escapeHtml(title || "No events available")}</h3>
+				<p>${escapeHtml(message || "Check back later for upcoming events.")}</p>
 			</div>
 		`;
 	}

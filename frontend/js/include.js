@@ -46,7 +46,7 @@
 		if (!document.body.classList.contains("home-page")) return;
 		// Use layout heights only. Measuring header.bottom - hero.top while
 		// scrolling makes padding grow as the hero leaves the viewport (glitchy jump).
-		const offset = Math.max(0, announcementBarHeight() + headerHeight - 4);
+		const offset = Math.max(0, announcementBarHeight() + headerHeight);
 		const value = `${offset}px`;
 		if (document.body.style.getPropertyValue("--hero-header-offset") === value) return;
 		document.body.style.setProperty("--hero-header-offset", value);
@@ -163,7 +163,7 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=34"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=35"));
 	const footerEl = document.getElementById("footer");
 	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=14"));
 	const privacyBodyEl = document.getElementById("privacyPolicyBody");

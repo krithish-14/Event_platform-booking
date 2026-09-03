@@ -8,7 +8,7 @@
 }
 
 .ticket-main-section {
-	padding: 2rem 0 4rem;
+	padding: calc(var(--site-header-height, 4.6rem) + 1.5rem) 0 4rem;
 }
 
 /* ── Top Navigation Bar ──────────────────────────────────── */
@@ -488,6 +488,7 @@
 .ticket-actions-bar {
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	gap: 1rem;
 	flex-wrap: wrap;
 	max-width: 480px;
@@ -499,9 +500,10 @@
 }
 
 .btn-action {
-	flex: 1;
+	flex: 0 1 auto;
+	min-width: min(100%, 16rem);
 	justify-content: center;
-	padding: 0.85rem 1.25rem;
+	padding: 0.85rem 1.75rem;
 	font-size: 0.925rem;
 	font-weight: 700;
 	white-space: nowrap;
@@ -509,7 +511,7 @@
 
 @media (max-width: 800px) {
 	.ticket-main-section {
-		padding: calc(4.75rem + 1rem) 0 2.5rem;
+		padding: calc(var(--site-header-height, 3.85rem) + 1.15rem) 0 2.5rem;
 	}
 
 	.ticket-top-nav {
@@ -554,23 +556,22 @@
 
 	.ticket-actions-bar {
 		max-width: none;
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.65rem;
+		display: flex;
+		justify-content: center;
 	}
 
 	.btn-action {
-		width: 100%;
+		width: min(100%, 18rem);
 		min-width: 0;
-		white-space: normal;
-		padding: 0.8rem 0.7rem;
-		font-size: 0.82rem;
+		white-space: nowrap;
+		padding: 0.85rem 1.25rem;
+		font-size: 0.9rem;
 	}
 }
 
 @media (max-width: 520px) {
 	.ticket-main-section {
-		padding: calc(4.75rem + 0.75rem) 0 2rem;
+		padding: calc(var(--site-header-height, 3.4rem) + 1rem) 0 2rem;
 	}
 
 	.container.narrow {

@@ -678,7 +678,6 @@
 
 	function bindActions(bookingData) {
 		const btnDownloadTicket = document.getElementById("btnDownloadTicket");
-		const btnDownloadInvoice = document.getElementById("btnDownloadInvoice");
 		const btnToggleDetails = document.getElementById("btnToggleDetails");
 		const collapsibleContent = document.getElementById("collapsibleTicketDetails");
 		const toggleText = document.getElementById("toggleDetailsText");
@@ -701,10 +700,6 @@
 
 		btnDownloadTicket?.addEventListener("click", () => {
 			downloadOfficialTicketPdf(bookingData, { kind: "ticket" });
-		});
-
-		btnDownloadInvoice?.addEventListener("click", () => {
-			downloadOfficialTicketPdf(bookingData, { kind: "invoice" });
 		});
 	}
 

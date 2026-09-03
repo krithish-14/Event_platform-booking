@@ -118,6 +118,7 @@
 			if (EP.renderFeaturedPopup) EP.renderFeaturedPopup(featured);
 
 			if (track) {
+				track.classList.remove("is-empty");
 				const delays = ["", "reveal-delay-1", "reveal-delay-2", "reveal-delay-3", "reveal-delay-4"];
 				track.innerHTML = events.slice(0, 8).map((ev, i) =>
 					EP.buildCarouselCard(ev, delays[i % delays.length])
