@@ -165,7 +165,7 @@
 		}
 		const ready = Boolean(row.has_qr);
 		const showGenerate = Boolean(options && options.showGenerate);
-		const generateLabel = ready ? "Resend QR" : "Generate QR";
+		const generateLabel = "Resend QR";
 		return `<tr data-id="${recordId}" data-kind="${escapeHtml(kind)}">
 			<td>${attendeeCellHtml(row)}</td>
 			<td>
@@ -178,7 +178,7 @@
 				${row.transaction_id ? `<div class="admin-muted">Txn ${escapeHtml(row.transaction_id)}</div>` : ""}
 			</td>
 			<td class="admin-submitted">${escapeHtml(formatWhen(row.submitted_at))}</td>
-			<td><span class="admin-badge ${ready ? "ready" : "pending"}">${ready ? "QR ready" : "Needs QR"}</span></td>
+			<td><span class="admin-badge ${ready ? "ready" : "pending"}">${ready ? "QR ready" : "Pending"}</span></td>
 			<td>
 				<div class="admin-actions">
 					${showGenerate ? `<button type="button" class="admin-btn" data-kind="${escapeHtml(kind)}" data-generate="${recordId}">${generateLabel}</button>` : ""}
@@ -309,8 +309,8 @@
 			setText("sectionCount", payRows.length);
 			if (title) title.textContent = "Payment Data";
 			if (copy) copy.textContent = eventLabel
-				? `UPI payment details for ${eventLabel}. Verify payment, then generate QR.`
-				: "UPI payment details and screenshot. Choose an event to see only that event's payments.";
+				? `Payment records for ${eventLabel}. QR is issued automatically after payment; use Resend QR if needed.`
+				: "Payment records. QR is issued automatically after payment; use Resend QR to email/WhatsApp again.";
 			if (hint) hint.textContent = eventLabel
 				? `Payment data${eventNote}.`
 				: "Select an event to view that event's payment data, or keep All events.";
@@ -447,7 +447,7 @@
 	async function generateQr(id, kind, btn) {
 		if (btn) {
 			btn.disabled = true;
-			btn.textContent = "Generating…";
+			btn.textContent = "Resending…";
 		}
 		try {
 			const path = kind === "payment"
@@ -461,7 +461,7 @@
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) {
 				const detail = data && data.detail;
-				alert(typeof detail === "string" ? detail : "Could not generate QR.");
+				alert(typeof detail === "string" ? detail : "Could not resend QR.");
 				return;
 			}
 			showQrResult(data);
@@ -470,14 +470,12 @@
 				window.open(data.delivery.whatsapp_url, "_blank", "noopener");
 			}
 		} catch (err) {
-			alert("Could not generate QR. Check that the backend is running.");
+			alert("Could not resend QR. Check that the backend is running.");
 		} finally {
 			if (btn) {
 				btn.disabled = false;
 				if (!btn.isConnected) return;
-				btn.textContent = btn.getAttribute("data-generate") && btn.closest("tr")?.querySelector(".admin-badge.ready")
-					? "Resend QR"
-					: "Generate QR";
+				btn.textContent = "Resend QR";
 			}
 		}
 	}

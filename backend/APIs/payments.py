@@ -31,6 +31,46 @@ router = APIRouter()
 razorpay_router = APIRouter()
 
 
+def _auto_issue_and_deliver(db: Session, row: PaymentProof) -> dict:
+    """
+    Mint unique QR tickets and deliver via email / WhatsApp / website.
+    Payment is already recorded — never fail the payment response if delivery hiccups.
+    """
+    try:
+        from APIs.admin import _deliver_ticket, _issue_tickets_from_payment
+
+        booking = _issue_tickets_from_payment(db, row)
+        delivery = _deliver_ticket(booking, row.attendee_phone or "", db=db)
+        primary = (booking.tickets or [None])[0]
+        token = getattr(primary, "qr_token", None) or delivery.get("qr_token")
+        return {
+            "booking_id": str(booking.booking_id),
+            "qr_token": token,
+            "ticket_url": delivery.get("ticket_url"),
+            "qr_image_url": delivery.get("qr_image_url"),
+            "email_sent": bool(delivery.get("email_sent")),
+            "whatsapp_sent": bool(delivery.get("whatsapp_sent")),
+            "status": "qr_ready",
+            "delivery": delivery,
+        }
+    except Exception:
+        logger.exception("Auto QR issue/delivery failed for payment_proof id=%s", getattr(row, "id", None))
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return {
+            "booking_id": None,
+            "qr_token": None,
+            "ticket_url": None,
+            "qr_image_url": None,
+            "email_sent": False,
+            "whatsapp_sent": False,
+            "status": getattr(row, "status", None) or "payment_submitted",
+            "delivery": None,
+        }
+
+
 def _razorpay_credentials() -> tuple[str, str]:
     key_id = (os.getenv("RAZORPAY_KEY_ID") or "").strip()
     key_secret = (os.getenv("RAZORPAY_KEY_SECRET") or "").strip()
@@ -191,10 +231,17 @@ async def submit_payment_proof(
         db.commit()
         db.refresh(row)
 
+    ticket = _auto_issue_and_deliver(db, row)
+    message = (
+        "Payment received. Your QR ticket is ready — check email, WhatsApp, and Your Orders."
+        if ticket.get("qr_token")
+        else "Payment received. Your ticket is being prepared; contact support if it does not appear shortly."
+    )
     return {
-        "message": "Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.",
+        "message": message,
         "payment_id": row.id,
-        "status": row.status,
+        "status": ticket.get("status") or row.status,
+        **ticket,
     }
 
 
@@ -400,13 +447,20 @@ async def verify_razorpay_payment(
         attendee_phone=payload.attendee_phone,
     )
 
+    ticket = _auto_issue_and_deliver(db, row)
+    message = (
+        "Payment verified. Your QR ticket is ready — check email, WhatsApp, and Your Orders."
+        if ticket.get("qr_token")
+        else "Payment verified. Your ticket is being prepared; contact support if it does not appear shortly."
+    )
     return {
         "success": True,
-        "message": "Payment verified. Your ticket will be available within 24 hr after support confirms.",
+        "message": message,
         "payment_id": row.id,
-        "status": row.status,
+        "status": ticket.get("status") or row.status,
         "razorpay_payment_id": payment_id,
         "razorpay_order_id": order_id,
+        **ticket,
     }
 
 

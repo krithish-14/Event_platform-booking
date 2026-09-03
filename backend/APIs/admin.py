@@ -657,7 +657,11 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
             total_price=price,
             status="CONFIRMED",
             payment_id=row.transaction_id or f"PAY-ADMIN-{secrets.token_hex(4).upper()}",
-            payment_mode="UPI",
+            payment_mode=(
+                "Razorpay"
+                if (row.bank_name or "").strip().lower() == "razorpay"
+                else "UPI / Card"
+            ),
             gst_amount=round(price * 0.18, 2),
             receiver_name=name,
             receiver_email=email,

@@ -400,7 +400,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			<div class="row"><span>Status</span><span><span class="status" id="payStatus">Payment pending</span></span></div>
 		</div>
 		<button type="button" class="pay-btn" id="payNowBtn">Pay now</button>
-		<div class="pay-wait" id="payWaitNote">Your registration process is completed, your ticket will be available within 24 hr, after verified by support team.</div>
+		<div class="pay-wait" id="payWaitNote">Your payment is recorded. If a ticket is already issued, open Your Orders or the thank-you page link.</div>
 		<div id="payFormPanel" class="is-hidden">
 			<div class="qr-pay-card">
 				<h2>Pay with this QR</h2>
@@ -647,6 +647,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								if (!verifyRes.ok) {
 									throw new Error(apiErrorMessage(verified, "Payment verification failed."));
 								}
+								stashTicketReady(verified);
 								try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
 								window.location.replace(thankYouHref());
 							} catch (verifyErr) {
@@ -793,6 +794,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				return "thank-you.html";
 			}
 
+			function stashTicketReady(payload) {
+				try {
+					const data = {
+						ticket_url: payload && payload.ticket_url,
+						qr_image_url: payload && payload.qr_image_url,
+						qr_token: payload && payload.qr_token,
+						booking_id: payload && payload.booking_id,
+						email_sent: Boolean(payload && payload.email_sent),
+						whatsapp_sent: Boolean(payload && payload.whatsapp_sent),
+						message: (payload && payload.message) || ""
+					};
+					sessionStorage.setItem("jod_ticket_ready", JSON.stringify(data));
+				} catch (_) {}
+			}
+
 			function prefillUser() {
 				const user = window.JodAuth && window.JodAuth.getUser ? (window.JodAuth.getUser() || {}) : {};
 				const nameEl = document.getElementById("payName");
@@ -812,7 +828,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					formPanel.classList.remove("is-open");
 				}
 				if (subEl) {
-					subEl.textContent = "Your payment details were submitted. Support will verify and then issue your ticket.";
+					subEl.textContent = "Your payment details were submitted. Your QR ticket should appear in email, WhatsApp, and Your Orders.";
 				}
 			}
 
@@ -859,6 +875,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					if (!res.ok) {
 						throw new Error(apiErrorMessage(data, "Could not submit payment details."));
 					}
+					stashTicketReady(data);
 					try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
 					window.location.replace(thankYouHref());
 					submitBtn.textContent = "Submitted";

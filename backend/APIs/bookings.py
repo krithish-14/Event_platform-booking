@@ -459,7 +459,7 @@ def _booking_event_agenda(event_id, db: Optional[Session] = None) -> list:
 
 
 def _booking_tickets(b: Booking, db: Optional[Session] = None) -> List[Ticket]:
-    """Return issued tickets only. Never mint QR codes here — admin Generate QR does that."""
+    """Return issued tickets only. Minting happens after payment verify (or admin Resend QR)."""
     tickets = list(getattr(b, "tickets", None) or [])
     if tickets:
         return tickets
@@ -593,7 +593,7 @@ def create_ticket_booking(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Public self-booking is disabled. Admin Generate QR is the only ticket-issue path."""
+    """Public self-booking is disabled. Tickets are issued after verified payment (or admin Resend QR)."""
     existing = None
     try:
         existing = _active_booking_for_event(db, current_user, payload.event_id)

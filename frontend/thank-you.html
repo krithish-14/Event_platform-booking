@@ -84,17 +84,45 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 			font-weight: 800;
 		}
 		h1 {
-			font-size: 1.45rem;
+			font-size: 1.35rem;
 			font-weight: 800;
-			line-height: 1.25;
-			margin-bottom: 0.85rem;
+			margin-bottom: 0.65rem;
+			line-height: 1.3;
 		}
 		p {
-			color: #334155;
-			font-size: 0.98rem;
-			line-height: 1.65;
-			margin-bottom: 0.7rem;
+			font-size: 0.95rem;
+			color: #475569;
+			line-height: 1.55;
+			margin-bottom: 0.65rem;
 		}
+		.qr-wrap {
+			display: none;
+			margin: 1rem auto 0.5rem;
+		}
+		.qr-wrap.is-visible { display: block; }
+		.qr-wrap img {
+			width: 200px;
+			height: 200px;
+			border-radius: 12px;
+			border: 8px solid #fff8f0;
+			background: #fff;
+		}
+		.ticket-btn {
+			display: none;
+			width: 100%;
+			margin-top: 0.85rem;
+			padding: 0.9rem;
+			border: none;
+			border-radius: 10px;
+			background: #FF7508;
+			color: #ffffff;
+			font-family: inherit;
+			font-size: 1rem;
+			font-weight: 800;
+			cursor: pointer;
+			text-decoration: none;
+		}
+		.ticket-btn.is-visible { display: block; }
 		.timer {
 			color: #64748b;
 			font-size: 0.84rem;
@@ -139,9 +167,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
 	<div class="card">
 		<div class="mark" aria-hidden="true">✓</div>
-		<h1>Registration Completed Successfully</h1>
-		<p>Thank you for completing your registration and submitting your payment details.</p>
-		<p>Your registration has been received successfully. Our admin team will verify your payment and generate your QR ticket within 24 hrs.</p>
+		<h1>Payment successful</h1>
+		<p id="thankYouLead">Your QR ticket is ready. We also sent it to your email and WhatsApp (when configured).</p>
+		<p id="thankYouDetail">Open your ticket below, or find it anytime under Your Orders.</p>
+		<div class="qr-wrap" id="thankYouQrWrap">
+			<img id="thankYouQrImg" alt="Your ticket QR code" width="200" height="200" />
+		</div>
+		<a class="ticket-btn" id="thankYouTicket" href="/orders">View my ticket</a>
 		<p class="timer" id="thankYouTimer">Exit available in 5s</p>
 		<a class="exit-btn" id="thankYouExit" href="/">Exit</a>
 	</div>
@@ -149,9 +181,51 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		(function () {
 			var timerEl = document.getElementById("thankYouTimer");
 			var exitEl = document.getElementById("thankYouExit");
+			var ticketBtn = document.getElementById("thankYouTicket");
+			var qrWrap = document.getElementById("thankYouQrWrap");
+			var qrImg = document.getElementById("thankYouQrImg");
+			var leadEl = document.getElementById("thankYouLead");
+			var detailEl = document.getElementById("thankYouDetail");
 			var remaining = 5;
+			var ticket = null;
+			try {
+				ticket = JSON.parse(sessionStorage.getItem("jod_ticket_ready") || "null");
+			} catch (_) {
+				ticket = null;
+			}
 			if (exitEl && window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
 				exitEl.setAttribute("href", window.JodUrls.prettyHref("index.html") || "/");
+			}
+			var ordersHref = "/orders";
+			if (window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
+				ordersHref = window.JodUrls.prettyHref("orders.html") || ordersHref;
+			}
+			if (ticket && ticket.ticket_url) {
+				if (ticketBtn) {
+					ticketBtn.href = ticket.ticket_url;
+					ticketBtn.classList.add("is-visible");
+				}
+			} else if (ticketBtn) {
+				ticketBtn.href = ordersHref;
+				ticketBtn.classList.add("is-visible");
+				ticketBtn.textContent = "Go to Your Orders";
+			}
+			if (ticket && ticket.qr_image_url && qrWrap && qrImg) {
+				qrImg.src = ticket.qr_image_url;
+				qrWrap.classList.add("is-visible");
+			}
+			if (ticket && !ticket.qr_token) {
+				if (leadEl) leadEl.textContent = "Payment received. Your ticket is being prepared.";
+				if (detailEl) detailEl.textContent = "Check Your Orders shortly, or contact support if it does not appear.";
+			} else if (ticket && ticket.qr_token) {
+				var bits = [];
+				if (ticket.email_sent) bits.push("email");
+				if (ticket.whatsapp_sent) bits.push("WhatsApp");
+				if (leadEl) {
+					leadEl.textContent = bits.length
+						? ("Your QR ticket is ready and was sent via " + bits.join(" and ") + ".")
+						: "Your QR ticket is ready on the website. Email/WhatsApp send when SMTP / WhatsApp API are configured.";
+				}
 			}
 			var tick = setInterval(function () {
 				remaining -= 1;

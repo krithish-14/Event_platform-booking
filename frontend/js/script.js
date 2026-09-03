@@ -14,7 +14,7 @@
 		|| document.body.classList.contains("home-page")
 		|| path === "/" || path === "/index" || path === "/index.html";
 
-	const SPLASH_MS = 5000;
+	const SPLASH_MS = 2000;
 	const SPLASH_KEY = "jod-splash-seen-v2";
 
 	let splashSeen = false;

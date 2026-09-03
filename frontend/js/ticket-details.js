@@ -256,7 +256,7 @@
 			signin: "Please sign in to view this ticket.",
 			forbidden: "This ticket belongs to another account.",
 			notfound: "This ticket could not be found.",
-			pending: "Your QR ticket is not ready yet. After JOD Events admin verifies your payment and clicks Generate QR, the unique ticket will appear here, in email, and on WhatsApp.",
+			pending: "Your QR ticket is not ready yet. If you just paid, wait a moment and refresh, or open Your Orders. Contact support if it still does not appear.",
 			unavailable: "This ticket is not available."
 		};
 		const area = document.getElementById("printableTicketArea");
