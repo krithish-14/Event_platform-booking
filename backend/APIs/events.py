@@ -217,6 +217,16 @@ def _normalize_gallery_images(raw: Any) -> list:
     return urls
 
 
+def _prefer_design_list(design_value: Optional[Any], fallback_raw: Any, normalizer) -> list:
+    """Use the host design list when a design exists, including an explicit empty list.
+
+    Only fall back to the catalog snapshot when no design record was found.
+    """
+    if design_value is None:
+        return normalizer(fallback_raw)
+    return design_value if isinstance(design_value, list) else normalizer(design_value)
+
+
 def _normalize_sponsors(raw: Any) -> list:
     items = []
     for sp in _parse_list_field(raw):
@@ -277,7 +287,8 @@ def _host_design_for_event(db: Session, event_id) -> tuple:
                 design = None
 
     if not design:
-        return [], [], None
+        # None = no host design. Empty lists mean the host explicitly cleared the field.
+        return None, None, None
     title = getattr(design, "performers_title", None)
     performers_title = str(title).strip() if title and str(title).strip() else None
     return (
@@ -407,10 +418,8 @@ def _event_to_response(
     terms = event.terms
     if not terms and policies:
         terms = _format_policies_text(policies)
-    if gallery_images is None:
-        gallery_images = []
     stored_gallery = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
-    if not gallery_images and stored_gallery:
+    if gallery_images is None:
         gallery_images = stored_gallery
     if sponsors is None:
         sponsors = _normalize_sponsors(_parse_json_field(event.highlights))
@@ -440,7 +449,7 @@ def _event_to_response(
         age_limit=event.age_limit,
         language=event.language,
         performers=_parse_json_field(event.performers),
-        highlights=_parse_json_field(event.highlights),
+        highlights=sponsors or [],
         gallery_images=gallery_images or [],
         sponsors=sponsors or [],
         ticket_types=resolved_tickets,
@@ -523,10 +532,16 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
     print(f"[EVENT DETAILS] event_id={event_id} title={event.title!r} published={event.is_published}", flush=True)
     policies = _host_policies_for_event(db, event.id)
     gallery_images, sponsors, performers_title = _host_design_for_event(db, event.id)
-    if not gallery_images:
-        gallery_images = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
-    if not sponsors:
-        sponsors = _normalize_sponsors(_parse_json_field(event.highlights))
+    gallery_images = _prefer_design_list(
+        gallery_images,
+        _parse_json_field(getattr(event, "gallery_images", None)),
+        _normalize_gallery_images,
+    )
+    sponsors = _prefer_design_list(
+        sponsors,
+        _parse_json_field(event.highlights),
+        _normalize_sponsors,
+    )
     print(f"[EVENT DETAILS] gallery={len(gallery_images or [])} sponsors={len(sponsors or [])}", flush=True)
     if policies:
         formatted = _format_policies_text(policies)
@@ -593,10 +608,16 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     policies = _host_policies_for_event(db, event.id)
     gallery_images, sponsors, performers_title = _host_design_for_event(db, event.id)
-    if not gallery_images:
-        gallery_images = _normalize_gallery_images(_parse_json_field(getattr(event, "gallery_images", None)))
-    if not sponsors:
-        sponsors = _normalize_sponsors(_parse_json_field(event.highlights))
+    gallery_images = _prefer_design_list(
+        gallery_images,
+        _parse_json_field(getattr(event, "gallery_images", None)),
+        _normalize_gallery_images,
+    )
+    sponsors = _prefer_design_list(
+        sponsors,
+        _parse_json_field(event.highlights),
+        _normalize_sponsors,
+    )
     return _event_to_response(
         event,
         policies=policies,

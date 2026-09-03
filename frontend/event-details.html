@@ -53,7 +53,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/style.css?v=72" />
     <link rel="stylesheet" href="css/responsive.css?v=63" />
-    <link rel="stylesheet" href="css/event-details.css?v=32" />
+    <link rel="stylesheet" href="css/event-details.css?v=34" />
 </head>
 
 <body class="event-details-page category-theme-comedy" id="eventBody">
@@ -122,8 +122,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="performers-grid" id="performersGrid"></div>
                 </div>
 
-                <!-- Gallery — always between speakers and sponsors -->
-                <div class="section-block showcase-section" id="gallerySection">
+                <!-- Gallery — hidden until photos exist -->
+                <div class="section-block showcase-section" id="gallerySection" style="display:none;">
                     <h2 class="section-block-title">Gallery</h2>
                     <div class="event-gallery-row" id="galleryGrid"></div>
                 </div>
@@ -223,8 +223,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         </div>
 
-        <!-- More Events — always visible; cards appear when other events exist -->
-        <div class="section-block showcase-section more-events-block" id="recommendedBlock">
+        <!-- More Events — hidden until other events exist -->
+        <div class="section-block showcase-section more-events-block" id="recommendedBlock" style="display:none;">
             <h2 class="section-block-title">More Events</h2>
             <div class="recommended-grid" id="recommendedGrid"></div>
         </div>
@@ -270,7 +270,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <script src="js/script.js?v=35"></script>
     <script src="js/events-public.js?v=20260903_v22"></script>
     <script src="js/wishlist.js?v=1"></script>
-    <script src="js/event-details.js?v=36"></script>
+    <script src="js/event-details.js?v=38"></script>
 </body>
 
 </html>

@@ -1342,13 +1342,6 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
                     "subtitle": sp.get("tier") or sp.get("category") or "",
                     "image_url": sp.get("logo_url") or sp.get("image_url") or ""
                 })
-    if design and design.highlights:
-        try:
-            hl = design.highlights if isinstance(design.highlights, list) else json.loads(design.highlights)
-            if isinstance(hl, list):
-                highlights.extend(hl)
-        except Exception:
-            pass
 
     gallery_images = []
     if design and design.gallery_images:
@@ -1457,10 +1450,8 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
         public_event.host_id = event_mgt.host_id
         if organizer_id:
             public_event.organizer_id = organizer_id
-        if performers:
-            public_event.performers = json.dumps(performers)
-        if highlights:
-            public_event.highlights = json.dumps(highlights)
+        public_event.performers = json.dumps(performers) if performers else None
+        public_event.highlights = json.dumps(highlights) if highlights else None
         public_event.gallery_images = json.dumps(gallery_images) if gallery_images else None
         if ticket_types:
             public_event.ticket_types = ticket_types

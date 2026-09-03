@@ -141,15 +141,20 @@ async function loadRecommendedEvents(currentId) {
     const EP = window.JodEventsPublic;
     const grid = document.getElementById('recommendedGrid');
     const block = document.getElementById('recommendedBlock');
-    if (block) block.style.display = '';
     if (!grid) return;
     grid.innerHTML = '';
-    if (!EP) return;
+    if (!EP) {
+        if (block) block.style.display = 'none';
+        return;
+    }
 
     try {
         const events = await EP.fetchPublishedEvents({ limit: 8 });
         const others = events.filter(e => String(e.id) !== String(currentId)).slice(0, 4);
-        if (!others.length) return;
+        if (!others.length) {
+            if (block) block.style.display = 'none';
+            return;
+        }
         grid.innerHTML = others.map(ev => {
             const url = EP.eventDetailsUrl(ev);
             const img = EP.escapeHtml(EP.resolveImage(ev.image_url));
@@ -171,11 +176,13 @@ async function loadRecommendedEvents(currentId) {
                 </a>
             `;
         }).join('');
+        if (block) block.style.display = '';
         if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === 'function') {
             window.JodWishlist.refreshButtons(grid);
         }
     } catch (_) {
         grid.innerHTML = '';
+        if (block) block.style.display = 'none';
     }
 }
 
@@ -450,8 +457,8 @@ function renderEventGallery(event, EP) {
     const urls = collectGalleryUrls(event, EP);
     galleryImages = urls;
     if (!section || !grid) return;
-    section.style.display = '';
     if (!urls.length) {
+        section.style.display = 'none';
         grid.innerHTML = '';
         return;
     }
@@ -481,11 +488,10 @@ function renderEventSponsors(event, EP, escape) {
     const grid = document.getElementById('sponsorsGrid');
     if (!section || !grid) return;
 
+    // Use only the live sponsors list. Do not fall back to event.highlights —
+    // that field is a stale catalog snapshot and keeps deleted sponsors visible.
     let sponsors = Array.isArray(event.sponsors) ? event.sponsors : [];
-    if (!sponsors.length && Array.isArray(event.highlights)) {
-        sponsors = event.highlights;
-    }
-    sponsors = (sponsors || []).filter((s) => s && (s.logo_url || s.image_url || s.name || s.title));
+    sponsors = sponsors.filter((s) => s && (s.logo_url || s.image_url || s.name || s.title));
     if (!sponsors.length) {
         section.style.display = 'none';
         grid.innerHTML = '';

@@ -307,7 +307,8 @@ body.category-theme-workshop .performer-avatar {
     background: transparent;
     border: none;
     box-shadow: none;
-    padding: 0.25rem 0 1.75rem;
+    /* Keep content off the hard left edge without a card */
+    padding: 0.5rem 0.85rem 1.75rem;
 }
 
 .showcase-section .section-block-title {
@@ -363,6 +364,8 @@ body.category-theme-workshop .performer-avatar {
     display: flex;
     flex-wrap: wrap;
     gap: 1.75rem 1.5rem;
+    justify-content: flex-start;
+    align-items: flex-start;
 }
 
 .performer-card {
@@ -412,14 +415,19 @@ body.category-theme-workshop .performer-avatar {
 
 /* ── Gallery ────────────────────────────────────────────────────────────────── */
 .event-gallery-row {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: stretch;
     gap: 0.85rem;
 }
 
 .gallery-thumb {
     position: relative;
     aspect-ratio: 1;
+    width: min(176px, calc(50% - 0.45rem));
+    max-width: 200px;
+    flex: 0 0 auto;
     border: none;
     padding: 0;
     border-radius: 16px;
@@ -427,7 +435,6 @@ body.category-theme-workshop .performer-avatar {
     cursor: pointer;
     background: #f1f5f9;
     display: block;
-    width: 100%;
 }
 
 .gallery-thumb img {
@@ -522,12 +529,13 @@ body.category-theme-workshop .performer-avatar {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
+    justify-content: flex-start;
     gap: 1.25rem 1.5rem;
 }
 
 .sponsor-logo-card {
     width: 148px;
-    text-align: center;
+    text-align: left;
 }
 
 .sponsor-logo-card img {
@@ -539,6 +547,7 @@ body.category-theme-workshop .performer-avatar {
     border-radius: 16px;
     padding: 0.7rem 0.85rem;
     display: block;
+    margin: 0;
 }
 
 .sponsor-name {
@@ -1264,6 +1273,7 @@ html[data-theme="dark"] .ticket-unavailable {
 
     .performers-grid {
         flex-wrap: nowrap;
+        justify-content: flex-start;
         overflow-x: auto;
         gap: 0.85rem;
         padding: 0.1rem 0.15rem 0.45rem;
@@ -1284,13 +1294,18 @@ html[data-theme="dark"] .ticket-unavailable {
 
     .sponsors-row {
         flex-wrap: nowrap;
+        justify-content: flex-start;
         overflow-x: auto;
         padding-bottom: 0.35rem;
         scrollbar-width: thin;
     }
 
     .event-gallery-row {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        justify-content: flex-start;
+    }
+
+    .gallery-thumb {
+        width: min(148px, calc(33.333% - 0.6rem));
     }
 
     .recommended-grid {
@@ -1349,8 +1364,12 @@ html[data-theme="dark"] .ticket-unavailable {
     }
 
     .event-gallery-row {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        justify-content: flex-start;
         gap: 0.6rem;
+    }
+
+    .gallery-thumb {
+        width: min(140px, calc(50% - 0.35rem));
     }
 
     .performer-card {
@@ -1423,12 +1442,25 @@ html[data-theme="dark"] .event-desc-toggle {
 
 html[data-theme="dark"] .section-block,
 html[data-theme="dark"] .info-box-card,
-html[data-theme="dark"] .performer-card,
 html[data-theme="dark"] .tickets-section,
 html[data-theme="dark"] .ticket-type-option,
 html[data-theme="dark"] .ticket-qty-wrap {
     background: #1c1814;
     border-color: rgba(255, 138, 31, 0.22);
+    color: #f6f0e8;
+}
+
+/* Speakers / Gallery / Sponsors / More Events — no card in dark mode */
+html[data-theme="dark"] .section-block.showcase-section {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #f6f0e8;
+}
+
+html[data-theme="dark"] .performer-card {
+    background: transparent;
+    border-color: transparent;
     color: #f6f0e8;
 }
 
@@ -1453,6 +1485,7 @@ html[data-theme="dark"] .price-main-display span {
 
 html[data-theme="dark"] .performer-name,
 html[data-theme="dark"] .performer-role,
+html[data-theme="dark"] .sponsor-name,
 html[data-theme="dark"] .ticket-qty-label,
 html[data-theme="dark"] .ticket-qty-hint,
 html[data-theme="dark"] .ticket-status {
