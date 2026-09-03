@@ -88,6 +88,16 @@ def cookie_secure() -> bool:
     return is_production()
 
 
+def auth_cookie_domain() -> str | None:
+    """Shared parent domain so jodevents.com can read the CSRF cookie set by api.jodevents.com."""
+    raw = (os.getenv("AUTH_COOKIE_DOMAIN") or os.getenv("COOKIE_DOMAIN") or "").strip()
+    if not raw:
+        return None
+    if not raw.startswith("."):
+        raw = "." + raw
+    return raw
+
+
 def csrf_protection_enabled() -> bool:
     flag = os.getenv("AUTH_CSRF", "").strip().lower()
     if flag in ("1", "true", "yes"):

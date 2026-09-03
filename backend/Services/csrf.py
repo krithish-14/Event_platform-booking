@@ -11,7 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from Authentication.jwt_handler import AUTH_COOKIE_NAME
-from Services.runtime_env import cookie_secure, csrf_protection_enabled
+from Services.runtime_env import cookie_secure, csrf_protection_enabled, auth_cookie_domain
 
 CSRF_COOKIE_NAME = "jod_csrf"
 CSRF_HEADER_NAME = "x-csrf-token"
@@ -40,27 +40,36 @@ def new_csrf_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def _cookie_kwargs() -> dict:
+    kwargs = {
+        "path": "/",
+        "samesite": "lax",
+        "secure": cookie_secure(),
+    }
+    domain = auth_cookie_domain()
+    if domain:
+        kwargs["domain"] = domain
+    return kwargs
+
+
 def set_csrf_cookie(response: Response, token: str | None = None) -> str:
     value = token or new_csrf_token()
     response.set_cookie(
         key=CSRF_COOKIE_NAME,
         value=value,
         httponly=False,
-        samesite="lax",
-        secure=cookie_secure(),
         max_age=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")) * 60,
-        path="/",
+        **_cookie_kwargs(),
     )
     return value
 
 
 def clear_csrf_cookie(response: Response) -> None:
+    kwargs = _cookie_kwargs()
     response.delete_cookie(
         key=CSRF_COOKIE_NAME,
-        path="/",
-        samesite="lax",
-        secure=cookie_secure(),
         httponly=False,
+        **kwargs,
     )
 
 
@@ -89,6 +98,11 @@ class CookieCsrfMiddleware(BaseHTTPMiddleware):
             bearer = auth.split(" ", 1)[1].strip()
             if bearer and bearer != request.cookies.get(AUTH_COOKIE_NAME):
                 return await call_next(request)
+        # Same-site browser navigations/fetches (jodevents.com → api.jodevents.com) are
+        # already protected by SameSite cookies; do not require a readable CSRF cookie.
+        fetch_site = (request.headers.get("sec-fetch-site") or "").strip().lower()
+        if fetch_site in ("same-origin", "same-site"):
+            return await call_next(request)
         cookie_token = request.cookies.get(CSRF_COOKIE_NAME) or ""
         header_token = request.headers.get(CSRF_HEADER_NAME) or ""
         if not cookie_token or not header_token or not hmac.compare_digest(cookie_token, header_token):

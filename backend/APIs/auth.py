@@ -28,7 +28,7 @@ from Services.auth_service import (
 from Services.email import send_email
 from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES, AUTH_COOKIE_NAME
 from Authentication.dependencies import get_current_user
-from Services.runtime_env import cookie_secure, expose_access_token_in_json, resolve_google_redirect, smtp_configured
+from Services.runtime_env import cookie_secure, expose_access_token_in_json, resolve_google_redirect, smtp_configured, auth_cookie_domain
 from Services.rate_limit import limit_login, limit_otp, limit_password_reset, limit_register
 from Services.csrf import clear_csrf_cookie, set_csrf_cookie
 from Services import otp as otp_service
@@ -109,14 +109,20 @@ async def _verify_google_id_token(token: str) -> dict:
 
 
 def _set_auth_cookie(response: Response, token: str) -> None:
+    cookie_kwargs = {
+        "path": "/",
+        "samesite": "lax",
+        "secure": cookie_secure(),
+    }
+    domain = auth_cookie_domain()
+    if domain:
+        cookie_kwargs["domain"] = domain
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
         value=token,
         httponly=True,
-        samesite="lax",
-        secure=cookie_secure(),
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        path="/",
+        **cookie_kwargs,
     )
     set_csrf_cookie(response)
 
@@ -600,12 +606,18 @@ def get_me(response: Response, current_user: User = Depends(get_current_user)):
 @router.post("/logout")
 def logout(response: Response):
     """Clear the httpOnly auth cookie using the same attributes used at set time."""
+    cookie_kwargs = {
+        "path": "/",
+        "samesite": "lax",
+        "secure": cookie_secure(),
+    }
+    domain = auth_cookie_domain()
+    if domain:
+        cookie_kwargs["domain"] = domain
     response.delete_cookie(
         key=AUTH_COOKIE_NAME,
-        path="/",
-        samesite="lax",
-        secure=cookie_secure(),
         httponly=True,
+        **cookie_kwargs,
     )
     clear_csrf_cookie(response)
     return {"message": "Logged out successfully."}
@@ -660,19 +672,24 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
     limit_password_reset(request, email_clean)
     generic = "If an account exists for that email, a 6-digit verification code has been sent."
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
-    if user and smtp_configured():
-        otp_code = otp_service.generate_otp()
-        otp_service.store_otp(db, email_clean, "password_reset", otp_code)
-        subject = "Your JOD Events password reset code"
-        text_body = (
-            f"Your JOD Events password reset code is {otp_code}. "
-            "It expires in 10 minutes. If you did not request this, you can ignore this email."
-        )
-        html_body = (
-            f"<p>Your JOD Events password reset code is <strong>{otp_code}</strong>.</p>"
-            "<p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>"
-        )
-        send_email(email_clean, subject, text_body, html_body)
+    if user:
+        if not smtp_configured():
+            print("[EMAIL] forgot-password skipped: SMTP_HOST is not configured on this server", flush=True)
+        else:
+            otp_code = otp_service.generate_otp()
+            otp_service.store_otp(db, email_clean, "password_reset", otp_code)
+            subject = "Your JOD Events password reset code"
+            text_body = (
+                f"Your JOD Events password reset code is {otp_code}. "
+                "It expires in 10 minutes. If you did not request this, you can ignore this email."
+            )
+            html_body = (
+                f"<p>Your JOD Events password reset code is <strong>{otp_code}</strong>.</p>"
+                "<p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>"
+            )
+            sent = send_email(email_clean, subject, text_body, html_body)
+            if not sent:
+                print("[EMAIL] forgot-password SMTP delivery failed", flush=True)
     return {"message": generic}
 
 

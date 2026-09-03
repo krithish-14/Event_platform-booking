@@ -3068,6 +3068,7 @@ async function initOrganizerDashboard() {
 			const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {
 				method: "POST",
 				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+				credentials: "include",
 				body: JSON.stringify(payload)
 			});
 			const data = await res.json().catch(() => ({}));
@@ -3099,9 +3100,14 @@ async function initOrganizerDashboard() {
 				}
 				return true;
 			}
-			if (notifyError) showNotification(apiErrorMessage(data, "Could not save Manage details."));
+			const errMsg = apiErrorMessage(data, "Could not save Manage details.");
+			if (notifyError) showNotification(errMsg);
+			else console.warn("Manage save failed:", errMsg);
 		} catch (e) {
 			console.warn("Manage live auto-save warning:", e);
+			if (notifyError) {
+				showNotification((e && e.message) || "Could not save event details. Check your connection and try again.");
+			}
 		}
 		return false;
 	}
@@ -3259,7 +3265,7 @@ async function initOrganizerDashboard() {
 			const saved = await autoSaveManageEvent(true);
 			syncManageWizardPreview();
 			if (!saved) {
-				showNotification("Could not save event details. Check your connection and try again.");
+				// autoSaveManageEvent(true) already shows the real API/network error.
 				return;
 			}
 			if (isPublishedLifecycle() || currentLifecycle === "ended") {
