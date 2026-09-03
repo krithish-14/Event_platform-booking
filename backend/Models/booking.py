@@ -5,7 +5,7 @@ Booking SQLAlchemy model.
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign
 
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
@@ -33,8 +33,13 @@ class Booking(Base):
 
     # Relationships
     customer = relationship("User", back_populates="bookings")
-    event    = relationship("Event", back_populates="bookings")
-    tickets  = relationship("Ticket", back_populates="booking", cascade="all, delete-orphan")
+    # Cast both sides to text so CHAR/UUID schema drift on live Postgres does not break joins.
+    event = relationship(
+        "Event",
+        back_populates="bookings",
+        primaryjoin="cast(foreign(Booking.event_id), String) == cast(Event.id, String)",
+    )
+    tickets = relationship("Ticket", back_populates="booking", cascade="all, delete-orphan")
     form_submissions = relationship("FormSubmission", back_populates="booking")
 
     def __repr__(self):

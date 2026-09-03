@@ -6,7 +6,7 @@ import uuid
 import secrets
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign
 
 from Models.base import Base, GUID
 
@@ -51,7 +51,11 @@ class Ticket(Base):
 
     # Relationships
     booking  = relationship("Booking", back_populates="tickets")
-    event    = relationship("Event", back_populates="tickets")
+    event = relationship(
+        "Event",
+        back_populates="tickets",
+        primaryjoin="cast(foreign(Ticket.event_id), String) == cast(Event.id, String)",
+    )
     customer = relationship("User", back_populates="tickets")
 
     def __repr__(self):

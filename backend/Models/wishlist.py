@@ -5,7 +5,7 @@ Wishlist items — events a customer has saved for later.
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign
 
 from Models.base import Base, GUID
 
@@ -21,7 +21,10 @@ class WishlistItem(Base):
     event_id = Column(GUID, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=True)
 
-    event = relationship("Event")
+    event = relationship(
+        "Event",
+        primaryjoin="cast(foreign(WishlistItem.event_id), String) == cast(Event.id, String)",
+    )
 
     def __repr__(self):
         return f"<WishlistItem(customer_id={self.customer_id}, event_id={self.event_id})>"
