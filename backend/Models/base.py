@@ -28,8 +28,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 import uuid
 from sqlalchemy.types import TypeDecorator, CHAR
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-
 Base = declarative_base()
 
 
