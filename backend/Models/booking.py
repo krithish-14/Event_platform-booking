@@ -7,15 +7,14 @@ from datetime import datetime
 from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship, foreign
 
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-
 from Models.base import Base, GUID
 
 
 class Booking(Base):
     __tablename__ = "bookings"
 
-    booking_id  = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    # Must stay GUID/CHAR — not native PG UUID — to match live tickets.booking_id CHAR joins.
+    booking_id  = Column(GUID, primary_key=True, default=uuid.uuid4, index=True)
     customer_id = Column(String(100), ForeignKey("users.customer_id"), nullable=False, index=True)
     event_id    = Column(GUID, ForeignKey("events.id"), nullable=False, index=True)
     ticket_type = Column(String(100), default="Standard Access")
@@ -33,13 +32,17 @@ class Booking(Base):
 
     # Relationships
     customer = relationship("User", back_populates="bookings")
-    # Cast both sides to text so CHAR/UUID schema drift on live Postgres does not break joins.
     event = relationship(
         "Event",
         back_populates="bookings",
         primaryjoin="cast(foreign(Booking.event_id), String) == cast(Event.id, String)",
     )
-    tickets = relationship("Ticket", back_populates="booking", cascade="all, delete-orphan")
+    tickets = relationship(
+        "Ticket",
+        back_populates="booking",
+        cascade="all, delete-orphan",
+        primaryjoin="cast(foreign(Ticket.booking_id), String) == cast(Booking.booking_id, String)",
+    )
     form_submissions = relationship("FormSubmission", back_populates="booking")
 
     def __repr__(self):

@@ -34,13 +34,17 @@ Base = declarative_base()
 
 
 class GUID(TypeDecorator):
-    """Platform-independent GUID type. Uses PostgreSQL's UUID type, otherwise CHAR(36)."""
+    """
+    Platform-independent GUID stored as CHAR(36) everywhere.
+
+    Live Postgres already uses CHAR(36) for most id columns (alembic initial schema).
+    Mapping GUID -> native UUID caused `character = uuid` join failures when some
+    columns stayed CHAR and SQLAlchemy treated others as UUID.
+    """
     impl = CHAR
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == "postgresql":
-            return dialect.type_descriptor(PG_UUID(as_uuid=True))
         return dialect.type_descriptor(CHAR(36))
 
     def process_bind_param(self, value, dialect):

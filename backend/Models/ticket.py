@@ -50,7 +50,11 @@ class Ticket(Base):
     scanned_by  = Column(String(100), nullable=True)
 
     # Relationships
-    booking  = relationship("Booking", back_populates="tickets")
+    booking = relationship(
+        "Booking",
+        back_populates="tickets",
+        primaryjoin="cast(foreign(Ticket.booking_id), String) == cast(Booking.booking_id, String)",
+    )
     event = relationship(
         "Event",
         back_populates="tickets",
