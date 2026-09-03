@@ -85,8 +85,12 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(here)
 
-    venv_python = os.path.join(here, ".venv", "Scripts", "python.exe")
-    python_exe = venv_python if os.path.exists(venv_python) else sys.executable
+    candidates = [
+        os.path.join(project_root, ".venv", "Scripts", "python.exe"),
+        os.path.join(here, ".venv", "Scripts", "python.exe"),
+        sys.executable,
+    ]
+    python_exe = next((path for path in candidates if os.path.exists(path)), sys.executable)
 
     services: List[Service] = []
 

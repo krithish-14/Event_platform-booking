@@ -1,5 +1,5 @@
 {
-  "venvPath": "backend",
+  "venvPath": ".",
   "venv": ".venv",
   "extraPaths": [
     "backend"
@@ -9,7 +9,8 @@
       "root": "backend",
       "extraPaths": [
         "."
-      ]
+      ],
+      "python": ".venv/Scripts/python.exe"
     }
   ]
 }

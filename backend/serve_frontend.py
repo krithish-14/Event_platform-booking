@@ -10,6 +10,15 @@ HOST = os.environ.get("JOD_FRONTEND_HOST", "127.0.0.1")
 PORT = int(os.environ.get("JOD_FRONTEND_PORT", "5500"))
 
 
+def _frontend_root() -> str:
+	"""Always serve the frontend package, even if the process cwd is the repo root."""
+	here = os.path.dirname(os.path.abspath(__file__))
+	candidate = os.path.abspath(os.path.join(here, "..", "frontend"))
+	if os.path.isdir(candidate):
+		return candidate
+	return os.getcwd()
+
+
 class PrettyHTMLHandler(SimpleHTTPRequestHandler):
 	def _map_pretty_path(self) -> None:
 		parsed = urllib.parse.urlsplit(self.path)
@@ -66,9 +75,11 @@ class _Redirected(Exception):
 
 
 def main() -> None:
+	root = _frontend_root()
+	os.chdir(root)
 	httpd = ThreadingHTTPServer((HOST, PORT), PrettyHTMLHandler)
 	httpd.allow_reuse_address = True
-	print("Serving on http://%s:%d" % (HOST, PORT), flush=True)
+	print("Serving %s on http://%s:%d" % (root, HOST, PORT), flush=True)
 	httpd.serve_forever()
 
 

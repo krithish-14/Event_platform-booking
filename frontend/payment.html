@@ -378,7 +378,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			<span>Back</span>
 		</a>
 		<h1>Ticket bill</h1>
-		<p class="sub" id="paySub">Review your ticket details, then tap Pay now to complete payment. Your ticket is issued after support verifies the payment.</p>
+		<p class="sub" id="paySub">Review your ticket details, then tap Pay now to open Razorpay checkout. Your ticket is issued after support verifies the payment.</p>
 		<div class="bill-card">
 			<h2>Selected ticket</h2>
 			<div class="row"><span>Event</span><span id="payEvent">Loading…</span></div>
@@ -428,6 +428,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		<p class="err" id="payError"></p>
 	</div>
 
+	<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 	<script src="js/health.js?v=3"></script>
 	<script src="js/auth.js?v=33"></script>
 	<script>
@@ -538,6 +539,138 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				}
 				if (formPanel && typeof formPanel.scrollIntoView === "function") {
 					formPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+				}
+			}
+
+			function billAmountRupees() {
+				return Math.max(0, (Number(price) || 0) * (Number(qty) || 1));
+			}
+
+			function billAmountPaise() {
+				return Math.round(billAmountRupees() * 100);
+			}
+
+			async function startRazorpayCheckout() {
+				errEl.textContent = "";
+				if (!eventId) {
+					errEl.textContent = "Missing event. Go back and book again.";
+					return;
+				}
+				const sessionUser = await ensureSession();
+				if (!sessionUser) {
+					redirectToLogin("Please log in to complete payment.");
+					return;
+				}
+				const amountPaise = billAmountPaise();
+				if (amountPaise < 100) {
+					errEl.textContent = "This ticket is free or under ₹1, so Razorpay checkout is not needed.";
+					return;
+				}
+				if (typeof window.Razorpay !== "function") {
+					errEl.textContent = "Razorpay checkout failed to load. Check your network and refresh.";
+					return;
+				}
+
+				payNowBtn.disabled = true;
+				payNowBtn.textContent = "Opening Razorpay…";
+				try {
+					const createRes = await authFetch(apiBase + "/api/create-order", {
+						method: "POST",
+						headers: { "Content-Type": "application/json", Accept: "application/json" },
+						body: JSON.stringify({
+							amount: amountPaise,
+							currency: "INR",
+							receipt: ("evt_" + String(eventId).slice(0, 20) + "_" + Date.now()).slice(0, 40),
+							event_id: eventId,
+							ticket_type: ticket,
+							quantity: qty || 1
+						})
+					});
+					const order = await createRes.json().catch(() => ({}));
+					if (createRes.status === 401) {
+						redirectToLogin("Your session expired. Please log in again to complete payment.");
+						return;
+					}
+					if (!createRes.ok) {
+						throw new Error(apiErrorMessage(order, "Could not create Razorpay order."));
+					}
+					if (!order.order_id || !order.key_id) {
+						throw new Error("Invalid order response from server.");
+					}
+
+					const user = window.JodAuth && window.JodAuth.getUser ? (window.JodAuth.getUser() || {}) : {};
+					const options = {
+						key: order.key_id,
+						amount: order.amount,
+						currency: order.currency || "INR",
+						name: "JOD Events",
+						description: ticket + (saved.eventTitle ? (" · " + saved.eventTitle) : ""),
+						order_id: order.order_id,
+						prefill: {
+							name: user.full_name || user.username || "",
+							email: user.email || "",
+							contact: user.phone || user.mobile || ""
+						},
+						theme: { color: "#ff8a1f" },
+						modal: {
+							ondismiss: function () {
+								if (errEl && !errEl.textContent) {
+									errEl.textContent = "Payment cancelled. You can tap Pay now to try again.";
+								}
+								payNowBtn.disabled = false;
+								payNowBtn.textContent = "Pay now";
+							}
+						},
+						handler: async function (response) {
+							try {
+								payNowBtn.textContent = "Verifying…";
+								const verifyRes = await authFetch(apiBase + "/api/verify-payment", {
+									method: "POST",
+									headers: { "Content-Type": "application/json", Accept: "application/json" },
+									body: JSON.stringify({
+										razorpay_order_id: response.razorpay_order_id,
+										razorpay_payment_id: response.razorpay_payment_id,
+										razorpay_signature: response.razorpay_signature,
+										event_id: eventId,
+										ticket_type: ticket,
+										quantity: qty || 1,
+										amount: billAmountRupees(),
+										attendee_name: user.full_name || user.username || "",
+										attendee_phone: user.phone || user.mobile || ""
+									})
+								});
+								const verified = await verifyRes.json().catch(() => ({}));
+								if (verifyRes.status === 401) {
+									redirectToLogin("Your session expired. Please log in again.");
+									return;
+								}
+								if (!verifyRes.ok) {
+									throw new Error(apiErrorMessage(verified, "Payment verification failed."));
+								}
+								try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
+								window.location.replace(thankYouHref());
+							} catch (verifyErr) {
+								errEl.textContent = verifyErr.message || "Payment verification failed.";
+								payNowBtn.disabled = false;
+								payNowBtn.textContent = "Pay now";
+							}
+						}
+					};
+
+					const rzp = new window.Razorpay(options);
+					rzp.on("payment.failed", function (failResponse) {
+						const desc = failResponse && failResponse.error && (failResponse.error.description || failResponse.error.reason);
+						errEl.textContent = desc || "Payment failed. Please try again.";
+						payNowBtn.disabled = false;
+						payNowBtn.textContent = "Pay now";
+					});
+					rzp.open();
+					payNowBtn.disabled = false;
+					payNowBtn.textContent = "Pay now";
+				} catch (err) {
+					errEl.textContent = err.message || "Could not start Razorpay checkout.";
+					payNowBtn.disabled = false;
+					payNowBtn.textContent = "Pay now";
 				}
 			}
 
@@ -736,7 +869,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				}
 			}
 
-			if (payNowBtn) payNowBtn.addEventListener("click", openPaymentStep);
+			if (payNowBtn) payNowBtn.addEventListener("click", startRazorpayCheckout);
 			if (proofForm) proofForm.addEventListener("submit", submitProof);
 			const shotInput = document.getElementById("payShot");
 			const shotPreview = document.getElementById("payShotPreview");

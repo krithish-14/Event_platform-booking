@@ -1,6 +1,7 @@
 {
   "pythonVersion": "3.13",
-  "venvPath": ".",
+  "venvPath": "..",
+  "venv": ".venv",
   "include": ["."],
   "extraPaths": ["d:/JOD-Events/backend"]
 }
