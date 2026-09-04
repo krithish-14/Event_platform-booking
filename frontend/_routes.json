@@ -1,10 +1,5 @@
 {
 	"version": 1,
-	"include": [
-		"/event-details",
-		"/event-details/",
-		"/event-details.html",
-		"/e/*"
-	],
-	"exclude": []
+	"include": ["/event-details", "/event-details/"],
+	"exclude": ["/event-details.html"]
 }

@@ -1,8 +1,7 @@
 /**
- * Cloudflare Pages advanced-mode worker.
- * Direct Upload often skips `functions/`, and static event-details.html is
- * auto-excluded from Functions — so WhatsApp kept seeing generic JOD tags.
- * This file is the documented override: it runs before static HTML.
+ * Cloudflare Pages worker for /event-details.
+ * Injects event title, description, and image into Open Graph tags.
+ * Always returns the real event-details.html for browsers.
  */
 const API_ORIGIN = "https://api.jodevents.com";
 const SITE_ORIGIN = "https://jodevents.com";
@@ -89,9 +88,7 @@ function applyShareTags(html, event, pageUrl, apiOrigin, siteOrigin) {
 			`(<meta\\b[^>]*\\b${attr}=["']${key}["'][^>]*\\bcontent=["'])([^"']*)(["'])`,
 			"i"
 		);
-		if (re.test(out)) {
-			out = out.replace(re, `$1${escaped}$3`);
-		}
+		if (re.test(out)) out = out.replace(re, `$1${escaped}$3`);
 	}
 	out = out.replace(/<title>[^<]*<\/title>/i, `<title>${escapeAttr(docTitle)}</title>`);
 	out = out.replace(
@@ -104,53 +101,11 @@ function applyShareTags(html, event, pageUrl, apiOrigin, siteOrigin) {
 	return out;
 }
 
-function isShareBot(request) {
-	const ua = String(request.headers.get("user-agent") || "");
-	return /facebookexternalhit|Facebot|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot/i.test(
-		ua
-	);
-}
-
-function ogOnlyPage(event, pageUrl, apiOrigin, siteOrigin) {
-	const title = String(event.title || "Event Details").trim() || "Event Details";
-	const description = clipDescription(event.description, title);
-	const image = absoluteMediaUrl(event.image_url || event.card_image || "", apiOrigin, siteOrigin);
-	const docTitle = `${title} — JOD Events`;
-	return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>${escapeAttr(docTitle)}</title>
-<meta name="description" content="${escapeAttr(description)}" />
-<meta property="og:type" content="website" />
-<meta property="og:site_name" content="JOD Events" />
-<meta property="og:title" content="${escapeAttr(title)}" />
-<meta property="og:description" content="${escapeAttr(description)}" />
-<meta property="og:url" content="${escapeAttr(pageUrl)}" />
-<meta property="og:image" content="${escapeAttr(image)}" />
-<meta property="og:image:alt" content="${escapeAttr(title)}" />
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="${escapeAttr(title)}" />
-<meta name="twitter:description" content="${escapeAttr(description)}" />
-<meta name="twitter:image" content="${escapeAttr(image)}" />
-<link rel="canonical" href="${escapeAttr(pageUrl)}" />
-<!-- jod-og:event -->
-</head>
-<body>
-<h1>${escapeAttr(title)}</h1>
-<p>${escapeAttr(description)}</p>
-<p><a href="${escapeAttr(pageUrl)}">Open event</a></p>
-</body>
-</html>`;
-}
-
-async function loadEventDetailsHtml(request, env, url) {
-	if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
-		const assetUrl = new URL("/event-details.html", url.origin);
-		assetUrl.search = url.search;
-		const assetRes = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
-		if (assetRes && assetRes.ok) return assetRes;
-	}
+async function loadEventDetailsHtml(env, origin) {
+	if (!env || !env.ASSETS || typeof env.ASSETS.fetch !== "function") return null;
+	const assetUrl = new URL("/event-details.html", origin).toString();
+	const assetRes = await env.ASSETS.fetch(assetUrl, { method: "GET" });
+	if (assetRes && assetRes.ok) return assetRes;
 	return null;
 }
 
@@ -164,53 +119,30 @@ async function handleEventDetails(request, env) {
 		? `${siteOrigin}/event-details?id=${encodeURIComponent(eventId)}`
 		: `${siteOrigin}/event-details`;
 
-	const assetRes = await loadEventDetailsHtml(request, env, url);
-
-	if (!eventId) {
-		if (assetRes) return assetRes;
-		return new Response("Event details unavailable.", { status: 404 });
+	const assetRes = await loadEventDetailsHtml(env, url.origin);
+	if (!assetRes) {
+		if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
+			return env.ASSETS.fetch(request);
+		}
+		return new Response("Event details unavailable.", { status: 503 });
 	}
 
-	let event = null;
+	if (!eventId) return assetRes;
+
 	try {
-		event = await fetchEvent(eventId, apiOrigin);
-	} catch (_) {
-		event = null;
-	}
-
-	if (event && isShareBot(request)) {
-		return new Response(ogOnlyPage(event, pageUrl, apiOrigin, siteOrigin), {
+		const event = await fetchEvent(eventId, apiOrigin);
+		if (!event) return assetRes;
+		const html = applyShareTags(await assetRes.text(), event, pageUrl, apiOrigin, siteOrigin);
+		return new Response(html, {
 			status: 200,
 			headers: {
 				"content-type": "text/html; charset=utf-8",
 				"cache-control": "public, max-age=60, must-revalidate",
 			},
 		});
+	} catch (_) {
+		return assetRes;
 	}
-
-	if (!assetRes) {
-		if (event) {
-			return new Response(ogOnlyPage(event, pageUrl, apiOrigin, siteOrigin), {
-				status: 200,
-				headers: {
-					"content-type": "text/html; charset=utf-8",
-					"cache-control": "public, max-age=60, must-revalidate",
-				},
-			});
-		}
-		return new Response("Event details unavailable.", { status: 503 });
-	}
-
-	if (!event) return assetRes;
-
-	const html = applyShareTags(await assetRes.text(), event, pageUrl, apiOrigin, siteOrigin);
-	return new Response(html, {
-		status: 200,
-		headers: {
-			"content-type": "text/html; charset=utf-8",
-			"cache-control": "public, max-age=60, must-revalidate",
-		},
-	});
 }
 
 export default {

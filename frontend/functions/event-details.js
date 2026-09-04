@@ -1,6 +1,6 @@
 /**
  * Named Pages Function for /event-details.
- * Used when `functions/` is deployed. `_worker.js` takes over if both exist.
+ * Rewrites Open Graph tags on the real event-details.html. Never replaces the page.
  */
 const API_ORIGIN = "https://api.jodevents.com";
 const SITE_ORIGIN = "https://jodevents.com";
@@ -71,46 +71,6 @@ function applyShareTags(html, event, pageUrl, apiOrigin, siteOrigin) {
 	return out;
 }
 
-function isShareBot(request) {
-	const ua = String(request.headers.get("user-agent") || "");
-	return /facebookexternalhit|Facebot|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot/i.test(
-		ua
-	);
-}
-
-function ogOnlyPage(event, pageUrl, apiOrigin, siteOrigin) {
-	const title = String(event.title || "Event Details").trim() || "Event Details";
-	const description = clipDescription(event.description, title);
-	const image = absoluteMediaUrl(event.image_url || event.card_image || "", apiOrigin, siteOrigin);
-	const docTitle = `${title} — JOD Events`;
-	return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>${escapeAttr(docTitle)}</title>
-<meta name="description" content="${escapeAttr(description)}" />
-<meta property="og:type" content="website" />
-<meta property="og:site_name" content="JOD Events" />
-<meta property="og:title" content="${escapeAttr(title)}" />
-<meta property="og:description" content="${escapeAttr(description)}" />
-<meta property="og:url" content="${escapeAttr(pageUrl)}" />
-<meta property="og:image" content="${escapeAttr(image)}" />
-<meta property="og:image:alt" content="${escapeAttr(title)}" />
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="${escapeAttr(title)}" />
-<meta name="twitter:description" content="${escapeAttr(description)}" />
-<meta name="twitter:image" content="${escapeAttr(image)}" />
-<link rel="canonical" href="${escapeAttr(pageUrl)}" />
-<!-- jod-og:event -->
-</head>
-<body>
-<h1>${escapeAttr(title)}</h1>
-<p>${escapeAttr(description)}</p>
-<p><a href="${escapeAttr(pageUrl)}">Open event</a></p>
-</body>
-</html>`;
-}
-
 async function fetchEvent(eventId, apiOrigin) {
 	const urls = [
 		`${apiOrigin}/api/events/public/${encodeURIComponent(eventId)}`,
@@ -149,15 +109,6 @@ export async function onRequest(context) {
 	try {
 		const event = await fetchEvent(eventId, apiOrigin);
 		if (!event) return assetRes;
-		if (isShareBot(context.request)) {
-			return new Response(ogOnlyPage(event, pageUrl, apiOrigin, siteOrigin), {
-				status: 200,
-				headers: {
-					"content-type": "text/html; charset=utf-8",
-					"cache-control": "public, max-age=60, must-revalidate",
-				},
-			});
-		}
 		const html = applyShareTags(await assetRes.text(), event, pageUrl, apiOrigin, siteOrigin);
 		return new Response(html, {
 			status: 200,
