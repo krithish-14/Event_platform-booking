@@ -682,26 +682,28 @@ def submit_attendee_response(
 
 		if existing:
 			status_val = (existing.status or "").lower()
+			# Paid submissions stay closed; start a fresh registration so attendees can buy again.
 			if status_val == "paid":
-				return _submission_payload(existing, "Registration already completed.")
-			_update_form_submission_row(
-				db,
-				existing.id,
-				answers=answers,
-				status="payment_pending",
-				form_id=form_id,
-				event_id=event_id_str,
-				customer_id=customer_id,
-				ticket_type=ticket_type,
-				ticket_price=ticket_price,
-				clear_booking_id=status_val in ("cancelled", "canceled", "refunded"),
-			)
-			existing.answers_json = answers
-			existing.status = "payment_pending"
-			existing.form_id = form_id
-			if event_id_str:
-				existing.event_id = event_id_str
-			return _submission_payload(existing, "Registration submitted successfully!")
+				existing = None
+			else:
+				_update_form_submission_row(
+					db,
+					existing.id,
+					answers=answers,
+					status="payment_pending",
+					form_id=form_id,
+					event_id=event_id_str,
+					customer_id=customer_id,
+					ticket_type=ticket_type,
+					ticket_price=ticket_price,
+					clear_booking_id=status_val in ("cancelled", "canceled", "refunded"),
+				)
+				existing.answers_json = answers
+				existing.status = "payment_pending"
+				existing.form_id = form_id
+				if event_id_str:
+					existing.event_id = event_id_str
+				return _submission_payload(existing, "Registration submitted successfully!")
 
 		sub = _insert_form_submission(
 			db,

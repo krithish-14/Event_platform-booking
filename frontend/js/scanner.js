@@ -203,17 +203,21 @@
 		if (res.valid && (res.status === "VALID" || res.status === "USED")) {
 			playAudioBeep("success");
 			banner.className = "result-banner result-valid";
-			titleEl.textContent = isCheckinMode ? "✅ ENTRY ALLOWED" : "✅ VALID TICKET";
-			tagEl.textContent = isCheckinMode ? "CHECK-IN SUCCESS" : "VALID";
+			titleEl.textContent = isCheckinMode ? "✅ NEW CHECK-IN" : "✅ VALID TICKET";
+			tagEl.textContent = isCheckinMode ? "NEW" : "VALID";
 			tagEl.className = "badge-mini badge-mini-valid";
-			msgEl.textContent = res.message || "Ticket successfully verified for venue entry.";
-		} else if (res.status === "ALREADY_USED") {
+			msgEl.textContent = res.message || (res.ticket_id
+				? `New check-in — ticket ${res.ticket_id}.`
+				: "Ticket successfully verified for venue entry.");
+		} else if (res.status === "ALREADY_USED" || res.duplicate || res.already_checked_in) {
 			playAudioBeep("error");
 			banner.className = "result-banner result-used";
-			titleEl.textContent = "⚠️ TICKET ALREADY USED";
-			tagEl.textContent = "ALREADY CHECKED IN";
+			titleEl.textContent = "⚠️ DUPLICATE CHECK-IN";
+			tagEl.textContent = "DUPLICATE";
 			tagEl.className = "badge-mini badge-mini-used";
-			msgEl.textContent = res.message || "This ticket has already passed gate check-in earlier!";
+			msgEl.textContent = res.message || (res.ticket_id
+				? `Duplicate — ticket ${res.ticket_id} was already checked in.`
+				: "This ticket has already passed gate check-in earlier!");
 		} else {
 			playAudioBeep("error");
 			banner.className = "result-banner result-invalid";

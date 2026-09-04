@@ -159,7 +159,7 @@ body.category-theme-workshop .performer-avatar {
 .event-details-container {
     max-width: 1280px;
     margin: 0 auto;
-    padding: calc(4.75rem + 1.5rem) 1.5rem 6rem;
+    padding: calc(4.75rem + 1.5rem) 1.5rem 2.5rem;
     background: transparent;
 }
 
@@ -628,6 +628,12 @@ body.category-theme-workshop .performer-avatar {
     transition: all 0.2s ease;
 }
 
+.btn-share-icon .share-nodes-icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
 .btn-share-icon:hover {
     border-color: var(--theme-accent);
     color: var(--theme-accent);
@@ -755,13 +761,33 @@ body.category-theme-workshop .performer-avatar {
     background: #f8fafc;
 }
 
+.ticket-qty-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.45rem;
+}
+
 .ticket-qty-label {
     font-size: 0.78rem;
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: #64748b;
-    margin-bottom: 0.45rem;
+    margin-bottom: 0;
+}
+
+.ticket-qty-total {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #334155;
+    white-space: nowrap;
+}
+
+.ticket-qty-total strong {
+    color: var(--theme-accent, #0f172a);
+    font-weight: 800;
 }
 
 .ticket-qty-stepper {
@@ -931,9 +957,9 @@ html[data-theme="dark"] .ticket-unavailable {
 
 .post-purchase-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 0.65rem;
-    margin-top: 0.85rem;
+    width: 100%;
+    margin: 0 0 0.75rem;
 }
 
 .post-purchase-actions[hidden] {
@@ -973,10 +999,24 @@ html[data-theme="dark"] .ticket-unavailable {
     transform: translateY(-2px);
 }
 
-.sticky-post-purchase {
-    margin-top: 0;
+.sticky-cta-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
     flex: 1;
     max-width: 320px;
+}
+
+.sticky-post-purchase {
+    margin-top: 0;
+    margin-bottom: 0;
+    max-width: none;
+}
+
+.sticky-cta-stack > .btn-book-now {
+    width: 100%;
+    min-width: 0;
 }
 
 /* ── Secondary Sticky Mobile Book Bar ───────────────────────────────────────── */
@@ -1106,7 +1146,11 @@ html[data-theme="dark"] .ticket-unavailable {
 /* ── Responsive Breakpoints ──────────────────────────────────────────────────── */
 @media (max-width: 992px) {
     .event-details-container {
-        padding: calc(4.75rem + 1rem) 1.15rem calc(5.75rem + env(safe-area-inset-bottom, 0px));
+        padding: calc(4.75rem + 1rem) 1.15rem 1.75rem;
+    }
+
+    body.event-details-page #footer {
+        padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
     }
 
     .event-title-bar {
@@ -1325,7 +1369,11 @@ html[data-theme="dark"] .ticket-unavailable {
 
 @media (max-width: 600px) {
     .event-details-container {
-        padding: calc(4.75rem + 0.75rem) 0.9rem calc(5.6rem + env(safe-area-inset-bottom, 0px));
+        padding: calc(4.75rem + 0.75rem) 0.9rem 1.25rem;
+    }
+
+    body.event-details-page #footer {
+        padding-bottom: calc(5.6rem + env(safe-area-inset-bottom, 0px));
     }
 
     .event-main-title {
@@ -1402,14 +1450,21 @@ html[data-theme="dark"] .ticket-unavailable {
     .sticky-bottom-bar .btn-book-now {
         min-width: 0;
         flex: 1 1 auto;
-        max-width: 11.5rem;
+        max-width: none;
+        width: 100%;
         padding: 0.72rem 1rem;
+    }
+
+    .sticky-cta-stack {
+        max-width: none;
+        flex: 1 1 auto;
     }
 
     .sticky-post-purchase {
         max-width: none;
         display: grid;
         grid-template-columns: 1fr 1fr;
+        margin-bottom: 0;
     }
 }
 
@@ -1488,6 +1543,7 @@ html[data-theme="dark"] .performer-role,
 html[data-theme="dark"] .sponsor-name,
 html[data-theme="dark"] .ticket-qty-label,
 html[data-theme="dark"] .ticket-qty-hint,
+html[data-theme="dark"] .ticket-qty-total,
 html[data-theme="dark"] .ticket-status {
     color: #fff8f0 !important;
 }

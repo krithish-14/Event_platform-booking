@@ -645,9 +645,7 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
     user = _ensure_attendee_user(db, email, name, row.customer_id)
 
     booking = _reload_booking(db, _column_as_text(db, "payment_proofs", "id", row.id, "booking_id"))
-    if not booking:
-        booking = _active_booking_for_event(db, user, event.id)
-
+    # Do not reuse an older booking for the same event — each paid proof gets its own tickets.
     if not booking:
         booking = Booking(
             customer_id=user.customer_id,
@@ -679,6 +677,8 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
             booking.receiver_email = email
         if qty > int(booking.quantity or 1):
             booking.quantity = qty
+        if ticket_type and not (booking.ticket_type or "").strip():
+            booking.ticket_type = ticket_type
         db.commit()
 
     _mint_unique_tickets(db, booking, qty, booking.ticket_type or ticket_type)

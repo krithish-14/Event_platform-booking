@@ -324,6 +324,7 @@ def _booking_ref_for_ticket_id(db: Session, ticket_id) -> Optional[str]:
 def _volunteer_ticket_extra(ticket: Optional[Ticket], **fields) -> dict:
     extra = {k: v for k, v in fields.items() if v is not None}
     if ticket:
+        extra["ticket_id"] = str(ticket.ticket_id)
         extra["booking_id"] = str(ticket.booking_id)
         ref = _booking_ref(ticket)
         if ref:
@@ -611,12 +612,14 @@ def _verify_ticket_for_assignment(
             already_checkin = existing
             break
     if already:
-        return fail(
+        body = fail(
             "ALREADY_USED",
-            "Duplicate — this ticket was already checked in.",
+            f"Duplicate check-in — ticket {already.ticket_id} was already checked in.",
             _duplicate_body(already, already_checkin),
             ticket=already,
         )
+        body["check_in_type"] = "duplicate"
+        return body
 
     ticket = next(
         (
@@ -719,8 +722,14 @@ def _verify_ticket_for_assignment(
         )
         .count()
     )
-    result = _volunteer_verify_result(ticket, "CHECK-IN SUCCESSFUL", staff_name, today_count)
+    result = _volunteer_verify_result(
+        ticket,
+        f"New check-in — ticket {ticket.ticket_id} checked in successfully.",
+        staff_name,
+        today_count,
+    )
     result["method"] = method
+    result["check_in_type"] = "new"
     return result
 
 

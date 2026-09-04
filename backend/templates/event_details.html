@@ -3,8 +3,26 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Book tickets for {{ event.title if event else 'Event Details' }} on JOD Events Platform." />
-    <title>{{ app_title if app_title else (event.title if event else 'Event Details — JOD Events') }}</title>
+    {% set share_title = (event.title if event and event.title else 'Event Details') %}
+    {% set share_desc = ((event.description if event and event.description else '')|replace('\n', ' ')|truncate(220, True, '…')) or ('Book tickets for ' ~ share_title ~ ' on JOD Events.') %}
+    {% set share_image = (event.image_url if event and event.image_url else 'https://assets.jodevents.com/images/hero-event.jpg') %}
+    {% if share_image and not (share_image.startswith('http://') or share_image.startswith('https://')) %}
+      {% set share_image = 'https://jodevents.com/' ~ share_image.lstrip('/') %}
+    {% endif %}
+    {% set share_url = 'https://jodevents.com/event-details?id=' ~ (event.id if event and event.id else '') %}
+    <meta name="description" content="{{ share_desc }}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="JOD Events" />
+    <meta property="og:title" content="{{ share_title }}" />
+    <meta property="og:description" content="{{ share_desc }}" />
+    <meta property="og:url" content="{{ share_url }}" />
+    <meta property="og:image" content="{{ share_image }}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="{{ share_title }}" />
+    <meta name="twitter:description" content="{{ share_desc }}" />
+    <meta name="twitter:image" content="{{ share_image }}" />
+    <link rel="canonical" href="{{ share_url }}" />
+    <title>{{ app_title if app_title else (share_title ~ ' — JOD Events') }}</title>
     
     <!-- Stylesheets -->
     <link rel="stylesheet" href="/css/style.css?v=15" />

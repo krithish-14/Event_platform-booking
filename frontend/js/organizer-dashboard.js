@@ -1702,12 +1702,21 @@ async function initOrganizerDashboard() {
 				|| status === "already_used"
 				|| status === "duplicate"
 				|| status === "already_checked_in"
+				|| String(data.check_in_type || "").toLowerCase() === "duplicate"
 			);
 			const ok = res.ok && data.valid !== false && !already && status !== "cancelled";
 			const detail = typeof data.detail === "string" ? data.detail : "";
+			const ticketId = data.ticket_id ? String(data.ticket_id) : "";
 			let message = data.message || detail || (ok ? `${value} checked in successfully.` : "Could not validate this ticket.");
+			if (ok && !/^new check-in/i.test(message)) {
+				message = ticketId
+					? `New check-in — ticket ${ticketId}. ${message}`
+					: `New check-in — ${message}`;
+			}
 			if (already && !/duplicate/i.test(message)) {
-				message = `Duplicate — ${message}`;
+				message = ticketId
+					? `Duplicate check-in — ticket ${ticketId}. ${message}`
+					: `Duplicate check-in — ${message}`;
 			}
 			paintCheckinResult(resultEl, ok, (ok ? "✓ " : "") + message.replace(/^✓\s*/, ""), already);
 			await loadDashboardData();
@@ -3830,8 +3839,8 @@ async function initOrganizerDashboard() {
 							<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 100" min="1" required value="${attrEscape(qty)}" />
 					</div>
 					<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
-					</div>
 				</div>
+			</div>
 			</div>
 			<div class="setup-grid-2 ticket-tier-offer">
 				<div class="setup-form-group">
@@ -3863,7 +3872,7 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-		if (ticketTiersRows) {
+	if (ticketTiersRows) {
 		const initialRemoveBtn = ticketTiersRows.querySelector(".btn-remove-ticket");
 		if (initialRemoveBtn) {
 			initialRemoveBtn.addEventListener("click", (e) => {

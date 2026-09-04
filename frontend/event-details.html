@@ -46,6 +46,18 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Book tickets for Event Details on JOD Events Platform." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="JOD Events" />
+    <meta property="og:title" content="Event Details — JOD Events" />
+    <meta property="og:description" content="Book tickets for Event Details on JOD Events Platform." />
+    <meta property="og:url" content="https://jodevents.com/event-details" />
+    <meta property="og:image" content="https://assets.jodevents.com/images/JOD%20Events%20Logo.png" />
+    <meta property="og:image:alt" content="JOD Events" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Event Details — JOD Events" />
+    <meta name="twitter:description" content="Book tickets for Event Details on JOD Events Platform." />
+    <meta name="twitter:image" content="https://assets.jodevents.com/images/JOD%20Events%20Logo.png" />
+    <link rel="canonical" href="https://jodevents.com/event-details" />
     <title>Event Details — JOD Events</title>
     <link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
     <link rel="apple-touch-icon" href="/images/JOD%20Logo.png" />
@@ -53,7 +65,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/style.css?v=72" />
     <link rel="stylesheet" href="css/responsive.css?v=63" />
-    <link rel="stylesheet" href="css/event-details.css?v=34" />
+    <link rel="stylesheet" href="css/event-details.css?v=37" />
 </head>
 
 <body class="event-details-page category-theme-comedy" id="eventBody">
@@ -142,7 +154,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="info-box-card">
 
                         <div class="info-header">
-                            <button class="btn-share-icon" id="btnShare" type="button" onclick="copyEventShareLink()" aria-label="Share event">🔗</button>
+                            <button class="btn-share-icon" id="btnShare" type="button" onclick="copyEventShareLink()" aria-label="Share event" title="Share event">
+                                <svg class="share-nodes-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <circle cx="18" cy="5" r="2.75" fill="none" stroke="currentColor" stroke-width="2"></circle>
+                                    <circle cx="6" cy="12" r="2.75" fill="none" stroke="currentColor" stroke-width="2"></circle>
+                                    <circle cx="18" cy="19" r="2.75" fill="none" stroke="currentColor" stroke-width="2"></circle>
+                                    <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                                </svg>
+                            </button>
                             <div class="price-main-display">
                                 Ticket Starts at <span id="displayPrice">—</span>
                             </div>
@@ -199,7 +218,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                                 <p style="color:#64748b; font-size:0.9rem;">Loading tickets…</p>
                             </div>
                             <div id="ticketQtyWrap" class="ticket-qty-wrap" hidden>
-                                <div class="ticket-qty-label">Quantity</div>
+                                <div class="ticket-qty-header">
+                                    <div class="ticket-qty-label">Quantity</div>
+                                    <div class="ticket-qty-total" id="ticketQtyTotal">
+                                        Total <strong id="ticketQtyTotalPrice">—</strong>
+                                    </div>
+                                </div>
                                 <div class="ticket-qty-stepper">
                                     <button type="button" id="ticketQtyMinus" aria-label="Fewer tickets">−</button>
                                     <input type="number" id="ticketQtyInput" min="1" max="1" value="1" inputmode="numeric" />
@@ -209,14 +233,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             </div>
                         </div>
 
-                        <!-- Book Now Primary CTA Button -->
-                        <button class="btn-book-now" type="button" onclick="triggerBookingModal()">
-                            Buy Ticket
-                        </button>
+                        <!-- Book Now: after purchase keep Buy Ticket under View Ticket / View Agenda -->
                         <div class="post-purchase-actions" id="postPurchaseActions" hidden>
                             <a class="btn-book-now btn-view-ticket" data-action="view-ticket" href="/ticket-details">View Ticket</a>
                             <a class="btn-view-agenda" data-action="view-agenda" href="/agenda">View Agenda</a>
                         </div>
+                        <button class="btn-book-now" type="button" onclick="triggerBookingModal()">
+                            Buy Ticket
+                        </button>
                     </div>
                 </div>
             </div>
@@ -230,6 +254,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </div>
     </main>
 
+    <div id="footer"></div>
+
     <!-- Mobile Secondary Floating Sticky Bottom Action Bar -->
     <div class="sticky-bottom-bar">
         <div class="sticky-bottom-bar-content">
@@ -237,13 +263,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 <p>Starts from</p>
                 <h3 id="mobileStickyPrice">—</h3>
             </div>
-            <button class="btn-book-now" type="button" style="width: auto; padding: 0.75rem 2rem;"
-                onclick="triggerBookingModal()">
-                Buy Ticket
-            </button>
-            <div class="post-purchase-actions sticky-post-purchase" hidden>
-                <a class="btn-book-now btn-view-ticket" data-action="view-ticket" href="/ticket-details">View Ticket</a>
-                <a class="btn-view-agenda" data-action="view-agenda" href="/agenda">View Agenda</a>
+            <div class="sticky-cta-stack">
+                <div class="post-purchase-actions sticky-post-purchase" hidden>
+                    <a class="btn-book-now btn-view-ticket" data-action="view-ticket" href="/ticket-details">View Ticket</a>
+                    <a class="btn-view-agenda" data-action="view-agenda" href="/agenda">View Agenda</a>
+                </div>
+                <button class="btn-book-now" type="button"
+                    onclick="triggerBookingModal()">
+                    Buy Ticket
+                </button>
             </div>
         </div>
     </div>
@@ -270,7 +298,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <script src="js/script.js?v=35"></script>
     <script src="js/events-public.js?v=20260903_v22"></script>
     <script src="js/wishlist.js?v=1"></script>
-    <script src="js/event-details.js?v=38"></script>
+    <script src="js/event-details.js?v=40"></script>
 </body>
 
 </html>

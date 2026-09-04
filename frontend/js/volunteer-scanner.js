@@ -165,6 +165,7 @@
 		const statusCode = String((data && data.status) || "").toUpperCase();
 		const name       = V.escapeHtml((data && (data.customer_name || data.attendee_name)) || "Guest");
 		const bookingRef = V.escapeHtml((data && (data.booking_ref || data.ticket_code)) || "");
+		const ticketId   = V.escapeHtml((data && data.ticket_id) || "");
 		const category   = V.escapeHtml((data && data.ticket_type) || "");
 		const verifiedBy = V.escapeHtml((data && (data.verified_by || data.scanned_by)) || "");
 		const when       = V.escapeHtml(
@@ -180,8 +181,9 @@
 			}
 			showResult("ok", `
 				<div class="res-icon">✓</div>
-				<h3>CHECK-IN SUCCESSFUL</h3>
+				<h3>NEW CHECK-IN</h3>
 				<p class="res-name">${name}</p>
+				${ticketId ? `<div class="res-row"><span>Ticket ID</span><strong>${ticketId}</strong></div>` : ""}
 				${bookingRef ? `<div class="res-row"><span>Booking ID</span><strong>${bookingRef}</strong></div>` : ""}
 				${category ? `<div class="res-row"><span>Category</span><strong>${category}</strong></div>` : ""}
 				<div class="res-row"><span>Checked in at</span><strong>${when}</strong></div>
@@ -194,8 +196,9 @@
 		if (statusCode === "ALREADY_USED" || statusCode === "DUPLICATE" || statusCode === "ALREADY_CHECKED_IN" || (data && (data.duplicate || data.already_checked_in))) {
 			showResult("warn", `
 				<div class="res-icon">⚠</div>
-				<h3>DUPLICATE</h3>
+				<h3>DUPLICATE CHECK-IN</h3>
 				<p class="res-name">${name}</p>
+				${ticketId ? `<div class="res-row"><span>Ticket ID</span><strong>${ticketId}</strong></div>` : ""}
 				${bookingRef ? `<div class="res-row"><span>Booking ID</span><strong>${bookingRef}</strong></div>` : ""}
 				<div class="res-row"><span>Checked in at</span><strong>${when}</strong></div>
 				${verifiedBy ? `<div class="res-row"><span>Scanned by</span><strong>${verifiedBy}</strong></div>` : ""}

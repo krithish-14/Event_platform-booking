@@ -45,10 +45,13 @@ class RegistrationStatusResponse(BaseModel):
     state: str
     booking_id: Optional[str] = None
     qr_token: Optional[str] = None
+    ticket_id: Optional[str] = None
     ticket_type: Optional[str] = None
     price: Optional[float] = None
     event_title: Optional[str] = None
     venue: Optional[str] = None
+    has_ticket: bool = False
+    can_buy_again: bool = True
 
 
 def _event_id_matches(event_id):
@@ -797,30 +800,44 @@ def get_registration_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Return whether this user already has a ticket or a payment-pending registration."""
-    booking = _active_booking_for_event(db, current_user, event_id)
-    if booking and _booking_tickets(booking, db=db):
+    """Return ticket ownership and any open payment-pending registration for this event.
+
+    Attendees may buy again after holding a ticket. `has_ticket` drives View Ticket /
+    View Agenda; `state=payment_pending` resumes an unfinished second purchase.
+    """
+    ticket_booking = _active_booking_for_event(db, current_user, event_id)
+    ticket_meta = {
+        "booking_id": None,
+        "qr_token": None,
+        "ticket_id": None,
+        "ticket_type": None,
+        "price": None,
+        "event_title": None,
+        "venue": None,
+        "has_ticket": False,
+    }
+    if ticket_booking and _booking_tickets(ticket_booking, db=db):
         try:
-            _mark_form_submission_paid(db, event_id, current_user, booking_id=booking.booking_id)
+            _mark_form_submission_paid(db, event_id, current_user, booking_id=ticket_booking.booking_id)
         except Exception:
             try:
                 db.rollback()
             except Exception:
                 pass
-        event = getattr(booking, "event", None)
-        tickets = _booking_tickets(booking, db=db)
-        qr_token = None
-        if tickets:
-            qr_token = getattr(tickets[0], "qr_token", None)
-        return RegistrationStatusResponse(
-            state="ticket",
-            booking_id=str(booking.booking_id),
-            qr_token=qr_token,
-            ticket_type=_as_optional_str(getattr(booking, "ticket_type", None)),
-            price=_as_float(getattr(booking, "total_price", None)),
-            event_title=getattr(event, "title", None),
-            venue=getattr(event, "venue", None) or getattr(event, "location", None),
-        )
+        event = getattr(ticket_booking, "event", None)
+        tickets = _booking_tickets(ticket_booking, db=db)
+        qr_token = getattr(tickets[0], "qr_token", None) if tickets else None
+        ticket_id = str(getattr(tickets[0], "ticket_id", None) or "") if tickets else None
+        ticket_meta = {
+            "booking_id": str(ticket_booking.booking_id),
+            "qr_token": qr_token,
+            "ticket_id": ticket_id or None,
+            "ticket_type": _as_optional_str(getattr(ticket_booking, "ticket_type", None)),
+            "price": _as_float(getattr(ticket_booking, "total_price", None)),
+            "event_title": getattr(event, "title", None),
+            "venue": getattr(event, "venue", None) or getattr(event, "location", None),
+            "has_ticket": True,
+        }
 
     email = (current_user.email or "").lower().strip()
     customer_id = str(current_user.customer_id or "").strip()
@@ -855,13 +872,32 @@ def get_registration_status(
             price_val = _as_optional_float(getattr(event_row, "price", None))
         return RegistrationStatusResponse(
             state="payment_pending",
+            booking_id=ticket_meta["booking_id"],
+            qr_token=ticket_meta["qr_token"],
+            ticket_id=ticket_meta["ticket_id"],
             ticket_type=ticket_name,
             price=price_val,
-            event_title=getattr(event_row, "title", None),
-            venue=getattr(event_row, "venue", None) or getattr(event_row, "location", None),
+            event_title=getattr(event_row, "title", None) or ticket_meta["event_title"],
+            venue=(getattr(event_row, "venue", None) or getattr(event_row, "location", None) or ticket_meta["venue"]),
+            has_ticket=ticket_meta["has_ticket"],
+            can_buy_again=True,
         )
 
-    return RegistrationStatusResponse(state="new")
+    if ticket_meta["has_ticket"]:
+        return RegistrationStatusResponse(
+            state="ticket",
+            booking_id=ticket_meta["booking_id"],
+            qr_token=ticket_meta["qr_token"],
+            ticket_id=ticket_meta["ticket_id"],
+            ticket_type=ticket_meta["ticket_type"],
+            price=ticket_meta["price"],
+            event_title=ticket_meta["event_title"],
+            venue=ticket_meta["venue"],
+            has_ticket=True,
+            can_buy_again=True,
+        )
+
+    return RegistrationStatusResponse(state="new", has_ticket=False, can_buy_again=True)
 
 
 @router.get("/host/tracking", response_model=List[BookingResponse])

@@ -12,6 +12,7 @@ let currentSelectedPaymentQr = "";
 let currentSelectedQty = 1;
 let currentTicketPurchase = { mode: "single", per_person_limit: 1 };
 let currentEventData = null;
+let startingTicketPrice = 0;
 let galleryImages = [];
 let galleryIndex = 0;
 let galleryLightboxBound = false;
@@ -394,12 +395,16 @@ function renderEventDOM(event) {
     }
 
     const startingPrice = lowestTicketPrice(event);
+    startingTicketPrice = startingPrice;
     currentSelectedPrice = startingPrice;
     setStartingPriceDisplay(startingPrice);
+    updateQuantityTotalDisplay(startingPrice);
 
     const escape = (EP && typeof EP.escapeHtml === 'function')
         ? EP.escapeHtml
         : (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    applyEventShareMeta(event);
 
     const perfSection = document.getElementById('performersSection');
     if (event.performers && Array.isArray(event.performers) && event.performers.length > 0) {
@@ -577,7 +582,6 @@ function liveTickets(event) {
 }
 
 function setBuyTicketEnabled(enabled, label) {
-    if (hasIssuedTicket) return;
     document.querySelectorAll(".btn-book-now").forEach((btn) => {
         if (btn.classList.contains("btn-view-ticket")) return;
         btn.disabled = !enabled;
@@ -669,7 +673,9 @@ function paintTicketTypes(event) {
     if (ended) {
         tList.innerHTML = '<p class="ticket-unavailable">This event has ended.</p>';
         setBuyTicketEnabled(false, "Event ended");
+        startingTicketPrice = 0;
         setStartingPriceDisplay(0);
+        updateQuantityTotalDisplay(0);
         const qtyWrap = document.getElementById("ticketQtyWrap");
         if (qtyWrap) qtyWrap.hidden = true;
         return;
@@ -779,24 +785,107 @@ function setStartingPriceDisplay(price) {
     if (mobilePrice) mobilePrice.textContent = formatTicketPrice(price);
 }
 
-function updateSelectedPriceUI(price, ticketName) {
+function updateQuantityTotalDisplay(unitPrice) {
+    const totalEl = document.getElementById('ticketQtyTotalPrice');
+    if (!totalEl) return;
     const qty = selectedTicketQty();
-    const total = (Number(price) || 0) * qty;
-    setStartingPriceDisplay(total);
+    const total = (Number(unitPrice) || 0) * qty;
+    totalEl.textContent = formatTicketPrice(total);
+}
+
+function updateSelectedPriceUI(price, ticketName) {
+    const unit = Number(price) || 0;
+    currentSelectedPrice = unit;
+    // Top "Ticket Starts at" stays on the event's initial lowest price.
+    setStartingPriceDisplay(startingTicketPrice);
+    updateQuantityTotalDisplay(unit);
     const label = String(ticketName || "").trim();
     document.querySelectorAll(".bar-price-group p").forEach((el) => {
         if (el.textContent === "Your ticket") return;
         el.dataset.defaultLabel = el.dataset.defaultLabel || el.textContent || "Starts from";
-        el.textContent = label || "Selected";
+        el.textContent = el.dataset.defaultLabel || "Starts from";
     });
 }
 
+function absoluteShareUrl(event) {
+    const id = event && event.id ? String(event.id) : "";
+    const origin = (window.location && window.location.origin) || "https://jodevents.com";
+    if (id) return `${origin.replace(/\/$/, "")}/event-details?id=${encodeURIComponent(id)}`;
+    try {
+        return window.location.href.split("#")[0];
+    } catch (_) {
+        return "https://jodevents.com/event-details";
+    }
+}
+
+function absoluteMediaUrl(raw) {
+    const EP = window.JodEventsPublic;
+    let url = "";
+    if (EP && typeof EP.resolveImage === "function") {
+        url = EP.resolveImage(raw || "");
+    } else if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
+        url = window.JodConfig.safeMediaUrl(raw || "", "images/hero-event.jpg");
+    } else {
+        url = String(raw || "").trim();
+    }
+    if (!url) url = "https://assets.jodevents.com/images/hero-event.jpg";
+    if (/^https?:\/\//i.test(url)) return url;
+    if (url.startsWith("//")) return `https:${url}`;
+    const origin = (window.location && window.location.origin) || "https://jodevents.com";
+    if (url.startsWith("/")) return `${origin}${url}`;
+    return `${origin}/${url.replace(/^\.\//, "")}`;
+}
+
+function setMetaTag(attr, key, value) {
+    if (!value) return;
+    let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+    if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+    }
+    el.setAttribute("content", value);
+}
+
+function applyEventShareMeta(event) {
+    if (!event) return;
+    const title = String(event.title || "Event Details").trim() || "Event Details";
+    const desc = String(event.description || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 220) || `Book tickets for ${title} on JOD Events.`;
+    const pageUrl = absoluteShareUrl(event);
+    const imageUrl = absoluteMediaUrl(event.image_url || event.card_image || "");
+
+    document.title = `${title} — JOD Events`;
+    setMetaTag("name", "description", desc);
+    setMetaTag("property", "og:type", "website");
+    setMetaTag("property", "og:site_name", "JOD Events");
+    setMetaTag("property", "og:title", title);
+    setMetaTag("property", "og:description", desc);
+    setMetaTag("property", "og:url", pageUrl);
+    setMetaTag("property", "og:image", imageUrl);
+    setMetaTag("property", "og:image:alt", title);
+    setMetaTag("name", "twitter:card", "summary_large_image");
+    setMetaTag("name", "twitter:title", title);
+    setMetaTag("name", "twitter:description", desc);
+    setMetaTag("name", "twitter:image", imageUrl);
+
+    let canonical = document.head.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+        canonical = document.createElement("link");
+        canonical.setAttribute("rel", "canonical");
+        document.head.appendChild(canonical);
+    }
+    canonical.setAttribute("href", pageUrl);
+}
+
 function copyEventShareLink() {
-    const currentUrl = window.location.href;
-    navigator.clipboard.writeText(currentUrl).then(() => {
+    const shareUrl = absoluteShareUrl(currentEventData);
+    navigator.clipboard.writeText(shareUrl).then(() => {
         showToast('Event link copied to clipboard! 📋');
     }).catch(() => {
-        showToast('Sharing link: ' + currentUrl);
+        showToast('Sharing link: ' + shareUrl);
     });
 }
 
@@ -969,10 +1058,12 @@ function setPostPurchaseLinks(bookingId, qrToken) {
 function showPostPurchaseActions(bookingId, qrToken) {
     hasIssuedTicket = true;
     setPostPurchaseLinks(bookingId, qrToken);
+    // Keep Buy Ticket visible so the same user can purchase again for this event.
     document.querySelectorAll(".btn-book-now").forEach((btn) => {
         if (btn.classList.contains("btn-view-ticket")) return;
-        btn.hidden = true;
-        btn.style.setProperty("display", "none", "important");
+        btn.hidden = false;
+        btn.style.removeProperty("display");
+        if (!btn.disabled) btn.textContent = "Buy Ticket";
     });
     document.querySelectorAll(".post-purchase-actions").forEach((el) => {
         el.hidden = false;
@@ -1000,8 +1091,10 @@ function hidePostPurchaseActions() {
 
 async function applyBookingCtaState(eventId) {
     const status = await fetchRegistrationStatus(eventId);
-    if (status.state === "ticket") {
+    const hasTicket = Boolean(status.has_ticket || status.state === "ticket" || status.booking_id);
+    if (hasTicket) {
         showPostPurchaseActions(status.booking_id, status.qr_token);
+        setBuyTicketEnabled(true, "Buy Ticket");
     } else {
         hidePostPurchaseActions();
         setBookNowLabels("Buy Ticket");
@@ -1064,13 +1157,11 @@ async function triggerBookingModal() {
     const price = typeof currentSelectedPrice !== "undefined" ? currentSelectedPrice : 0;
 
     const status = await fetchRegistrationStatus(eventId);
+    // Holding a ticket must not block another purchase. Resume only real payment_pending.
     if (status.state === "ticket") {
-        if (status.booking_id) {
-            window.location.href = ticketPageHref(status.booking_id, status.qr_token);
-            return;
-        }
-        window.location.href = "orders.html";
-        return;
+        status.state = "new";
+        status.ticket_type = null;
+        status.price = null;
     }
 
     const pendingTicket = status.ticket_type || ticketType;

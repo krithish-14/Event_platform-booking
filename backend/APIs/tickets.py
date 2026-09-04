@@ -257,6 +257,7 @@ def verify_ticket_token(
             "status": "ALREADY_USED",
             "already_checked_in": True,
             "duplicate": True,
+            "check_in_type": "duplicate",
             "ticket_id": str(ticket.ticket_id),
             "booking_id": str(ticket.booking_id),
             "qr_token": ticket.qr_token,
@@ -266,7 +267,7 @@ def verify_ticket_token(
             "customer_name": ticket.booking.receiver_name if ticket.booking else "Guest Customer",
             "used_at": ticket.used_at,
             "scanned_by": ticket.scanned_by,
-            "message": f"Duplicate — this ticket was already checked in at {ticket.used_at.strftime('%I:%M %p, %b %d') if ticket.used_at else 'an earlier time'}.",
+            "message": f"Duplicate check-in — ticket {ticket.ticket_id} was already checked in at {ticket.used_at.strftime('%I:%M %p, %b %d') if ticket.used_at else 'an earlier time'}.",
         }
 
     # Optional event filter check
@@ -334,7 +335,9 @@ def checkin_ticket_entry(
 
     if rows_updated == 1:
         # Successfully checked in
-        return _serialize_ticket_success(ticket, message="ENTRY ALLOWED — Ticket successfully checked in!")
+        result = _serialize_ticket_success(ticket, message=f"New check-in — ticket {ticket.ticket_id} successfully checked in!")
+        result["check_in_type"] = "new"
+        return result
     else:
         # Atomic update modified 0 rows -> ticket was either ALREADY_USED, CANCELLED, or invalid
         if (ticket.ticket_status or "").upper() in CHECKED_IN_TICKET_STATUSES:
@@ -343,6 +346,7 @@ def checkin_ticket_entry(
                 "status": "ALREADY_USED",
                 "already_checked_in": True,
                 "duplicate": True,
+                "check_in_type": "duplicate",
                 "ticket_id": str(ticket.ticket_id),
                 "booking_id": str(ticket.booking_id),
                 "qr_token": ticket.qr_token,
@@ -352,7 +356,7 @@ def checkin_ticket_entry(
                 "customer_name": ticket.booking.receiver_name if ticket.booking else "Guest Customer",
                 "used_at": ticket.used_at,
                 "scanned_by": ticket.scanned_by,
-                "message": f"Duplicate — this ticket was already checked in at {ticket.used_at.strftime('%I:%M %p, %b %d') if ticket.used_at else 'earlier'}.",
+                "message": f"Duplicate check-in — ticket {ticket.ticket_id} was already checked in at {ticket.used_at.strftime('%I:%M %p, %b %d') if ticket.used_at else 'earlier'}.",
             }
         elif (ticket.ticket_status or "").upper() in CANCELLED_TICKET_STATUSES:
             return {
