@@ -48,7 +48,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Organizer Event Dashboard - JOD Events</title>
 		<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
 		<link rel="apple-touch-icon" href="/images/JOD%20Logo.png" />
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=30" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=31" />
 		<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -610,48 +610,123 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								<label for="eventDescEditor">Description &amp; Highlights <span style="color: #ef4444;">*</span></label>
 								<div class="desc-editor">
 									<div class="desc-editor-toolbar" role="toolbar" aria-label="Description formatting">
-										<label class="desc-editor-field">
-											<span class="visually-hidden">Font style</span>
-											<select data-desc-cmd="fontName" title="Font style">
-												<option value="">Font</option>
-												<option value="Arial">Arial</option>
-												<option value="Georgia">Georgia</option>
-												<option value="Times New Roman">Times</option>
-												<option value="Verdana">Verdana</option>
-												<option value="Courier New">Courier</option>
-											</select>
-										</label>
-										<label class="desc-editor-field">
-											<span class="visually-hidden">Font size</span>
-											<select data-desc-cmd="fontSizePx" title="Font size">
-												<option value="">Size</option>
-												<option value="14px">14</option>
-												<option value="16px">16</option>
-												<option value="18px">18</option>
-												<option value="20px">20</option>
-												<option value="24px">24</option>
-												<option value="28px">28</option>
-											</select>
-										</label>
-										<button type="button" class="desc-editor-btn" data-desc-cmd="bold" title="Bold" aria-label="Bold" aria-pressed="false"><strong>B</strong></button>
-										<span class="desc-editor-sep" aria-hidden="true"></span>
-										<button type="button" class="desc-editor-btn" data-desc-cmd="justifyLeft" title="Align left" aria-label="Align left">
-											<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-										</button>
-										<button type="button" class="desc-editor-btn" data-desc-cmd="justifyCenter" title="Align center" aria-label="Align center">
-											<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-										</button>
-										<button type="button" class="desc-editor-btn" data-desc-cmd="justifyRight" title="Align right" aria-label="Align right">
-											<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M10 12h10M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-										</button>
-										<span class="desc-editor-sep" aria-hidden="true"></span>
-										<span class="desc-editor-swatches" role="group" aria-label="Highlight">
-											<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#fde047" title="Highlight yellow" aria-label="Highlight yellow" style="background:#fde047"></button>
-											<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#bef264" title="Highlight green" aria-label="Highlight green" style="background:#bef264"></button>
-											<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#fda4af" title="Highlight pink" aria-label="Highlight pink" style="background:#fda4af"></button>
-											<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#fdba74" title="Highlight orange" aria-label="Highlight orange" style="background:#fdba74"></button>
-											<button type="button" class="desc-editor-btn desc-editor-clear" data-desc-cmd="hilite" data-desc-value="transparent" title="Clear highlight">Clear</button>
-										</span>
+										<div class="desc-editor-group">
+											<div class="desc-editor-group-tools">
+												<label class="desc-editor-field">
+													<span class="visually-hidden">Font</span>
+													<select data-desc-cmd="fontName" title="Font">
+														<option value="">Font</option>
+														<option value="Calibri">Calibri</option>
+														<option value="Arial">Arial</option>
+														<option value="Georgia">Georgia</option>
+														<option value="Times New Roman">Times</option>
+														<option value="Verdana">Verdana</option>
+														<option value="Tahoma">Tahoma</option>
+														<option value="Courier New">Courier</option>
+													</select>
+												</label>
+												<label class="desc-editor-field desc-editor-size">
+													<span class="visually-hidden">Font size</span>
+													<select data-desc-cmd="fontSizePx" title="Font size">
+														<option value="">Size</option>
+														<option value="12px">12</option>
+														<option value="14px">14</option>
+														<option value="16px">16</option>
+														<option value="18px">18</option>
+														<option value="20px">20</option>
+														<option value="24px">24</option>
+														<option value="28px">28</option>
+														<option value="32px">32</option>
+														<option value="36px">36</option>
+													</select>
+												</label>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="fontSizeBump" data-desc-value="1" title="Increase font size" aria-label="Increase font size"><span class="desc-editor-grow">A+</span></button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="fontSizeBump" data-desc-value="-1" title="Decrease font size" aria-label="Decrease font size"><span class="desc-editor-grow desc-editor-grow-sm">A-</span></button>
+												<label class="desc-editor-field">
+													<span class="visually-hidden">Change case</span>
+													<select data-desc-cmd="changeCase" title="Change case">
+														<option value="">Aa</option>
+														<option value="sentence">Sentence case</option>
+														<option value="lower">lowercase</option>
+														<option value="upper">UPPERCASE</option>
+														<option value="title">Capitalize Each Word</option>
+													</select>
+												</label>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="removeFormat" title="Clear all formatting" aria-label="Clear all formatting">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19h6M7 15l8.5-8.5a1.5 1.5 0 0 1 2.1 2.1L9.1 17.1 5 19z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 19h5" fill="none" stroke="#e11d48" stroke-width="2" stroke-linecap="round"/></svg>
+												</button>
+												<span class="desc-editor-sep" aria-hidden="true"></span>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="bold" title="Bold" aria-label="Bold" aria-pressed="false"><strong>B</strong></button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="italic" title="Italic" aria-label="Italic" aria-pressed="false"><em>I</em></button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="underline" title="Underline" aria-label="Underline" aria-pressed="false"><span style="text-decoration:underline">U</span></button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="strikeThrough" title="Strikethrough" aria-label="Strikethrough" aria-pressed="false"><span style="text-decoration:line-through">abc</span></button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="subscript" title="Subscript" aria-label="Subscript" aria-pressed="false">x<sub>2</sub></button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="superscript" title="Superscript" aria-label="Superscript" aria-pressed="false">x<sup>2</sup></button>
+												<span class="desc-editor-sep" aria-hidden="true"></span>
+												<label class="desc-editor-color" title="Font color">
+													<span class="desc-editor-color-mark">A</span>
+													<input type="color" data-desc-cmd="foreColor" value="#111827" aria-label="Font color" />
+												</label>
+												<span class="desc-editor-swatches" role="group" aria-label="Highlight">
+													<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#fde047" title="Highlight yellow" aria-label="Highlight yellow" style="background:#fde047"></button>
+													<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#bef264" title="Highlight green" aria-label="Highlight green" style="background:#bef264"></button>
+													<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#93c5fd" title="Highlight blue" aria-label="Highlight blue" style="background:#93c5fd"></button>
+													<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#fda4af" title="Highlight pink" aria-label="Highlight pink" style="background:#fda4af"></button>
+													<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#fdba74" title="Highlight orange" aria-label="Highlight orange" style="background:#fdba74"></button>
+													<button type="button" class="desc-editor-btn desc-editor-clear" data-desc-cmd="hilite" data-desc-value="transparent" title="Clear highlight">Clear</button>
+												</span>
+											</div>
+											<span class="desc-editor-group-label">Font</span>
+										</div>
+										<div class="desc-editor-group">
+											<div class="desc-editor-group-tools">
+												<button type="button" class="desc-editor-btn" data-desc-cmd="insertUnorderedList" title="Bulleted list" aria-label="Bulleted list" aria-pressed="false">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="1.4" fill="currentColor"/><circle cx="6" cy="12" r="1.4" fill="currentColor"/><circle cx="6" cy="17" r="1.4" fill="currentColor"/><path d="M10 7h10M10 12h10M10 17h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+												</button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="insertOrderedList" title="Numbered list" aria-label="Numbered list" aria-pressed="false">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7V5M6 7h1.4M4.8 11.2h2.4M4.8 16.8h2.4M6 16.8v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11 7h9M11 12h9M11 17h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+												</button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="outdent" title="Decrease indent" aria-label="Decrease indent">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 18h16M14 12h6M4 12l4-3v6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+												</button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="indent" title="Increase indent" aria-label="Increase indent">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 18h16M4 12h6M20 12l-4-3v6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+												</button>
+												<span class="desc-editor-sep" aria-hidden="true"></span>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="justifyLeft" title="Align left" aria-label="Align left" aria-pressed="false">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+												</button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="justifyCenter" title="Align center" aria-label="Align center" aria-pressed="false">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+												</button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="justifyRight" title="Align right" aria-label="Align right" aria-pressed="false">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M10 12h10M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+												</button>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="justifyFull" title="Justify" aria-label="Justify" aria-pressed="false">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+												</button>
+												<label class="desc-editor-field">
+													<span class="visually-hidden">Line spacing</span>
+													<select data-desc-cmd="lineHeight" title="Line spacing">
+														<option value="">Spacing</option>
+														<option value="1">1.0</option>
+														<option value="1.15">1.15</option>
+														<option value="1.5">1.5</option>
+														<option value="2">2.0</option>
+													</select>
+												</label>
+												<span class="desc-editor-swatches" role="group" aria-label="Paragraph shading">
+													<button type="button" class="desc-editor-swatch" data-desc-cmd="shade" data-desc-value="#fef3c7" title="Shade yellow" aria-label="Shade yellow" style="background:#fef3c7"></button>
+													<button type="button" class="desc-editor-swatch" data-desc-cmd="shade" data-desc-value="#dbeafe" title="Shade blue" aria-label="Shade blue" style="background:#dbeafe"></button>
+													<button type="button" class="desc-editor-swatch" data-desc-cmd="shade" data-desc-value="#dcfce7" title="Shade green" aria-label="Shade green" style="background:#dcfce7"></button>
+													<button type="button" class="desc-editor-btn desc-editor-clear" data-desc-cmd="shade" data-desc-value="transparent" title="Clear shading">Shade</button>
+												</span>
+												<button type="button" class="desc-editor-btn" data-desc-cmd="toggleBorder" title="Border" aria-label="Border">
+													<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+												</button>
+											</div>
+											<span class="desc-editor-group-label">Paragraph</span>
+										</div>
 									</div>
 									<div id="eventDescEditor" class="desc-editor-area is-empty" contenteditable="true" role="textbox" aria-multiline="true" aria-required="true" data-placeholder="Provide an exciting overview of the event, key speakers, schedule, and guidelines..."></div>
 									<textarea id="eventDescInput" class="desc-editor-sync" hidden></textarea>
@@ -2080,7 +2155,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		<script src="js/profile.js?v=12"></script>
 		<script src="js/script.js?v=35"></script>
 		<script src="js/form-builder.js?v=20260828_v1"></script>
-		<script src="js/event-desc-editor.js?v=1"></script>
+		<script src="js/event-desc-editor.js?v=2"></script>
 		<script src="js/organizer-dashboard.js?v=20260904_v52"></script>
 	</body>
 </html>

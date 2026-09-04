@@ -338,7 +338,19 @@ body.category-theme-workshop .performer-avatar {
     margin: 0 0 0.7em;
 }
 
-.event-description-text.is-rich p:last-child {
+.event-description-text.is-rich ul,
+.event-description-text.is-rich ol {
+    margin: 0 0 0.7em;
+    padding-left: 1.3rem;
+}
+
+.event-description-text.is-rich li {
+    margin: 0 0 0.25em;
+}
+
+.event-description-text.is-rich p:last-child,
+.event-description-text.is-rich ul:last-child,
+.event-description-text.is-rich ol:last-child {
     margin-bottom: 0;
 }
 

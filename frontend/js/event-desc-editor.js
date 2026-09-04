@@ -7,13 +7,16 @@
 
 	var EDITOR_ID = "eventDescEditor";
 	var INPUT_ID = "eventDescInput";
+	var SIZE_STEPS = [12, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36];
 	var ALLOWED_TAGS = {
-		P: 1, DIV: 1, BR: 1, SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, FONT: 1
+		P: 1, DIV: 1, BR: 1, SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, FONT: 1,
+		S: 1, STRIKE: 1, SUB: 1, SUP: 1, UL: 1, OL: 1, LI: 1, BLOCKQUOTE: 1
 	};
+	var TOGGLE_CMDS = ["bold", "italic", "underline", "strikeThrough", "subscript", "superscript", "insertUnorderedList", "insertOrderedList", "justifyLeft", "justifyCenter", "justifyRight", "justifyFull"];
 	var savedRange = null;
 
 	function looksLikeHtml(value) {
-		return /<\/?(p|div|br|span|b|strong|i|em|u|font)\b/i.test(String(value || ""));
+		return /<\/?(p|div|br|span|b|strong|i|em|u|font|s|strike|sub|sup|ul|ol|li|blockquote)\b/i.test(String(value || ""));
 	}
 
 	function stripToText(value) {
@@ -49,8 +52,20 @@
 			} else if ((prop === "color" || prop === "background-color") &&
 				/^(#[0-9a-f]{3,8}|rgba?\([^)]+\)|[a-z]+)$/i.test(val)) {
 				allowed.push(prop + ":" + val);
-			} else if (prop === "text-decoration" && /^(underline|none|line-through)$/i.test(val)) {
+			} else if (prop === "text-decoration" && /^(underline|none|line-through|underline line-through)$/i.test(val)) {
 				allowed.push("text-decoration:" + val);
+			} else if ((prop === "margin-left" || prop === "padding-left") && /^[\d.]+\s*(px|em|rem)$/i.test(val)) {
+				allowed.push(prop + ":" + val);
+			} else if (prop === "line-height" && /^[\d.]+$|^[\d.]+\s*(px|em|%)$/i.test(val)) {
+				allowed.push("line-height:" + val);
+			} else if (prop === "vertical-align" && /^(sub|super|baseline|middle)$/i.test(val)) {
+				allowed.push("vertical-align:" + val);
+			} else if (prop === "border" && /^[\d.]+px\s+solid\s+(#[0-9a-f]{3,8}|[a-z]+)$/i.test(val)) {
+				allowed.push("border:" + val);
+			} else if (prop === "padding" && /^[\d.]+\s*(px|em|rem)$/i.test(val)) {
+				allowed.push("padding:" + val);
+			} else if (prop === "list-style-type" && /^(disc|decimal|circle|square)$/i.test(val)) {
+				allowed.push("list-style-type:" + val);
 			}
 		});
 		return allowed.join(";");
@@ -205,31 +220,149 @@
 		});
 	}
 
+	function currentFontSizePx() {
+		var node = savedRange ? savedRange.startContainer : null;
+		if (node && node.nodeType === 3) node = node.parentElement;
+		if (!node || !node.nodeType) return 16;
+		try {
+			return parseFloat(global.getComputedStyle(node).fontSize) || 16;
+		} catch (_) {
+			return 16;
+		}
+	}
+
+	function bumpFontSize(dir) {
+		var cur = Math.round(currentFontSizePx());
+		var next = cur;
+		if (Number(dir) > 0) {
+			next = SIZE_STEPS.filter(function (s) { return s > cur; })[0] || SIZE_STEPS[SIZE_STEPS.length - 1];
+		} else {
+			var smaller = SIZE_STEPS.filter(function (s) { return s < cur; });
+			next = smaller.length ? smaller[smaller.length - 1] : SIZE_STEPS[0];
+		}
+		applyFontSize(next + "px");
+	}
+
+	function applyCase(mode) {
+		var sel = global.getSelection && global.getSelection();
+		if (!sel || !sel.rangeCount) return;
+		var range = sel.getRangeAt(0);
+		if (range.collapsed) return;
+		var text = range.toString();
+		var next = text;
+		if (mode === "upper") next = text.toUpperCase();
+		else if (mode === "lower") next = text.toLowerCase();
+		else if (mode === "title") {
+			next = text.replace(/\S+/g, function (word) {
+				return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+			});
+		} else {
+			next = text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+		}
+		document.execCommand("insertText", false, next);
+	}
+
+	function closestBlock(node) {
+		var editor = getEditor();
+		while (node && node !== editor) {
+			if (node.nodeType === 1 && /^(P|DIV|LI|H1|H2|H3|BLOCKQUOTE)$/.test(node.tagName) && node !== editor) {
+				return node;
+			}
+			node = node.parentNode;
+		}
+		return editor;
+	}
+
+	function selectedBlocks() {
+		var editor = getEditor();
+		var sel = global.getSelection && global.getSelection();
+		if (!editor || !sel || !sel.rangeCount) return editor ? [editor] : [];
+		var range = sel.getRangeAt(0);
+		var start = closestBlock(range.startContainer);
+		var end = closestBlock(range.endContainer);
+		if (start === editor && end === editor) return [editor];
+		var blocks = [];
+		var all = editor.querySelectorAll("p, div, li, blockquote");
+		var seen = false;
+		if (!all.length) return [start];
+		all.forEach(function (el) {
+			if (el === start) seen = true;
+			if (seen) blocks.push(el);
+			if (el === end) seen = false;
+		});
+		return blocks.length ? blocks : [start];
+	}
+
+	function applyBlockStyle(prop, value) {
+		selectedBlocks().forEach(function (el) {
+			if (!el || !el.style) return;
+			if (!value || value === "transparent") el.style.removeProperty(prop);
+			else el.style.setProperty(prop, value);
+		});
+	}
+
+	function toggleBorder() {
+		selectedBlocks().forEach(function (el) {
+			if (!el || !el.style) return;
+			if (el.style.border) {
+				el.style.removeProperty("border");
+				el.style.removeProperty("padding");
+			} else {
+				el.style.border = "1px solid #cbd5e1";
+				el.style.padding = "8px";
+			}
+		});
+	}
+
+	function afterCommand() {
+		var editor = getEditor();
+		saveSelection();
+		sync();
+		if (editor) editor.dispatchEvent(new Event("input", { bubbles: true }));
+	}
+
 	function applyCommand(cmd, value) {
 		var editor = getEditor();
 		if (!editor) return;
 		restoreSelection();
 		try { document.execCommand("styleWithCSS", false, true); } catch (_) {}
 		if (cmd === "fontSizePx") applyFontSize(value);
+		else if (cmd === "fontSizeBump") bumpFontSize(value);
+		else if (cmd === "changeCase") applyCase(value);
+		else if (cmd === "lineHeight") applyBlockStyle("line-height", value);
+		else if (cmd === "shade") applyBlockStyle("background-color", value);
+		else if (cmd === "toggleBorder") toggleBorder();
 		else if (cmd === "hilite") {
 			if (!document.execCommand("hiliteColor", false, value || "transparent")) {
 				document.execCommand("backColor", false, value || "transparent");
 			}
+		} else if (cmd === "removeFormat") {
+			document.execCommand("removeFormat", false, null);
+			document.execCommand("unlink", false, null);
+			document.execCommand("hiliteColor", false, "transparent");
+			applyBlockStyle("background-color", "transparent");
+			applyBlockStyle("line-height", "");
+			applyBlockStyle("border", "");
+			applyBlockStyle("padding", "");
+		} else {
+			document.execCommand(cmd, false, value || null);
 		}
-		else document.execCommand(cmd, false, value || null);
-		saveSelection();
-		sync();
-		editor.dispatchEvent(new Event("input", { bubbles: true }));
+		afterCommand();
+	}
+
+	function queryState(cmd) {
+		try { return document.queryCommandState(cmd); } catch (_) { return false; }
 	}
 
 	function updateToolbarState(wrap) {
 		if (!wrap) return;
-		var boldBtn = wrap.querySelector('[data-desc-cmd="bold"]');
-		if (!boldBtn) return;
-		var active = false;
-		try { active = document.queryCommandState("bold"); } catch (_) {}
-		boldBtn.classList.toggle("is-active", !!active);
-		boldBtn.setAttribute("aria-pressed", active ? "true" : "false");
+		TOGGLE_CMDS.forEach(function (cmd) {
+			var btn = wrap.querySelector('[data-desc-cmd="' + cmd + '"]');
+			if (!btn) return;
+			var active = queryState(cmd);
+			btn.classList.toggle("is-active", !!active);
+			btn.setAttribute("aria-pressed", active ? "true" : "false");
+		});
 	}
 
 	function bindToolbar(wrap, editor) {
@@ -237,7 +370,7 @@
 			if (e.target.closest("button")) {
 				saveSelection();
 				e.preventDefault();
-			} else if (e.target.closest("select")) {
+			} else if (e.target.closest("select") || e.target.closest("input[type=color]")) {
 				saveSelection();
 			}
 		});
@@ -248,6 +381,11 @@
 			updateToolbarState(wrap);
 		});
 		wrap.addEventListener("change", function (e) {
+			var color = e.target.closest("input[type=color][data-desc-cmd]");
+			if (color) {
+				applyCommand(color.getAttribute("data-desc-cmd"), color.value);
+				return;
+			}
 			var sel = e.target.closest("select[data-desc-cmd]");
 			if (!sel || !sel.value) return;
 			applyCommand(sel.getAttribute("data-desc-cmd"), sel.value);
@@ -279,8 +417,7 @@
 			try { document.execCommand("styleWithCSS", false, true); } catch (_) {}
 			if (html) document.execCommand("insertHTML", false, sanitizeHtml(html));
 			else document.execCommand("insertText", false, text);
-			sync();
-			editor.dispatchEvent(new Event("input", { bubbles: true }));
+			afterCommand();
 		});
 		var input = getInput();
 		if (input && input.value && editorIsEmpty(editor)) setHtml(input.value);
