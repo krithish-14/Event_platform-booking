@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "include": ["/event-details", "/event-details.html"],
+  "exclude": []
+}

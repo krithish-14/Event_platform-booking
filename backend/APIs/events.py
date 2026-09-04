@@ -530,8 +530,23 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
         print(f"[EVENT DETAILS] unavailable event_id={event_id}", flush=True)
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     print(f"[EVENT DETAILS] event_id={event_id} title={event.title!r} published={event.is_published}", flush=True)
-    policies = _host_policies_for_event(db, event.id)
-    gallery_images, sponsors, performers_title = _host_design_for_event(db, event.id)
+
+    def _host_call(fn, default):
+        try:
+            nested = db.begin_nested()
+            try:
+                value = fn()
+                nested.commit()
+                return value
+            except Exception:
+                nested.rollback()
+                return default
+        except Exception:
+            return default
+
+    policies = _host_call(lambda: _host_policies_for_event(db, event.id), None)
+    design = _host_call(lambda: _host_design_for_event(db, event.id), (None, None, None))
+    gallery_images, sponsors, performers_title = design
     gallery_images = _prefer_design_list(
         gallery_images,
         _parse_json_field(getattr(event, "gallery_images", None)),
@@ -551,17 +566,19 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
                 db.commit()
             except Exception:
                 db.rollback()
-    host_tickets = _host_tickets_for_event(db, event.id)
+    host_tickets = _host_call(lambda: _host_tickets_for_event(db, event.id), None)
+    agenda = _host_call(lambda: _host_agenda_for_event(db, event.id), [])
+    ticket_purchase = _host_call(lambda: _host_ticket_purchase_for_event(db, event.id), None)
     # Prefer live host Manage tickets so offer-window Save is visible without republish.
     return _event_to_response(
         event,
         policies=policies,
         gallery_images=gallery_images,
         sponsors=sponsors,
-        agenda=_host_agenda_for_event(db, event.id),
+        agenda=agenda,
         performers_title=performers_title,
         ticket_types=host_tickets,
-        ticket_purchase=_host_ticket_purchase_for_event(db, event.id),
+        ticket_purchase=ticket_purchase,
     )
 
 

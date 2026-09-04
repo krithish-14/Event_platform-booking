@@ -23,7 +23,7 @@
 		var port = String(loc.port || "");
 		var localHost = host === "localhost" || host === "127.0.0.1";
 		if (!localHost) return false;
-		return port === "5500" || port === "5501" || port === "5173";
+		return port === "5500" || port === "5501" || port === "5173" || port === "8788";
 	}
 
 	function getApiOrigin() {

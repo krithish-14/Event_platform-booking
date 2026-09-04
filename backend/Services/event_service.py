@@ -108,7 +108,12 @@ def _heal_host_schedule(db: Session, events):
     """Prefer the host-entered start/end over a previously synced clock-now fallback."""
     try:
         from APIs.host_events_api import apply_host_schedule_to_public_events
-        apply_host_schedule_to_public_events(db, events)
+        nested = db.begin_nested()
+        try:
+            apply_host_schedule_to_public_events(db, events)
+            nested.commit()
+        except Exception:
+            nested.rollback()
     except Exception:
         pass
 
@@ -159,14 +164,6 @@ def list_events(
     location: Optional[str] = None,
 ) -> List[Event]:
     """Return published events, optionally filtered by category, format, price, date, and location."""
-    try:
-        from APIs.host_events_api import hide_cancelled_host_events_from_catalog
-        hide_cancelled_host_events_from_catalog(db)
-    except Exception:
-        try:
-            db.rollback()
-        except Exception:
-            pass
     query = _published_events_query(db)
     query = _apply_category_filter(query, category)
     if event_format and event_format.lower() != "all":
@@ -200,7 +197,6 @@ def list_events(
         .limit(limit)
         .all()
     )
-    _heal_host_schedule(db, rows)
     return [row for row in rows if event_currently_visible(row)]
 
 
@@ -224,15 +220,7 @@ def get_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
 
 def get_public_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
     """Return a published, non-cancelled event for public pages."""
-    try:
-        from APIs.host_events_api import hide_cancelled_host_events_from_catalog
-        hide_cancelled_host_events_from_catalog(db)
-    except Exception:
-        try:
-            db.rollback()
-        except Exception:
-            pass
-    event = (
+    return (
         db.query(Event)
         .filter(
             _event_id_matches(event_id),
@@ -241,9 +229,6 @@ def get_public_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
         )
         .first()
     )
-    if event:
-        _heal_host_schedule(db, [event])
-    return event
 
 
 def create_event(db: Session, payload, customer_id: str, organizer_id=None) -> Event:
@@ -287,7 +272,6 @@ def list_nearby_events(
     query = _published_events_query(db)
     query = _apply_category_filter(query, category)
     candidates = query.all()
-    _heal_host_schedule(db, candidates)
     nearby = [
         pair for pair in filter_by_radius(candidates, lat, lon, radius_km=radius_km)
         if event_currently_visible(pair[0])
@@ -353,5 +337,4 @@ def search_events(
         filters.append(extract("month", Event.start_date) == matched_month)
 
     rows = query.filter(or_(*filters)).order_by(Event.start_date).limit(limit * 3).all()
-    _heal_host_schedule(db, rows)
     return [row for row in rows if event_currently_visible(row)][:limit]
