@@ -103,6 +103,18 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		.row span:first-child { color: #64748b; font-weight: 600; }
 		.row span:last-child { font-weight: 700; text-align: right; }
 		.row.is-total span:last-child { color: #2563eb; font-weight: 800; }
+		.bill-summary-title {
+			margin: 0.85rem 0 0.45rem !important;
+			padding-top: 0.8rem;
+			border-top: 1px solid #e2e8f0;
+		}
+		.bill-gst-note {
+			margin: 0.1rem 0 0.75rem;
+			font-size: 0.8rem;
+			font-weight: 600;
+			color: #64748b;
+			line-height: 1.45;
+		}
 		.pay-method {
 			display: inline-flex;
 			align-items: center;
@@ -282,6 +294,12 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		html[data-theme="dark"] .bill-card .row.is-total > span:last-child {
 			color: #ffffff !important;
 		}
+		html[data-theme="dark"] .bill-summary-title {
+			border-top-color: rgba(255, 248, 240, 0.12) !important;
+		}
+		html[data-theme="dark"] .bill-gst-note {
+			color: #d4cbbf !important;
+		}
 		html[data-theme="dark"] .pay-method {
 			color: #fff8f0 !important;
 		}
@@ -385,7 +403,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			<div class="row" id="venueRow" hidden><span>Venue</span><span id="payVenue"></span></div>
 			<div class="row"><span>Ticket</span><span id="payTicket">—</span></div>
 			<div class="row"><span>Quantity</span><span id="payQty">1</span></div>
-			<div class="row is-total"><span>Amount</span><span id="payAmount">—</span></div>
+			<h2 class="bill-summary-title">Payment summary</h2>
+			<div class="row"><span>Ticket</span><span id="payTicketBase">—</span></div>
+			<div class="row"><span>Platform charges (5%)</span><span id="payPlatformFee">—</span></div>
+			<div class="row"><span>GST (18%)</span><span id="payGstFee">—</span></div>
+			<div class="row is-total"><span>Total</span><span id="payAmount">—</span></div>
+			<p class="bill-gst-note" id="payGstNote">This payment is included with GST</p>
 			<div class="row">
 				<span>Payment method</span>
 				<span class="pay-method">
@@ -542,8 +565,57 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				}
 			}
 
+			const PLATFORM_FEE_PCT = 5;
+			const GST_FEE_PCT = 18;
+			const DEFAULT_GST_NOTE = "This payment is included with GST";
+
+			function roundMoney(value) {
+				return Math.round((Number(value) || 0) * 100) / 100;
+			}
+
+			function formatRupees(value) {
+				const amount = roundMoney(value);
+				if (amount <= 0) return "₹0";
+				if (Number.isInteger(amount)) return "₹" + amount.toLocaleString("en-IN");
+				return "₹" + amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+			}
+
+			function paymentBreakdown(total) {
+				const gross = roundMoney(Math.max(0, total));
+				const platform = roundMoney(gross * PLATFORM_FEE_PCT / 100);
+				const gst = roundMoney(gross * GST_FEE_PCT / 100);
+				const ticketBase = roundMoney(gross - platform - gst);
+				return { gross: gross, platform: platform, gst: gst, ticketBase: ticketBase };
+			}
+
+			function applyGstNote(text) {
+				const el = document.getElementById("payGstNote");
+				if (!el) return;
+				el.textContent = String(text || "").trim() || DEFAULT_GST_NOTE;
+			}
+
 			function billAmountRupees() {
 				return Math.max(0, (Number(price) || 0) * (Number(qty) || 1));
+			}
+
+			function renderPaymentSummary() {
+				const ticketBaseEl = document.getElementById("payTicketBase");
+				const platformEl = document.getElementById("payPlatformFee");
+				const gstEl = document.getElementById("payGstFee");
+				const total = billAmountRupees();
+				const parts = paymentBreakdown(total);
+				if (total <= 0) {
+					if (ticketBaseEl) ticketBaseEl.textContent = "Free";
+					if (platformEl) platformEl.textContent = "₹0";
+					if (gstEl) gstEl.textContent = "₹0";
+					if (amountEl) amountEl.textContent = "Free";
+					return parts;
+				}
+				if (ticketBaseEl) ticketBaseEl.textContent = formatRupees(parts.ticketBase);
+				if (platformEl) platformEl.textContent = formatRupees(parts.platform);
+				if (gstEl) gstEl.textContent = formatRupees(parts.gst);
+				if (amountEl) amountEl.textContent = formatRupees(parts.gross);
+				return parts;
 			}
 
 			function billAmountPaise() {
@@ -604,7 +676,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						amount: order.amount,
 						currency: order.currency || "INR",
 						name: "JOD Events",
-						description: ticket + (saved.eventTitle ? (" · " + saved.eventTitle) : ""),
+						description: (function () {
+							const parts = paymentBreakdown(billAmountRupees());
+							return ticket + " · Ticket " + formatRupees(parts.ticketBase)
+								+ " + Platform " + formatRupees(parts.platform)
+								+ " + GST " + formatRupees(parts.gst);
+						})(),
 						order_id: order.order_id,
 						prefill: {
 							name: user.full_name || user.username || "",
@@ -677,9 +754,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 			if (ticketEl) ticketEl.textContent = ticket;
 			if (qtyEl) qtyEl.textContent = String(qty);
-			if (amountEl) amountEl.textContent = price > 0
-				? ("₹" + (price * qty).toLocaleString("en-IN"))
-				: "Free";
+			applyGstNote(saved.priceNote);
+			renderPaymentSummary();
 			if (eventEl && saved.eventTitle) eventEl.textContent = saved.eventTitle;
 			if (saved.venue && venueEl && venueRow) {
 				venueEl.textContent = saved.venue;
@@ -781,6 +857,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						venueRow.hidden = false;
 					}
 					applyPaymentQr(ticketQrFromTypes(data.ticket_types, ticket) || qrFromUrl, ticket);
+					applyGstNote((data.ticket_purchase && data.ticket_purchase.price_note) || saved.priceNote);
 				} catch (_) {
 					if (eventEl && !eventEl.textContent) eventEl.textContent = saved.eventTitle || "Event";
 					applyPaymentQr(qrFromUrl, ticket);

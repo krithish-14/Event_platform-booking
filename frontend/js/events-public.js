@@ -35,10 +35,18 @@
 	}
 
 	function plainTextSnippet(str, max) {
+		// Rich-text hosts often save adjacent <p>/<div>/<br> blocks. Browser
+		// textContent glues those words ("TOMORROWConnect"). Insert spaces first.
+		let html = String(str || "")
+			.replace(/<\s*br\s*\/?\s*>/gi, " ")
+			.replace(/<\s*\/\s*(p|div|h[1-6]|li|blockquote|tr|section|article|header|footer)\s*>/gi, " ")
+			.replace(/<\s*(p|div|h[1-6]|li|blockquote|tr|section|article|header|footer)\b[^>]*>/gi, " ");
 		const tmp = document.createElement("div");
-		tmp.innerHTML = String(str || "");
-		const text = (tmp.textContent || tmp.innerText || "")
+		tmp.innerHTML = html;
+		let text = (tmp.textContent || tmp.innerText || "")
 			.replace(/\u00a0/g, " ")
+			.replace(/\.([A-Za-z])/g, ". $1")
+			.replace(/([A-Z]{2,})([A-Z][a-z])/g, "$1 $2")
 			.replace(/\s+/g, " ")
 			.trim();
 		if (!max) return text;

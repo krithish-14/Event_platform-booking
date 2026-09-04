@@ -31,8 +31,12 @@ def _frontend_root() -> str:
 
 
 def _clip_description(text: str, title: str) -> str:
-	cleaned = re.sub(r"<[^>]+>", " ", str(text or ""))
+	cleaned = re.sub(r"(?i)<\s*br\s*/?\s*>", " ", str(text or ""))
+	cleaned = re.sub(r"(?i)</\s*(p|div|h[1-6]|li|blockquote)\s*>", " ", cleaned)
+	cleaned = re.sub(r"<[^>]+>", " ", cleaned)
 	cleaned = html_lib.unescape(cleaned)
+	cleaned = re.sub(r"\.([A-Za-z])", r". \1", cleaned)
+	cleaned = re.sub(r"([A-Z]{2,})([A-Z][a-z])", r"\1 \2", cleaned)
 	cleaned = re.sub(r"\s+", " ", cleaned).strip()
 	if cleaned:
 		return cleaned[:220]

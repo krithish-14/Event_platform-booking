@@ -1208,7 +1208,10 @@ async function triggerBookingModal() {
             ticket: pendingTicket,
             price: String(pendingPrice),
             quantity: selectedTicketQty(),
-            paymentQrUrl: pendingQr
+            paymentQrUrl: pendingQr,
+            priceNote: String((currentTicketPurchase && currentTicketPurchase.price_note)
+                || (currentEventData && currentEventData.ticket_purchase && currentEventData.ticket_purchase.price_note)
+                || "")
         }));
             } catch (_) {}
 

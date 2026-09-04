@@ -168,7 +168,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 	<div class="card">
 		<div class="mark" aria-hidden="true">✓</div>
 		<h1>Payment successful</h1>
-		<p id="thankYouLead">Your QR ticket is ready. We also sent it to your email and WhatsApp (when configured).</p>
+		<p id="thankYouLead">Your QR ticket is ready. We also sent it to your email.</p>
 		<p id="thankYouDetail">Open your ticket below, or find it anytime under Your Orders.</p>
 		<div class="qr-wrap" id="thankYouQrWrap">
 			<img id="thankYouQrImg" alt="Your ticket QR code" width="200" height="200" />
@@ -224,7 +224,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				if (leadEl) {
 					leadEl.textContent = bits.length
 						? ("Your QR ticket is ready and was sent via " + bits.join(" and ") + ".")
-						: "Your QR ticket is ready on the website. Email/WhatsApp send when SMTP / WhatsApp API are configured.";
+						: "Your QR ticket is ready. We also sent it to your email.";
 				}
 			}
 			var tick = setInterval(function () {

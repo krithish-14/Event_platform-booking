@@ -9,12 +9,16 @@ const FALLBACK_IMAGE = "https://assets.jodevents.com/images/hero-event.jpg";
 
 function clipDescription(text, title) {
 	const cleaned = String(text || "")
+		.replace(/<\s*br\s*\/?\s*>/gi, " ")
+		.replace(/<\s*\/\s*(p|div|h[1-6]|li|blockquote)\s*>/gi, " ")
 		.replace(/<[^>]+>/g, " ")
 		.replace(/&nbsp;/gi, " ")
 		.replace(/&amp;/g, "&")
 		.replace(/&lt;/g, "<")
 		.replace(/&gt;/g, ">")
 		.replace(/&quot;/g, '"')
+		.replace(/\.([A-Za-z])/g, ". $1")
+		.replace(/([A-Z]{2,})([A-Z][a-z])/g, "$1 $2")
 		.replace(/\s+/g, " ")
 		.trim();
 	if (cleaned) return cleaned.slice(0, 220);

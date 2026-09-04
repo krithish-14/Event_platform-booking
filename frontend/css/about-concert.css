@@ -1,8 +1,7 @@
 @media (prefers-reduced-motion: reduce) {
 	[data-about-play] .about-play-shot,
 	[data-about-play] .collage img,
-	[data-about-play] .about-image-wrap img,
-	#services .service-card::before {
+	[data-about-play] .about-image-wrap img {
 		transform: none !important;
 		animation: none !important;
 	}
@@ -25,8 +24,7 @@
 	pointer-events: none;
 }
 
-.about-hero .container,
-.capabilities .container {
+.about-hero .container {
 	position: relative;
 	z-index: 1;
 }
@@ -46,7 +44,7 @@
 	right: 5%;
 	width: min(36vw, 22rem);
 	height: 62%;
-	background-image: url("https://assets.jodevents.com/images/event-festival.jpg");
+	background-image: url("https://assets.jodevents.com/images/Picflow%20Images%20Aug%2020/2G5A0980.webp");
 	opacity: calc(0.25 + var(--in) * 0.7);
 	transform: translate3d(
 		calc((1 - var(--in)) * 48px + var(--mx) * -18px),
@@ -60,7 +58,7 @@
 	bottom: 14%;
 	width: min(20vw, 11.5rem);
 	height: 34%;
-	background-image: url("https://assets.jodevents.com/images/event-launch.jpg");
+	background-image: url("https://assets.jodevents.com/images/Picflow%20Images%20Aug%2020/8I2A8909.webp");
 	opacity: calc(0.15 + var(--in) * 0.75);
 	transform: translate3d(
 		calc((1 - var(--in)) * -36px + var(--mx) * 12px),
@@ -74,7 +72,7 @@
 	bottom: 10%;
 	width: min(16vw, 9.5rem);
 	height: 30%;
-	background-image: url("https://assets.jodevents.com/images/event-wedding.jpg");
+	background-image: url("https://assets.jodevents.com/images/Picflow%20Images%20Aug%2020/2G5A0951.webp");
 	opacity: calc(0.12 + var(--in) * 0.7);
 	transform: translate3d(
 		calc((1 - var(--in)) * 40px + var(--mx) * -8px),
@@ -89,17 +87,6 @@
 	inset: 0;
 	background: linear-gradient(90deg, rgba(12, 10, 8, 0.92) 18%, rgba(12, 10, 8, 0.45) 48%, transparent 72%);
 	pointer-events: none;
-}
-
-.about-play-caps .about-play-shot-a {
-	inset: 0;
-	border-radius: 0;
-	width: auto;
-	height: auto;
-	background-image: url("https://assets.jodevents.com/images/event-conference.jpg");
-	opacity: calc(0.12 + var(--in) * 0.22);
-	transform: translate3d(calc(var(--mx) * -16px), calc(var(--my) * -12px), 0) scale(1.08);
-	filter: saturate(0.85);
 }
 
 .about-story .collage img,
@@ -139,46 +126,92 @@
 	) scale(calc(1.02 + var(--in) * 0.03));
 }
 
-#services .service-card::before {
-	content: "";
-	position: absolute;
-	inset: 0 0 auto;
-	height: 42%;
-	background-size: cover;
-	background-position: center;
-	opacity: calc(0.14 + var(--in) * 0.28);
-	mask-image: linear-gradient(to bottom, #000 20%, transparent 100%);
-	-webkit-mask-image: linear-gradient(to bottom, #000 20%, transparent 100%);
-	pointer-events: none;
-	transform: translate3d(calc(var(--mx) * -6px), calc(var(--my) * 4px), 0) scale(1.06);
+#services .service-card h3 {
+	line-height: 1.25;
 }
 
-#services .service-card:nth-child(1)::before {
-	background-image: url("https://assets.jodevents.com/images/event-conference.jpg");
-}
-#services .service-card:nth-child(2)::before {
-	background-image: url("https://assets.jodevents.com/images/event-launch.jpg");
-}
-#services .service-card:nth-child(3)::before {
-	background-image: url("https://assets.jodevents.com/images/event-conference.jpg");
-}
-#services .service-card:nth-child(4)::before {
-	background-image: url("https://assets.jodevents.com/images/event-wedding.jpg");
-}
-#services .service-card:nth-child(5)::before {
-	background-image: url("https://assets.jodevents.com/images/event-festival.jpg");
-}
-#services .service-card:nth-child(6)::before {
-	background-image: url("https://assets.jodevents.com/images/event-festival.jpg");
+#services {
+	background: var(--dark);
+	color: #fff;
 }
 
-#services .service-card > * {
+#services > .container {
 	position: relative;
 	z-index: 1;
 }
 
-#services .service-card:hover::before {
-	opacity: 0.5;
+#services .section-heading h2 {
+	color: #fff8f0;
+}
+
+#services .section-heading p {
+	color: rgba(255, 248, 240, 0.72);
+}
+
+#services .service-card {
+	background: #fff;
+}
+
+html[data-theme="dark"] #services {
+	background: var(--dark);
+}
+
+html[data-theme="dark"] #services .service-card {
+	background: var(--card);
+}
+
+#capabilities.capabilities {
+	background: #fff;
+	color: var(--foreground);
+}
+
+#capabilities .capabilities-copy h2 {
+	color: var(--foreground);
+}
+
+#capabilities .capabilities-copy p {
+	color: var(--muted);
+}
+
+#capabilities .capability-list span {
+	border: 1px solid rgba(255, 138, 31, 0.22);
+	background: #fff6eb;
+	color: var(--foreground);
+	backdrop-filter: none;
+}
+
+html[data-theme="dark"] #capabilities.capabilities {
+	background: #161310;
+	color: var(--foreground);
+}
+
+html[data-theme="dark"] #capabilities .capabilities-copy h2 {
+	color: #fff8f0;
+}
+
+html[data-theme="dark"] #capabilities .capabilities-copy p {
+	color: rgba(255, 248, 240, 0.72);
+}
+
+html[data-theme="dark"] #capabilities .capability-list span {
+	border-color: rgba(255, 138, 31, 0.22);
+	background: rgba(28, 22, 16, 0.88);
+	color: #fff8f0;
+}
+
+.capabilities .capability-list span {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.45rem;
+	transform: translate3d(calc(var(--mx) * -4px), calc(var(--my) * 3px + (1 - var(--in)) * 10px), 0);
+	transition: transform 0.4s ease, border-color 0.3s, background 0.3s;
+}
+
+.capabilities .capability-list span::before {
+	content: "✔";
+	flex-shrink: 0;
+	color: #ffa136;
+	font-weight: 700;
 }
 
 .about-values .value-card,
@@ -187,12 +220,136 @@
 	box-shadow: calc(var(--mx) * -8px) calc(var(--my) * 8px) 28px -18px rgba(255, 117, 8, 0.35);
 }
 
-.capabilities .capability-list span {
-	transform: translate3d(calc(var(--mx) * -4px), calc(var(--my) * 3px + (1 - var(--in)) * 10px), 0);
-	transition: transform 0.4s ease, border-color 0.3s, background 0.3s;
+.about-hero h1 {
+	max-width: 62rem;
+}
+
+.about-team img.team-photo {
+	width: 10rem;
+	height: 10rem;
+	padding: 0;
+	border: 2px solid rgba(255, 138, 31, 0.55);
+	background: #1a140e;
+	object-fit: cover;
+	object-position: center 12%;
+	font-size: 0;
+}
+
+.about-team .team-linkedin {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	margin-top: 0.9rem;
+	color: #ffa136;
+	font-size: 0.875rem;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.about-team .team-linkedin:hover,
+.about-team .team-linkedin:focus-visible {
+	color: #ffc266;
+	text-decoration: underline;
+}
+
+#why-us .section-heading {
+	max-width: 48rem;
+}
+
+#why-us .section-heading p + p {
+	margin-top: 0.75rem;
+}
+
+.why-feature-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+	margin-top: 2rem;
+}
+
+.why-feature-card {
+	padding: 1.25rem 1.35rem;
+	border: 1px solid var(--border);
+	border-radius: 1rem;
+	background: var(--card);
+	transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.why-feature-card:hover {
+	transform: translateY(-3px);
+	border-color: rgba(255, 117, 8, 0.35);
+	box-shadow: 0 16px 32px -20px rgba(255, 117, 8, 0.45);
+}
+
+.why-feature-card h3 {
+	margin: 0 0 0.4rem;
+	font-size: 1.05rem;
+	color: var(--foreground);
+}
+
+.why-feature-card p {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.875rem;
+	line-height: 1.55;
+}
+
+html[data-theme="dark"] .why-feature-card {
+	background: rgba(28, 22, 16, 0.88);
+	border-color: rgba(255, 138, 31, 0.22);
+}
+
+html[data-theme="dark"] .why-feature-card:hover {
+	border-color: rgba(255, 138, 31, 0.5);
+}
+
+body.about-page .pill,
+body.about-page .pill-dark,
+body.about-page .pill-light-orange,
+body.about-page .pill-light {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.45rem 1rem 0.45rem 0.7rem;
+	border: 2px solid rgba(255, 255, 255, 0.22);
+	border-radius: 999px;
+	background: var(--brand-gradient) !important;
+	background-image: var(--brand-gradient) !important;
+	background-clip: padding-box !important;
+	-webkit-background-clip: padding-box !important;
+	color: #fff !important;
+	font-size: 0.75rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	box-shadow: 0 10px 22px -12px rgba(255, 117, 8, 0.85);
+}
+
+body.about-page .pill::before,
+body.about-page .pill-dark::before,
+body.about-page .pill-light-orange::before {
+	content: "";
+	width: 0.55rem;
+	height: 0.55rem;
+	flex-shrink: 0;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+body.about-page .about-team .section-heading h2.pill {
+	margin: 0 0 2rem;
+	font-size: 0.75rem;
+	line-height: 1.2;
+	color: #fff;
 }
 
 @media (max-width: 720px) {
+	.why-feature-grid {
+		grid-template-columns: 1fr;
+	}
+
 	.about-play-hero .about-play-shot-b,
 	.about-play-hero .about-play-shot-c {
 		display: none;

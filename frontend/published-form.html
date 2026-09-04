@@ -769,8 +769,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			function savePendingTicketBill() {
 				const ticketName = canonicalTicketName(resolvedTicketName || ticketType);
 				let qty = 1;
+				let prev = {};
 				try {
-					const prev = JSON.parse(sessionStorage.getItem("jod_pending_ticket_bill") || "{}") || {};
+					prev = JSON.parse(sessionStorage.getItem("jod_pending_ticket_bill") || "{}") || {};
 					qty = Math.max(1, Number(prev.quantity) || 1);
 				} catch (_) {}
 				const bill = {
@@ -780,7 +781,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					ticket: ticketName,
 					price: String(resolvedTicketPrice || ticketPrice || "0"),
 					quantity: qty,
-					paymentQrUrl: paymentQrForTicket(ticketName)
+					paymentQrUrl: paymentQrForTicket(ticketName),
+					priceNote: prev.priceNote || ""
 				};
 				try { sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify(bill)); } catch (_) {}
 				return bill;

@@ -20,13 +20,18 @@
 	}
 
 	function stripToText(value) {
+		var html = String(value || "")
+			.replace(/<\s*br\s*\/?\s*>/gi, " ")
+			.replace(/<\s*\/\s*(p|div|h[1-6]|li|blockquote|tr|section|article|header|footer)\s*>/gi, " ")
+			.replace(/<\s*(p|div|h[1-6]|li|blockquote|tr|section|article|header|footer)\b[^>]*>/gi, " ");
 		var tmp = document.createElement("div");
-		tmp.innerHTML = String(value || "");
-		var text = (tmp.textContent || tmp.innerText || "")
+		tmp.innerHTML = html;
+		return (tmp.textContent || tmp.innerText || "")
 			.replace(/\u00a0/g, " ")
+			.replace(/\.([A-Za-z])/g, ". $1")
+			.replace(/([A-Z]{2,})([A-Z][a-z])/g, "$1 $2")
 			.replace(/\s+/g, " ")
 			.trim();
-		return text;
 	}
 
 	function sanitizeStyle(styleText) {
