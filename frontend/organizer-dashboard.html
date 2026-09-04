@@ -48,7 +48,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Organizer Event Dashboard - JOD Events</title>
 		<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
 		<link rel="apple-touch-icon" href="/images/JOD%20Logo.png" />
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=29" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=30" />
 		<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -606,9 +606,56 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								6. Event Description
 							</div>
 
-							<div class="setup-form-group" style="margin-bottom: 1.5rem;">
-								<label for="eventDescInput">Description &amp; Highlights <span style="color: #ef4444;">*</span></label>
-								<textarea id="eventDescInput" class="setup-textarea" placeholder="Provide an exciting overview of the event, key speakers, schedule, and guidelines..." required></textarea>
+							<div class="setup-form-group desc-editor-group" style="margin-bottom: 1.5rem;">
+								<label for="eventDescEditor">Description &amp; Highlights <span style="color: #ef4444;">*</span></label>
+								<div class="desc-editor">
+									<div class="desc-editor-toolbar" role="toolbar" aria-label="Description formatting">
+										<label class="desc-editor-field">
+											<span class="visually-hidden">Font style</span>
+											<select data-desc-cmd="fontName" title="Font style">
+												<option value="">Font</option>
+												<option value="Arial">Arial</option>
+												<option value="Georgia">Georgia</option>
+												<option value="Times New Roman">Times</option>
+												<option value="Verdana">Verdana</option>
+												<option value="Courier New">Courier</option>
+											</select>
+										</label>
+										<label class="desc-editor-field">
+											<span class="visually-hidden">Font size</span>
+											<select data-desc-cmd="fontSizePx" title="Font size">
+												<option value="">Size</option>
+												<option value="14px">14</option>
+												<option value="16px">16</option>
+												<option value="18px">18</option>
+												<option value="20px">20</option>
+												<option value="24px">24</option>
+												<option value="28px">28</option>
+											</select>
+										</label>
+										<button type="button" class="desc-editor-btn" data-desc-cmd="bold" title="Bold" aria-label="Bold" aria-pressed="false"><strong>B</strong></button>
+										<span class="desc-editor-sep" aria-hidden="true"></span>
+										<button type="button" class="desc-editor-btn" data-desc-cmd="justifyLeft" title="Align left" aria-label="Align left">
+											<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+										</button>
+										<button type="button" class="desc-editor-btn" data-desc-cmd="justifyCenter" title="Align center" aria-label="Align center">
+											<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+										</button>
+										<button type="button" class="desc-editor-btn" data-desc-cmd="justifyRight" title="Align right" aria-label="Align right">
+											<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M10 12h10M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+										</button>
+										<span class="desc-editor-sep" aria-hidden="true"></span>
+										<span class="desc-editor-swatches" role="group" aria-label="Highlight">
+											<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#fde047" title="Highlight yellow" aria-label="Highlight yellow" style="background:#fde047"></button>
+											<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#bef264" title="Highlight green" aria-label="Highlight green" style="background:#bef264"></button>
+											<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#fda4af" title="Highlight pink" aria-label="Highlight pink" style="background:#fda4af"></button>
+											<button type="button" class="desc-editor-swatch" data-desc-cmd="hilite" data-desc-value="#fdba74" title="Highlight orange" aria-label="Highlight orange" style="background:#fdba74"></button>
+											<button type="button" class="desc-editor-btn desc-editor-clear" data-desc-cmd="hilite" data-desc-value="transparent" title="Clear highlight">Clear</button>
+										</span>
+									</div>
+									<div id="eventDescEditor" class="desc-editor-area is-empty" contenteditable="true" role="textbox" aria-multiline="true" aria-required="true" data-placeholder="Provide an exciting overview of the event, key speakers, schedule, and guidelines..."></div>
+									<textarea id="eventDescInput" class="desc-editor-sync" hidden></textarea>
+								</div>
 							</div>
 
 							<!-- SECTION 7: TICKET PURCHASE MODE -->
@@ -2033,7 +2080,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		<script src="js/profile.js?v=12"></script>
 		<script src="js/script.js?v=35"></script>
 		<script src="js/form-builder.js?v=20260828_v1"></script>
-		<script src="js/organizer-dashboard.js?v=20260904_v51"></script>
+		<script src="js/event-desc-editor.js?v=1"></script>
+		<script src="js/organizer-dashboard.js?v=20260904_v52"></script>
 	</body>
 </html>
 

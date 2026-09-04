@@ -1211,6 +1211,153 @@ html[data-theme="dark"] .ticket-offer-hint {
 	resize: vertical;
 }
 
+.desc-editor {
+	border: 1.5px solid #cbd5e1;
+	border-radius: 8px;
+	background: #ffffff;
+	overflow: hidden;
+}
+
+.desc-editor-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.55rem 0.65rem;
+	border-bottom: 1px solid #e2e8f0;
+	background: #f8fafc;
+}
+
+.desc-editor-toolbar label.desc-editor-field {
+	display: inline-flex;
+	margin: 0;
+	text-transform: none;
+	letter-spacing: 0;
+	font-size: inherit;
+	font-weight: 600;
+	color: inherit;
+}
+
+.desc-editor-field select {
+	height: 36px;
+	min-width: 96px;
+	padding: 0 0.55rem;
+	border: 1.5px solid #cbd5e1;
+	border-radius: 7px;
+	background: #ffffff;
+	color: #0f172a;
+	font-size: 0.82rem;
+	font-weight: 700;
+}
+
+.desc-editor-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 36px;
+	height: 36px;
+	padding: 0 0.55rem;
+	border: 1.5px solid #cbd5e1;
+	border-radius: 7px;
+	background: #ffffff;
+	color: #0f172a;
+	font-size: 0.92rem;
+	font-weight: 800;
+	cursor: pointer;
+}
+
+.desc-editor-btn svg {
+	width: 16px;
+	height: 16px;
+	display: block;
+}
+
+.desc-editor-btn:hover,
+.desc-editor-field select:hover {
+	border-color: #2563eb;
+}
+
+.desc-editor-btn.is-active {
+	background: rgba(37, 99, 235, 0.12);
+	border-color: #2563eb;
+	color: #1d4ed8;
+}
+
+.desc-editor-sep {
+	width: 1px;
+	height: 22px;
+	background: #cbd5e1;
+	margin: 0 0.15rem;
+}
+
+.desc-editor-swatches {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.desc-editor-swatch {
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: 1px solid rgba(15, 23, 42, 0.2);
+	border-radius: 999px;
+	cursor: pointer;
+}
+
+.desc-editor-clear {
+	font-size: 0.75rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+.desc-editor-area {
+	min-height: 160px;
+	max-height: 420px;
+	overflow-y: auto;
+	padding: 0.85rem 1rem;
+	color: #0f172a;
+	font-size: 0.95rem;
+	line-height: 1.6;
+	outline: none;
+	overflow-wrap: anywhere;
+}
+
+.desc-editor-area.is-empty::before {
+	content: attr(data-placeholder);
+	color: #94a3b8;
+	pointer-events: none;
+}
+
+.desc-editor-area p {
+	margin: 0 0 0.6em;
+}
+
+.desc-editor-area p:last-child {
+	margin-bottom: 0;
+}
+
+.desc-editor-sync {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
 .venue-map-panel {
 	display: block;
 	margin-top: 0.7rem;
@@ -1739,6 +1886,47 @@ html[data-theme="dark"] .setup-textarea::placeholder {
 
 html[data-theme="dark"] .setup-form-group label {
 	color: #FFA136;
+}
+
+html[data-theme="dark"] .desc-editor {
+	background: #1a1612;
+	border-color: rgba(255, 138, 31, 0.32);
+}
+
+html[data-theme="dark"] .desc-editor-toolbar {
+	background: #241c14;
+	border-bottom-color: rgba(255, 138, 31, 0.22);
+}
+
+html[data-theme="dark"] .desc-editor-field select,
+html[data-theme="dark"] .desc-editor-btn {
+	background: #1a1612;
+	color: #f6f0e8;
+	border-color: rgba(255, 138, 31, 0.32);
+}
+
+html[data-theme="dark"] .desc-editor-btn:hover,
+html[data-theme="dark"] .desc-editor-field select:hover {
+	border-color: #FF8A1F;
+}
+
+html[data-theme="dark"] .desc-editor-btn.is-active {
+	background: rgba(255, 117, 8, 0.16);
+	border-color: #FF8A1F;
+	color: #FFA136;
+}
+
+html[data-theme="dark"] .desc-editor-sep {
+	background: rgba(255, 138, 31, 0.28);
+}
+
+html[data-theme="dark"] .desc-editor-area {
+	color: #f6f0e8;
+	background: #1a1612;
+}
+
+html[data-theme="dark"] .desc-editor-area.is-empty::before {
+	color: #9a9086;
 }
 
 html[data-theme="dark"] .format-pill {

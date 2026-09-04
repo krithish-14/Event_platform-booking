@@ -19,6 +19,28 @@ def sanitize_text(value: Optional[str] = None, *, max_length: int = 4000) -> str
     return text
 
 
+_RICH_BLOCK_RE = re.compile(
+    r"<\s*(script|style|iframe|object|embed|form|link|meta|base)\b[^>]*>.*?<\s*/\s*\1\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_RICH_VOID_RE = re.compile(
+    r"<\s*(script|style|iframe|object|embed|form|link|meta|base)\b[^>]*/?\s*>",
+    re.IGNORECASE,
+)
+
+
+def sanitize_rich_text(value: Optional[str] = None, *, max_length: int = 20000) -> str:
+    """Keep safe formatting tags; strip scripts, handlers, and javascript: URLs."""
+    text = _CTRL_RE.sub("", str(value or ""))
+    text = _RICH_BLOCK_RE.sub("", text)
+    text = _RICH_VOID_RE.sub("", text)
+    text = _EVENT_RE.sub(" ", text)
+    text = _JS_URL_RE.sub("", text)
+    if len(text) > max_length:
+        text = text[:max_length]
+    return text
+
+
 def sanitize_url(value: Optional[str] = None) -> str:
     text = sanitize_text(value, max_length=2000)
     if not text:

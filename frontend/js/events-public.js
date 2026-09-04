@@ -34,6 +34,17 @@
 			.replace(/"/g, "&quot;");
 	}
 
+	function plainTextSnippet(str, max) {
+		const tmp = document.createElement("div");
+		tmp.innerHTML = String(str || "");
+		const text = (tmp.textContent || tmp.innerText || "")
+			.replace(/\u00a0/g, " ")
+			.replace(/\s+/g, " ")
+			.trim();
+		if (!max) return text;
+		return text.slice(0, max);
+	}
+
 	function resolveImage(url) {
 		if (global.JodConfig && typeof global.JodConfig.safeMediaUrl === "function") {
 			return global.JodConfig.safeMediaUrl(url, "images/hero-event.jpg");
@@ -254,7 +265,7 @@
 		const detailsUrl = escapeHtml(eventDetailsUrl(event));
 		const img = escapeHtml(eventCardImage(event));
 		const title = escapeHtml(event.title || "Untitled Event");
-		const desc = escapeHtml((event.description || "").slice(0, 120));
+		const desc = escapeHtml(plainTextSnippet(event.description || "", 120));
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
 		const category = escapeHtml(event.category || "Event");
 		const dateStr = formatDateIST(event.start_date);
@@ -295,7 +306,7 @@
 		const detailsUrl = escapeHtml(eventDetailsUrl(event));
 		const img = escapeHtml(eventCardImage(event));
 		const title = escapeHtml(event.title || "Untitled Event");
-		const desc = escapeHtml((event.description || "").slice(0, 90));
+		const desc = escapeHtml(plainTextSnippet(event.description || "", 90));
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
 		const category = escapeHtml(event.category || "Event");
 		const dateStr = formatDateIST(event.start_date);
@@ -659,7 +670,7 @@
 		}
 		if (titleEl) titleEl.textContent = event.title || "Upcoming Event";
 		if (descEl) {
-			const desc = (event.description || "").trim();
+			const desc = plainTextSnippet(event.description || "");
 			descEl.textContent = desc ? desc.slice(0, 140) : (event.category ? `${event.category} event` : "");
 		}
 		if (dateEl) dateEl.textContent = "📅 " + formatDateTimeIST(event.start_date);
@@ -729,6 +740,7 @@
 		PLACEHOLDER_IMAGE,
 		getApiBase,
 		escapeHtml,
+		plainTextSnippet,
 		resolveImage,
 		formatPrice,
 		formatDateIST,

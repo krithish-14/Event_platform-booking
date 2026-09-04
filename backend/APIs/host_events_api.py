@@ -47,7 +47,7 @@ from Utils.categories import (
     is_allowed_image_filename,
     normalize_category,
 )
-from Utils.text_sanitize import sanitize_text
+from Utils.text_sanitize import sanitize_text, sanitize_rich_text
 
 try:
     from Utils.text_sanitize import pick_attendee_identity
@@ -1811,7 +1811,7 @@ def save_manage_event(
                 host_id=host_id,
             )
             db.add(design)
-        design.about_event = payload.about_event
+        design.about_event = sanitize_rich_text(payload.about_event, max_length=20000) or None
         design.customer_id = customer_id
         design.host_id = host_id
         design.updated_at = datetime.utcnow()
@@ -1918,7 +1918,7 @@ def save_event_design(
     if payload.theme_color: design.theme_color = payload.theme_color
     if payload.font: design.font = payload.font
     if payload.gallery_images is not None: design.gallery_images = payload.gallery_images
-    if payload.about_event is not None: design.about_event = payload.about_event
+    if payload.about_event is not None: design.about_event = sanitize_rich_text(payload.about_event, max_length=20000) or None
     if payload.highlights: design.highlights = payload.highlights
     if payload.speaker_details is not None: design.speaker_details = payload.speaker_details
     if payload.sponsor_details is not None: design.sponsor_details = payload.sponsor_details

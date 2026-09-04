@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     {% set share_title = (event.title if event and event.title else 'Event Details') %}
-    {% set share_desc = ((event.description if event and event.description else '')|replace('\n', ' ')|truncate(220, True, '…')) or ('Book tickets for ' ~ share_title ~ ' on JOD Events.') %}
+    {% set share_desc = ((event.description if event and event.description else '')|striptags|replace('\n', ' ')|truncate(220, True, '…')) or ('Book tickets for ' ~ share_title ~ ' on JOD Events.') %}
     {% set share_image = (event.image_url if event and event.image_url else 'https://assets.jodevents.com/images/hero-event.jpg') %}
     {% if share_image and not (share_image.startswith('http://') or share_image.startswith('https://')) %}
       {% set share_image = 'https://jodevents.com/' ~ share_image.lstrip('/') %}

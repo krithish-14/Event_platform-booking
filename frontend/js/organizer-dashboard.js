@@ -1198,6 +1198,31 @@ async function initOrganizerDashboard() {
 	}
 	window.showNotification = showNotification;
 
+	function readAboutEventHtml() {
+		if (window.JodDescEditor && typeof window.JodDescEditor.sync === "function") {
+			return window.JodDescEditor.sync();
+		}
+		const descEl = document.getElementById("eventDescInput");
+		return descEl ? String(descEl.value || "") : "";
+	}
+
+	function writeAboutEventHtml(html) {
+		if (window.JodDescEditor && typeof window.JodDescEditor.setHtml === "function") {
+			window.JodDescEditor.setHtml(html || "");
+			return;
+		}
+		const descEl = document.getElementById("eventDescInput");
+		if (descEl) descEl.value = html || "";
+	}
+
+	function aboutEventIsEmpty() {
+		if (window.JodDescEditor && typeof window.JodDescEditor.isEmpty === "function") {
+			return window.JodDescEditor.isEmpty();
+		}
+		const descEl = document.getElementById("eventDescInput");
+		return !descEl || !String(descEl.value || "").trim();
+	}
+
 	function setSectionVisible(section, visible) {
 		if (!section) return;
 		if (visible) {
@@ -1403,6 +1428,7 @@ async function initOrganizerDashboard() {
 			const el = document.getElementById(id);
 			if (el) el.value = "";
 		});
+		writeAboutEventHtml("");
 		const ticketHost = document.getElementById("ticketTiersRows");
 		if (ticketHost) {
 			ticketHost.innerHTML = "";
@@ -3021,8 +3047,7 @@ async function initOrganizerDashboard() {
 			if (hostData.design) {
 				pendingHostDesignData = hostData.design;
 				if (hostData.design.about_event) {
-					const descEl = document.getElementById("eventDescInput");
-					if (descEl) descEl.value = hostData.design.about_event;
+					writeAboutEventHtml(hostData.design.about_event);
 				}
 			}
 			if (hostData.registration_form) {
@@ -3046,7 +3071,6 @@ async function initOrganizerDashboard() {
 		if (!email) return false;
 		if (hostEventCancelled && !notifyError) return false;
 		if (hostEventCancelled && notifyError) hostEventCancelled = false;
-		const descEl = document.getElementById("eventDescInput");
 		const dateInput = document.getElementById("eventDateInput");
 		const endDateInput = document.getElementById("eventEndDateInput");
 		const event_start_date = toIstIsoFromDatetimeLocal(dateInput && dateInput.value);
@@ -3070,7 +3094,7 @@ async function initOrganizerDashboard() {
 			tickets_json: collectTicketsJson(),
 			agenda_json: collectAgendaJson(),
 			policies_json: collectPoliciesJson(),
-			about_event: descEl ? descEl.value : undefined
+			about_event: readAboutEventHtml() || undefined
 		};
 
 		try {
@@ -3128,7 +3152,6 @@ async function initOrganizerDashboard() {
 			const manageSaved = await autoSaveManageEvent(notifyError);
 			if (!manageSaved || !activeEventId) return false;
 		}
-		const descEl = document.getElementById("eventDescInput");
 		const payload = {
 			event_id: activeEventId,
 			organizer_email: email,
@@ -3140,7 +3163,7 @@ async function initOrganizerDashboard() {
 			sponsor_details: collectSponsorDetails(),
 			speaker_details: collectSpeakerDetails(),
 			performers_title: collectPerformersTitle(),
-			about_event: descEl ? descEl.value : undefined
+			about_event: readAboutEventHtml() || undefined
 		};
 
 		try {
@@ -4045,6 +4068,7 @@ async function initOrganizerDashboard() {
 			sessionStorage.removeItem(`active_event_id_${email}`);
 			sessionStorage.removeItem(`has_event_${email}`);
 			if (createEventForm) createEventForm.reset();
+			writeAboutEventHtml("");
 			if (eventTitleInput) eventTitleInput.value = "";
 			const catSel = document.getElementById("eventCategorySelect");
 			if (catSel) catSel.value = "";
@@ -4885,9 +4909,8 @@ async function initOrganizerDashboard() {
 		function applyPendingHostDesign() {
 			if (!pendingHostDesignData) return;
 			const d = pendingHostDesignData;
-			if (d.about_event) {
-				const desc = document.getElementById("eventDescInput");
-				if (desc && !desc.value) desc.value = d.about_event;
+			if (d.about_event && aboutEventIsEmpty()) {
+				writeAboutEventHtml(d.about_event);
 			}
 			if (d.card_image) {
 				cardImageUrl = d.card_image;
@@ -5838,7 +5861,6 @@ async function initOrganizerDashboard() {
 					const locationInput = document.getElementById("eventLocationInput");
 					const categorySelect = document.getElementById("eventCategorySelect");
 					const formatInput = document.getElementById("eventFormatInput");
-					const descEl = document.getElementById("eventDescInput");
 
 				const payload = {
 					organizer_email: email,
@@ -5859,7 +5881,7 @@ async function initOrganizerDashboard() {
 						tickets_json: collectTicketsJson(),
 						agenda_json: collectAgendaJson(),
 						policies_json: collectPoliciesJson(),
-						about_event: descEl ? descEl.value : undefined
+						about_event: readAboutEventHtml() || undefined
 				};
 
 				const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {

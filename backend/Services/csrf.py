@@ -33,6 +33,7 @@ EXEMPT_PATHS = {
     "/api/auth/verify-reset-otp",
     "/api/auth/reset-password",
     "/api/auth/logout",
+    "/api/whatsapp/webhook",
 }
 
 
@@ -75,6 +76,8 @@ def clear_csrf_cookie(response: Response) -> None:
 
 def _exempt(path: str) -> bool:
     if path in EXEMPT_PATHS:
+        return True
+    if path.startswith("/api/whatsapp/"):
         return True
     if path.startswith("/api/auth/google"):
         return True

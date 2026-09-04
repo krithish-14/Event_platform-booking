@@ -7,7 +7,15 @@ const SITE_ORIGIN = "https://jodevents.com";
 const FALLBACK_IMAGE = "https://assets.jodevents.com/images/hero-event.jpg";
 
 function clipDescription(text, title) {
-	const cleaned = String(text || "").replace(/\s+/g, " ").trim();
+	const cleaned = String(text || "")
+		.replace(/<[^>]+>/g, " ")
+		.replace(/&nbsp;/gi, " ")
+		.replace(/&amp;/g, "&")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/\s+/g, " ")
+		.trim();
 	if (cleaned) return cleaned.slice(0, 220);
 	return `Book tickets for ${title} on JOD Events.`;
 }

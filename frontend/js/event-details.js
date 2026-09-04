@@ -339,7 +339,21 @@ function renderEventDOM(event) {
     }
 
     const descEl = document.getElementById('eventDescription');
-    if (descEl) descEl.textContent = event.description || 'Event details will be shared by the host.';
+    if (descEl) {
+        const raw = String(event.description || '').trim();
+        const fallback = 'Event details will be shared by the host.';
+        const editor = window.JodDescEditor;
+        if (!raw) {
+            descEl.textContent = fallback;
+            descEl.classList.remove('is-rich');
+        } else if (editor && typeof editor.looksLikeHtml === 'function' && editor.looksLikeHtml(raw)) {
+            descEl.innerHTML = editor.sanitize(raw);
+            descEl.classList.add('is-rich');
+        } else {
+            descEl.textContent = raw;
+            descEl.classList.remove('is-rich');
+        }
+    }
     setupEventDescriptionToggle();
 
     const scheduleEl = document.getElementById('infoSchedule');
@@ -850,7 +864,10 @@ function setMetaTag(attr, key, value) {
 function applyEventShareMeta(event) {
     if (!event) return;
     const title = String(event.title || "Event Details").trim() || "Event Details";
-    const desc = String(event.description || "")
+    const rawDesc = (window.JodDescEditor && typeof window.JodDescEditor.stripToText === "function")
+        ? window.JodDescEditor.stripToText(event.description || "")
+        : String(event.description || "").replace(/<[^>]+>/g, " ");
+    const desc = String(rawDesc || "")
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 220) || `Book tickets for ${title} on JOD Events.`;

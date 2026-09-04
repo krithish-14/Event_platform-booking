@@ -329,6 +329,19 @@ body.category-theme-workshop .performer-avatar {
     white-space: pre-line;
 }
 
+.event-description-text.is-rich {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.event-description-text.is-rich p {
+    margin: 0 0 0.7em;
+}
+
+.event-description-text.is-rich p:last-child {
+    margin-bottom: 0;
+}
+
 .event-description-text.is-collapsed {
     display: -webkit-box;
     -webkit-box-orient: vertical;

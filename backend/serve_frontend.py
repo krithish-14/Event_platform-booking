@@ -31,7 +31,9 @@ def _frontend_root() -> str:
 
 
 def _clip_description(text: str, title: str) -> str:
-	cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
+	cleaned = re.sub(r"<[^>]+>", " ", str(text or ""))
+	cleaned = html_lib.unescape(cleaned)
+	cleaned = re.sub(r"\s+", " ", cleaned).strip()
 	if cleaned:
 		return cleaned[:220]
 	return "Book tickets for %s on JOD Events." % title

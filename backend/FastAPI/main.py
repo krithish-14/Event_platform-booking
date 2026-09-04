@@ -44,6 +44,7 @@ from APIs.notifications import router as notifications_router
 from APIs.volunteers import router as volunteers_router, compat_router as volunteers_compat_router
 from APIs.admin import router as admin_router
 from APIs.payments import router as payments_router, razorpay_router
+from APIs.whatsapp import router as whatsapp_router
 from Models.base import create_tables
 from Models.user import User  # noqa: F401 — registered with SQLAlchemy metadata
 from Models.event import Event  # noqa: F401
@@ -215,6 +216,7 @@ app.include_router(volunteers_compat_router, tags=["Volunteers"])
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
 app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
 app.include_router(razorpay_router, prefix="/api", tags=["Razorpay"])
+app.include_router(whatsapp_router, prefix="/api/whatsapp", tags=["WhatsApp"])
 
 
 
