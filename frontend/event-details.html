@@ -65,7 +65,8 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/style.css?v=72" />
     <link rel="stylesheet" href="css/responsive.css?v=63" />
-    <link rel="stylesheet" href="css/event-details.css?v=39" />
+    <link rel="stylesheet" href="css/event-details.css?v=40" />
+    <link rel="stylesheet" href="css/desc-fonts.css?v=1" />
 </head>
 
 <body class="event-details-page category-theme-comedy" id="eventBody">
@@ -217,12 +218,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <div id="ticketsList" class="tickets-list">
                                 <p style="color:#64748b; font-size:0.9rem;">Loading tickets…</p>
                             </div>
+                            <div class="ticket-price-summary" id="ticketPriceSummary">
+                                <div class="ticket-qty-total" id="ticketQtyTotal">
+                                    Total <strong id="ticketQtyTotalPrice">—</strong>
+                                </div>
+                                <p class="ticket-price-note" id="ticketPriceNote" hidden></p>
+                            </div>
                             <div id="ticketQtyWrap" class="ticket-qty-wrap" hidden>
                                 <div class="ticket-qty-header">
                                     <div class="ticket-qty-label">Quantity</div>
-                                    <div class="ticket-qty-total" id="ticketQtyTotal">
-                                        Total <strong id="ticketQtyTotalPrice">—</strong>
-                                    </div>
                                 </div>
                                 <div class="ticket-qty-stepper">
                                     <button type="button" id="ticketQtyMinus" aria-label="Fewer tickets">−</button>
@@ -298,8 +302,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <script src="js/script.js?v=35"></script>
     <script src="js/events-public.js?v=20260904_v23"></script>
     <script src="js/wishlist.js?v=1"></script>
-    <script src="js/event-desc-editor.js?v=2"></script>
-    <script src="js/event-details.js?v=41"></script>
+    <script src="js/event-desc-editor.js?v=3"></script>
+    <script src="js/event-details.js?v=42"></script>
 </body>
 
 </html>

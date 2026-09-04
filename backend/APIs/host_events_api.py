@@ -1797,7 +1797,11 @@ def save_manage_event(
             limit = 1
         else:
             limit = max(2, min(limit, 20))
-        policies["_ticket_purchase"] = {"mode": mode, "per_person_limit": limit}
+        purchase = {"mode": mode, "per_person_limit": limit}
+        note = sanitize_text(str((raw_purchase or {}).get("price_note") or ""), max_length=200)
+        if note:
+            purchase["price_note"] = note
+        policies["_ticket_purchase"] = purchase
         event.policies_json = policies
     event.updated_at = datetime.utcnow()
 

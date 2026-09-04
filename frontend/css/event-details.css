@@ -815,6 +815,20 @@ body.category-theme-workshop .performer-avatar {
     font-weight: 800;
 }
 
+.ticket-price-summary {
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.ticket-price-note {
+    margin: 0.4rem 0 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #64748b;
+    line-height: 1.45;
+}
+
 .ticket-qty-stepper {
     display: flex;
     align-items: center;
@@ -1571,6 +1585,14 @@ html[data-theme="dark"] .ticket-qty-hint,
 html[data-theme="dark"] .ticket-qty-total,
 html[data-theme="dark"] .ticket-status {
     color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .ticket-price-summary {
+    border-top-color: rgba(255, 138, 31, 0.22);
+}
+
+html[data-theme="dark"] .ticket-price-note {
+    color: #d4cbbf !important;
 }
 
 html[data-theme="dark"] .venue-maps-link:hover #infoVenue,

@@ -313,7 +313,11 @@ def _ticket_purchase_from_raw(raw: Any) -> dict:
         limit = 1
     else:
         limit = max(2, min(limit, 20))
-    return {"mode": mode, "per_person_limit": limit}
+    out = {"mode": mode, "per_person_limit": limit}
+    note = str(meta.get("price_note") or "").strip()[:200]
+    if note:
+        out["price_note"] = note
+    return out
 
 
 def _host_ticket_purchase_for_event(db: Session, event_id) -> dict:

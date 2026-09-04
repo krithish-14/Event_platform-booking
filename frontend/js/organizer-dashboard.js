@@ -572,6 +572,9 @@ async function initOrganizerDashboard() {
 		if (!Number.isFinite(limit)) limit = 4;
 		if (mode === "single") limit = 1;
 		else limit = Math.max(2, Math.min(20, Math.round(limit)));
+		const note = String(document.getElementById("ticketPriceNoteInput")?.value || "").trim().slice(0, 200);
+		const purchase = { mode, per_person_limit: limit };
+		if (note) purchase.price_note = note;
 		return {
 			event_policy: document.getElementById("policyEventInput")?.value?.trim() || "",
 			cancellation_policy: document.getElementById("policyCancellationInput")?.value?.trim() || "",
@@ -579,11 +582,11 @@ async function initOrganizerDashboard() {
 			terms_and_conditions: document.getElementById("policyTermsInput")?.value?.trim() || "",
 			privacy_policy: document.getElementById("policyPrivacyInput")?.value?.trim() || "",
 			age_policy: document.getElementById("policyAgeInput")?.value?.trim() || "",
-			_ticket_purchase: { mode, per_person_limit: limit }
+			_ticket_purchase: purchase
 		};
 	}
 
-	function applyTicketPurchaseMode(mode, limit) {
+	function applyTicketPurchaseMode(mode, limit, priceNote) {
 		const normalized = mode === "multiple" ? "multiple" : "single";
 		const modeEl = document.getElementById("ticketPurchaseModeInput");
 		if (modeEl) modeEl.value = normalized;
@@ -596,6 +599,10 @@ async function initOrganizerDashboard() {
 		if (limitEl && normalized === "multiple") {
 			const n = Number(limit);
 			limitEl.value = String(Number.isFinite(n) && n >= 2 ? Math.min(20, Math.round(n)) : 4);
+		}
+		if (typeof priceNote === "string") {
+			const noteEl = document.getElementById("ticketPriceNoteInput");
+			if (noteEl) noteEl.value = priceNote;
 		}
 	}
 
@@ -613,6 +620,10 @@ async function initOrganizerDashboard() {
 			const el = document.getElementById(id);
 			if (el && policies[key]) el.value = policies[key];
 		});
+		const purchase = policies._ticket_purchase;
+		if (purchase && typeof purchase === "object") {
+			applyTicketPurchaseMode(purchase.mode || "single", purchase.per_person_limit, purchase.price_note || "");
+		}
 	}
 
 	function populateDesignRows(sponsors, speakers) {
@@ -1424,7 +1435,7 @@ async function initOrganizerDashboard() {
 		if (eventTitleInput) eventTitleInput.value = "";
 		const catSel = document.getElementById("eventCategorySelect");
 		if (catSel) catSel.value = "";
-		["eventDescInput", "eventDateInput", "eventEndDateInput", "eventLocationInput", "eventDurationInput", "eventVenueLat", "eventVenueLon", "policyEventInput", "policyCancellationInput", "policyRefundInput", "policyTermsInput", "policyPrivacyInput", "policyAgeInput"].forEach((id) => {
+		["eventDescInput", "eventDateInput", "eventEndDateInput", "eventLocationInput", "eventDurationInput", "eventVenueLat", "eventVenueLon", "policyEventInput", "policyCancellationInput", "policyRefundInput", "policyTermsInput", "policyPrivacyInput", "policyAgeInput", "ticketPriceNoteInput"].forEach((id) => {
 			const el = document.getElementById(id);
 			if (el) el.value = "";
 		});
@@ -1436,7 +1447,7 @@ async function initOrganizerDashboard() {
 				ticketHost.appendChild(createTicketTierRowHtml("", "", ""));
 			}
 		}
-		if (typeof applyTicketPurchaseMode === "function") applyTicketPurchaseMode("single", 4);
+		if (typeof applyTicketPurchaseMode === "function") applyTicketPurchaseMode("single", 4, "");
 		const agendaHost = document.getElementById("agendaRows");
 		if (agendaHost) {
 			agendaHost.innerHTML = "";
@@ -4023,7 +4034,7 @@ async function initOrganizerDashboard() {
 		}, 250);
 		if (event.policies) populatePoliciesFromJson(event.policies);
 		const purchase = (event.policies && event.policies._ticket_purchase) || event.ticket_purchase || {};
-		applyTicketPurchaseMode(purchase.mode || "single", purchase.per_person_limit);
+		applyTicketPurchaseMode(purchase.mode || "single", purchase.per_person_limit, purchase.price_note || "");
 		if (ticketTiersRows && Array.isArray(event.tickets) && event.tickets.length) {
 			ticketTiersRows.innerHTML = "";
 			event.tickets.forEach((t) => {
@@ -4076,7 +4087,7 @@ async function initOrganizerDashboard() {
 				ticketTiersRows.innerHTML = "";
 				ticketTiersRows.appendChild(createTicketTierRowHtml("", "", ""));
 			}
-			applyTicketPurchaseMode("single", 4);
+			applyTicketPurchaseMode("single", 4, "");
 			if (agendaRows) {
 				agendaRows.innerHTML = "";
 				agendaRows.appendChild(createAgendaRowHtml("", "", ""));

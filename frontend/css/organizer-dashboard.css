@@ -1270,7 +1270,7 @@ html[data-theme="dark"] .ticket-offer-hint {
 
 .desc-editor-field select {
 	height: 36px;
-	min-width: 96px;
+	min-width: 128px;
 	padding: 0 0.55rem;
 	border: 1.5px solid #cbd5e1;
 	border-radius: 7px;

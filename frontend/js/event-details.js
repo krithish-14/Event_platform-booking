@@ -642,6 +642,12 @@ function applyTicketPurchaseFromEvent(event) {
             ? ("You can buy up to " + max + " tickets.")
             : "";
     }
+    const noteEl = document.getElementById("ticketPriceNote");
+    const note = String((currentTicketPurchase && currentTicketPurchase.price_note) || "").trim();
+    if (noteEl) {
+        noteEl.textContent = note;
+        noteEl.hidden = !note;
+    }
     updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
 }
 

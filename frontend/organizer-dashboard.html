@@ -48,7 +48,8 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Organizer Event Dashboard - JOD Events</title>
 		<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
 		<link rel="apple-touch-icon" href="/images/JOD%20Logo.png" />
-		<link rel="stylesheet" href="css/organizer-dashboard.css?v=31" />
+		<link rel="stylesheet" href="css/organizer-dashboard.css?v=32" />
+		<link rel="stylesheet" href="css/desc-fonts.css?v=1" />
 		<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 		<!-- jsQR: pure-JS QR decoder used by the Live Camera Scanner -->
 		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -533,6 +534,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								<button type="button" id="btnAddTicketTier" style="background: #eff6ff; border: 1.5px dashed #3b82f6; color: #2563eb; padding: 0.55rem 1.2rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; transition: all 0.2s;">
 									<span style="font-size: 1.1rem; font-weight: 800;">+</span> Add Ticket Type
 								</button>
+								<div class="setup-form-group" style="margin: 1rem 0 0;">
+									<label for="ticketPriceNoteInput">Price note (shown under ticket total)</label>
+									<input type="text" id="ticketPriceNoteInput" class="setup-input" maxlength="200" placeholder="This payment is included with GST" style="padding-left: 0.9rem;" />
+									<p class="ticket-offer-hint" style="margin: 0.4rem 0 0;">Optional. Attendees see this line under the total, for example GST included.</p>
+								</div>
 							</div>
 
 							<!-- SECTION 4: EVENT AGENDA & SCHEDULE -->
@@ -616,13 +622,25 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 													<span class="visually-hidden">Font</span>
 													<select data-desc-cmd="fontName" title="Font">
 														<option value="">Font</option>
-														<option value="Calibri">Calibri</option>
-														<option value="Arial">Arial</option>
-														<option value="Georgia">Georgia</option>
-														<option value="Times New Roman">Times</option>
-														<option value="Verdana">Verdana</option>
-														<option value="Tahoma">Tahoma</option>
-														<option value="Courier New">Courier</option>
+														<option value="Poppins" style="font-family:Poppins,sans-serif">Poppins</option>
+														<option value="Montserrat" style="font-family:Montserrat,sans-serif">Montserrat</option>
+														<option value="Grift" style="font-family:Grift,sans-serif">Grift</option>
+														<option value="Roboto" style="font-family:Roboto,sans-serif">Roboto</option>
+														<option value="Open Sans" style="font-family:'Open Sans',sans-serif">Open Sans</option>
+														<option value="Lato" style="font-family:Lato,sans-serif">Lato</option>
+														<option value="Nunito" style="font-family:Nunito,sans-serif">Nunito</option>
+														<option value="Raleway" style="font-family:Raleway,sans-serif">Raleway</option>
+														<option value="Oswald" style="font-family:Oswald,sans-serif">Oswald</option>
+														<option value="Playfair Display" style="font-family:'Playfair Display',serif">Playfair Display</option>
+														<option value="Merriweather" style="font-family:Merriweather,serif">Merriweather</option>
+														<option value="Times New Roman" style="font-family:'Times New Roman',Times,serif">Times New Roman</option>
+														<option value="Georgia" style="font-family:Georgia,serif">Georgia</option>
+														<option value="Arial" style="font-family:Arial,sans-serif">Arial</option>
+														<option value="Calibri" style="font-family:Calibri,sans-serif">Calibri</option>
+														<option value="Verdana" style="font-family:Verdana,sans-serif">Verdana</option>
+														<option value="Tahoma" style="font-family:Tahoma,sans-serif">Tahoma</option>
+														<option value="Trebuchet MS" style="font-family:'Trebuchet MS',sans-serif">Trebuchet MS</option>
+														<option value="Courier New" style="font-family:'Courier New',monospace">Courier New</option>
 													</select>
 												</label>
 												<label class="desc-editor-field desc-editor-size">
@@ -2155,8 +2173,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		<script src="js/profile.js?v=12"></script>
 		<script src="js/script.js?v=35"></script>
 		<script src="js/form-builder.js?v=20260828_v1"></script>
-		<script src="js/event-desc-editor.js?v=2"></script>
-		<script src="js/organizer-dashboard.js?v=20260904_v52"></script>
+		<script src="js/event-desc-editor.js?v=3"></script>
+		<script src="js/organizer-dashboard.js?v=20260904_v53"></script>
 	</body>
 </html>
 
