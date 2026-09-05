@@ -125,6 +125,8 @@ def safe_print(msg: str) -> None:
 class SendOTPRequest(BaseModel):
     email: EmailStr
     channel: Optional[str] = "email"
+    # publish_event | cancel_event | organizer (default)
+    intent: Optional[str] = "organizer"
 
 
 class VerifyOTPRequest(BaseModel):
@@ -210,22 +212,37 @@ def send_otp(
         )
 
     destination = _mask_mobile(phone) if channel == "phone" else email
-    subject = "Your JOD Events verification code"
-    if channel == "phone":
-        text_body = (
-            f"Your JOD Events mobile verification OTP is {otp_code}. "
-            f"Use this code to confirm {destination}. It expires in 10 minutes."
-        )
-        html_body = (
-            f"<p>Your JOD Events mobile verification code is <strong>{otp_code}</strong>.</p>"
-            f"<p>Confirm number {destination}. This code expires in 10 minutes. Do not share it.</p>"
-        )
+    intent = (payload.intent or "organizer").strip().lower().replace("-", "_").replace(" ", "_")
+    if intent in ("publish", "publish_event", "event_publish"):
+        intent = "publish_event"
+    elif intent in ("cancel", "cancel_event", "event_cancel", "unpublish"):
+        intent = "cancel_event"
     else:
-        text_body = f"Your JOD Events OTP is {otp_code}. It expires in 10 minutes. Do not share this code."
-        html_body = (
-            f"<p>Your JOD Events verification code is <strong>{otp_code}</strong>.</p>"
-            f"<p>It expires in 10 minutes. Do not share this code.</p>"
-        )
+        intent = "organizer"
+
+    if intent == "publish_event":
+        subject = "Your verification code to publish your event — JOD Events"
+        lead = "This is your verification code to publish your event."
+    elif intent == "cancel_event":
+        subject = "Your verification code to cancel your published event — JOD Events"
+        lead = "This is your verification code to cancel your published event."
+    elif channel == "phone":
+        subject = "Your JOD Events mobile verification code"
+        lead = f"This is your verification code to confirm mobile {destination}."
+    else:
+        subject = "Your JOD Events verification code"
+        lead = "This is your verification code for your JOD Events host account."
+
+    text_body = (
+        f"{lead}\n\n"
+        f"Your code: {otp_code}\n\n"
+        "It expires in 10 minutes. Do not share this code."
+    )
+    html_body = (
+        f"<p><strong>{lead}</strong></p>"
+        f"<p style=\"font-size:28px;letter-spacing:0.18em;font-weight:800;margin:16px 0;\">{otp_code}</p>"
+        "<p>It expires in 10 minutes. Do not share this code.</p>"
+    )
 
     emailed = send_email(email, subject, text_body, html_body)
     if not emailed:

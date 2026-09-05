@@ -678,14 +678,18 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
         else:
             otp_code = otp_service.generate_otp()
             otp_service.store_otp(db, email_clean, "password_reset", otp_code)
-            subject = "Your JOD Events password reset code"
+            subject = "Your verification code to reset your password — JOD Events"
             text_body = (
-                f"Your JOD Events password reset code is {otp_code}. "
-                "It expires in 10 minutes. If you did not request this, you can ignore this email."
+                "This is your verification code to reset your password.\n\n"
+                f"Your code: {otp_code}\n\n"
+                "It expires in 10 minutes. Do not share this code.\n"
+                "If you did not request a password reset, you can ignore this email."
             )
             html_body = (
-                f"<p>Your JOD Events password reset code is <strong>{otp_code}</strong>.</p>"
-                "<p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>"
+                "<p><strong>This is your verification code to reset your password.</strong></p>"
+                f"<p style=\"font-size:28px;letter-spacing:0.18em;font-weight:800;margin:16px 0;\">{otp_code}</p>"
+                "<p>It expires in 10 minutes. Do not share this code.</p>"
+                "<p style=\"color:#5c534a;font-size:13px;\">If you did not request a password reset, you can ignore this email.</p>"
             )
             sent = send_email(email_clean, subject, text_body, html_body)
             if not sent:

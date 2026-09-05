@@ -126,7 +126,7 @@
 	var PREFS_KEY = "jod_theme_prefs";
 	var EVENT_NAME = "jod-theme-change";
 	var DARK_CSS_ID = "jod-theme-dark-css";
-	var DARK_CSS_HREF = "css/theme-dark.css?v=11";
+	var DARK_CSS_HREF = "css/theme-dark.css?v=12";
 	var AUTH_PAGES = {
 		"login.html": 1,
 		"signup.html": 1,

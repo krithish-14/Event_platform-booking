@@ -1199,13 +1199,16 @@ async function initOrganizerDashboard() {
 		});
 	} catch (_) {}
 
+	let dashToastTimer = null;
+
 	function showNotification(msg) {
 		if (!dashNotification) return;
-		dashNotification.style.display = "block";
-		dashNotification.textContent = msg;
-		setTimeout(() => {
-			if (dashNotification) dashNotification.style.display = "none";
-		}, 4000);
+		dashNotification.textContent = String(msg || "");
+		dashNotification.classList.add("show");
+		if (dashToastTimer) clearTimeout(dashToastTimer);
+		dashToastTimer = setTimeout(() => {
+			dashNotification.classList.remove("show");
+		}, 3200);
 	}
 	window.showNotification = showNotification;
 
@@ -4376,7 +4379,8 @@ async function initOrganizerDashboard() {
 				purpose: "cancel this event and remove it from Home, Category, and Event Details",
 				verifyLabel: "Verify & Cancel Event",
 				headerBg: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
-				verifyBg: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)"
+				verifyBg: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
+				otpIntent: "cancel_event"
 			};
 			const introOk = await showHostActionIntroModal({
 				badge: "Cancel event",
@@ -5575,7 +5579,8 @@ async function initOrganizerDashboard() {
 			purpose: "authenticate and publish this event",
 			verifyLabel: "Verify & Publish",
 			headerBg: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-			verifyBg: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)"
+			verifyBg: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+			otpIntent: "publish_event"
 		}, options || {});
 		return new Promise(async (resolve) => {
 			const hostEmail = email || (window.JodAuth && window.JodAuth.getUser && window.JodAuth.getUser() && window.JodAuth.getUser().email) || "";
@@ -5688,7 +5693,11 @@ async function initOrganizerDashboard() {
 					const res = await fetchFn(`${API_BASE}/send-otp`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ email: hostEmail, channel: otpChannel })
+						body: JSON.stringify({
+							email: hostEmail,
+							channel: otpChannel,
+							intent: opts.otpIntent || "publish_event",
+						})
 					});
 					const data = await res.json().catch(() => ({}));
 					if (!res.ok) throw new Error(apiErrorMessage(data, "Failed to send OTP."));
