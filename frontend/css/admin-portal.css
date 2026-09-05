@@ -512,6 +512,142 @@ button.admin-event-title:focus-visible {
 	margin-left: 0.15rem;
 }
 
+.admin-notify-btn {
+	position: relative;
+	width: 2.35rem;
+	height: 2.35rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid rgba(255, 161, 54, 0.45);
+	border-radius: 10px;
+	background: rgba(255, 248, 240, 0.08);
+	color: #fff8f0;
+	cursor: pointer;
+	padding: 0;
+}
+
+.admin-notify-btn:hover {
+	color: #FFA136;
+	border-color: #FFA136;
+	background: rgba(255, 117, 8, 0.18);
+}
+
+.admin-notify-btn svg {
+	width: 1.15rem;
+	height: 1.15rem;
+}
+
+.admin-notify-badge {
+	position: absolute;
+	top: -0.35rem;
+	right: -0.35rem;
+	min-width: 1.15rem;
+	height: 1.15rem;
+	padding: 0 0.28rem;
+	border-radius: 999px;
+	background: #FF7508;
+	color: #fff;
+	font-size: 0.65rem;
+	font-weight: 800;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
+}
+
+.admin-notifications {
+	display: flex;
+	flex-direction: column;
+	gap: 0.9rem;
+}
+
+.admin-notify-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.admin-notify-head h2 {
+	margin: 0 0 0.25rem;
+	font-size: 1.15rem;
+}
+
+.admin-notify-head p {
+	margin: 0;
+	color: #5c534a;
+	font-size: 0.88rem;
+}
+
+.admin-notify-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.7rem;
+}
+
+.admin-notify-card {
+	display: block;
+	width: 100%;
+	text-align: left;
+	border: 1px solid #eadfce;
+	border-radius: 14px;
+	background: #fff;
+	padding: 1rem 1.05rem;
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-notify-card:hover {
+	border-color: #FFA136;
+	box-shadow: 0 8px 20px rgba(255, 117, 8, 0.08);
+}
+
+.admin-notify-card-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-bottom: 0.4rem;
+}
+
+.admin-notify-code {
+	font-size: 0.82rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	color: #c2410c;
+}
+
+.admin-notify-subject {
+	display: block;
+	font-size: 1rem;
+	margin: 0;
+}
+
+.admin-notify-meta {
+	margin: 0.3rem 0 0;
+	font-size: 0.78rem;
+	color: #7a7168;
+}
+
+.admin-notify-preview {
+	margin: 0.55rem 0 0;
+	font-size: 0.86rem;
+	color: #5c534a;
+	line-height: 1.45;
+}
+
+.admin-notify-empty {
+	padding: 2rem 1rem;
+	text-align: center;
+	border: 1px dashed #eadfce;
+	border-radius: 14px;
+	color: #7a7168;
+	background: #fffaf3;
+}
+
 .admin-quick-grid {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));

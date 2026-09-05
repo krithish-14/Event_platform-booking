@@ -208,6 +208,7 @@
 	function setSection(section, options) {
 		const next = VALID_SECTIONS.includes(section) ? section : "overview";
 		window.__adminSection = next;
+		window.__adminShowingNotifications = false;
 		try { sessionStorage.setItem(SECTION_KEY, next); } catch (_) {}
 		document.querySelectorAll(".admin-nav-item[data-section]").forEach((btn) => {
 			const active = btn.getAttribute("data-section") === next;
@@ -258,25 +259,84 @@
 		setText("adminDonutLabel", "payments");
 		setText("legendReady", ready);
 		setText("legendPending", pending);
+		renderNotifications();
+	}
 
-		const recent = document.getElementById("adminRecentSupport");
-		if (recent) {
-			const tickets = (window.__supportTickets || []).slice(0, 5);
-			if (!tickets.length) {
-				recent.innerHTML = `<div class="admin-recent-empty">No help tickets yet.</div>`;
+	function renderNotifications() {
+		const list = document.getElementById("adminNotifyList");
+		const badge = document.getElementById("adminNotifyBadge");
+		const tickets = Array.isArray(window.__supportTickets) ? window.__supportTickets.slice() : [];
+		const openCount = tickets.filter((t) => (t.status || "open") !== "resolved").length;
+		if (badge) {
+			if (openCount > 0) {
+				badge.hidden = false;
+				badge.textContent = openCount > 99 ? "99+" : String(openCount);
 			} else {
-				recent.innerHTML = tickets.map((ticket) => {
-					const status = ticket.status || "open";
-					return `<button type="button" class="admin-recent-item" data-support-view="${escapeHtml(ticket.ticket_code)}">
-						<div>
-							<strong>${escapeHtml(ticket.ticket_code)} · ${escapeHtml(ticket.subject || "Support issue")}</strong>
-							<span>${escapeHtml(ticket.name || "")} · ${escapeHtml(formatWhen(ticket.created_at))}</span>
-						</div>
-						<span class="admin-badge ${escapeHtml(status)}">${escapeHtml(supportStatusLabel(status))}</span>
-					</button>`;
-				}).join("");
+				badge.hidden = true;
 			}
 		}
+		if (!list) return;
+		if (!tickets.length) {
+			list.innerHTML = `<div class="admin-notify-empty">No Help &amp; Support tickets yet.</div>`;
+			return;
+		}
+		const sorted = tickets.slice().sort((a, b) => {
+			const aOpen = (a.status || "open") !== "resolved" ? 0 : 1;
+			const bOpen = (b.status || "open") !== "resolved" ? 0 : 1;
+			if (aOpen !== bOpen) return aOpen - bOpen;
+			return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+		});
+		list.innerHTML = sorted.map((ticket) => {
+			const status = ticket.status || "open";
+			const preview = String(ticket.message || "").trim();
+			return `<button type="button" class="admin-notify-card" data-notify-ticket="${escapeHtml(ticket.ticket_code)}">
+				<div class="admin-notify-card-top">
+					<span class="admin-notify-code">${escapeHtml(ticket.ticket_code)}</span>
+					<span class="admin-badge ${escapeHtml(status)}">${escapeHtml(supportStatusLabel(status))}</span>
+				</div>
+				<strong class="admin-notify-subject">${escapeHtml(ticket.subject || "Support issue")}</strong>
+				<p class="admin-notify-meta">${escapeHtml(ticket.name || "")} · ${escapeHtml(ticket.category || "")} · ${escapeHtml(formatWhen(ticket.created_at))}</p>
+				<p class="admin-notify-preview">${escapeHtml(preview.slice(0, 140))}${preview.length > 140 ? "…" : ""}</p>
+			</button>`;
+		}).join("");
+	}
+
+	function showNotificationsPage() {
+		window.__adminShowingNotifications = true;
+		const overviewPanel = document.getElementById("adminOverviewPanel");
+		const dataPanel = document.getElementById("adminDataPanel");
+		const notifyPanel = document.getElementById("adminNotificationsPanel");
+		const pageTitle = document.getElementById("adminPageTitle");
+		const hint = document.getElementById("adminSectionHint");
+		const toolbar = document.getElementById("adminToolbar");
+		if (overviewPanel) overviewPanel.hidden = true;
+		if (dataPanel) dataPanel.hidden = true;
+		if (notifyPanel) notifyPanel.hidden = false;
+		if (toolbar) toolbar.hidden = true;
+		if (pageTitle) pageTitle.textContent = "Notifications";
+		if (hint) hint.textContent = "Open a Help & Support ticket to review the issue and mark it solved.";
+		renderNotifications();
+		setNavOpen(false);
+	}
+
+	function hideNotificationsPage() {
+		window.__adminShowingNotifications = false;
+		const notifyPanel = document.getElementById("adminNotificationsPanel");
+		const toolbar = document.getElementById("adminToolbar");
+		if (notifyPanel) notifyPanel.hidden = true;
+		if (toolbar) toolbar.hidden = false;
+		applySection(window.__adminData);
+	}
+
+	function openTicketFromNotification(code) {
+		window.__adminShowingNotifications = false;
+		const notifyPanel = document.getElementById("adminNotificationsPanel");
+		const toolbar = document.getElementById("adminToolbar");
+		if (notifyPanel) notifyPanel.hidden = true;
+		if (toolbar) toolbar.hidden = false;
+		setSection("support", { skipApply: true, keepNavOpen: true });
+		applySection(window.__adminData);
+		openSupportTicket(code, (findSupportTicket(code) || {}).status !== "resolved");
 	}
 
 	function applySection(data) {
@@ -325,13 +385,18 @@
 		const searchInput = document.getElementById("adminSearch");
 		const overviewPanel = document.getElementById("adminOverviewPanel");
 		const dataPanel = document.getElementById("adminDataPanel");
+		const notifyPanel = document.getElementById("adminNotificationsPanel");
 		const eventNote = eventLabel ? ` for ${eventLabel}` : "";
 		const showingOverview = section === "overview";
+		const showingNotifications = Boolean(window.__adminShowingNotifications);
 
-		if (overviewPanel) overviewPanel.hidden = !showingOverview;
-		if (dataPanel) dataPanel.hidden = showingOverview;
-		if (searchInput) searchInput.hidden = showingOverview;
-		if (eventFilterWrap) eventFilterWrap.hidden = section === "support";
+		if (notifyPanel) notifyPanel.hidden = !showingNotifications;
+		if (overviewPanel) overviewPanel.hidden = showingNotifications || !showingOverview;
+		if (dataPanel) dataPanel.hidden = showingNotifications || showingOverview;
+		if (searchInput) searchInput.hidden = showingNotifications || showingOverview;
+		if (eventFilterWrap) eventFilterWrap.hidden = showingNotifications || section === "support";
+		const toolbar = document.getElementById("adminToolbar");
+		if (toolbar) toolbar.hidden = showingNotifications;
 
 		updateOverview({
 			host: hostRows.length,
@@ -341,6 +406,13 @@
 			ready: payReady,
 			pending: payPending,
 		});
+
+		if (showingNotifications) {
+			if (pageTitle) pageTitle.textContent = "Notifications";
+			if (hint) hint.textContent = "Open a Help & Support ticket to review the issue and mark it solved.";
+			window.__adminData = payload;
+			return;
+		}
 
 		if (showingOverview) {
 			if (pageTitle) pageTitle.textContent = "Overview";
@@ -843,8 +915,12 @@
 		document.querySelectorAll(".admin-nav-item[data-section]").forEach((btn) => {
 			btn.addEventListener("click", () => setSection(btn.getAttribute("data-section")));
 		});
-		document.querySelectorAll("[data-jump]").forEach((btn) => {
-			btn.addEventListener("click", () => setSection(btn.getAttribute("data-jump")));
+		document.getElementById("adminNotifyBtn")?.addEventListener("click", showNotificationsPage);
+		document.getElementById("adminNotifyClose")?.addEventListener("click", hideNotificationsPage);
+		document.getElementById("adminNotifyList")?.addEventListener("click", (event) => {
+			const card = event.target.closest("[data-notify-ticket]");
+			if (!card) return;
+			openTicketFromNotification(card.getAttribute("data-notify-ticket"));
 		});
 		document.getElementById("adminEventFilter")?.addEventListener("change", () => {
 			persistEventFilter(currentEventFilter());

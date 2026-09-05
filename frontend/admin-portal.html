@@ -48,7 +48,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Admin QR Portal - JOD Events</title>
 		<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
 		<link rel="stylesheet" href="css/style.css?v=72" />
-		<link rel="stylesheet" href="css/admin-portal.css?v=11" />
+		<link rel="stylesheet" href="css/admin-portal.css?v=12" />
 	</head>
 	<body class="admin-portal-body">
 <!-- Google Tag Manager (noscript) -->
@@ -71,6 +71,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				</div>
 			</div>
 			<div class="admin-topbar-right">
+				<button type="button" class="admin-notify-btn" id="adminNotifyBtn" aria-label="Notifications" title="Help &amp; Support notifications">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+						<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+						<path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+					</svg>
+					<span class="admin-notify-badge" id="adminNotifyBadge" hidden>0</span>
+				</button>
 				<button type="button" class="theme-toggle admin-theme-toggle" data-theme-toggle hidden aria-label="Switch to dark mode" title="Dark mode"></button>
 				<span id="adminUserLabel">Admin</span>
 				<a class="admin-link" href="/">Website</a>
@@ -170,28 +177,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 								<li><i class="lg-pending"></i> Need QR <span id="legendPending">0</span></li>
 							</ul>
 						</article>
-
-						<article class="admin-card admin-card-wide">
-							<header class="admin-card-head">
-								<h2>Quick actions</h2>
-								<p>Jump to the section you need</p>
-							</header>
-							<div class="admin-quick-grid">
-								<button type="button" class="admin-quick" data-jump="host">Attendees Data</button>
-								<button type="button" class="admin-quick" data-jump="payment">Payment Data</button>
-								<button type="button" class="admin-quick" data-jump="cancel">Cancellation request</button>
-								<button type="button" class="admin-quick" data-jump="support">Help &amp; Support</button>
-							</div>
-						</article>
-
-						<article class="admin-card admin-card-wide">
-							<header class="admin-card-head">
-								<h2>Recent help tickets</h2>
-								<p>Latest THP- issues from Help &amp; Support</p>
-							</header>
-							<div class="admin-recent-list" id="adminRecentSupport"></div>
-						</article>
 					</div>
+				</section>
+
+				<!-- Notifications -->
+				<section class="admin-notifications" id="adminNotificationsPanel" hidden>
+					<div class="admin-notify-head">
+						<div>
+							<h2>Notifications</h2>
+							<p>Help &amp; Support tickets waiting for your response</p>
+						</div>
+						<button type="button" class="admin-btn ghost" id="adminNotifyClose">Back</button>
+					</div>
+					<div class="admin-notify-list" id="adminNotifyList"></div>
 				</section>
 
 				<!-- Data tables -->
@@ -262,6 +260,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 		<script src="js/health.js?v=3"></script>
 		<script src="js/auth.js?v=33"></script>
-		<script src="js/admin-portal.js?v=18"></script>
+		<script src="js/admin-portal.js?v=19"></script>
 	</body>
 </html>
