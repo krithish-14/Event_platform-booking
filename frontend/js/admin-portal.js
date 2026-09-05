@@ -188,15 +188,240 @@
 		</tr>`;
 	}
 
+	const SECTION_KEY = "jod_admin_section";
+	const VALID_SECTIONS = ["overview", "host", "payment", "cancel", "support"];
+
 	function currentSection() {
-		const select = document.getElementById("adminSection");
-		const value = select && select.value;
-		if (value === "payment") return "payment";
-		if (value === "cancel") return "cancel";
-		if (value === "support") return "support";
-		return "host";
+		const raw = window.__adminSection || sessionStorage.getItem(SECTION_KEY) || "overview";
+		return VALID_SECTIONS.includes(raw) ? raw : "overview";
 	}
 
+	function setNavOpen(open) {
+		const shell = document.querySelector(".admin-shell");
+		const toggle = document.getElementById("adminNavToggle");
+		const backdrop = document.getElementById("adminSidebarBackdrop");
+		if (shell) shell.classList.toggle("is-nav-open", Boolean(open));
+		if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+		if (backdrop) backdrop.hidden = !open;
+	}
+
+	function setSection(section, options) {
+		const next = VALID_SECTIONS.includes(section) ? section : "overview";
+		window.__adminSection = next;
+		try { sessionStorage.setItem(SECTION_KEY, next); } catch (_) {}
+		document.querySelectorAll(".admin-nav-item[data-section]").forEach((btn) => {
+			const active = btn.getAttribute("data-section") === next;
+			btn.classList.toggle("is-active", active);
+			btn.setAttribute("aria-selected", active ? "true" : "false");
+		});
+		if (!(options && options.skipApply)) applySection(window.__adminData);
+		if (!(options && options.keepNavOpen)) setNavOpen(false);
+	}
+
+	function updateOverview(stats) {
+		const bars = document.getElementById("adminWorkloadBars");
+		if (bars) {
+			const items = [
+				{ label: "Attendees", value: stats.host },
+				{ label: "Payments", value: stats.pay },
+				{ label: "Cancels", value: stats.cancel },
+				{ label: "Help open", value: stats.supportOpen },
+			];
+			const max = Math.max(1, ...items.map((row) => row.value));
+			bars.innerHTML = items.map((row) => {
+				const pct = Math.round((row.value / max) * 100);
+				return `<div class="admin-bar-row">
+					<span>${escapeHtml(row.label)}</span>
+					<div class="admin-bar-track"><div class="admin-bar-fill" style="width:${pct}%"></div></div>
+					<em>${row.value}</em>
+				</div>`;
+			}).join("");
+		}
+
+		const totalPay = Math.max(0, Number(stats.pay) || 0);
+		const ready = Math.max(0, Number(stats.ready) || 0);
+		const pending = Math.max(0, Number(stats.pending) || 0);
+		const readyPct = totalPay ? (ready / totalPay) * 100 : 0;
+		const pendingPct = totalPay ? (pending / totalPay) * 100 : 0;
+		const readyPath = document.getElementById("adminDonutReady");
+		const pendingPath = document.getElementById("adminDonutPending");
+		if (readyPath) readyPath.setAttribute("stroke-dasharray", `${readyPct.toFixed(2)}, 100`);
+		if (pendingPath) {
+			pendingPath.setAttribute("stroke-dasharray", `${pendingPct.toFixed(2)}, 100`);
+			pendingPath.setAttribute("stroke-dashoffset", String((-readyPct).toFixed(2)));
+		}
+		const setText = (id, value) => {
+			const el = document.getElementById(id);
+			if (el) el.textContent = String(value);
+		};
+		setText("adminDonutValue", totalPay);
+		setText("adminDonutLabel", "payments");
+		setText("legendReady", ready);
+		setText("legendPending", pending);
+
+		const recent = document.getElementById("adminRecentSupport");
+		if (recent) {
+			const tickets = (window.__supportTickets || []).slice(0, 5);
+			if (!tickets.length) {
+				recent.innerHTML = `<div class="admin-recent-empty">No help tickets yet.</div>`;
+			} else {
+				recent.innerHTML = tickets.map((ticket) => {
+					const status = ticket.status || "open";
+					return `<button type="button" class="admin-recent-item" data-support-view="${escapeHtml(ticket.ticket_code)}">
+						<div>
+							<strong>${escapeHtml(ticket.ticket_code)} · ${escapeHtml(ticket.subject || "Support issue")}</strong>
+							<span>${escapeHtml(ticket.name || "")} · ${escapeHtml(formatWhen(ticket.created_at))}</span>
+						</div>
+						<span class="admin-badge ${escapeHtml(status)}">${escapeHtml(supportStatusLabel(status))}</span>
+					</button>`;
+				}).join("");
+			}
+		}
+	}
+
+	function applySection(data) {
+		const payload = data || window.__adminData || { submissions: [] };
+		const rows = payload.submissions || [];
+		const cancelRows = window.__cancelRequests || [];
+		fillEventFilter(rows.concat(cancelRows));
+		const eventFilter = currentEventFilter();
+		const scoped = rowsForEvent(rows, eventFilter);
+		const scopedCancel = rowsForEvent(cancelRows, eventFilter);
+		const hostRows = scoped.filter((row) => (row.kind || "form") !== "payment");
+		const payRows = scoped.filter((row) => row.kind === "payment");
+		const section = currentSection();
+		const supportRows = window.__supportTickets || [];
+		const supportOpen = (window.__supportMeta && window.__supportMeta.open)
+			|| supportRows.filter((t) => (t.status || "open") !== "resolved").length;
+		const eventLabel = (() => {
+			const select = document.getElementById("adminEventFilter");
+			if (!select || select.value === "all") return "";
+			const opt = select.options[select.selectedIndex];
+			return opt ? opt.textContent.trim() : "";
+		})();
+		const setText = (id, value) => {
+			const el = document.getElementById(id);
+			if (el) el.textContent = String(value);
+		};
+		const payPending = payRows.filter((row) => !row.has_qr).length;
+		const payReady = payRows.filter((row) => row.has_qr).length;
+		setText("statHost", hostRows.length);
+		setText("statPay", payRows.length);
+		setText("statPending", payPending);
+		setText("statReady", payReady);
+		setText("statCancel", scopedCancel.length);
+		setText("statSupport", supportOpen);
+		setText("navCountHost", hostRows.length);
+		setText("navCountPay", payRows.length);
+		setText("navCountCancel", scopedCancel.length);
+		setText("navCountSupport", supportOpen);
+
+		const title = document.getElementById("adminSectionTitle");
+		const pageTitle = document.getElementById("adminPageTitle");
+		const copy = document.getElementById("adminSectionCopy");
+		const hint = document.getElementById("adminSectionHint");
+		const ticketCol = document.getElementById("ticketCol");
+		const eventFilterWrap = document.getElementById("adminEventFilterWrap");
+		const searchInput = document.getElementById("adminSearch");
+		const overviewPanel = document.getElementById("adminOverviewPanel");
+		const dataPanel = document.getElementById("adminDataPanel");
+		const eventNote = eventLabel ? ` for ${eventLabel}` : "";
+		const showingOverview = section === "overview";
+
+		if (overviewPanel) overviewPanel.hidden = !showingOverview;
+		if (dataPanel) dataPanel.hidden = showingOverview;
+		if (searchInput) searchInput.hidden = showingOverview;
+		if (eventFilterWrap) eventFilterWrap.hidden = section === "support";
+
+		updateOverview({
+			host: hostRows.length,
+			pay: payRows.length,
+			cancel: scopedCancel.length,
+			supportOpen,
+			ready: payReady,
+			pending: payPending,
+		});
+
+		if (showingOverview) {
+			if (pageTitle) pageTitle.textContent = "Overview";
+			if (hint) hint.textContent = eventLabel
+				? `Dashboard snapshot${eventNote}.`
+				: "Snapshot of attendees, payments, cancellations, and help tickets.";
+			window.__adminData = payload;
+			return;
+		}
+
+		if (section === "support") {
+			setText("sectionCount", supportRows.length);
+			if (pageTitle) pageTitle.textContent = "Help & Support";
+			if (title) title.textContent = "Help & Support";
+			if (copy) copy.textContent = "Tickets raised from Help & Support (THP- IDs). Open an issue, then mark it solved to email the customer.";
+			if (hint) hint.textContent = "Review customer issues from the Help page and mark them solved when fixed.";
+			if (ticketCol) ticketCol.textContent = "Issue preview";
+			if (searchInput) searchInput.placeholder = "Search THP- ID, name, email, or subject";
+			const head = document.querySelector("#adminTableWrap thead tr");
+			if (head) {
+				head.innerHTML = "<th>Ticket / Customer</th><th>Subject</th><th>Issue preview</th><th>Submitted</th><th>Status</th><th>Action</th>";
+			}
+			fillSupportTable(supportRows);
+			window.__adminRows = supportRows;
+		} else if (section === "cancel") {
+			if (searchInput) searchInput.placeholder = "Search name, email, phone, or event";
+			const head = document.querySelector("#adminTableWrap thead tr");
+			if (head) {
+				head.innerHTML = "<th>Attendee</th><th>Event</th><th id=\"ticketCol\">Ticket</th><th>Submitted</th><th>Status</th><th>Action</th>";
+			}
+			setText("sectionCount", scopedCancel.length);
+			if (pageTitle) pageTitle.textContent = "Cancellation request";
+			if (title) title.textContent = "Cancellation request";
+			if (copy) copy.textContent = eventLabel
+				? `Pending cancellation requests for ${eventLabel}. Review the attendee and payment forms, then accept.`
+				: "Pending cancellation requests. Review the attendee form and payment form, then accept the request.";
+			if (hint) hint.textContent = eventLabel
+				? `Cancellation requests${eventNote}.`
+				: "Select an event to view that event's cancellation requests, or keep All events.";
+			if (ticketCol) ticketCol.textContent = "Ticket";
+			fillTable(scopedCancel, eventLabel ? `No cancellation requests for ${eventLabel}.` : "No cancellation requests yet.", { showGenerate: false });
+			window.__adminRows = scopedCancel;
+		} else if (section === "payment") {
+			if (searchInput) searchInput.placeholder = "Search name, email, phone, or event";
+			const head = document.querySelector("#adminTableWrap thead tr");
+			if (head) {
+				head.innerHTML = "<th>Attendee</th><th>Event</th><th id=\"ticketCol\">Ticket / Txn</th><th>Submitted</th><th>Status</th><th>Action</th>";
+			}
+			setText("sectionCount", payRows.length);
+			if (pageTitle) pageTitle.textContent = "Payment Data";
+			if (title) title.textContent = "Payment Data";
+			if (copy) copy.textContent = eventLabel
+				? `Payment records for ${eventLabel}. QR is issued automatically after payment; use Resend QR if needed.`
+				: "Payment records. QR is issued automatically after payment; use Resend QR to email/WhatsApp again.";
+			if (hint) hint.textContent = eventLabel
+				? `Payment data${eventNote}.`
+				: "Select an event to view that event's payment data, or keep All events.";
+			if (ticketCol) ticketCol.textContent = "Ticket / Txn";
+			fillTable(payRows, eventLabel ? `No payment data for ${eventLabel} yet.` : "No payment data yet.", { showGenerate: true });
+			window.__adminRows = payRows;
+		} else {
+			if (searchInput) searchInput.placeholder = "Search name, email, phone, or event";
+			const head = document.querySelector("#adminTableWrap thead tr");
+			if (head) {
+				head.innerHTML = "<th>Attendee</th><th>Event</th><th id=\"ticketCol\">Ticket</th><th>Submitted</th><th>Status</th><th>Action</th>";
+			}
+			setText("sectionCount", hostRows.length);
+			if (pageTitle) pageTitle.textContent = "Attendees Data";
+			if (title) title.textContent = "Attendees Data";
+			if (copy) copy.textContent = eventLabel
+				? `Registered attendees for ${eventLabel}.`
+				: "Registered details from the event host form. Choose an event to see only that event's attendees.";
+			if (hint) hint.textContent = eventLabel
+				? `Attendee data${eventNote}.`
+				: "Select an event to view that event's attendee data, or keep All events.";
+			if (ticketCol) ticketCol.textContent = "Ticket";
+			fillTable(hostRows, eventLabel ? `No attendee data for ${eventLabel} yet.` : "No attendee data yet.", { showGenerate: false });
+			window.__adminRows = hostRows;
+		}
+		window.__adminData = payload;
+	}
 	function eventKey(row) {
 		const compact = compactEventId(row && row.event_id);
 		if (compact) return `id:${compact}`;
@@ -259,115 +484,6 @@
 		if (empty) empty.hidden = true;
 		if (wrap) wrap.hidden = false;
 		body.innerHTML = rows.map((row) => rowHtml(row, options)).join("");
-	}
-
-	function applySection(data) {
-		const payload = data || window.__adminData || { submissions: [] };
-		const rows = payload.submissions || [];
-		const cancelRows = window.__cancelRequests || [];
-		fillEventFilter(rows.concat(cancelRows));
-		const eventFilter = currentEventFilter();
-		const scoped = rowsForEvent(rows, eventFilter);
-		const scopedCancel = rowsForEvent(cancelRows, eventFilter);
-		const hostRows = scoped.filter((row) => (row.kind || "form") !== "payment");
-		const payRows = scoped.filter((row) => row.kind === "payment");
-		const section = currentSection();
-		const eventLabel = (() => {
-			const select = document.getElementById("adminEventFilter");
-			if (!select || select.value === "all") return "";
-			const opt = select.options[select.selectedIndex];
-			return opt ? opt.textContent.trim() : "";
-		})();
-		const setText = (id, value) => {
-			const el = document.getElementById(id);
-			if (el) el.textContent = String(value);
-		};
-		const payPending = payRows.filter((row) => !row.has_qr).length;
-		const payReady = payRows.filter((row) => row.has_qr).length;
-		setText("statHost", hostRows.length);
-		setText("statPay", payRows.length);
-		setText("statPending", payPending);
-		setText("statReady", payReady);
-		setText("statCancel", scopedCancel.length);
-		setText("statSupport", (window.__supportMeta && window.__supportMeta.open) || (window.__supportTickets || []).filter((t) => (t.status || "open") !== "resolved").length);
-		const title = document.getElementById("adminSectionTitle");
-		const copy = document.getElementById("adminSectionCopy");
-		const hint = document.getElementById("adminSectionHint");
-		const ticketCol = document.getElementById("ticketCol");
-		const eventFilterLabel = document.getElementById("adminEventFilter") && document.getElementById("adminEventFilter").closest("label");
-		const searchInput = document.getElementById("adminSearch");
-		const eventNote = eventLabel ? ` for ${eventLabel}` : "";
-		if (section === "support") {
-			const supportRows = window.__supportTickets || [];
-			setText("sectionCount", supportRows.length);
-			if (title) title.textContent = "Help & Support";
-			if (copy) copy.textContent = "Tickets raised from Help & Support (THP- IDs). Open an issue, then mark it solved to email the customer.";
-			if (hint) hint.textContent = "Review customer issues from the Help page and mark them solved when fixed.";
-			if (ticketCol) ticketCol.textContent = "Issue preview";
-			if (eventFilterLabel) eventFilterLabel.hidden = true;
-			if (searchInput) searchInput.placeholder = "Search THP- ID, name, email, or subject";
-			const head = document.querySelector("#adminTableWrap thead tr");
-			if (head) {
-				head.innerHTML = "<th>Ticket / Customer</th><th>Subject</th><th>Issue preview</th><th>Submitted</th><th>Status</th><th>Action</th>";
-			}
-			fillSupportTable(supportRows);
-			window.__adminRows = supportRows;
-		} else if (section === "cancel") {
-			if (eventFilterLabel) eventFilterLabel.hidden = false;
-			if (searchInput) searchInput.placeholder = "Search name, email, phone, or event";
-			const head = document.querySelector("#adminTableWrap thead tr");
-			if (head) {
-				head.innerHTML = "<th>Attendee</th><th>Event</th><th id=\"ticketCol\">Ticket</th><th>Submitted</th><th>Status</th><th>Action</th>";
-			}
-			setText("sectionCount", scopedCancel.length);
-			if (title) title.textContent = "Cancellation request";
-			if (copy) copy.textContent = eventLabel
-				? `Pending cancellation requests for ${eventLabel}. Review the attendee and payment forms, then accept.`
-				: "Pending cancellation requests. Review the attendee form and payment form, then accept the request.";
-			if (hint) hint.textContent = eventLabel
-				? `Cancellation requests${eventNote}.`
-				: "Select an event to view that event's cancellation requests, or keep All events.";
-			if (ticketCol) ticketCol.textContent = "Ticket";
-			fillTable(scopedCancel, eventLabel ? `No cancellation requests for ${eventLabel}.` : "No cancellation requests yet.", { showGenerate: false });
-			window.__adminRows = scopedCancel;
-		} else if (section === "payment") {
-			if (eventFilterLabel) eventFilterLabel.hidden = false;
-			if (searchInput) searchInput.placeholder = "Search name, email, phone, or event";
-			const head = document.querySelector("#adminTableWrap thead tr");
-			if (head) {
-				head.innerHTML = "<th>Attendee</th><th>Event</th><th id=\"ticketCol\">Ticket / Txn</th><th>Submitted</th><th>Status</th><th>Action</th>";
-			}
-			setText("sectionCount", payRows.length);
-			if (title) title.textContent = "Payment Data";
-			if (copy) copy.textContent = eventLabel
-				? `Payment records for ${eventLabel}. QR is issued automatically after payment; use Resend QR if needed.`
-				: "Payment records. QR is issued automatically after payment; use Resend QR to email/WhatsApp again.";
-			if (hint) hint.textContent = eventLabel
-				? `Payment data${eventNote}.`
-				: "Select an event to view that event's payment data, or keep All events.";
-			if (ticketCol) ticketCol.textContent = "Ticket / Txn";
-			fillTable(payRows, eventLabel ? `No payment data for ${eventLabel} yet.` : "No payment data yet.", { showGenerate: true });
-			window.__adminRows = payRows;
-		} else {
-			if (eventFilterLabel) eventFilterLabel.hidden = false;
-			if (searchInput) searchInput.placeholder = "Search name, email, phone, or event";
-			const head = document.querySelector("#adminTableWrap thead tr");
-			if (head) {
-				head.innerHTML = "<th>Attendee</th><th>Event</th><th id=\"ticketCol\">Ticket</th><th>Submitted</th><th>Status</th><th>Action</th>";
-			}
-			setText("sectionCount", hostRows.length);
-			if (title) title.textContent = "Attendees Data";
-			if (copy) copy.textContent = eventLabel
-				? `Registered attendees for ${eventLabel}.`
-				: "Registered details from the event host form. Choose an event to see only that event's attendees.";
-			if (hint) hint.textContent = eventLabel
-				? `Attendee data${eventNote}.`
-				: "Select an event to view that event's attendee data, or keep All events.";
-			if (ticketCol) ticketCol.textContent = "Ticket";
-			fillTable(hostRows, eventLabel ? `No attendee data for ${eventLabel} yet.` : "No attendee data yet.", { showGenerate: false });
-			window.__adminRows = hostRows;
-		}
-		window.__adminData = payload;
 	}
 
 	function renderRows(data) {
@@ -711,6 +827,7 @@
 
 	document.addEventListener("DOMContentLoaded", async () => {
 		if (!(await requireAdmin())) return;
+		setSection(currentSection(), { skipApply: true, keepNavOpen: true });
 		document.getElementById("adminLogout")?.addEventListener("click", async () => {
 			if (window.JodAuth && typeof window.JodAuth.logout === "function") {
 				await window.JodAuth.logout();
@@ -718,8 +835,16 @@
 			window.location.href = "login.html";
 		});
 		document.getElementById("adminRefresh")?.addEventListener("click", refresh);
-		document.getElementById("adminSection")?.addEventListener("change", () => {
-			applySection(window.__adminData);
+		document.getElementById("adminNavToggle")?.addEventListener("click", () => {
+			const shell = document.querySelector(".admin-shell");
+			setNavOpen(!(shell && shell.classList.contains("is-nav-open")));
+		});
+		document.getElementById("adminSidebarBackdrop")?.addEventListener("click", () => setNavOpen(false));
+		document.querySelectorAll(".admin-nav-item[data-section]").forEach((btn) => {
+			btn.addEventListener("click", () => setSection(btn.getAttribute("data-section")));
+		});
+		document.querySelectorAll("[data-jump]").forEach((btn) => {
+			btn.addEventListener("click", () => setSection(btn.getAttribute("data-jump")));
 		});
 		document.getElementById("adminEventFilter")?.addEventListener("change", () => {
 			persistEventFilter(currentEventFilter());
@@ -758,7 +883,10 @@
 			}
 			const supportViewBtn = event.target.closest("[data-support-view]");
 			if (supportViewBtn) {
-				openSupportTicket(supportViewBtn.getAttribute("data-support-view"), false);
+				const code = supportViewBtn.getAttribute("data-support-view");
+				if (currentSection() !== "support") setSection("support", { skipApply: true, keepNavOpen: true });
+				applySection(window.__adminData);
+				openSupportTicket(code, false);
 				return;
 			}
 			const supportResolveBtn = event.target.closest("[data-support-resolve]");

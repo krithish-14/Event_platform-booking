@@ -779,9 +779,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 		function formatWhen(iso) {
 			if (!iso) return "Just now";
-			const date = new Date(iso);
+			let raw = String(iso).trim();
+			/* Backend stores UTC; naive strings must be treated as UTC, then shown in IST. */
+			if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)) {
+				raw = raw.replace(" ", "T") + "Z";
+			}
+			const date = new Date(raw);
 			if (Number.isNaN(date.getTime())) return "Just now";
-			return date.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+			return date.toLocaleString("en-IN", {
+				timeZone: "Asia/Kolkata",
+				day: "numeric",
+				month: "short",
+				hour: "2-digit",
+				minute: "2-digit",
+			});
 		}
 
 		function normalizeTicketCode(raw) {

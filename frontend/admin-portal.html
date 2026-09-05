@@ -48,7 +48,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Admin QR Portal - JOD Events</title>
 		<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
 		<link rel="stylesheet" href="css/style.css?v=72" />
-		<link rel="stylesheet" href="css/admin-portal.css?v=10" />
+		<link rel="stylesheet" href="css/admin-portal.css?v=11" />
 	</head>
 	<body class="admin-portal-body">
 <!-- Google Tag Manager (noscript) -->
@@ -60,6 +60,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				<button type="button" class="header-back-btn header-back-btn--on-dark admin-mobile-back" data-header-back data-back-fallback="/" aria-label="Go back">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
 					<span>Back</span>
+				</button>
+				<button type="button" class="admin-nav-toggle" id="adminNavToggle" aria-label="Open menu" aria-expanded="false">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
 				</button>
 				<img src="/images/jod-logo.png" alt="JOD Events" width="48" height="48" />
 				<div>
@@ -75,70 +78,152 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			</div>
 		</header>
 
-		<main class="admin-main">
-			<section class="admin-hero">
-				<div>
-					<h1>Admin QR portal</h1>
-					<p id="adminSectionHint">People who submitted the event host registration form.</p>
-				</div>
-				<div class="admin-stats">
-					<div class="admin-stat"><strong id="statHost">0</strong><span>Attendees</span></div>
-					<div class="admin-stat"><strong id="statPay">0</strong><span>Payments</span></div>
-					<div class="admin-stat"><strong id="statPending">0</strong><span>Need QR</span></div>
-					<div class="admin-stat"><strong id="statReady">0</strong><span>QR sent</span></div>
-					<div class="admin-stat"><strong id="statCancel">0</strong><span>Cancel requests</span></div>
-					<div class="admin-stat"><strong id="statSupport">0</strong><span>Help tickets</span></div>
-				</div>
-			</section>
+		<div class="admin-shell">
+			<div class="admin-sidebar-backdrop" id="adminSidebarBackdrop" hidden></div>
+			<aside class="admin-sidebar" id="adminSidebar" aria-label="Admin sections">
+				<p class="admin-sidebar-label">Menu</p>
+				<nav class="admin-sidebar-nav" role="tablist" aria-orientation="vertical">
+					<button type="button" class="admin-nav-item is-active" data-section="overview" role="tab" aria-selected="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+						<span>Overview</span>
+					</button>
+					<button type="button" class="admin-nav-item" data-section="host" role="tab" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+						<span>Attendees Data</span>
+						<em class="admin-nav-count" id="navCountHost">0</em>
+					</button>
+					<button type="button" class="admin-nav-item" data-section="payment" role="tab" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+						<span>Payment Data</span>
+						<em class="admin-nav-count" id="navCountPay">0</em>
+					</button>
+					<button type="button" class="admin-nav-item" data-section="cancel" role="tab" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+						<span>Cancellation request</span>
+						<em class="admin-nav-count" id="navCountCancel">0</em>
+					</button>
+					<button type="button" class="admin-nav-item" data-section="support" role="tab" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
+						<span>Help &amp; Support</span>
+						<em class="admin-nav-count" id="navCountSupport">0</em>
+					</button>
+				</nav>
+			</aside>
 
-			<section class="admin-toolbar">
-				<label class="admin-section-label" for="adminSection">
-					<span>Section</span>
-					<select id="adminSection">
-						<option value="host">Attendees Data</option>
-						<option value="payment">Payment Data</option>
-						<option value="cancel">Cancellation request</option>
-						<option value="support">Help &amp; Support</option>
-					</select>
-				</label>
-				<label class="admin-section-label" for="adminEventFilter">
-					<span>Event</span>
-					<select id="adminEventFilter">
-						<option value="all">All events</option>
-					</select>
-				</label>
-				<input type="search" id="adminSearch" placeholder="Search name, email, phone, or event" />
-				<button type="button" class="admin-refresh" id="adminRefresh">Refresh</button>
-			</section>
-
-			<section class="admin-block">
-				<div class="admin-block-head">
+			<main class="admin-main">
+				<section class="admin-page-head">
 					<div>
-						<h2 id="adminSectionTitle">Attendees Data</h2>
-						<p id="adminSectionCopy">Registered details from the event host form.</p>
+						<h1 id="adminPageTitle">Overview</h1>
+						<p id="adminSectionHint">Snapshot of attendees, payments, cancellations, and help tickets.</p>
 					</div>
-					<span class="admin-block-count" id="sectionCount">0</span>
-				</div>
-				<div class="admin-table-card">
-					<div id="adminEmpty" class="admin-empty" hidden>No attendee data yet.</div>
-					<div class="admin-table-wrap" id="adminTableWrap">
-						<table class="admin-table">
-							<thead>
-								<tr>
-									<th>Attendee</th>
-									<th>Event</th>
-									<th id="ticketCol">Ticket</th>
-									<th>Submitted</th>
-									<th>Status</th>
-									<th>Action</th>
-								</tr>
-							</thead>
-							<tbody id="adminTableBody"></tbody>
-						</table>
+					<button type="button" class="admin-refresh" id="adminRefresh">Refresh</button>
+				</section>
+
+				<section class="admin-toolbar" id="adminToolbar">
+					<label class="admin-section-label" for="adminEventFilter" id="adminEventFilterWrap">
+						<span>Event</span>
+						<select id="adminEventFilter">
+							<option value="all">All events</option>
+						</select>
+					</label>
+					<input type="search" id="adminSearch" placeholder="Search name, email, phone, or event" />
+				</section>
+
+				<!-- Overview -->
+				<section class="admin-overview" id="adminOverviewPanel">
+					<div class="admin-kpi-row">
+						<article class="admin-kpi"><span class="admin-kpi-label">Attendees</span><strong id="statHost">0</strong></article>
+						<article class="admin-kpi"><span class="admin-kpi-label">Payments</span><strong id="statPay">0</strong></article>
+						<article class="admin-kpi"><span class="admin-kpi-label">Need QR</span><strong id="statPending">0</strong></article>
+						<article class="admin-kpi"><span class="admin-kpi-label">QR sent</span><strong id="statReady">0</strong></article>
+						<article class="admin-kpi"><span class="admin-kpi-label">Cancel requests</span><strong id="statCancel">0</strong></article>
+						<article class="admin-kpi"><span class="admin-kpi-label">Open help tickets</span><strong id="statSupport">0</strong></article>
 					</div>
-				</div>
-			</section>
-		</main>
+
+					<div class="admin-overview-grid">
+						<article class="admin-card">
+							<header class="admin-card-head">
+								<h2>Workload mix</h2>
+								<p>Volume across admin sections</p>
+							</header>
+							<div class="admin-bars" id="adminWorkloadBars" aria-hidden="false"></div>
+						</article>
+
+						<article class="admin-card">
+							<header class="admin-card-head">
+								<h2>QR delivery</h2>
+								<p>Payment tickets ready vs pending</p>
+							</header>
+							<div class="admin-donut-wrap">
+								<svg class="admin-donut" viewBox="0 0 36 36" aria-hidden="true">
+									<path class="admin-donut-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+									<path id="adminDonutReady" class="admin-donut-ready" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+									<path id="adminDonutPending" class="admin-donut-pending" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+								</svg>
+								<div class="admin-donut-center">
+									<strong id="adminDonutValue">0</strong>
+									<span id="adminDonutLabel">payments</span>
+								</div>
+							</div>
+							<ul class="admin-legend">
+								<li><i class="lg-ready"></i> QR sent <span id="legendReady">0</span></li>
+								<li><i class="lg-pending"></i> Need QR <span id="legendPending">0</span></li>
+							</ul>
+						</article>
+
+						<article class="admin-card admin-card-wide">
+							<header class="admin-card-head">
+								<h2>Quick actions</h2>
+								<p>Jump to the section you need</p>
+							</header>
+							<div class="admin-quick-grid">
+								<button type="button" class="admin-quick" data-jump="host">Attendees Data</button>
+								<button type="button" class="admin-quick" data-jump="payment">Payment Data</button>
+								<button type="button" class="admin-quick" data-jump="cancel">Cancellation request</button>
+								<button type="button" class="admin-quick" data-jump="support">Help &amp; Support</button>
+							</div>
+						</article>
+
+						<article class="admin-card admin-card-wide">
+							<header class="admin-card-head">
+								<h2>Recent help tickets</h2>
+								<p>Latest THP- issues from Help &amp; Support</p>
+							</header>
+							<div class="admin-recent-list" id="adminRecentSupport"></div>
+						</article>
+					</div>
+				</section>
+
+				<!-- Data tables -->
+				<section class="admin-block" id="adminDataPanel" hidden>
+					<div class="admin-block-head">
+						<div>
+							<h2 id="adminSectionTitle">Attendees Data</h2>
+							<p id="adminSectionCopy">Registered details from the event host form.</p>
+						</div>
+						<span class="admin-block-count" id="sectionCount">0</span>
+					</div>
+					<div class="admin-table-card">
+						<div id="adminEmpty" class="admin-empty" hidden>No attendee data yet.</div>
+						<div class="admin-table-wrap" id="adminTableWrap">
+							<table class="admin-table">
+								<thead>
+									<tr>
+										<th>Attendee</th>
+										<th>Event</th>
+										<th id="ticketCol">Ticket</th>
+										<th>Submitted</th>
+										<th>Status</th>
+										<th>Action</th>
+									</tr>
+								</thead>
+								<tbody id="adminTableBody"></tbody>
+							</table>
+						</div>
+					</div>
+				</section>
+			</main>
+		</div>
 
 		<div class="admin-modal" id="answersModal" hidden>
 			<div class="admin-modal-card">
@@ -177,6 +262,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 		<script src="js/health.js?v=3"></script>
 		<script src="js/auth.js?v=33"></script>
-		<script src="js/admin-portal.js?v=17"></script>
+		<script src="js/admin-portal.js?v=18"></script>
 	</body>
 </html>

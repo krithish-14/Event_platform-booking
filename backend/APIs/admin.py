@@ -1240,8 +1240,8 @@ def admin_update_support_ticket(
     current_admin: User = Depends(get_current_admin),
 ):
     """Mark a Help & Support ticket resolved and email the customer."""
-    from datetime import datetime
     from Models.support_ticket import SupportTicket
+    from Utils.datetimes import utc_now
 
     _ensure_support_ticket_columns(db)
     code = str(ticket_code or "").strip().upper()
@@ -1253,8 +1253,8 @@ def admin_update_support_ticket(
     note = (payload.resolution_note or "").strip() or None
     row.status = "resolved"
     row.resolution_note = note
-    row.resolved_at = datetime.utcnow()
-    row.updated_at = datetime.utcnow()
+    row.resolved_at = utc_now()
+    row.updated_at = utc_now()
     db.add(row)
     db.commit()
     db.refresh(row)

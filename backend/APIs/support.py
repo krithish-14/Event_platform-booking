@@ -5,7 +5,6 @@ Public ticket IDs use THP-#### (separate from booking tickets).
 
 import random
 import re
-from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -19,6 +18,7 @@ from Models.base import get_db
 from Models.support_ticket import SupportTicket, generate_ticket_code
 from Models.user import User
 from Services.rate_limit import limit_support
+from Utils.datetimes import json_datetime
 
 router = APIRouter()
 
@@ -55,9 +55,9 @@ class SupportTicketResponse(BaseModel):
 	message: str
 	status: str
 	resolution_note: Optional[str] = None
-	resolved_at: Optional[datetime] = None
-	created_at: Optional[datetime] = None
-	updated_at: Optional[datetime] = None
+	resolved_at: Optional[str] = None
+	created_at: Optional[str] = None
+	updated_at: Optional[str] = None
 
 
 def _ensure_support_schema(db: Session) -> None:
@@ -142,9 +142,9 @@ def _serialize(ticket: SupportTicket) -> SupportTicketResponse:
 		message=ticket.message,
 		status=ticket.status,
 		resolution_note=getattr(ticket, "resolution_note", None),
-		resolved_at=getattr(ticket, "resolved_at", None),
-		created_at=ticket.created_at,
-		updated_at=ticket.updated_at,
+		resolved_at=json_datetime(getattr(ticket, "resolved_at", None)),
+		created_at=json_datetime(ticket.created_at),
+		updated_at=json_datetime(ticket.updated_at),
 	)
 
 
