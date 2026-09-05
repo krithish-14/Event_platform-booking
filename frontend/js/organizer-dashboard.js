@@ -692,6 +692,13 @@ async function initOrganizerDashboard() {
 				window.location.href = "account-setup.html";
 				return;
 			}
+			const access = window.JodAuth && typeof window.JodAuth.canAccessHostDashboard === "function"
+				? window.JodAuth.canAccessHostDashboard(bankData)
+				: Boolean(bankData.dashboard_access);
+			if (!access) {
+				window.location.href = "host-pending.html";
+				return;
+			}
 		}
 	} catch (_) {}
 

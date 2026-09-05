@@ -1266,3 +1266,210 @@ def admin_update_support_ticket(
         "ticket": _serialize_support_ticket(row),
     }
 
+
+class HostReviewRequest(BaseModel):
+    action: str  # approve | reject
+    rejection_reason: Optional[str] = None
+
+
+def _serialize_admin_host(acc) -> Dict[str, Any]:
+    from APIs.organizers import (
+        can_access_host_dashboard,
+        is_setup_complete,
+        to_public_verification_status,
+    )
+
+    status = (acc.status or "draft").lower().strip()
+    return {
+        "id": str(acc.id),
+        "email": acc.email,
+        "org_name": acc.org_name,
+        "host_id": acc.host_id,
+        "customer_id": acc.customer_id,
+        "contact_full_name": acc.contact_full_name,
+        "contact_email": acc.contact_email,
+        "contact_mobile": acc.contact_mobile,
+        "pan_number": acc.pan_number,
+        "org_address": acc.org_address,
+        "has_gstin": acc.has_gstin,
+        "gstin_number": acc.gstin_number,
+        "state": acc.state,
+        "beneficiary_name": acc.beneficiary_name,
+        "account_type": acc.account_type,
+        "bank_name": acc.bank_name,
+        "account_number": acc.account_number,
+        "bank_ifsc": acc.bank_ifsc,
+        "pan_card_url": acc.pan_card_url,
+        "cancelled_cheque_url": acc.cancelled_cheque_url,
+        "accepted_agreement": bool(acc.accepted_agreement),
+        "status": status,
+        "verification_status": to_public_verification_status(acc.status),
+        "rejection_reason": acc.rejection_reason,
+        "setup_complete": is_setup_complete(acc),
+        "dashboard_access": can_access_host_dashboard(acc),
+        "submitted_at": json_datetime(acc.submitted_at) if acc.submitted_at else None,
+        "verified_at": json_datetime(acc.verified_at) if acc.verified_at else None,
+        "created_at": json_datetime(acc.created_at) if acc.created_at else None,
+    }
+
+
+def _notify_host_review(acc, approved: bool) -> bool:
+    email_addr = (acc.contact_email or acc.email or "").strip()
+    if not email_addr or "@" not in email_addr:
+        return False
+    name = (acc.contact_full_name or acc.org_name or "Host").strip()
+    if approved:
+        subject = "Your JOD Events host account is approved"
+        text_body = (
+            f"Hi {name},\n\n"
+            "Your host account setup has been verified. You can now open the Host Dashboard "
+            "and start creating events.\n\n"
+            "Sign in at jodevents.com and go to Host Your Event.\n\n"
+            "— JOD Events\n"
+        )
+        html_body = (
+            f"<p>Hi {name},</p>"
+            "<p>Your host account setup has been <strong>verified</strong>. "
+            "You can now open the Host Dashboard and start creating events.</p>"
+            "<p>Sign in at <a href=\"https://jodevents.com\">jodevents.com</a> "
+            "and go to Host Your Event.</p>"
+            "<p>— JOD Events</p>"
+        )
+    else:
+        reason = (acc.rejection_reason or "").strip() or "Please update your details and resubmit."
+        subject = "Update needed on your JOD Events host application"
+        text_body = (
+            f"Hi {name},\n\n"
+            "We could not approve your host account yet.\n\n"
+            f"Reason: {reason}\n\n"
+            "Please sign in, update your account setup, and resubmit for review.\n\n"
+            "— JOD Events\n"
+        )
+        html_body = (
+            f"<p>Hi {name},</p>"
+            "<p>We could not approve your host account yet.</p>"
+            f"<p><strong>Reason:</strong> {reason}</p>"
+            "<p>Please sign in, update your account setup, and resubmit for review.</p>"
+            "<p>— JOD Events</p>"
+        )
+    return bool(send_email(email_addr, subject, text_body, html_body=html_body))
+
+
+@router.get("/hosts")
+def admin_list_hosts(
+    q: Optional[str] = Query(None),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """List organizer/host KYC submissions for admin review."""
+    from Models.organizer_accounts import OrganizerAccount
+    from APIs.organizers import is_setup_complete
+
+    try:
+        rows = (
+            db.query(OrganizerAccount)
+            .order_by(
+                OrganizerAccount.submitted_at.desc().nullslast(),
+                OrganizerAccount.created_at.desc().nullslast(),
+            )
+            .limit(300)
+            .all()
+        )
+    except Exception:
+        _db_safe_rollback(db)
+        rows = []
+
+    # Prefer hosts who finished setup (pending review / verified / rejected).
+    items = [
+        _serialize_admin_host(row)
+        for row in rows
+        if is_setup_complete(row) or (row.status or "").lower() in ("submitted", "verified", "rejected")
+    ]
+    needle = (q or "").strip().lower()
+    if needle:
+        items = [
+            item for item in items
+            if needle in str(item.get("email") or "").lower()
+            or needle in str(item.get("org_name") or "").lower()
+            or needle in str(item.get("contact_full_name") or "").lower()
+            or needle in str(item.get("host_id") or "").lower()
+            or needle in str(item.get("customer_id") or "").lower()
+            or needle in str(item.get("contact_mobile") or "").lower()
+        ]
+    wanted = (status_filter or "").strip().lower()
+    if wanted in ("draft", "submitted", "verified", "rejected", "pending"):
+        if wanted == "pending":
+            items = [item for item in items if str(item.get("status") or "").lower() == "submitted"]
+        else:
+            items = [item for item in items if str(item.get("status") or "").lower() == wanted]
+    pending_count = sum(1 for item in items if str(item.get("status") or "").lower() == "submitted")
+    return {"total": len(items), "pending": pending_count, "hosts": items}
+
+
+@router.patch("/hosts/{host_key}")
+def admin_review_host(
+    host_key: str,
+    payload: HostReviewRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """Approve or reject a host setup submission (grants dashboard access on approve)."""
+    from datetime import datetime
+    from Models.organizer_accounts import OrganizerAccount
+    from APIs.organizers import is_setup_complete
+
+    action = (payload.action or "").strip().lower()
+    if action not in ("approve", "reject", "verified", "rejected"):
+        raise HTTPException(status_code=400, detail="action must be approve or reject.")
+    approve = action in ("approve", "verified")
+
+    key = str(host_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="Host id or email is required.")
+
+    org_acc = None
+    if "@" in key:
+        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == key.lower()).first()
+    if not org_acc:
+        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.host_id == key).first()
+    if not org_acc:
+        try:
+            import uuid as _uuid
+            org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.id == _uuid.UUID(key)).first()
+        except Exception:
+            org_acc = None
+    if not org_acc:
+        raise HTTPException(status_code=404, detail="Host account not found.")
+
+    if approve:
+        if not is_setup_complete(org_acc):
+            raise HTTPException(
+                status_code=400,
+                detail="Host has not completed account setup yet.",
+            )
+        org_acc.status = "verified"
+        org_acc.verified_at = datetime.utcnow()
+        org_acc.rejection_reason = None
+    else:
+        reason = (payload.rejection_reason or "").strip()
+        if not reason:
+            raise HTTPException(status_code=400, detail="rejection_reason is required when rejecting.")
+        org_acc.status = "rejected"
+        org_acc.rejection_reason = reason
+        org_acc.verified_at = None
+
+    db.add(org_acc)
+    db.commit()
+    db.refresh(org_acc)
+    emailed = _notify_host_review(org_acc, approve)
+    return {
+        "status": "success",
+        "message": (
+            ("Host approved." if approve else "Host rejected.")
+            + (" Email sent." if emailed else " Email could not be sent (check SMTP).")
+        ),
+        "email_sent": emailed,
+        "host": _serialize_admin_host(org_acc),
+    }
+

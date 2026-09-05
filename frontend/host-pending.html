@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-PFZVZGJR');</script>
+<!-- End Google Tag Manager -->
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Your JOD Events host registration is under review." />
+<title>Thank You | Host Registration — JOD Events</title>
+<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
+<link rel="apple-touch-icon" href="/images/JOD%20Logo.png" />
+<link rel="stylesheet" href="css/fonts.css?v=2" />
+<script src="js/theme.js?v=24"></script>
+<script src="js/api-config.js?v=4"></script>
+<style>
+	* { box-sizing: border-box; margin: 0; padding: 0; }
+	body {
+		font-family: 'Grift', sans-serif;
+		background: #f8fafc;
+		color: #0f172a;
+		min-height: 100vh;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1.5rem;
+	}
+	.card {
+		width: 100%;
+		max-width: 480px;
+		background: #ffffff;
+		border: 1px solid #e2e8f0;
+		border-radius: 18px;
+		box-shadow: 0 18px 44px rgba(15, 23, 42, 0.1);
+		padding: 2rem 1.5rem 1.6rem;
+		text-align: center;
+	}
+	.mark {
+		width: 64px;
+		height: 64px;
+		margin: 0 auto 1.1rem;
+		border-radius: 50%;
+		background: #ffedd5;
+		color: #c2410c;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.8rem;
+		font-weight: 800;
+	}
+	.mark.is-rejected {
+		background: #fee2e2;
+		color: #991b1b;
+	}
+	h1 {
+		font-size: 1.35rem;
+		font-weight: 800;
+		margin-bottom: 0.75rem;
+		line-height: 1.3;
+	}
+	p {
+		font-size: 0.95rem;
+		color: #475569;
+		line-height: 1.6;
+		margin-bottom: 0.7rem;
+	}
+	.lead {
+		font-size: 1rem;
+		color: #334155;
+		font-weight: 600;
+	}
+	.status-pill {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		margin: 0.35rem 0 1rem;
+		padding: 0.35rem 0.85rem;
+		border-radius: 999px;
+		font-size: 0.82rem;
+		font-weight: 700;
+		background: #fff7ed;
+		color: #9a3412;
+	}
+	.status-pill.is-rejected {
+		background: #fef2f2;
+		color: #991b1b;
+	}
+	.actions {
+		display: grid;
+		gap: 0.65rem;
+		margin-top: 1.25rem;
+	}
+	.actions a,
+	.actions button {
+		display: block;
+		width: 100%;
+		padding: 0.9rem;
+		border: none;
+		border-radius: 10px;
+		font-family: inherit;
+		font-size: 1rem;
+		font-weight: 800;
+		cursor: pointer;
+		text-decoration: none;
+		text-align: center;
+	}
+	.btn-primary {
+		background: #FF7508;
+		color: #ffffff;
+	}
+	.btn-secondary {
+		background: #f1f5f9;
+		color: #0f172a;
+	}
+	#pendingRejectBlock[hidden],
+	#pendingSetupLink[hidden] {
+		display: none !important;
+	}
+	html[data-theme="dark"] body {
+		background: #0e0c0a !important;
+		color: #f6f0e8 !important;
+	}
+	html[data-theme="dark"] .card {
+		background: #1c1814 !important;
+		border-color: rgba(255, 138, 31, 0.28);
+	}
+	html[data-theme="dark"] h1 { color: #fff8f0 !important; }
+	html[data-theme="dark"] p { color: #d4cbbf !important; }
+	html[data-theme="dark"] .lead { color: #f6f0e8 !important; }
+	html[data-theme="dark"] .btn-secondary {
+		background: #2a241e;
+		color: #fff8f0;
+	}
+</style>
+</head>
+<body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+	<div class="card" id="pendingCard">
+		<div class="mark" id="pendingMark" aria-hidden="true">✓</div>
+		<span class="status-pill" id="pendingBadge">Under review</span>
+		<h1 id="pendingTitle">Thank you</h1>
+		<p class="lead" id="pendingLead">Your hosting registration has been noted.</p>
+		<p id="pendingDetail">Once the JOD Events Authority has reviewed your application, within 3 working days you will get your Host Dashboard access.</p>
+		<p id="pendingRejectBlock" hidden></p>
+		<div class="actions">
+			<a class="btn-primary" href="index.html" id="pendingHome">Back to home</a>
+			<a class="btn-secondary" href="account-setup.html" id="pendingSetupLink" hidden>Update my application</a>
+			<button type="button" class="btn-secondary" id="pendingRefresh">Check status</button>
+		</div>
+	</div>
+
+	<script src="js/health.js?v=3"></script>
+	<script src="js/auth.js?v=40"></script>
+	<script>
+	(async function () {
+		const mark = document.getElementById("pendingMark");
+		const badge = document.getElementById("pendingBadge");
+		const title = document.getElementById("pendingTitle");
+		const lead = document.getElementById("pendingLead");
+		const detail = document.getElementById("pendingDetail");
+		const rejectBlock = document.getElementById("pendingRejectBlock");
+		const setupLink = document.getElementById("pendingSetupLink");
+		const refreshBtn = document.getElementById("pendingRefresh");
+		const homeLink = document.getElementById("pendingHome");
+
+		if (homeLink && window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
+			homeLink.setAttribute("href", window.JodUrls.prettyHref("index.html") || "/");
+		}
+
+		if (!(window.JodAuth && window.JodAuth.isLoggedIn && window.JodAuth.isLoggedIn())) {
+			window.location.href = "login.html?redirect=" + encodeURIComponent("host-pending.html");
+			return;
+		}
+
+		function showPendingThankYou() {
+			mark.className = "mark";
+			mark.textContent = "✓";
+			badge.className = "status-pill";
+			badge.textContent = "Under review";
+			title.textContent = "Thank you";
+			lead.textContent = "Your hosting registration has been noted.";
+			detail.textContent = "Once the JOD Events Authority has reviewed your application, within 3 working days you will get your Host Dashboard access.";
+			rejectBlock.hidden = true;
+			rejectBlock.textContent = "";
+			setupLink.hidden = true;
+		}
+
+		async function loadStatus() {
+			const data = await window.JodAuth.fetchOrganizerAccount
+				? await window.JodAuth.fetchOrganizerAccount({ withMeta: true })
+				: null;
+			const acc = data && data.account;
+			const setupComplete = window.JodAuth.isHostSetupComplete
+				? window.JodAuth.isHostSetupComplete(acc, data)
+				: Boolean(data && data.setup_complete);
+			const access = window.JodAuth.canAccessHostDashboard
+				? window.JodAuth.canAccessHostDashboard(data)
+				: Boolean(data && data.dashboard_access);
+			const status = String((data && data.verification_status) || "").toUpperCase();
+
+			if (!setupComplete) {
+				window.location.replace("account-setup.html");
+				return;
+			}
+			if (access || status === "VERIFIED") {
+				window.location.replace("organizer-dashboard.html");
+				return;
+			}
+
+			if (status === "REJECTED") {
+				mark.className = "mark is-rejected";
+				mark.textContent = "!";
+				badge.className = "status-pill is-rejected";
+				badge.textContent = "Needs updates";
+				title.textContent = "Update required";
+				lead.textContent = "Your hosting registration needs a few updates before we can approve it.";
+				detail.textContent = "Please revise your details and resubmit. After that, review usually takes up to 3 working days.";
+				const reason = (data && data.rejection_reason) || "Please update your details and resubmit.";
+				rejectBlock.hidden = false;
+				rejectBlock.textContent = "Reason: " + reason;
+				setupLink.hidden = false;
+				return;
+			}
+
+			showPendingThankYou();
+		}
+
+		refreshBtn.addEventListener("click", () => loadStatus());
+		await loadStatus();
+		setInterval(loadStatus, 45000);
+	})();
+	</script>
+</body>
+</html>

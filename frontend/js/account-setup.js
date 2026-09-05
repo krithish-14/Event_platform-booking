@@ -492,8 +492,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 				const setupComplete = window.JodAuth && typeof window.JodAuth.isHostSetupComplete === "function"
 					? window.JodAuth.isHostSetupComplete(acc, data)
 					: Boolean(data.setup_complete);
-				if (setupComplete) {
-					window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(email)}`;
+				const status = String(data.verification_status || "").toUpperCase();
+				if (setupComplete && status !== "REJECTED") {
+					const access = window.JodAuth && typeof window.JodAuth.canAccessHostDashboard === "function"
+						? window.JodAuth.canAccessHostDashboard(data)
+						: Boolean(data.dashboard_access);
+					window.location.href = access
+						? `organizer-dashboard.html?email=${encodeURIComponent(email)}`
+						: `host-pending.html?email=${encodeURIComponent(email)}`;
 					return;
 				}
                                 applyDraftData(acc);
@@ -645,9 +651,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 			if (isFinal) {
                                 clearDraftFromLocal(payload.email);
-				showAlert("Setup complete. Redirecting to your Event Organizer Dashboard...", "success");
+				const access = Boolean(data.dashboard_access);
+				showAlert(
+					access
+						? "Setup complete. Redirecting to your Event Organizer Dashboard..."
+						: "Thank you — your hosting registration has been noted. Redirecting...",
+					"success"
+				);
 				setTimeout(() => {
-					window.location.href = `organizer-dashboard.html?email=${encodeURIComponent(email)}`;
+					window.location.href = access
+						? `organizer-dashboard.html?email=${encodeURIComponent(email)}`
+						: "host-pending.html";
 				}, 900);
 			} else if (!options.silent) {
 				showAlert("Details saved. You can continue from here whenever you are ready.", "success");

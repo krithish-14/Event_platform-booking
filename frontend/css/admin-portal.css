@@ -836,6 +836,44 @@ button.admin-event-title:focus-visible {
 	color: #c2410c;
 }
 
+.admin-badge.submitted {
+	background: #fff7ed;
+	color: #9a3412;
+}
+
+.admin-badge.verified {
+	background: #dcfce7;
+	color: #166534;
+}
+
+.admin-badge.rejected {
+	background: #fee2e2;
+	color: #991b1b;
+}
+
+.admin-badge.draft {
+	background: #f1f5f9;
+	color: #475569;
+}
+
+.admin-host-review-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	margin-top: 0.75rem;
+}
+
+.admin-host-docs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.35rem;
+}
+
+.admin-host-docs a {
+	font-weight: 700;
+}
+
 .admin-badge.ready {
 	background: #ecfdf3;
 	color: #166534;

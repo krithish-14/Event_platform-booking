@@ -49,8 +49,14 @@
 			.replace(/([A-Z]{2,})([A-Z][a-z])/g, "$1 $2")
 			.replace(/\s+/g, " ")
 			.trim();
-		if (!max) return text;
-		return text.slice(0, max);
+		if (!max || text.length <= max) return text;
+		let cut = text.slice(0, max);
+		const lastSpace = cut.lastIndexOf(" ");
+		// Prefer a word break so we never end mid-word like "ev".
+		if (lastSpace >= Math.floor(max * 0.55)) {
+			cut = cut.slice(0, lastSpace);
+		}
+		return cut.replace(/[\s.,;:!?-]+$/g, "") + "...";
 	}
 
 	function resolveImage(url) {
@@ -678,8 +684,8 @@
 		}
 		if (titleEl) titleEl.textContent = event.title || "Upcoming Event";
 		if (descEl) {
-			const desc = plainTextSnippet(event.description || "");
-			descEl.textContent = desc ? desc.slice(0, 140) : (event.category ? `${event.category} event` : "");
+			const desc = plainTextSnippet(event.description || "", 140);
+			descEl.textContent = desc || (event.category ? `${event.category} event` : "");
 		}
 		if (dateEl) dateEl.textContent = "📅 " + formatDateTimeIST(event.start_date);
 		if (venueEl) venueEl.textContent = "📍 " + (event.venue || event.location || "Venue TBA");

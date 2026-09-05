@@ -189,7 +189,7 @@
 	}
 
 	const SECTION_KEY = "jod_admin_section";
-	const VALID_SECTIONS = ["overview", "host", "payment", "cancel", "support"];
+	const VALID_SECTIONS = ["overview", "host", "payment", "cancel", "host-data", "support"];
 
 	function currentSection() {
 		const raw = window.__adminSection || sessionStorage.getItem(SECTION_KEY) || "overview";
@@ -226,6 +226,7 @@
 				{ label: "Attendees", value: stats.host },
 				{ label: "Payments", value: stats.pay },
 				{ label: "Cancels", value: stats.cancel },
+				{ label: "Hosts pending", value: stats.hostPending || 0 },
 				{ label: "Help open", value: stats.supportOpen },
 			];
 			const max = Math.max(1, ...items.map((row) => row.value));
@@ -364,6 +365,9 @@
 		const supportRows = window.__supportTickets || [];
 		const supportOpen = (window.__supportMeta && window.__supportMeta.open)
 			|| supportRows.filter((t) => (t.status || "open") !== "resolved").length;
+		const hostDataRows = window.__hostDataRows || [];
+		const hostPending = (window.__hostDataMeta && window.__hostDataMeta.pending)
+			|| hostDataRows.filter((h) => String(h.status || "").toLowerCase() === "submitted").length;
 		const eventLabel = (() => {
 			const select = document.getElementById("adminEventFilter");
 			if (!select || select.value === "all") return "";
@@ -382,10 +386,12 @@
 		setText("statReady", payReady);
 		setText("statCancel", scopedCancel.length);
 		setText("statSupport", supportOpen);
+		setText("statHostData", hostPending);
 		setText("navCountHost", hostRows.length);
 		setText("navCountPay", payRows.length);
 		setText("navCountCancel", scopedCancel.length);
 		setText("navCountSupport", supportOpen);
+		setText("navCountHostData", hostPending);
 
 		const title = document.getElementById("adminSectionTitle");
 		const pageTitle = document.getElementById("adminPageTitle");
@@ -406,7 +412,7 @@
 		if (overviewPanel) overviewPanel.hidden = showingNotifications || !showingOverview;
 		if (dataPanel) dataPanel.hidden = showingNotifications || showingOverview;
 		if (searchInput) searchInput.hidden = showingNotifications || showingOverview;
-		if (eventFilterWrap) eventFilterWrap.hidden = showingNotifications || section === "support";
+		if (eventFilterWrap) eventFilterWrap.hidden = showingNotifications || section === "support" || section === "host-data";
 		const toolbar = document.getElementById("adminToolbar");
 		if (toolbar) toolbar.hidden = showingNotifications;
 		if (backBtn) backBtn.hidden = !showingNotifications;
@@ -428,6 +434,7 @@
 			pay: payRows.length,
 			cancel: scopedCancel.length,
 			supportOpen,
+			hostPending,
 			ready: payReady,
 			pending: payPending,
 		});
@@ -436,12 +443,25 @@
 			if (pageTitle) pageTitle.textContent = "Overview";
 			if (hint) hint.textContent = eventLabel
 				? `Dashboard snapshot${eventNote}.`
-				: "Snapshot of attendees, payments, cancellations, and help tickets.";
+				: "Snapshot of attendees, payments, cancellations, hosts, and help tickets.";
 			window.__adminData = payload;
 			return;
 		}
 
-		if (section === "support") {
+		if (section === "host-data") {
+			setText("sectionCount", hostDataRows.length);
+			if (pageTitle) pageTitle.textContent = "Host Data";
+			if (title) title.textContent = "Host Data";
+			if (copy) copy.textContent = "New host account setups awaiting verification. Approve to unlock the Host Dashboard.";
+			if (hint) hint.textContent = "Review KYC and bank details, then approve or reject. Existing hosts were already granted access.";
+			if (searchInput) searchInput.placeholder = "Search host email, org, name, or host ID";
+			const head = document.querySelector("#adminTableWrap thead tr");
+			if (head) {
+				head.innerHTML = "<th>Host / Org</th><th>Contact</th><th>Submitted</th><th>Status</th><th>Action</th>";
+			}
+			fillHostDataTable(hostDataRows);
+			window.__adminRows = hostDataRows;
+		} else if (section === "support") {
 			setText("sectionCount", supportRows.length);
 			if (pageTitle) pageTitle.textContent = "Help & Support";
 			if (title) title.textContent = "Help & Support";
@@ -776,6 +796,189 @@
 		return res.json();
 	}
 
+	async function loadHostData(query) {
+		const qs = query ? `?q=${encodeURIComponent(query)}` : "";
+		const res = await adminFetch(`${apiBase()}/api/admin/hosts${qs}`);
+		if (res.status === 401 || res.status === 403) {
+			window.location.href = "login.html";
+			return null;
+		}
+		if (!res.ok) {
+			const data = await res.json().catch(() => ({}));
+			const detail = data && data.detail;
+			throw new Error(typeof detail === "string" ? detail : "Could not load host data.");
+		}
+		return res.json();
+	}
+
+	function hostStatusLabel(status) {
+		const s = String(status || "").toLowerCase();
+		if (s === "submitted") return "Pending review";
+		if (s === "verified") return "Approved";
+		if (s === "rejected") return "Rejected";
+		if (s === "draft") return "Draft";
+		return s || "Unknown";
+	}
+
+	function hostDataRowHtml(row) {
+		const status = String(row.status || "draft").toLowerCase();
+		const org = row.org_name || "—";
+		const name = row.contact_full_name || row.email || "Host";
+		return `<tr data-id="${escapeHtml(row.id || row.email)}" data-kind="host-data">
+			<td>
+				<strong>${escapeHtml(name)}</strong>
+				<div class="admin-muted">${escapeHtml(org)}</div>
+				<div class="admin-muted">${escapeHtml(row.host_id || "")}</div>
+			</td>
+			<td>
+				<div>${escapeHtml(row.email || "")}</div>
+				<div class="admin-muted">${escapeHtml(row.contact_mobile || "")}</div>
+			</td>
+			<td>${escapeHtml(formatWhen(row.submitted_at || row.created_at))}</td>
+			<td><span class="admin-badge ${escapeHtml(status)}">${escapeHtml(hostStatusLabel(status))}</span></td>
+			<td class="admin-actions">
+				<button type="button" class="admin-btn ghost" data-host-view="${escapeHtml(row.email || row.id)}">Review</button>
+				${status === "submitted" ? `<button type="button" class="admin-btn accept" data-host-approve="${escapeHtml(row.email || row.id)}">Approve</button>` : ""}
+			</td>
+		</tr>`;
+	}
+
+	function fillHostDataTable(rows) {
+		const empty = document.getElementById("adminEmpty");
+		const wrap = document.getElementById("adminTableWrap");
+		const body = document.getElementById("adminTableBody");
+		if (!body) return;
+		if (!rows.length) {
+			if (empty) {
+				empty.hidden = false;
+				empty.textContent = "No host setups to review yet.";
+			}
+			if (wrap) wrap.hidden = true;
+			body.innerHTML = "";
+			return;
+		}
+		if (empty) empty.hidden = true;
+		if (wrap) wrap.hidden = false;
+		body.innerHTML = rows.map(hostDataRowHtml).join("");
+	}
+
+	function findHostRow(key) {
+		const needle = String(key || "").toLowerCase();
+		return (window.__hostDataRows || []).find((item) =>
+			String(item.email || "").toLowerCase() === needle
+			|| String(item.id || "").toLowerCase() === needle
+			|| String(item.host_id || "").toLowerCase() === needle
+		);
+	}
+
+	async function openHostData(key, focusReview) {
+		const row = findHostRow(key);
+		if (!row) return;
+		const modal = document.getElementById("hostDataModal");
+		const body = document.getElementById("hostDataBody");
+		const title = document.getElementById("hostDataModalTitle");
+		const reviewWrap = document.getElementById("hostDataReviewWrap");
+		const reasonEl = document.getElementById("hostRejectReason");
+		const approveBtn = document.getElementById("hostApproveBtn");
+		const rejectBtn = document.getElementById("hostRejectBtn");
+		if (title) title.textContent = row.org_name || row.contact_full_name || "Host application";
+		const panLink = row.pan_card_url
+			? `<button type="button" class="admin-btn ghost" data-host-doc="${escapeHtml(row.pan_card_url)}">View PAN card</button>`
+			: "—";
+		const chequeLink = row.cancelled_cheque_url
+			? `<button type="button" class="admin-btn ghost" data-host-doc="${escapeHtml(row.cancelled_cheque_url)}">View cancelled cheque</button>`
+			: "—";
+		body.innerHTML = `
+			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(String(row.status || ""))}">${escapeHtml(hostStatusLabel(row.status))}</span></dd>
+			<dt>Host ID</dt><dd>${escapeHtml(row.host_id || "—")}</dd>
+			<dt>Email</dt><dd>${escapeHtml(row.email || "—")}</dd>
+			<dt>Contact</dt><dd>${escapeHtml(row.contact_full_name || "—")} · ${escapeHtml(row.contact_mobile || "—")}</dd>
+			<dt>Organisation</dt><dd>${escapeHtml(row.org_name || "—")}</dd>
+			<dt>PAN</dt><dd>${escapeHtml(row.pan_number || "—")}</dd>
+			<dt>Address</dt><dd>${escapeHtml(row.org_address || "—")}</dd>
+			<dt>State</dt><dd>${escapeHtml(row.state || "—")}</dd>
+			<dt>GSTIN</dt><dd>${escapeHtml(row.has_gstin ? (row.gstin_number || "Yes") : "No")}</dd>
+			<dt>Bank</dt><dd>${escapeHtml(row.bank_name || "—")} · ${escapeHtml(row.account_type || "")}</dd>
+			<dt>Beneficiary</dt><dd>${escapeHtml(row.beneficiary_name || "—")}</dd>
+			<dt>Account</dt><dd>${escapeHtml(row.account_number || "—")} / IFSC ${escapeHtml(row.bank_ifsc || "—")}</dd>
+			<dt>Documents</dt><dd><div class="admin-host-docs">${panLink} ${chequeLink}</div><div id="hostDocPreview"></div></dd>
+			<dt>Submitted</dt><dd>${escapeHtml(formatWhen(row.submitted_at || row.created_at))}</dd>
+			${row.rejection_reason ? `<dt>Rejection reason</dt><dd>${escapeHtml(row.rejection_reason)}</dd>` : ""}
+		`;
+		body.querySelectorAll("[data-host-doc]").forEach((btn) => {
+			btn.addEventListener("click", async () => {
+				const preview = document.getElementById("hostDocPreview");
+				if (preview) preview.innerHTML = "Loading…";
+				try {
+					const res = await adminFetch(mediaUrl(btn.getAttribute("data-host-doc")));
+					if (!res.ok) throw new Error("Could not open document.");
+					const blob = await res.blob();
+					const url = URL.createObjectURL(blob);
+					if (preview) {
+						if ((blob.type || "").startsWith("image/")) {
+							preview.innerHTML = `<img alt="Host document" src="${url}" style="max-width:100%;border-radius:10px;margin-top:0.5rem;" />`;
+						} else {
+							preview.innerHTML = `<a class="admin-btn" href="${url}" target="_blank" rel="noopener">Open document</a>`;
+						}
+					}
+				} catch (err) {
+					if (preview) preview.textContent = err.message || "Could not open document.";
+				}
+			});
+		});
+		const pending = String(row.status || "").toLowerCase() === "submitted";
+		if (reviewWrap) reviewWrap.hidden = !pending;
+		if (reasonEl) reasonEl.value = "";
+		if (approveBtn) {
+			approveBtn.dataset.key = row.email || row.id;
+			approveBtn.disabled = !pending;
+		}
+		if (rejectBtn) {
+			rejectBtn.dataset.key = row.email || row.id;
+			rejectBtn.disabled = !pending;
+		}
+		modal.hidden = false;
+		if (focusReview && reasonEl && pending) reasonEl.focus();
+	}
+
+	async function reviewHost(key, action, btn) {
+		const reasonEl = document.getElementById("hostRejectReason");
+		const payload = { action };
+		if (action === "reject") {
+			const reason = ((reasonEl && reasonEl.value) || "").trim();
+			if (!reason) {
+				alert("Add a rejection reason before rejecting.");
+				return;
+			}
+			payload.rejection_reason = reason;
+		}
+		if (btn) {
+			btn.disabled = true;
+			btn.textContent = action === "approve" ? "Approving…" : "Rejecting…";
+		}
+		try {
+			const res = await adminFetch(`${apiBase()}/api/admin/hosts/${encodeURIComponent(key)}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload),
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				const detail = data && data.detail;
+				throw new Error(typeof detail === "string" ? detail : "Could not update host.");
+			}
+			alert(data.message || (action === "approve" ? "Host approved." : "Host rejected."));
+			document.getElementById("hostDataModal").hidden = true;
+			await refresh();
+		} catch (err) {
+			alert(err.message || "Could not update host.");
+			if (btn && btn.isConnected) {
+				btn.disabled = false;
+				btn.textContent = action === "approve" ? "Approve host" : "Reject";
+			}
+		}
+	}
+
 	function supportStatusLabel(status) {
 		if (status === "in_progress") return "In progress";
 		if (status === "resolved") return "Resolved";
@@ -896,14 +1099,17 @@
 	async function refresh() {
 		const query = (document.getElementById("adminSearch") || {}).value || "";
 		try {
-			const [data, cancelData, supportData] = await Promise.all([
+			const [data, cancelData, supportData, hostData] = await Promise.all([
 				loadRows(query.trim()),
 				loadCancelRequests(query.trim()),
 				loadSupportTickets(query.trim()),
+				loadHostData(query.trim()),
 			]);
 			window.__cancelRequests = Array.isArray(cancelData && cancelData.requests) ? cancelData.requests : [];
 			window.__supportTickets = Array.isArray(supportData && supportData.tickets) ? supportData.tickets : [];
 			window.__supportMeta = supportData || { open: 0, total: 0 };
+			window.__hostDataRows = Array.isArray(hostData && hostData.hosts) ? hostData.hosts : [];
+			window.__hostDataMeta = hostData || { pending: 0, total: 0 };
 			if (data) renderRows(data);
 			else applySection(window.__adminData);
 		} catch (err) {
@@ -988,6 +1194,19 @@
 				openSupportTicket(supportResolveBtn.getAttribute("data-support-resolve"), true);
 				return;
 			}
+			const hostViewBtn = event.target.closest("[data-host-view]");
+			if (hostViewBtn) {
+				const key = hostViewBtn.getAttribute("data-host-view");
+				if (currentSection() !== "host-data") setSection("host-data", { skipApply: true, keepNavOpen: true });
+				applySection(window.__adminData);
+				openHostData(key, false);
+				return;
+			}
+			const hostApproveBtn = event.target.closest("[data-host-approve]");
+			if (hostApproveBtn) {
+				openHostData(hostApproveBtn.getAttribute("data-host-approve"), false);
+				return;
+			}
 			const eventBtn = event.target.closest("[data-event-key]");
 			if (eventBtn) {
 				const key = eventBtn.getAttribute("data-event-key");
@@ -1008,10 +1227,23 @@
 		document.getElementById("closeSupportModal")?.addEventListener("click", () => {
 			document.getElementById("supportModal").hidden = true;
 		});
+		document.getElementById("closeHostDataModal")?.addEventListener("click", () => {
+			document.getElementById("hostDataModal").hidden = true;
+		});
 		document.getElementById("supportResolveBtn")?.addEventListener("click", (event) => {
 			const btn = event.currentTarget;
 			const code = btn && btn.dataset ? btn.dataset.code : "";
 			if (code) resolveSupportTicket(code, btn);
+		});
+		document.getElementById("hostApproveBtn")?.addEventListener("click", (event) => {
+			const btn = event.currentTarget;
+			const key = btn && btn.dataset ? btn.dataset.key : "";
+			if (key) reviewHost(key, "approve", btn);
+		});
+		document.getElementById("hostRejectBtn")?.addEventListener("click", (event) => {
+			const btn = event.currentTarget;
+			const key = btn && btn.dataset ? btn.dataset.key : "";
+			if (key) reviewHost(key, "reject", btn);
 		});
 		document.getElementById("answersModal")?.addEventListener("click", (event) => {
 			if (event.target.id === "answersModal") event.currentTarget.hidden = true;
@@ -1021,6 +1253,9 @@
 		});
 		document.getElementById("supportModal")?.addEventListener("click", (event) => {
 			if (event.target.id === "supportModal") event.currentTarget.hidden = true;
+		});
+		document.getElementById("hostDataModal")?.addEventListener("click", (event) => {
+			if (event.target.id === "hostDataModal") event.currentTarget.hidden = true;
 		});
 		await refresh();
 	});

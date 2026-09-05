@@ -340,7 +340,16 @@ window.JodAuth = (() => {
 	function isHostFlowUrl(url) {
 		const u = String(url || "").toLowerCase();
 		if (u.includes("volunteer-")) return false;
-		return u.includes("account-setup") || u.includes("host-your-event") || u.includes("organizer-dashboard");
+		return u.includes("account-setup")
+			|| u.includes("host-your-event")
+			|| u.includes("organizer-dashboard")
+			|| u.includes("host-pending");
+	}
+
+	function canAccessHostDashboard(meta) {
+		if (meta && typeof meta.dashboard_access === "boolean") return meta.dashboard_access;
+		const status = String((meta && meta.verification_status) || "").toUpperCase();
+		return status === "VERIFIED";
 	}
 
 	async function fetchOrganizerAccount(options = {}) {
@@ -376,7 +385,8 @@ window.JodAuth = (() => {
 		}
 		const data = await fetchOrganizerAccount({ withMeta: true });
 		if (isHostSetupComplete(data && data.account, data)) {
-			return "organizer-dashboard.html";
+			if (canAccessHostDashboard(data)) return "organizer-dashboard.html";
+			return "host-pending.html";
 		}
 		return "account-setup.html";
 	}
@@ -1875,6 +1885,8 @@ window.JodAuth = (() => {
 		navigateToHostFlow,
 		hasHostPayoutBank,
 		isHostSetupComplete,
+		canAccessHostDashboard,
+		fetchOrganizerAccount,
 		resolvePostAuthDestination,
 		getRedirectTarget,
 		validateSession,

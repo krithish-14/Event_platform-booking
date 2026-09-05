@@ -96,6 +96,70 @@ def is_setup_complete(acc: Optional[OrganizerAccount]) -> bool:
     return has_payout_bank(acc) and has_kyc_documents(acc) and has_signed_agreement(acc)
 
 
+def can_access_host_dashboard(acc: Optional[OrganizerAccount]) -> bool:
+    """New hosts need admin verification. Existing (verified) hosts keep access."""
+    if not acc or not is_setup_complete(acc):
+        return False
+    return is_organizer_verified(acc.status)
+
+
+def grandfather_existing_hosts(db: Session) -> int:
+    """
+    One-time grant: hosts who already finished setup before the dashboard gate
+    become verified so they keep access. Runs only once (app_migrations marker)
+    so later pending submissions are not auto-approved on restart.
+    """
+    from sqlalchemy import text
+
+    try:
+        db.execute(text(
+            "CREATE TABLE IF NOT EXISTS app_migrations ("
+            "key VARCHAR(100) PRIMARY KEY, "
+            "applied_at TIMESTAMP)"
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        return 0
+
+    try:
+        already = db.execute(
+            text("SELECT 1 FROM app_migrations WHERE key = :k"),
+            {"k": "host_dashboard_gate_v1"},
+        ).first()
+    except Exception:
+        db.rollback()
+        return 0
+    if already:
+        return 0
+
+    changed = 0
+    rows = db.query(OrganizerAccount).all()
+    for acc in rows:
+        status = (acc.status or "").lower().strip()
+        if status in ("verified", "rejected"):
+            continue
+        if not is_setup_complete(acc):
+            continue
+        acc.status = "verified"
+        if not acc.verified_at:
+            acc.verified_at = datetime.utcnow()
+        changed += 1
+
+    try:
+        db.execute(
+            text(
+                "INSERT INTO app_migrations (key, applied_at) VALUES (:k, :t)"
+            ),
+            {"k": "host_dashboard_gate_v1", "t": datetime.utcnow()},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        return 0
+    return changed
+
+
 def missing_setup_steps(acc: Optional[OrganizerAccount], strict_agreement: bool = False) -> list:
     missing = []
     if not has_payout_bank(acc):
@@ -424,6 +488,7 @@ def save_account_setup(
         "verification_status": to_public_verification_status(org_acc.status),
         "rejection_reason": org_acc.rejection_reason,
         "setup_complete": is_setup_complete(org_acc),
+        "dashboard_access": can_access_host_dashboard(org_acc),
         "missing_steps": missing_setup_steps(org_acc),
         "account": {
             "id": str(org_acc.id),
@@ -497,6 +562,7 @@ def get_account_setup(
         "documents_complete": has_kyc_documents(org_acc),
         "agreement_signed": has_signed_agreement(org_acc),
         "setup_complete": is_setup_complete(org_acc),
+        "dashboard_access": can_access_host_dashboard(org_acc),
         "missing_steps": missing_setup_steps(org_acc),
         "submitted_at": org_acc.submitted_at.isoformat() if org_acc.submitted_at else None,
         "verified_at": org_acc.verified_at.isoformat() if org_acc.verified_at else None,
@@ -788,6 +854,8 @@ def get_verification_status(
             "internal_status": None,
             "rejection_reason": None,
             "kyc_complete": False,
+            "setup_complete": False,
+            "dashboard_access": False,
             "can_publish_events": False,
             "has_record": False,
             "submitted_at": None,
@@ -823,6 +891,7 @@ def get_verification_status(
         "rejection_reason": org_acc.rejection_reason,
         "kyc_complete": kyc_complete,
         "setup_complete": is_setup_complete(org_acc),
+        "dashboard_access": can_access_host_dashboard(org_acc),
         "missing_steps": missing_setup_steps(org_acc),
         "can_publish_events": is_organizer_verified(org_acc.status),
         "has_record": True,

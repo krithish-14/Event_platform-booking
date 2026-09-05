@@ -1864,6 +1864,11 @@ html[data-theme="dark"] .marquee {
 	margin: 0;
 	color: var(--muted);
 	font-size: .875rem;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .event-meta {
@@ -3166,6 +3171,7 @@ body.sub-page .policy-hero {
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .modal-meta {

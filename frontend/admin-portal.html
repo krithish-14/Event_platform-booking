@@ -48,7 +48,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Admin QR Portal - JOD Events</title>
 		<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
 		<link rel="stylesheet" href="css/style.css?v=72" />
-		<link rel="stylesheet" href="css/admin-portal.css?v=13" />
+		<link rel="stylesheet" href="css/admin-portal.css?v=14" />
 	</head>
 	<body class="admin-portal-body">
 <!-- Google Tag Manager (noscript) -->
@@ -109,6 +109,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						<span>Cancellation request</span>
 						<em class="admin-nav-count" id="navCountCancel">0</em>
 					</button>
+					<button type="button" class="admin-nav-item" data-section="host-data" role="tab" aria-selected="false">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 11l2 2 4-4"/></svg>
+						<span>Host Data</span>
+						<em class="admin-nav-count" id="navCountHostData">0</em>
+					</button>
 					<button type="button" class="admin-nav-item" data-section="support" role="tab" aria-selected="false">
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
 						<span>Help &amp; Support</span>
@@ -148,6 +153,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						<article class="admin-kpi"><span class="admin-kpi-label">QR sent</span><strong id="statReady">0</strong></article>
 						<article class="admin-kpi"><span class="admin-kpi-label">Cancel requests</span><strong id="statCancel">0</strong></article>
 						<article class="admin-kpi"><span class="admin-kpi-label">Open help tickets</span><strong id="statSupport">0</strong></article>
+						<article class="admin-kpi"><span class="admin-kpi-label">Hosts pending</span><strong id="statHostData">0</strong></article>
 					</div>
 
 					<div class="admin-overview-grid">
@@ -254,8 +260,26 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			</div>
 		</div>
 
+		<div class="admin-modal" id="hostDataModal" hidden>
+			<div class="admin-modal-card">
+				<div class="admin-modal-head">
+					<h2 id="hostDataModalTitle">Host application</h2>
+					<button type="button" id="closeHostDataModal">&times;</button>
+				</div>
+				<div id="hostDataBody" class="admin-answers"></div>
+				<div class="admin-support-resolve" id="hostDataReviewWrap" hidden>
+					<label for="hostRejectReason">Rejection reason (required to reject)</label>
+					<textarea id="hostRejectReason" rows="3" placeholder="e.g. PAN image unclear — please re-upload a sharper scan."></textarea>
+					<div class="admin-host-review-actions">
+						<button type="button" class="admin-btn accept" id="hostApproveBtn">Approve host</button>
+						<button type="button" class="admin-btn ghost" id="hostRejectBtn">Reject</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<script src="js/health.js?v=3"></script>
-		<script src="js/auth.js?v=33"></script>
-		<script src="js/admin-portal.js?v=20"></script>
+		<script src="js/auth.js?v=40"></script>
+		<script src="js/admin-portal.js?v=21"></script>
 	</body>
 </html>

@@ -472,7 +472,7 @@
 		if (page === "payment.html" || page === "published-form.html") {
 			return pretty(eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "index.html");
 		}
-		if (page === "verify-email.html" || page === "account-setup.html") return pretty("host-your-event.html");
+		if (page === "verify-email.html" || page === "account-setup.html" || page === "host-pending.html") return pretty("host-your-event.html");
 		if (page === "orders.html" || page === "settings.html" || page === "notifications.html") return pretty("dashboard.html");
 		if (page === "volunteer-scanner.html") return pretty("volunteer-portal.html");
 		return pretty("index.html");

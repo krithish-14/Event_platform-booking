@@ -79,6 +79,10 @@ async def lifespan(app: FastAPI):
     seed_db = session_factory()
     try:
         seed_admin_user(seed_db)
+        from APIs.organizers import grandfather_existing_hosts
+        granted = grandfather_existing_hosts(seed_db)
+        if granted:
+            safe_print(f"  [OK] Grandfathered {granted} existing host(s) for dashboard access.")
     finally:
         seed_db.close()
     yield
