@@ -184,6 +184,15 @@
 	display: none !important;
 }
 
+.admin-overview[hidden],
+.admin-notifications[hidden],
+.admin-block[hidden],
+.admin-toolbar[hidden],
+.admin-section-label[hidden],
+#adminSearch[hidden] {
+	display: none !important;
+}
+
 .admin-main {
 	flex: 1;
 	min-width: 0;
@@ -197,6 +206,13 @@
 	justify-content: space-between;
 	gap: 1rem;
 	margin-bottom: 1rem;
+}
+
+.admin-page-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+	flex-shrink: 0;
 }
 
 .admin-page-head h1 {

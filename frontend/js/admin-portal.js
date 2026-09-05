@@ -309,12 +309,18 @@
 		const pageTitle = document.getElementById("adminPageTitle");
 		const hint = document.getElementById("adminSectionHint");
 		const toolbar = document.getElementById("adminToolbar");
+		const backBtn = document.getElementById("adminNotifyClose");
 		if (overviewPanel) overviewPanel.hidden = true;
 		if (dataPanel) dataPanel.hidden = true;
 		if (notifyPanel) notifyPanel.hidden = false;
 		if (toolbar) toolbar.hidden = true;
+		if (backBtn) backBtn.hidden = false;
 		if (pageTitle) pageTitle.textContent = "Notifications";
-		if (hint) hint.textContent = "Open a Help & Support ticket to review the issue and mark it solved.";
+		if (hint) hint.textContent = "Help & Support tickets only. Click a ticket to open it in Help & Support.";
+		document.querySelectorAll(".admin-nav-item[data-section]").forEach((btn) => {
+			btn.classList.remove("is-active");
+			btn.setAttribute("aria-selected", "false");
+		});
 		renderNotifications();
 		setNavOpen(false);
 	}
@@ -323,20 +329,25 @@
 		window.__adminShowingNotifications = false;
 		const notifyPanel = document.getElementById("adminNotificationsPanel");
 		const toolbar = document.getElementById("adminToolbar");
+		const backBtn = document.getElementById("adminNotifyClose");
 		if (notifyPanel) notifyPanel.hidden = true;
 		if (toolbar) toolbar.hidden = false;
-		applySection(window.__adminData);
+		if (backBtn) backBtn.hidden = true;
+		setSection(currentSection() === "overview" ? "overview" : currentSection());
 	}
 
 	function openTicketFromNotification(code) {
 		window.__adminShowingNotifications = false;
 		const notifyPanel = document.getElementById("adminNotificationsPanel");
 		const toolbar = document.getElementById("adminToolbar");
+		const backBtn = document.getElementById("adminNotifyClose");
 		if (notifyPanel) notifyPanel.hidden = true;
 		if (toolbar) toolbar.hidden = false;
+		if (backBtn) backBtn.hidden = true;
 		setSection("support", { skipApply: true, keepNavOpen: true });
 		applySection(window.__adminData);
-		openSupportTicket(code, (findSupportTicket(code) || {}).status !== "resolved");
+		const row = findSupportTicket(code) || {};
+		openSupportTicket(code, (row.status || "open") !== "resolved");
 	}
 
 	function applySection(data) {
@@ -386,6 +397,7 @@
 		const overviewPanel = document.getElementById("adminOverviewPanel");
 		const dataPanel = document.getElementById("adminDataPanel");
 		const notifyPanel = document.getElementById("adminNotificationsPanel");
+		const backBtn = document.getElementById("adminNotifyClose");
 		const eventNote = eventLabel ? ` for ${eventLabel}` : "";
 		const showingOverview = section === "overview";
 		const showingNotifications = Boolean(window.__adminShowingNotifications);
@@ -397,6 +409,19 @@
 		if (eventFilterWrap) eventFilterWrap.hidden = showingNotifications || section === "support";
 		const toolbar = document.getElementById("adminToolbar");
 		if (toolbar) toolbar.hidden = showingNotifications;
+		if (backBtn) backBtn.hidden = !showingNotifications;
+
+		if (showingNotifications) {
+			renderNotifications();
+			if (pageTitle) pageTitle.textContent = "Notifications";
+			if (hint) hint.textContent = "Help & Support tickets only. Click a ticket to open it in Help & Support.";
+			document.querySelectorAll(".admin-nav-item[data-section]").forEach((btn) => {
+				btn.classList.remove("is-active");
+				btn.setAttribute("aria-selected", "false");
+			});
+			window.__adminData = payload;
+			return;
+		}
 
 		updateOverview({
 			host: hostRows.length,
@@ -406,13 +431,6 @@
 			ready: payReady,
 			pending: payPending,
 		});
-
-		if (showingNotifications) {
-			if (pageTitle) pageTitle.textContent = "Notifications";
-			if (hint) hint.textContent = "Open a Help & Support ticket to review the issue and mark it solved.";
-			window.__adminData = payload;
-			return;
-		}
 
 		if (showingOverview) {
 			if (pageTitle) pageTitle.textContent = "Overview";
