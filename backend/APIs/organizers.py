@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import or_
 
-from Models import get_db, EmailOTP, OrganizerAccount, User, HostRegistrationLog
+from Models import get_db, EmailOTP, OrganizerAccount, User, HostRegistrationLog, HostApplication
 from Authentication.dependencies import get_current_user
 from Services.rate_limit import limit_otp
 from Services import otp as otp_service
@@ -22,6 +22,43 @@ from Services.runtime_env import smtp_configured
 from Utils.categories import is_allowed_kyc_bytes
 
 router = APIRouter()
+
+
+def snapshot_host_application(org_acc: OrganizerAccount, *, status: str = "pending", action: str = "submit", review_reason: Optional[str] = None, reviewed_by: Optional[str] = None) -> HostApplication:
+    """Create a new immutable host application row from the live organizer account."""
+    now = datetime.utcnow()
+    return HostApplication(
+        organizer_account_id=org_acc.id,
+        customer_id=org_acc.customer_id,
+        host_id=org_acc.host_id,
+        email=org_acc.email,
+        org_name=org_acc.org_name,
+        pan_number=org_acc.pan_number,
+        org_address=org_acc.org_address,
+        has_gstin=org_acc.has_gstin,
+        gstin_number=org_acc.gstin_number,
+        accepted_undertaking=org_acc.accepted_undertaking,
+        itr_filed=org_acc.itr_filed,
+        state=org_acc.state,
+        contact_full_name=org_acc.contact_full_name,
+        contact_email=org_acc.contact_email,
+        contact_mobile=org_acc.contact_mobile,
+        beneficiary_name=org_acc.beneficiary_name,
+        account_type=org_acc.account_type,
+        bank_name=org_acc.bank_name,
+        account_number=org_acc.account_number,
+        bank_ifsc=org_acc.bank_ifsc,
+        pan_card_url=org_acc.pan_card_url,
+        cancelled_cheque_url=org_acc.cancelled_cheque_url,
+        accepted_agreement=bool(org_acc.accepted_agreement),
+        status=status,
+        action=action,
+        review_reason=review_reason,
+        reviewed_by=reviewed_by,
+        reviewed_at=now if status != "pending" else None,
+        submitted_at=now,
+        created_at=now,
+    )
 
 
 def _bound_organizer_email(email: Optional[str], current_user: Optional[User] = None) -> str:
@@ -38,11 +75,12 @@ def _bound_organizer_email(email: Optional[str], current_user: Optional[User] = 
 #  "submitted"          →  PENDING
 #  "verified"           →  VERIFIED
 #  "rejected"           →  REJECTED
+#  "restricted"         →  REJECTED (dashboard locked; admin revoked access)
 def to_public_verification_status(internal_status: Optional[str]) -> str:
     s = (internal_status or "").lower().strip()
     if s == "verified":
         return "VERIFIED"
-    if s == "rejected":
+    if s in ("rejected", "restricted"):
         return "REJECTED"
     if s == "submitted":
         return "PENDING"
@@ -50,7 +88,7 @@ def to_public_verification_status(internal_status: Optional[str]) -> str:
 
 
 def is_organizer_verified(internal_status: Optional[str]) -> bool:
-    return to_public_verification_status(internal_status) == "VERIFIED"
+    return (internal_status or "").lower().strip() == "verified"
 
 
 def _organizer_otp_purpose():
@@ -137,7 +175,7 @@ def grandfather_existing_hosts(db: Session) -> int:
     rows = db.query(OrganizerAccount).all()
     for acc in rows:
         status = (acc.status or "").lower().strip()
-        if status in ("verified", "rejected"):
+        if status in ("verified", "rejected", "restricted"):
             continue
         if not is_setup_complete(acc):
             continue
@@ -459,8 +497,8 @@ def save_account_setup(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Please complete the following before finishing setup: " + ", ".join(missing) + "."
             )
-        # Resubmission: if previously rejected, clear rejection reason
-        if org_acc.status == "rejected":
+        # Resubmission: if previously rejected/restricted, clear rejection reason
+        if (org_acc.status or "").lower() in ("rejected", "restricted"):
             org_acc.rejection_reason = None
         org_acc.status = "submitted"
         org_acc.submitted_at = datetime.utcnow()
@@ -480,6 +518,9 @@ def save_account_setup(
         status=org_acc.status
     )
     db.add(host_log)
+    # Each final submit becomes a new admin Host Data entry (history preserved).
+    if payload.is_final_submit:
+        db.add(snapshot_host_application(org_acc, status="pending", action="submit"))
     db.commit()
 
     return {

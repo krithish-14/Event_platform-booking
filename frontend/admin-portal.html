@@ -48,7 +48,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Admin QR Portal - JOD Events</title>
 		<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
 		<link rel="stylesheet" href="css/style.css?v=72" />
-		<link rel="stylesheet" href="css/admin-portal.css?v=14" />
+		<link rel="stylesheet" href="css/admin-portal.css?v=15" />
 	</head>
 	<body class="admin-portal-body">
 <!-- Google Tag Manager (noscript) -->
@@ -268,11 +268,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				</div>
 				<div id="hostDataBody" class="admin-answers"></div>
 				<div class="admin-support-resolve" id="hostDataReviewWrap" hidden>
-					<label for="hostRejectReason">Rejection reason (required to reject)</label>
+					<label for="hostRejectReason">Rejection / restrict reason (required to reject or restrict)</label>
 					<textarea id="hostRejectReason" rows="3" placeholder="e.g. PAN image unclear — please re-upload a sharper scan."></textarea>
 					<div class="admin-host-review-actions">
-						<button type="button" class="admin-btn accept" id="hostApproveBtn">Approve host</button>
+						<button type="button" class="admin-btn accept" id="hostApproveBtn">Accept host</button>
 						<button type="button" class="admin-btn ghost" id="hostRejectBtn">Reject</button>
+						<button type="button" class="admin-btn ghost" id="hostRestrictBtn" hidden>Restrict access</button>
 					</div>
 				</div>
 			</div>
@@ -280,6 +281,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 		<script src="js/health.js?v=3"></script>
 		<script src="js/auth.js?v=40"></script>
-		<script src="js/admin-portal.js?v=21"></script>
+		<script src="js/admin-portal.js?v=22"></script>
 	</body>
 </html>

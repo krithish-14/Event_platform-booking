@@ -841,9 +841,14 @@ button.admin-event-title:focus-visible {
 	color: #9a3412;
 }
 
-.admin-badge.verified {
+.admin-badge.approved {
 	background: #dcfce7;
 	color: #166534;
+}
+
+.admin-badge.restricted {
+	background: #fee2e2;
+	color: #991b1b;
 }
 
 .admin-badge.rejected {

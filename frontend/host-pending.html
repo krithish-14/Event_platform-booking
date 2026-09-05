@@ -73,6 +73,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 		color: #334155;
 		font-weight: 600;
 	}
+	.reason {
+		font-size: 1rem;
+		color: #991b1b;
+		font-weight: 700;
+		line-height: 1.55;
+		margin: 0.4rem 0 0.2rem;
+		white-space: pre-wrap;
+	}
 	.status-pill {
 		display: inline-flex;
 		align-items: center;
@@ -94,8 +102,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 		gap: 0.65rem;
 		margin-top: 1.25rem;
 	}
-	.actions a,
-	.actions button {
+	.actions a {
 		display: block;
 		width: 100%;
 		padding: 0.9rem;
@@ -116,6 +123,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 		background: #f1f5f9;
 		color: #0f172a;
 	}
+	#pendingLead[hidden],
+	#pendingDetail[hidden],
 	#pendingRejectBlock[hidden],
 	#pendingSetupLink[hidden] {
 		display: none !important;
@@ -131,6 +140,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 	html[data-theme="dark"] h1 { color: #fff8f0 !important; }
 	html[data-theme="dark"] p { color: #d4cbbf !important; }
 	html[data-theme="dark"] .lead { color: #f6f0e8 !important; }
+	html[data-theme="dark"] .reason { color: #fca5a5 !important; }
 	html[data-theme="dark"] .btn-secondary {
 		background: #2a241e;
 		color: #fff8f0;
@@ -148,11 +158,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		<h1 id="pendingTitle">Thank you</h1>
 		<p class="lead" id="pendingLead">Your hosting registration has been noted.</p>
 		<p id="pendingDetail">Once the JOD Events Authority has reviewed your application, within 3 working days you will get your Host Dashboard access.</p>
-		<p id="pendingRejectBlock" hidden></p>
+		<p class="reason" id="pendingRejectBlock" hidden></p>
 		<div class="actions">
 			<a class="btn-primary" href="index.html" id="pendingHome">Back to home</a>
 			<a class="btn-secondary" href="account-setup.html" id="pendingSetupLink" hidden>Update my application</a>
-			<button type="button" class="btn-secondary" id="pendingRefresh">Check status</button>
 		</div>
 	</div>
 
@@ -167,7 +176,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		const detail = document.getElementById("pendingDetail");
 		const rejectBlock = document.getElementById("pendingRejectBlock");
 		const setupLink = document.getElementById("pendingSetupLink");
-		const refreshBtn = document.getElementById("pendingRefresh");
 		const homeLink = document.getElementById("pendingHome");
 
 		if (homeLink && window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
@@ -185,6 +193,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			badge.className = "status-pill";
 			badge.textContent = "Under review";
 			title.textContent = "Thank you";
+			lead.hidden = false;
+			detail.hidden = false;
 			lead.textContent = "Your hosting registration has been noted.";
 			detail.textContent = "Once the JOD Events Authority has reviewed your application, within 3 working days you will get your Host Dashboard access.";
 			rejectBlock.hidden = true;
@@ -218,11 +228,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				mark.className = "mark is-rejected";
 				mark.textContent = "!";
 				badge.className = "status-pill is-rejected";
-				badge.textContent = "Needs updates";
-				title.textContent = "Update required";
-				lead.textContent = "Your hosting registration needs a few updates before we can approve it.";
-				detail.textContent = "Please revise your details and resubmit. After that, review usually takes up to 3 working days.";
-				const reason = (data && data.rejection_reason) || "Please update your details and resubmit.";
+				badge.textContent = "Rejected";
+				title.textContent = "Application rejected";
+				lead.hidden = true;
+				detail.hidden = true;
+				const reason = (data && data.rejection_reason) || "No reason provided.";
 				rejectBlock.hidden = false;
 				rejectBlock.textContent = "Reason: " + reason;
 				setupLink.hidden = false;
@@ -232,9 +242,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			showPendingThankYou();
 		}
 
-		refreshBtn.addEventListener("click", () => loadStatus());
 		await loadStatus();
-		setInterval(loadStatus, 45000);
+		setInterval(loadStatus, 60000);
 	})();
 	</script>
 </body>

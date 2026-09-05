@@ -1268,52 +1268,114 @@ def admin_update_support_ticket(
 
 
 class HostReviewRequest(BaseModel):
-    action: str  # approve | reject
+    action: str  # approve | reject | restrict
     rejection_reason: Optional[str] = None
 
 
-def _serialize_admin_host(acc) -> Dict[str, Any]:
-    from APIs.organizers import (
-        can_access_host_dashboard,
-        is_setup_complete,
-        to_public_verification_status,
-    )
-
-    status = (acc.status or "draft").lower().strip()
+def _serialize_host_application(app) -> Dict[str, Any]:
+    status = (app.status or "pending").lower().strip()
+    # Map application status to UI-friendly verification labels.
+    verification = {
+        "pending": "PENDING",
+        "approved": "VERIFIED",
+        "rejected": "REJECTED",
+        "restricted": "RESTRICTED",
+    }.get(status, status.upper())
     return {
-        "id": str(acc.id),
-        "email": acc.email,
-        "org_name": acc.org_name,
-        "host_id": acc.host_id,
-        "customer_id": acc.customer_id,
-        "contact_full_name": acc.contact_full_name,
-        "contact_email": acc.contact_email,
-        "contact_mobile": acc.contact_mobile,
-        "pan_number": acc.pan_number,
-        "org_address": acc.org_address,
-        "has_gstin": acc.has_gstin,
-        "gstin_number": acc.gstin_number,
-        "state": acc.state,
-        "beneficiary_name": acc.beneficiary_name,
-        "account_type": acc.account_type,
-        "bank_name": acc.bank_name,
-        "account_number": acc.account_number,
-        "bank_ifsc": acc.bank_ifsc,
-        "pan_card_url": acc.pan_card_url,
-        "cancelled_cheque_url": acc.cancelled_cheque_url,
-        "accepted_agreement": bool(acc.accepted_agreement),
+        "id": str(app.id),
+        "application_id": str(app.id),
+        "organizer_account_id": str(app.organizer_account_id) if app.organizer_account_id else None,
+        "email": app.email,
+        "org_name": app.org_name,
+        "host_id": app.host_id,
+        "customer_id": app.customer_id,
+        "contact_full_name": app.contact_full_name,
+        "contact_email": app.contact_email,
+        "contact_mobile": app.contact_mobile,
+        "pan_number": app.pan_number,
+        "org_address": app.org_address,
+        "has_gstin": app.has_gstin,
+        "gstin_number": app.gstin_number,
+        "state": app.state,
+        "beneficiary_name": app.beneficiary_name,
+        "account_type": app.account_type,
+        "bank_name": app.bank_name,
+        "account_number": app.account_number,
+        "bank_ifsc": app.bank_ifsc,
+        "pan_card_url": app.pan_card_url,
+        "cancelled_cheque_url": app.cancelled_cheque_url,
+        "accepted_agreement": bool(app.accepted_agreement),
         "status": status,
-        "verification_status": to_public_verification_status(acc.status),
-        "rejection_reason": acc.rejection_reason,
-        "setup_complete": is_setup_complete(acc),
-        "dashboard_access": can_access_host_dashboard(acc),
-        "submitted_at": json_datetime(acc.submitted_at) if acc.submitted_at else None,
-        "verified_at": json_datetime(acc.verified_at) if acc.verified_at else None,
-        "created_at": json_datetime(acc.created_at) if acc.created_at else None,
+        "action": app.action,
+        "verification_status": verification,
+        "rejection_reason": app.review_reason,
+        "review_reason": app.review_reason,
+        "reviewed_by": app.reviewed_by,
+        "reviewed_at": json_datetime(app.reviewed_at) if app.reviewed_at else None,
+        "submitted_at": json_datetime(app.submitted_at) if app.submitted_at else None,
+        "created_at": json_datetime(app.created_at) if app.created_at else None,
+        "dashboard_access": status == "approved",
+        "can_approve": status == "pending",
+        "can_reject": status == "pending",
+        "can_restrict": status == "approved",
     }
 
 
-def _notify_host_review(acc, approved: bool) -> bool:
+def _backfill_host_applications(db: Session) -> None:
+    """Seed application rows for organizer accounts that have no history yet."""
+    from Models.organizer_accounts import OrganizerAccount
+    from Models.host_application import HostApplication
+    from APIs.organizers import is_setup_complete, snapshot_host_application
+    from sqlalchemy import func
+
+    try:
+        accounted = {
+            str(row[0]).lower()
+            for row in db.query(func.lower(HostApplication.email)).distinct().all()
+            if row and row[0]
+        }
+    except Exception:
+        _db_safe_rollback(db)
+        return
+
+    rows = db.query(OrganizerAccount).all()
+    created = 0
+    for acc in rows:
+        email = (acc.email or "").lower().strip()
+        if not email or email in accounted:
+            continue
+        st = (acc.status or "").lower().strip()
+        if st not in ("submitted", "verified", "rejected", "restricted") and not is_setup_complete(acc):
+            continue
+        if st == "verified":
+            app_status, action = "approved", "approve"
+        elif st == "rejected":
+            app_status, action = "rejected", "reject"
+        elif st == "restricted":
+            app_status, action = "restricted", "restrict"
+        else:
+            app_status, action = "pending", "submit"
+        row = snapshot_host_application(
+            acc,
+            status=app_status,
+            action=action,
+            review_reason=acc.rejection_reason,
+            reviewed_by="system-backfill" if app_status != "pending" else None,
+        )
+        if acc.submitted_at:
+            row.submitted_at = acc.submitted_at
+        if acc.verified_at and app_status == "approved":
+            row.reviewed_at = acc.verified_at
+        db.add(row)
+        created += 1
+    if created:
+        try:
+            db.commit()
+        except Exception:
+            _db_safe_rollback(db)
+
+
+def _notify_host_review(acc, *, approved: bool = False, restricted: bool = False) -> bool:
     email_addr = (acc.contact_email or acc.email or "").strip()
     if not email_addr or "@" not in email_addr:
         return False
@@ -1333,6 +1395,23 @@ def _notify_host_review(acc, approved: bool) -> bool:
             "You can now open the Host Dashboard and start creating events.</p>"
             "<p>Sign in at <a href=\"https://jodevents.com\">jodevents.com</a> "
             "and go to Host Your Event.</p>"
+            "<p>— JOD Events</p>"
+        )
+    elif restricted:
+        reason = (acc.rejection_reason or "").strip() or "Access was restricted by JOD Events Authority."
+        subject = "Your JOD Events host dashboard access was restricted"
+        text_body = (
+            f"Hi {name},\n\n"
+            "Your Host Dashboard access has been restricted by JOD Events Authority.\n\n"
+            f"Reason: {reason}\n\n"
+            "Contact support if you need help.\n\n"
+            "— JOD Events\n"
+        )
+        html_body = (
+            f"<p>Hi {name},</p>"
+            "<p>Your Host Dashboard access has been <strong>restricted</strong> by JOD Events Authority.</p>"
+            f"<p><strong>Reason:</strong> {reason}</p>"
+            "<p>Contact support if you need help.</p>"
             "<p>— JOD Events</p>"
         )
     else:
@@ -1362,30 +1441,25 @@ def admin_list_hosts(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
-    """List organizer/host KYC submissions for admin review."""
-    from Models.organizer_accounts import OrganizerAccount
-    from APIs.organizers import is_setup_complete
+    """List host application history (each resubmit is a new entry)."""
+    from Models.host_application import HostApplication
 
+    _backfill_host_applications(db)
     try:
         rows = (
-            db.query(OrganizerAccount)
+            db.query(HostApplication)
             .order_by(
-                OrganizerAccount.submitted_at.desc().nullslast(),
-                OrganizerAccount.created_at.desc().nullslast(),
+                HostApplication.submitted_at.desc().nullslast(),
+                HostApplication.created_at.desc().nullslast(),
             )
-            .limit(300)
+            .limit(500)
             .all()
         )
     except Exception:
         _db_safe_rollback(db)
         rows = []
 
-    # Prefer hosts who finished setup (pending review / verified / rejected).
-    items = [
-        _serialize_admin_host(row)
-        for row in rows
-        if is_setup_complete(row) or (row.status or "").lower() in ("submitted", "verified", "rejected")
-    ]
+    items = [_serialize_host_application(row) for row in rows]
     needle = (q or "").strip().lower()
     if needle:
         items = [
@@ -1396,14 +1470,16 @@ def admin_list_hosts(
             or needle in str(item.get("host_id") or "").lower()
             or needle in str(item.get("customer_id") or "").lower()
             or needle in str(item.get("contact_mobile") or "").lower()
+            or needle in str(item.get("status") or "").lower()
         ]
     wanted = (status_filter or "").strip().lower()
-    if wanted in ("draft", "submitted", "verified", "rejected", "pending"):
-        if wanted == "pending":
-            items = [item for item in items if str(item.get("status") or "").lower() == "submitted"]
-        else:
-            items = [item for item in items if str(item.get("status") or "").lower() == wanted]
-    pending_count = sum(1 for item in items if str(item.get("status") or "").lower() == "submitted")
+    if wanted in ("pending", "submitted", "approved", "verified", "rejected", "restricted"):
+        if wanted in ("submitted",):
+            wanted = "pending"
+        if wanted in ("verified",):
+            wanted = "approved"
+        items = [item for item in items if str(item.get("status") or "").lower() == wanted]
+    pending_count = sum(1 for item in items if str(item.get("status") or "").lower() == "pending")
     return {"total": len(items), "pending": pending_count, "hosts": items}
 
 
@@ -1414,62 +1490,140 @@ def admin_review_host(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
-    """Approve or reject a host setup submission (grants dashboard access on approve)."""
+    """Approve, reject, or restrict a host application entry."""
     from datetime import datetime
     from Models.organizer_accounts import OrganizerAccount
-    from APIs.organizers import is_setup_complete
+    from Models.host_application import HostApplication
+    from APIs.organizers import is_setup_complete, snapshot_host_application
 
     action = (payload.action or "").strip().lower()
-    if action not in ("approve", "reject", "verified", "rejected"):
-        raise HTTPException(status_code=400, detail="action must be approve or reject.")
-    approve = action in ("approve", "verified")
+    if action not in ("approve", "reject", "restrict", "verified", "rejected"):
+        raise HTTPException(status_code=400, detail="action must be approve, reject, or restrict.")
+    if action == "verified":
+        action = "approve"
+    if action == "rejected":
+        action = "reject"
 
     key = str(host_key or "").strip()
     if not key:
-        raise HTTPException(status_code=400, detail="Host id or email is required.")
+        raise HTTPException(status_code=400, detail="Application id is required.")
+
+    app = None
+    try:
+        import uuid as _uuid
+        app = db.query(HostApplication).filter(HostApplication.id == _uuid.UUID(key)).first()
+    except Exception:
+        app = None
 
     org_acc = None
-    if "@" in key:
-        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == key.lower()).first()
-    if not org_acc:
-        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.host_id == key).first()
-    if not org_acc:
-        try:
-            import uuid as _uuid
-            org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.id == _uuid.UUID(key)).first()
-        except Exception:
-            org_acc = None
+    if app and app.organizer_account_id:
+        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.id == app.organizer_account_id).first()
+    if not org_acc and app and app.email:
+        org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == app.email.lower()).first()
+
+    # Legacy fallback: key may still be email / host_id / organizer id.
+    if not app:
+        if "@" in key:
+            org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.email == key.lower()).first()
+        if not org_acc:
+            org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.host_id == key).first()
+        if not org_acc:
+            try:
+                import uuid as _uuid
+                org_acc = db.query(OrganizerAccount).filter(OrganizerAccount.id == _uuid.UUID(key)).first()
+            except Exception:
+                org_acc = None
+        if org_acc:
+            app = (
+                db.query(HostApplication)
+                .filter(
+                    (HostApplication.organizer_account_id == org_acc.id)
+                    | (HostApplication.email == org_acc.email)
+                )
+                .order_by(HostApplication.submitted_at.desc().nullslast())
+                .first()
+            )
+
     if not org_acc:
         raise HTTPException(status_code=404, detail="Host account not found.")
 
-    if approve:
+    admin_email = (current_admin.email or "").strip() or "admin"
+    now = datetime.utcnow()
+    reason = (payload.rejection_reason or "").strip() or None
+
+    if action == "approve":
         if not is_setup_complete(org_acc):
-            raise HTTPException(
-                status_code=400,
-                detail="Host has not completed account setup yet.",
-            )
+            raise HTTPException(status_code=400, detail="Host has not completed account setup yet.")
+        if app and (app.status or "").lower() not in ("pending",):
+            raise HTTPException(status_code=400, detail="Only pending applications can be approved.")
         org_acc.status = "verified"
-        org_acc.verified_at = datetime.utcnow()
+        org_acc.verified_at = now
         org_acc.rejection_reason = None
-    else:
-        reason = (payload.rejection_reason or "").strip()
+        if app:
+            app.status = "approved"
+            app.action = "approve"
+            app.review_reason = None
+            app.reviewed_by = admin_email
+            app.reviewed_at = now
+            db.add(app)
+        else:
+            db.add(snapshot_host_application(org_acc, status="approved", action="approve", reviewed_by=admin_email))
+        emailed = _notify_host_review(org_acc, approved=True)
+        msg = "Host approved."
+    elif action == "reject":
         if not reason:
             raise HTTPException(status_code=400, detail="rejection_reason is required when rejecting.")
+        if app and (app.status or "").lower() not in ("pending",):
+            raise HTTPException(status_code=400, detail="Only pending applications can be rejected.")
         org_acc.status = "rejected"
         org_acc.rejection_reason = reason
         org_acc.verified_at = None
+        if app:
+            app.status = "rejected"
+            app.action = "reject"
+            app.review_reason = reason
+            app.reviewed_by = admin_email
+            app.reviewed_at = now
+            db.add(app)
+        else:
+            db.add(snapshot_host_application(
+                org_acc, status="rejected", action="reject", review_reason=reason, reviewed_by=admin_email
+            ))
+        emailed = _notify_host_review(org_acc, approved=False)
+        msg = "Host rejected."
+    else:  # restrict
+        if not reason:
+            raise HTTPException(status_code=400, detail="rejection_reason is required when restricting access.")
+        if (org_acc.status or "").lower() != "verified" and not (app and (app.status or "").lower() == "approved"):
+            raise HTTPException(status_code=400, detail="Only approved hosts can be restricted.")
+        org_acc.status = "restricted"
+        org_acc.rejection_reason = reason
+        org_acc.verified_at = None
+        # Keep the approved history row; add a new restricted entry.
+        db.add(snapshot_host_application(
+            org_acc, status="restricted", action="restrict", review_reason=reason, reviewed_by=admin_email
+        ))
+        emailed = _notify_host_review(org_acc, restricted=True)
+        msg = "Host access restricted."
 
     db.add(org_acc)
     db.commit()
     db.refresh(org_acc)
-    emailed = _notify_host_review(org_acc, approve)
+
+    # Prefer returning the application that was acted on / newest for this host.
+    latest = (
+        db.query(HostApplication)
+        .filter(
+            (HostApplication.organizer_account_id == org_acc.id)
+            | (HostApplication.email == org_acc.email)
+        )
+        .order_by(HostApplication.submitted_at.desc().nullslast())
+        .first()
+    )
     return {
         "status": "success",
-        "message": (
-            ("Host approved." if approve else "Host rejected.")
-            + (" Email sent." if emailed else " Email could not be sent (check SMTP).")
-        ),
+        "message": msg + (" Email sent." if emailed else " Email could not be sent (check SMTP)."),
         "email_sent": emailed,
-        "host": _serialize_admin_host(org_acc),
+        "host": _serialize_host_application(latest) if latest else None,
     }
 

@@ -367,7 +367,7 @@
 			|| supportRows.filter((t) => (t.status || "open") !== "resolved").length;
 		const hostDataRows = window.__hostDataRows || [];
 		const hostPending = (window.__hostDataMeta && window.__hostDataMeta.pending)
-			|| hostDataRows.filter((h) => String(h.status || "").toLowerCase() === "submitted").length;
+			|| hostDataRows.filter((h) => ["pending", "submitted"].includes(String(h.status || "").toLowerCase())).length;
 		const eventLabel = (() => {
 			const select = document.getElementById("adminEventFilter");
 			if (!select || select.value === "all") return "";
@@ -452,8 +452,8 @@
 			setText("sectionCount", hostDataRows.length);
 			if (pageTitle) pageTitle.textContent = "Host Data";
 			if (title) title.textContent = "Host Data";
-			if (copy) copy.textContent = "New host account setups awaiting verification. Approve to unlock the Host Dashboard.";
-			if (hint) hint.textContent = "Review KYC and bank details, then approve or reject. Existing hosts were already granted access.";
+			if (copy) copy.textContent = "Host application history. Each resubmit is a new entry. Accept, reject, or restrict approved hosts with a reason.";
+			if (hint) hint.textContent = "Accepted and rejected records stay visible. Restrict locks dashboard access for an already-accepted host.";
 			if (searchInput) searchInput.placeholder = "Search host email, org, name, or host ID";
 			const head = document.querySelector("#adminTableWrap thead tr");
 			if (head) {
@@ -813,18 +813,26 @@
 
 	function hostStatusLabel(status) {
 		const s = String(status || "").toLowerCase();
-		if (s === "submitted") return "Pending review";
-		if (s === "verified") return "Approved";
+		if (s === "pending" || s === "submitted") return "Pending review";
+		if (s === "approved" || s === "verified") return "Accepted";
 		if (s === "rejected") return "Rejected";
+		if (s === "restricted") return "Restricted";
 		if (s === "draft") return "Draft";
 		return s || "Unknown";
 	}
 
+	function hostAppKey(row) {
+		return row.application_id || row.id || row.email || "";
+	}
+
 	function hostDataRowHtml(row) {
-		const status = String(row.status || "draft").toLowerCase();
+		const status = String(row.status || "pending").toLowerCase();
 		const org = row.org_name || "—";
 		const name = row.contact_full_name || row.email || "Host";
-		return `<tr data-id="${escapeHtml(row.id || row.email)}" data-kind="host-data">
+		const key = hostAppKey(row);
+		const canApprove = Boolean(row.can_approve) || status === "pending";
+		const canRestrict = Boolean(row.can_restrict) || status === "approved";
+		return `<tr data-id="${escapeHtml(key)}" data-kind="host-data">
 			<td>
 				<strong>${escapeHtml(name)}</strong>
 				<div class="admin-muted">${escapeHtml(org)}</div>
@@ -837,8 +845,9 @@
 			<td>${escapeHtml(formatWhen(row.submitted_at || row.created_at))}</td>
 			<td><span class="admin-badge ${escapeHtml(status)}">${escapeHtml(hostStatusLabel(status))}</span></td>
 			<td class="admin-actions">
-				<button type="button" class="admin-btn ghost" data-host-view="${escapeHtml(row.email || row.id)}">Review</button>
-				${status === "submitted" ? `<button type="button" class="admin-btn accept" data-host-approve="${escapeHtml(row.email || row.id)}">Approve</button>` : ""}
+				<button type="button" class="admin-btn ghost" data-host-view="${escapeHtml(key)}">View</button>
+				${canApprove ? `<button type="button" class="admin-btn accept" data-host-approve="${escapeHtml(key)}">Accept</button>` : ""}
+				${canRestrict ? `<button type="button" class="admin-btn ghost" data-host-restrict="${escapeHtml(key)}">Restrict</button>` : ""}
 			</td>
 		</tr>`;
 	}
@@ -865,8 +874,9 @@
 	function findHostRow(key) {
 		const needle = String(key || "").toLowerCase();
 		return (window.__hostDataRows || []).find((item) =>
-			String(item.email || "").toLowerCase() === needle
+			String(item.application_id || "").toLowerCase() === needle
 			|| String(item.id || "").toLowerCase() === needle
+			|| String(item.email || "").toLowerCase() === needle
 			|| String(item.host_id || "").toLowerCase() === needle
 		);
 	}
@@ -879,8 +889,15 @@
 		const title = document.getElementById("hostDataModalTitle");
 		const reviewWrap = document.getElementById("hostDataReviewWrap");
 		const reasonEl = document.getElementById("hostRejectReason");
+		const reasonLabel = document.querySelector("label[for='hostRejectReason']");
 		const approveBtn = document.getElementById("hostApproveBtn");
 		const rejectBtn = document.getElementById("hostRejectBtn");
+		const restrictBtn = document.getElementById("hostRestrictBtn");
+		const status = String(row.status || "pending").toLowerCase();
+		const canApprove = Boolean(row.can_approve) || status === "pending";
+		const canReject = Boolean(row.can_reject) || status === "pending";
+		const canRestrict = Boolean(row.can_restrict) || status === "approved";
+		const appKey = hostAppKey(row);
 		if (title) title.textContent = row.org_name || row.contact_full_name || "Host application";
 		const panLink = row.pan_card_url
 			? `<button type="button" class="admin-btn ghost" data-host-doc="${escapeHtml(row.pan_card_url)}">View PAN card</button>`
@@ -888,8 +905,10 @@
 		const chequeLink = row.cancelled_cheque_url
 			? `<button type="button" class="admin-btn ghost" data-host-doc="${escapeHtml(row.cancelled_cheque_url)}">View cancelled cheque</button>`
 			: "—";
+		const reasonText = row.review_reason || row.rejection_reason || "";
 		body.innerHTML = `
-			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(String(row.status || ""))}">${escapeHtml(hostStatusLabel(row.status))}</span></dd>
+			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(status)}">${escapeHtml(hostStatusLabel(status))}</span></dd>
+			<dt>Application ID</dt><dd>${escapeHtml(appKey)}</dd>
 			<dt>Host ID</dt><dd>${escapeHtml(row.host_id || "—")}</dd>
 			<dt>Email</dt><dd>${escapeHtml(row.email || "—")}</dd>
 			<dt>Contact</dt><dd>${escapeHtml(row.contact_full_name || "—")} · ${escapeHtml(row.contact_mobile || "—")}</dd>
@@ -903,7 +922,8 @@
 			<dt>Account</dt><dd>${escapeHtml(row.account_number || "—")} / IFSC ${escapeHtml(row.bank_ifsc || "—")}</dd>
 			<dt>Documents</dt><dd><div class="admin-host-docs">${panLink} ${chequeLink}</div><div id="hostDocPreview"></div></dd>
 			<dt>Submitted</dt><dd>${escapeHtml(formatWhen(row.submitted_at || row.created_at))}</dd>
-			${row.rejection_reason ? `<dt>Rejection reason</dt><dd>${escapeHtml(row.rejection_reason)}</dd>` : ""}
+			${row.reviewed_at ? `<dt>Reviewed</dt><dd>${escapeHtml(formatWhen(row.reviewed_at))}${row.reviewed_by ? ` · ${escapeHtml(row.reviewed_by)}` : ""}</dd>` : ""}
+			${reasonText ? `<dt>Reason</dt><dd>${escapeHtml(reasonText)}</dd>` : ""}
 		`;
 		body.querySelectorAll("[data-host-doc]").forEach((btn) => {
 			btn.addEventListener("click", async () => {
@@ -926,35 +946,58 @@
 				}
 			});
 		});
-		const pending = String(row.status || "").toLowerCase() === "submitted";
-		if (reviewWrap) reviewWrap.hidden = !pending;
+		const showActions = canApprove || canReject || canRestrict;
+		if (reviewWrap) reviewWrap.hidden = !showActions;
+		if (reasonLabel) {
+			reasonLabel.textContent = canRestrict && !canApprove
+				? "Restrict reason (required)"
+				: "Rejection / restrict reason (required to reject or restrict)";
+		}
 		if (reasonEl) reasonEl.value = "";
 		if (approveBtn) {
-			approveBtn.dataset.key = row.email || row.id;
-			approveBtn.disabled = !pending;
+			approveBtn.dataset.key = appKey;
+			approveBtn.hidden = !canApprove;
+			approveBtn.disabled = !canApprove;
+			approveBtn.textContent = "Accept host";
 		}
 		if (rejectBtn) {
-			rejectBtn.dataset.key = row.email || row.id;
-			rejectBtn.disabled = !pending;
+			rejectBtn.dataset.key = appKey;
+			rejectBtn.hidden = !canReject;
+			rejectBtn.disabled = !canReject;
+			rejectBtn.textContent = "Reject";
+		}
+		if (restrictBtn) {
+			restrictBtn.dataset.key = appKey;
+			restrictBtn.hidden = !canRestrict;
+			restrictBtn.disabled = !canRestrict;
+			restrictBtn.textContent = "Restrict access";
 		}
 		modal.hidden = false;
-		if (focusReview && reasonEl && pending) reasonEl.focus();
+		if (focusReview && reasonEl && showActions) reasonEl.focus();
 	}
 
 	async function reviewHost(key, action, btn) {
 		const reasonEl = document.getElementById("hostRejectReason");
 		const payload = { action };
-		if (action === "reject") {
+		if (action === "reject" || action === "restrict") {
 			const reason = ((reasonEl && reasonEl.value) || "").trim();
 			if (!reason) {
-				alert("Add a rejection reason before rejecting.");
+				alert(action === "restrict"
+					? "Add a restrict reason before continuing."
+					: "Add a rejection reason before rejecting.");
 				return;
 			}
 			payload.rejection_reason = reason;
 		}
+		const labels = {
+			approve: ["Approving…", "Accept host", "Host accepted."],
+			reject: ["Rejecting…", "Reject", "Host rejected."],
+			restrict: ["Restricting…", "Restrict access", "Host access restricted."],
+		};
+		const [busy, idle, okMsg] = labels[action] || ["Saving…", "Save", "Saved."];
 		if (btn) {
 			btn.disabled = true;
-			btn.textContent = action === "approve" ? "Approving…" : "Rejecting…";
+			btn.textContent = busy;
 		}
 		try {
 			const res = await adminFetch(`${apiBase()}/api/admin/hosts/${encodeURIComponent(key)}`, {
@@ -967,14 +1010,14 @@
 				const detail = data && data.detail;
 				throw new Error(typeof detail === "string" ? detail : "Could not update host.");
 			}
-			alert(data.message || (action === "approve" ? "Host approved." : "Host rejected."));
+			alert(data.message || okMsg);
 			document.getElementById("hostDataModal").hidden = true;
 			await refresh();
 		} catch (err) {
 			alert(err.message || "Could not update host.");
 			if (btn && btn.isConnected) {
 				btn.disabled = false;
-				btn.textContent = action === "approve" ? "Approve host" : "Reject";
+				btn.textContent = idle;
 			}
 		}
 	}
@@ -1207,6 +1250,11 @@
 				openHostData(hostApproveBtn.getAttribute("data-host-approve"), false);
 				return;
 			}
+			const hostRestrictBtn = event.target.closest("[data-host-restrict]");
+			if (hostRestrictBtn) {
+				openHostData(hostRestrictBtn.getAttribute("data-host-restrict"), true);
+				return;
+			}
 			const eventBtn = event.target.closest("[data-event-key]");
 			if (eventBtn) {
 				const key = eventBtn.getAttribute("data-event-key");
@@ -1244,6 +1292,11 @@
 			const btn = event.currentTarget;
 			const key = btn && btn.dataset ? btn.dataset.key : "";
 			if (key) reviewHost(key, "reject", btn);
+		});
+		document.getElementById("hostRestrictBtn")?.addEventListener("click", (event) => {
+			const btn = event.currentTarget;
+			const key = btn && btn.dataset ? btn.dataset.key : "";
+			if (key) reviewHost(key, "restrict", btn);
 		});
 		document.getElementById("answersModal")?.addEventListener("click", (event) => {
 			if (event.target.id === "answersModal") event.currentTarget.hidden = true;

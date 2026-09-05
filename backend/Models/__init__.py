@@ -24,6 +24,7 @@ from Models.exhibitors import Exhibitor
 from Models.form_definitions import FormDefinition
 from Models.form_submissions import FormSubmission
 from Models.host_registration_logs import HostRegistrationLog
+from Models.host_application import HostApplication
 from Models.user_signups import UserSignup
 from Models.user_logins import UserLogin
 from Models.wishlist import WishlistItem
@@ -62,6 +63,7 @@ __all__ = [
     "FormDefinition",
     "FormSubmission",
     "HostRegistrationLog",
+    "HostApplication",
     "UserSignup",
     "UserLogin",
     "WishlistItem",
