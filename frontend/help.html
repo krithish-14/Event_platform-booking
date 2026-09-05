@@ -441,11 +441,20 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 			font-size: .8rem;
 			color: #57534e;
 			line-height: 1.5;
-			display: -webkit-box;
-			-webkit-line-clamp: 3;
-			-webkit-box-orient: vertical;
-			overflow: hidden;
+			white-space: pre-wrap;
+			word-break: break-word;
 		}
+		.ticket-resolved {
+			margin: .7rem 0 0;
+			padding: .65rem .8rem;
+			border-radius: 10px;
+			background: #ecfdf5;
+			border: 1px solid #a7f3d0;
+			color: #065f46;
+			font-size: .84rem;
+			line-height: 1.45;
+		}
+		.ticket-resolved strong { display: block; margin-bottom: .2rem; }
 		.empty-tickets {
 			text-align: center;
 			padding: 1.6rem .75rem;
@@ -678,15 +687,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 							<div class="ticket-panel">
 								<h3>Your tickets</h3>
-								<p>Open tickets stay here so you can check status after you submit.</p>
+								<p>Each help request gets a THP- ID (separate from booking tickets). Search by ticket number to see the issue and status.</p>
 								<div class="lookup-card" id="ticketLookupWrap" style="padding:0;border:0;box-shadow:none;margin-bottom:.9rem;">
 									<div class="lookup-row">
-										<input type="email" id="ticketLookupEmail" placeholder="Look up tickets by email" />
+										<input type="text" id="ticketLookupCode" placeholder="e.g. THP-1232" autocomplete="off" />
 										<button class="button button-ghost" type="button" id="ticketLookupBtn">Find</button>
 									</div>
+									<p class="field-hint" style="margin:.45rem 0 0;">Signed-in users also see tickets for their account email below.</p>
 								</div>
 								<div class="ticket-list" id="ticketList">
-									<div class="empty-tickets" id="ticketEmpty">No tickets yet. Submit a request and it will appear here with an HT- ID.</div>
+									<div class="empty-tickets" id="ticketEmpty">No tickets yet. Submit a request and it will appear here with a THP- ID.</div>
 								</div>
 							</div>
 						</div>
@@ -774,26 +784,40 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			return date.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 		}
 
+		function normalizeTicketCode(raw) {
+			let code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
+			if (/^\d{4,8}$/.test(code)) code = `THP-${code}`;
+			return code;
+		}
+
 		function renderTickets(tickets) {
 			const listEl = document.getElementById("ticketList");
 			const empty = document.getElementById("ticketEmpty");
 			if (!listEl) return;
 			const rows = Array.isArray(tickets) ? tickets : [];
 			if (!rows.length) {
-				listEl.innerHTML = `<div class="empty-tickets" id="ticketEmpty">No tickets yet. Submit a request and it will appear here with an HT- ID.</div>`;
+				listEl.innerHTML = `<div class="empty-tickets" id="ticketEmpty">No tickets yet. Submit a request and it will appear here with a THP- ID.</div>`;
 				return;
 			}
 			if (empty) empty.remove();
 			listEl.innerHTML = rows.map((ticket) => {
 				const status = ticket.status || "open";
+				const resolvedBlock = status === "resolved"
+					? `<div class="ticket-resolved"><strong>Problem solved</strong>${
+						ticket.resolution_note
+							? escapeHtml(ticket.resolution_note)
+							: "Our team has marked this issue as fixed."
+					}${ticket.resolved_at ? `<br><span style="opacity:.85">Updated ${escapeHtml(formatWhen(ticket.resolved_at))}</span>` : ""}</div>`
+					: "";
 				return `<article class="ticket-card">
 					<div class="ticket-card-top">
 						<span class="ticket-code">${escapeHtml(ticket.ticket_code)}</span>
 						<span class="status-badge status-${escapeHtml(status)}">${escapeHtml(statusLabel(status))}</span>
 					</div>
 					<p class="ticket-subject">${escapeHtml(ticket.subject)}</p>
-					<p class="ticket-meta">${escapeHtml(ticket.category)} · ${escapeHtml(ticket.priority || "normal")} · ${escapeHtml(formatWhen(ticket.created_at))}}</p>
+					<p class="ticket-meta">${escapeHtml(ticket.category)} · ${escapeHtml(ticket.priority || "normal")} · ${escapeHtml(formatWhen(ticket.created_at))}</p>
 					<p class="ticket-msg">${escapeHtml(ticket.message)}</p>
+					${resolvedBlock}
 				</article>`;
 			}).join("");
 		}
@@ -817,7 +841,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			if (none) none.style.display = visible ? "none" : "block";
 		}
 
-		async function fetchTickets(email) {
+		async function lookupTicketByCode(rawCode) {
+			const code = normalizeTicketCode(rawCode);
+			if (!code) {
+				throw new Error("Enter a ticket number like THP-1232.");
+			}
+			const res = await fetch(`${apiBase()}/api/support/tickets/lookup?code=${encodeURIComponent(code)}`);
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				const detail = data && data.detail;
+				throw new Error(typeof detail === "string" ? detail : "Ticket not found.");
+			}
+			upsertLocalTicket(data);
+			return data;
+		}
+
+		async function fetchTickets() {
 			const user = getUser();
 			const lookup = (user && user.email) || "";
 			try {
@@ -847,15 +886,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			const user = getUser() || {};
 			const nameInput = document.getElementById("ticketName");
 			const emailInput = document.getElementById("ticketEmail");
-			const lookupInput = document.getElementById("ticketLookupEmail");
 			if (nameInput && (user.full_name || user.username)) nameInput.value = user.full_name || user.username;
 			if (emailInput && user.email) {
 				emailInput.value = user.email;
 				emailInput.readOnly = true;
 				emailInput.style.background = "#f8fafc";
 			}
-			const savedEmail = user.email || "";
-			if (lookupInput && savedEmail) lookupInput.value = savedEmail;
 			const hint = document.getElementById("ticketGuestHint");
 			if (hint && user.email) hint.textContent = "Replies go to your account email.";
 
@@ -902,8 +938,28 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				});
 			});
 
-			document.getElementById("ticketLookupBtn").addEventListener("click", () => {
-				fetchTickets();
+			document.getElementById("ticketLookupBtn").addEventListener("click", async () => {
+				const input = document.getElementById("ticketLookupCode");
+				const raw = input ? input.value.trim() : "";
+				if (!raw) {
+					await fetchTickets();
+					return;
+				}
+				try {
+					const ticket = await lookupTicketByCode(raw);
+					renderTickets([ticket]);
+				} catch (err) {
+					const listEl = document.getElementById("ticketList");
+					if (listEl) {
+						listEl.innerHTML = `<div class="empty-tickets">${escapeHtml(err.message || "Ticket not found.")}</div>`;
+					}
+				}
+			});
+			document.getElementById("ticketLookupCode")?.addEventListener("keydown", (event) => {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					document.getElementById("ticketLookupBtn")?.click();
+				}
 			});
 
 			document.getElementById("helpTicketForm").addEventListener("submit", async (e) => {
@@ -959,7 +1015,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						return;
 					}
 					ticket = {
-						ticket_code: `HT-${Math.floor(100000 + Math.random() * 900000)}`,
+						ticket_code: `THP-${Math.floor(1000 + Math.random() * 9000)}`,
 						...payload,
 						status: "open",
 						created_at: new Date().toISOString(),
@@ -980,7 +1036,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				btn.textContent = "Submit ticket";
 			});
 
-			fetchTickets(savedEmail);
+			fetchTickets();
 		});
 	</script>
 </body>

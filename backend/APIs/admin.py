@@ -1117,3 +1117,152 @@ def admin_accept_cancellation(
         "message": "Cancellation accepted. The attendee can buy again.",
         "booking": _serialize_booking(refreshed, db=db),
     }
+
+
+# ── Help & Support tickets (THP- IDs) ─────────────────────────
+
+
+class SupportResolveRequest(BaseModel):
+    resolution_note: Optional[str] = None
+
+
+def _ensure_support_ticket_columns(db: Session) -> None:
+    bind = db.get_bind()
+    dialect = (bind.dialect.name if bind is not None else "") or ""
+    if dialect == "postgresql":
+        stmts = [
+            "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolution_note TEXT",
+            "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",
+        ]
+    else:
+        stmts = [
+            "ALTER TABLE support_tickets ADD COLUMN resolution_note TEXT",
+            "ALTER TABLE support_tickets ADD COLUMN resolved_at DATETIME",
+        ]
+    for sql in stmts:
+        try:
+            db.execute(text(sql))
+            db.commit()
+        except Exception:
+            db.rollback()
+
+
+def _serialize_support_ticket(row) -> dict:
+    return {
+        "id": str(row.id),
+        "ticket_code": row.ticket_code,
+        "name": row.name,
+        "email": row.email,
+        "category": row.category,
+        "priority": row.priority,
+        "subject": row.subject,
+        "message": row.message,
+        "status": row.status,
+        "resolution_note": getattr(row, "resolution_note", None),
+        "resolved_at": json_datetime(getattr(row, "resolved_at", None)),
+        "created_at": json_datetime(row.created_at),
+        "updated_at": json_datetime(row.updated_at),
+    }
+
+
+def _notify_support_resolved(ticket) -> bool:
+    email_addr = (ticket.email or "").strip()
+    if not email_addr:
+        return False
+    code = ticket.ticket_code
+    subject = f"Your support ticket {code} is solved — JOD Events"
+    note = (getattr(ticket, "resolution_note", None) or "").strip()
+    note_block = f"\n\nTeam note:\n{note}\n" if note else "\n"
+    text_body = (
+        f"Hi {ticket.name},\n\n"
+        f"Good news — your Help & Support ticket {code} has been marked as solved.\n\n"
+        f"Subject: {ticket.subject}\n"
+        f"{note_block}"
+        f"If you still need help, reply to this email or open a new ticket on jodevents.com/help "
+        f"with a new THP- ID.\n\n"
+        f"— JOD Events Support\n"
+    )
+    html_body = (
+        f"<p>Hi {ticket.name},</p>"
+        f"<p>Good news — your Help &amp; Support ticket <strong>{code}</strong> has been "
+        f"<strong>marked as solved</strong>.</p>"
+        f"<p><strong>Subject:</strong> {ticket.subject}</p>"
+        + (f"<p><strong>Team note:</strong><br>{note}</p>" if note else "")
+        + "<p>If you still need help, open a new ticket at "
+        "<a href=\"https://jodevents.com/help\">jodevents.com/help</a>.</p>"
+        "<p>— JOD Events Support</p>"
+    )
+    return bool(send_email(email_addr, subject, text_body, html_body=html_body))
+
+
+@router.get("/support-tickets")
+def admin_list_support_tickets(
+    q: Optional[str] = Query(None),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    from Models.support_ticket import SupportTicket
+
+    _ensure_support_ticket_columns(db)
+    try:
+        query = db.query(SupportTicket).order_by(SupportTicket.created_at.desc())
+        rows = query.limit(200).all()
+    except Exception:
+        _db_safe_rollback(db)
+        rows = []
+    items = [_serialize_support_ticket(row) for row in rows]
+    needle = (q or "").strip().lower()
+    if needle:
+        items = [
+            item for item in items
+            if needle in str(item.get("ticket_code") or "").lower()
+            or needle in str(item.get("name") or "").lower()
+            or needle in str(item.get("email") or "").lower()
+            or needle in str(item.get("subject") or "").lower()
+            or needle in str(item.get("message") or "").lower()
+            or needle in str(item.get("category") or "").lower()
+        ]
+    wanted = (status_filter or "").strip().lower()
+    if wanted in ("open", "in_progress", "resolved"):
+        items = [item for item in items if str(item.get("status") or "").lower() == wanted]
+    open_count = sum(
+        1 for item in items if str(item.get("status") or "").lower() != "resolved"
+    )
+    return {"total": len(items), "open": open_count, "tickets": items}
+
+
+@router.patch("/support-tickets/{ticket_code}")
+def admin_update_support_ticket(
+    ticket_code: str,
+    payload: SupportResolveRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """Mark a Help & Support ticket resolved and email the customer."""
+    from datetime import datetime
+    from Models.support_ticket import SupportTicket
+
+    _ensure_support_ticket_columns(db)
+    code = str(ticket_code or "").strip().upper()
+    if not code.startswith("THP-"):
+        raise HTTPException(status_code=400, detail="Help tickets use THP- IDs (for example THP-1232).")
+    row = db.query(SupportTicket).filter(SupportTicket.ticket_code == code).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Support ticket not found.")
+    note = (payload.resolution_note or "").strip() or None
+    row.status = "resolved"
+    row.resolution_note = note
+    row.resolved_at = datetime.utcnow()
+    row.updated_at = datetime.utcnow()
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    emailed = _notify_support_resolved(row)
+    return {
+        "status": "success",
+        "message": "Ticket marked as solved." + (" Customer emailed." if emailed else " Email could not be sent (check SMTP)."),
+        "email_sent": emailed,
+        "ticket": _serialize_support_ticket(row),
+    }
+

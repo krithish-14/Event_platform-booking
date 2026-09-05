@@ -48,7 +48,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		<title>Admin QR Portal - JOD Events</title>
 		<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
 		<link rel="stylesheet" href="css/style.css?v=72" />
-		<link rel="stylesheet" href="css/admin-portal.css?v=9" />
+		<link rel="stylesheet" href="css/admin-portal.css?v=10" />
 	</head>
 	<body class="admin-portal-body">
 <!-- Google Tag Manager (noscript) -->
@@ -87,6 +87,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					<div class="admin-stat"><strong id="statPending">0</strong><span>Need QR</span></div>
 					<div class="admin-stat"><strong id="statReady">0</strong><span>QR sent</span></div>
 					<div class="admin-stat"><strong id="statCancel">0</strong><span>Cancel requests</span></div>
+					<div class="admin-stat"><strong id="statSupport">0</strong><span>Help tickets</span></div>
 				</div>
 			</section>
 
@@ -97,6 +98,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						<option value="host">Attendees Data</option>
 						<option value="payment">Payment Data</option>
 						<option value="cancel">Cancellation request</option>
+						<option value="support">Help &amp; Support</option>
 					</select>
 				</label>
 				<label class="admin-section-label" for="adminEventFilter">
@@ -158,8 +160,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			</div>
 		</div>
 
+		<div class="admin-modal" id="supportModal" hidden>
+			<div class="admin-modal-card">
+				<div class="admin-modal-head">
+					<h2 id="supportModalTitle">Support ticket</h2>
+					<button type="button" id="closeSupportModal">&times;</button>
+				</div>
+				<div id="supportBody" class="admin-answers"></div>
+				<div class="admin-support-resolve" id="supportResolveWrap" hidden>
+					<label for="supportResolveNote">Message to customer (optional)</label>
+					<textarea id="supportResolveNote" rows="3" placeholder="e.g. Refund processed. Your payment will reflect in 3–5 days."></textarea>
+					<button type="button" class="admin-btn" id="supportResolveBtn">Mark as solved &amp; notify</button>
+				</div>
+			</div>
+		</div>
+
 		<script src="js/health.js?v=3"></script>
 		<script src="js/auth.js?v=33"></script>
-		<script src="js/admin-portal.js?v=15"></script>
+		<script src="js/admin-portal.js?v=17"></script>
 	</body>
 </html>

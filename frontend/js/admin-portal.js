@@ -193,6 +193,7 @@
 		const value = select && select.value;
 		if (value === "payment") return "payment";
 		if (value === "cancel") return "cancel";
+		if (value === "support") return "support";
 		return "host";
 	}
 
@@ -288,12 +289,36 @@
 		setText("statPending", payPending);
 		setText("statReady", payReady);
 		setText("statCancel", scopedCancel.length);
+		setText("statSupport", (window.__supportMeta && window.__supportMeta.open) || (window.__supportTickets || []).filter((t) => (t.status || "open") !== "resolved").length);
 		const title = document.getElementById("adminSectionTitle");
 		const copy = document.getElementById("adminSectionCopy");
 		const hint = document.getElementById("adminSectionHint");
 		const ticketCol = document.getElementById("ticketCol");
+		const eventFilterLabel = document.getElementById("adminEventFilter") && document.getElementById("adminEventFilter").closest("label");
+		const searchInput = document.getElementById("adminSearch");
 		const eventNote = eventLabel ? ` for ${eventLabel}` : "";
-		if (section === "cancel") {
+		if (section === "support") {
+			const supportRows = window.__supportTickets || [];
+			setText("sectionCount", supportRows.length);
+			if (title) title.textContent = "Help & Support";
+			if (copy) copy.textContent = "Tickets raised from Help & Support (THP- IDs). Open an issue, then mark it solved to email the customer.";
+			if (hint) hint.textContent = "Review customer issues from the Help page and mark them solved when fixed.";
+			if (ticketCol) ticketCol.textContent = "Issue preview";
+			if (eventFilterLabel) eventFilterLabel.hidden = true;
+			if (searchInput) searchInput.placeholder = "Search THP- ID, name, email, or subject";
+			const head = document.querySelector("#adminTableWrap thead tr");
+			if (head) {
+				head.innerHTML = "<th>Ticket / Customer</th><th>Subject</th><th>Issue preview</th><th>Submitted</th><th>Status</th><th>Action</th>";
+			}
+			fillSupportTable(supportRows);
+			window.__adminRows = supportRows;
+		} else if (section === "cancel") {
+			if (eventFilterLabel) eventFilterLabel.hidden = false;
+			if (searchInput) searchInput.placeholder = "Search name, email, phone, or event";
+			const head = document.querySelector("#adminTableWrap thead tr");
+			if (head) {
+				head.innerHTML = "<th>Attendee</th><th>Event</th><th id=\"ticketCol\">Ticket</th><th>Submitted</th><th>Status</th><th>Action</th>";
+			}
 			setText("sectionCount", scopedCancel.length);
 			if (title) title.textContent = "Cancellation request";
 			if (copy) copy.textContent = eventLabel
@@ -306,6 +331,12 @@
 			fillTable(scopedCancel, eventLabel ? `No cancellation requests for ${eventLabel}.` : "No cancellation requests yet.", { showGenerate: false });
 			window.__adminRows = scopedCancel;
 		} else if (section === "payment") {
+			if (eventFilterLabel) eventFilterLabel.hidden = false;
+			if (searchInput) searchInput.placeholder = "Search name, email, phone, or event";
+			const head = document.querySelector("#adminTableWrap thead tr");
+			if (head) {
+				head.innerHTML = "<th>Attendee</th><th>Event</th><th id=\"ticketCol\">Ticket / Txn</th><th>Submitted</th><th>Status</th><th>Action</th>";
+			}
 			setText("sectionCount", payRows.length);
 			if (title) title.textContent = "Payment Data";
 			if (copy) copy.textContent = eventLabel
@@ -318,6 +349,12 @@
 			fillTable(payRows, eventLabel ? `No payment data for ${eventLabel} yet.` : "No payment data yet.", { showGenerate: true });
 			window.__adminRows = payRows;
 		} else {
+			if (eventFilterLabel) eventFilterLabel.hidden = false;
+			if (searchInput) searchInput.placeholder = "Search name, email, phone, or event";
+			const head = document.querySelector("#adminTableWrap thead tr");
+			if (head) {
+				head.innerHTML = "<th>Attendee</th><th>Event</th><th id=\"ticketCol\">Ticket</th><th>Submitted</th><th>Status</th><th>Action</th>";
+			}
 			setText("sectionCount", hostRows.length);
 			if (title) title.textContent = "Attendees Data";
 			if (copy) copy.textContent = eventLabel
@@ -518,15 +555,151 @@
 		return res.json().catch(() => ({ requests: [] }));
 	}
 
+	async function loadSupportTickets(query) {
+		const qs = query ? `?q=${encodeURIComponent(query)}` : "";
+		const res = await adminFetch(`${apiBase()}/api/admin/support-tickets${qs}`);
+		if (res.status === 401 || res.status === 403) {
+			window.location.href = "login.html";
+			return null;
+		}
+		if (!res.ok) {
+			const data = await res.json().catch(() => ({}));
+			const detail = data && data.detail;
+			throw new Error(typeof detail === "string" ? detail : "Could not load support tickets.");
+		}
+		return res.json();
+	}
+
+	function supportStatusLabel(status) {
+		if (status === "in_progress") return "In progress";
+		if (status === "resolved") return "Resolved";
+		return "Open";
+	}
+
+	function supportRowHtml(row) {
+		const status = row.status || "open";
+		const priority = row.priority || "normal";
+		const preview = String(row.message || "");
+		return `<tr data-id="${escapeHtml(row.ticket_code)}" data-kind="support">
+			<td>
+				<div class="admin-name">${escapeHtml(row.ticket_code)}</div>
+				<div class="admin-muted">${escapeHtml(row.name || "")}</div>
+				<div class="admin-muted">${escapeHtml(row.email || "")}</div>
+			</td>
+			<td>
+				<button type="button" class="admin-event-title" data-support-view="${escapeHtml(row.ticket_code)}" title="View issue">${escapeHtml(row.subject || "Support issue")}</button>
+				<div class="admin-muted">${escapeHtml(row.category || "")} · ${escapeHtml(priority)}</div>
+			</td>
+			<td>${escapeHtml(preview.slice(0, 90))}${preview.length > 90 ? "…" : ""}</td>
+			<td class="admin-submitted">${escapeHtml(formatWhen(row.created_at))}</td>
+			<td><span class="admin-badge ${escapeHtml(status)}">${escapeHtml(supportStatusLabel(status))}</span></td>
+			<td>
+				<div class="admin-actions">
+					<button type="button" class="admin-btn ghost" data-support-view="${escapeHtml(row.ticket_code)}">View issue</button>
+					${status !== "resolved" ? `<button type="button" class="admin-btn accept" data-support-resolve="${escapeHtml(row.ticket_code)}">Mark solved</button>` : ""}
+				</div>
+			</td>
+		</tr>`;
+	}
+
+	function fillSupportTable(rows) {
+		const body = document.getElementById("adminTableBody");
+		const wrap = document.getElementById("adminTableWrap");
+		const empty = document.getElementById("adminEmpty");
+		if (!body) return;
+		if (!rows.length) {
+			body.innerHTML = "";
+			if (empty) {
+				empty.hidden = false;
+				empty.textContent = "No Help & Support tickets yet.";
+			}
+			if (wrap) wrap.hidden = true;
+			return;
+		}
+		if (empty) empty.hidden = true;
+		if (wrap) wrap.hidden = false;
+		body.innerHTML = rows.map(supportRowHtml).join("");
+	}
+
+	function findSupportTicket(code) {
+		return (window.__supportTickets || []).find((item) => String(item.ticket_code) === String(code));
+	}
+
+	function openSupportTicket(code, preferResolve) {
+		const row = findSupportTicket(code);
+		const modal = document.getElementById("supportModal");
+		const body = document.getElementById("supportBody");
+		const title = document.getElementById("supportModalTitle");
+		const resolveWrap = document.getElementById("supportResolveWrap");
+		const noteEl = document.getElementById("supportResolveNote");
+		const resolveBtn = document.getElementById("supportResolveBtn");
+		if (!row || !modal || !body) return;
+		if (title) title.textContent = row.ticket_code || "Support ticket";
+		body.innerHTML = `
+			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(row.status || "open")}">${escapeHtml(supportStatusLabel(row.status))}</span></dd>
+			<dt>Customer</dt><dd>${escapeHtml(row.name || "")}<br>${escapeHtml(row.email || "")}</dd>
+			<dt>Category / Priority</dt><dd>${escapeHtml(row.category || "")} · ${escapeHtml(row.priority || "normal")}</dd>
+			<dt>Subject</dt><dd>${escapeHtml(row.subject || "")}</dd>
+			<dt>Issue details</dt><dd>${escapeHtml(row.message || "")}</dd>
+			<dt>Submitted</dt><dd>${escapeHtml(formatWhen(row.created_at))}</dd>
+			${row.resolution_note ? `<dt>Resolution note</dt><dd>${escapeHtml(row.resolution_note)}</dd>` : ""}
+			${row.resolved_at ? `<dt>Resolved</dt><dd>${escapeHtml(formatWhen(row.resolved_at))}</dd>` : ""}
+		`;
+		const canResolve = (row.status || "open") !== "resolved";
+		if (resolveWrap) resolveWrap.hidden = !canResolve;
+		if (noteEl) noteEl.value = "";
+		if (resolveBtn) {
+			resolveBtn.dataset.code = row.ticket_code;
+			resolveBtn.disabled = false;
+			resolveBtn.textContent = "Mark as solved & notify";
+		}
+		modal.hidden = false;
+		if (preferResolve && canResolve && noteEl) noteEl.focus();
+	}
+
+	async function resolveSupportTicket(code, btn) {
+		const noteEl = document.getElementById("supportResolveNote");
+		const note = noteEl ? noteEl.value.trim() : "";
+		if (btn) {
+			btn.disabled = true;
+			btn.textContent = "Saving…";
+		}
+		try {
+			const res = await adminFetch(`${apiBase()}/api/admin/support-tickets/${encodeURIComponent(code)}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ resolution_note: note || null }),
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				const detail = data && data.detail;
+				throw new Error(typeof detail === "string" ? detail : "Could not mark ticket as solved.");
+			}
+			alert(data.message || "Ticket marked as solved.");
+			document.getElementById("supportModal").hidden = true;
+			await refresh();
+		} catch (err) {
+			alert(err.message || "Could not mark ticket as solved.");
+			if (btn && btn.isConnected) {
+				btn.disabled = false;
+				btn.textContent = "Mark as solved & notify";
+			}
+		}
+	}
+
 	async function refresh() {
 		const query = (document.getElementById("adminSearch") || {}).value || "";
 		try {
-			const [data, cancelData] = await Promise.all([
+			const [data, cancelData, supportData] = await Promise.all([
 				loadRows(query.trim()),
 				loadCancelRequests(query.trim()),
+				loadSupportTickets(query.trim()),
 			]);
 			window.__cancelRequests = Array.isArray(cancelData && cancelData.requests) ? cancelData.requests : [];
+			window.__supportTickets = Array.isArray(supportData && supportData.tickets) ? supportData.tickets : [];
+			window.__supportMeta = supportData || { open: 0, total: 0 };
 			if (data) renderRows(data);
+			else applySection(window.__adminData);
 		} catch (err) {
 			const empty = document.getElementById("adminEmpty");
 			if (empty) {
@@ -583,6 +756,16 @@
 				acceptCancellation(acceptBtn.getAttribute("data-accept-cancel"), acceptBtn);
 				return;
 			}
+			const supportViewBtn = event.target.closest("[data-support-view]");
+			if (supportViewBtn) {
+				openSupportTicket(supportViewBtn.getAttribute("data-support-view"), false);
+				return;
+			}
+			const supportResolveBtn = event.target.closest("[data-support-resolve]");
+			if (supportResolveBtn) {
+				openSupportTicket(supportResolveBtn.getAttribute("data-support-resolve"), true);
+				return;
+			}
 			const eventBtn = event.target.closest("[data-event-key]");
 			if (eventBtn) {
 				const key = eventBtn.getAttribute("data-event-key");
@@ -600,11 +783,22 @@
 		document.getElementById("closeQrModal")?.addEventListener("click", () => {
 			document.getElementById("qrModal").hidden = true;
 		});
+		document.getElementById("closeSupportModal")?.addEventListener("click", () => {
+			document.getElementById("supportModal").hidden = true;
+		});
+		document.getElementById("supportResolveBtn")?.addEventListener("click", (event) => {
+			const btn = event.currentTarget;
+			const code = btn && btn.dataset ? btn.dataset.code : "";
+			if (code) resolveSupportTicket(code, btn);
+		});
 		document.getElementById("answersModal")?.addEventListener("click", (event) => {
 			if (event.target.id === "answersModal") event.currentTarget.hidden = true;
 		});
 		document.getElementById("qrModal")?.addEventListener("click", (event) => {
 			if (event.target.id === "qrModal") event.currentTarget.hidden = true;
+		});
+		document.getElementById("supportModal")?.addEventListener("click", (event) => {
+			if (event.target.id === "supportModal") event.currentTarget.hidden = true;
 		});
 		await refresh();
 	});
