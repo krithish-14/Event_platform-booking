@@ -126,7 +126,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 	#pendingLead[hidden],
 	#pendingDetail[hidden],
 	#pendingRejectBlock[hidden],
-	#pendingSetupLink[hidden] {
+	#pendingSetupLink[hidden],
+	#pendingHelpLink[hidden] {
 		display: none !important;
 	}
 	html[data-theme="dark"] body {
@@ -162,6 +163,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		<div class="actions">
 			<a class="btn-primary" href="index.html" id="pendingHome">Back to home</a>
 			<a class="btn-secondary" href="account-setup.html" id="pendingSetupLink" hidden>Update my application</a>
+			<a class="btn-secondary" href="help.html" id="pendingHelpLink" hidden>Raise a support ticket</a>
 		</div>
 	</div>
 
@@ -176,10 +178,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 		const detail = document.getElementById("pendingDetail");
 		const rejectBlock = document.getElementById("pendingRejectBlock");
 		const setupLink = document.getElementById("pendingSetupLink");
+		const helpLink = document.getElementById("pendingHelpLink");
 		const homeLink = document.getElementById("pendingHome");
 
 		if (homeLink && window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
 			homeLink.setAttribute("href", window.JodUrls.prettyHref("index.html") || "/");
+		}
+		if (helpLink && window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
+			helpLink.setAttribute("href", window.JodUrls.prettyHref("help.html") || "/help");
 		}
 
 		if (!(window.JodAuth && window.JodAuth.isLoggedIn && window.JodAuth.isLoggedIn())) {
@@ -200,6 +206,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			rejectBlock.hidden = true;
 			rejectBlock.textContent = "";
 			setupLink.hidden = true;
+			helpLink.hidden = true;
 		}
 
 		async function loadStatus() {
@@ -224,6 +231,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				return;
 			}
 
+			if (status === "RESTRICTED") {
+				mark.className = "mark is-rejected";
+				mark.textContent = "!";
+				badge.className = "status-pill is-rejected";
+				badge.textContent = "Restricted";
+				title.textContent = "Account restricted";
+				lead.hidden = true;
+				detail.hidden = true;
+				const reason = (data && data.rejection_reason) || "No reason provided.";
+				rejectBlock.hidden = false;
+				rejectBlock.textContent = "Reason: " + reason;
+				setupLink.hidden = true;
+				helpLink.hidden = false;
+				return;
+			}
+
 			if (status === "REJECTED") {
 				mark.className = "mark is-rejected";
 				mark.textContent = "!";
@@ -236,6 +259,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				rejectBlock.hidden = false;
 				rejectBlock.textContent = "Reason: " + reason;
 				setupLink.hidden = false;
+				helpLink.hidden = true;
 				return;
 			}
 

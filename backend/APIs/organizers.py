@@ -75,12 +75,14 @@ def _bound_organizer_email(email: Optional[str], current_user: Optional[User] = 
 #  "submitted"          →  PENDING
 #  "verified"           →  VERIFIED
 #  "rejected"           →  REJECTED
-#  "restricted"         →  REJECTED (dashboard locked; admin revoked access)
+#  "restricted"         →  RESTRICTED (dashboard locked; admin can revoke)
 def to_public_verification_status(internal_status: Optional[str]) -> str:
     s = (internal_status or "").lower().strip()
     if s == "verified":
         return "VERIFIED"
-    if s in ("rejected", "restricted"):
+    if s == "restricted":
+        return "RESTRICTED"
+    if s == "rejected":
         return "REJECTED"
     if s == "submitted":
         return "PENDING"

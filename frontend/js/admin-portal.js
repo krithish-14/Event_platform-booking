@@ -452,8 +452,8 @@
 			setText("sectionCount", hostDataRows.length);
 			if (pageTitle) pageTitle.textContent = "Host Data";
 			if (title) title.textContent = "Host Data";
-			if (copy) copy.textContent = "Host application history. Each resubmit is a new entry. Accept, reject, or restrict approved hosts with a reason.";
-			if (hint) hint.textContent = "Accepted and rejected records stay visible. Restrict locks dashboard access for an already-accepted host.";
+			if (copy) copy.textContent = "Host application history. Each resubmit is a new entry. Accept, reject, restrict, or revoke restriction after review.";
+			if (hint) hint.textContent = "Restricted hosts can raise a Help ticket; use Revoke restriction after you review it.";
 			if (searchInput) searchInput.placeholder = "Search host email, org, name, or host ID";
 			const head = document.querySelector("#adminTableWrap thead tr");
 			if (head) {
@@ -816,7 +816,7 @@
 		if (s === "pending" || s === "submitted") return "Pending review";
 		if (s === "approved" || s === "verified") return "Accepted";
 		if (s === "rejected") return "Rejected";
-		if (s === "restricted") return "Restricted";
+		if (s === "restricted") return "Account restricted";
 		if (s === "draft") return "Draft";
 		return s || "Unknown";
 	}
@@ -832,6 +832,7 @@
 		const key = hostAppKey(row);
 		const canApprove = Boolean(row.can_approve) || status === "pending";
 		const canRestrict = Boolean(row.can_restrict) || status === "approved";
+		const canUnrestrict = Boolean(row.can_unrestrict) || status === "restricted";
 		return `<tr data-id="${escapeHtml(key)}" data-kind="host-data">
 			<td>
 				<strong>${escapeHtml(name)}</strong>
@@ -848,6 +849,7 @@
 				<button type="button" class="admin-btn ghost" data-host-view="${escapeHtml(key)}">View</button>
 				${canApprove ? `<button type="button" class="admin-btn accept" data-host-approve="${escapeHtml(key)}">Accept</button>` : ""}
 				${canRestrict ? `<button type="button" class="admin-btn ghost" data-host-restrict="${escapeHtml(key)}">Restrict</button>` : ""}
+				${canUnrestrict ? `<button type="button" class="admin-btn accept" data-host-unrestrict="${escapeHtml(key)}">Revoke restrict</button>` : ""}
 			</td>
 		</tr>`;
 	}
@@ -893,10 +895,12 @@
 		const approveBtn = document.getElementById("hostApproveBtn");
 		const rejectBtn = document.getElementById("hostRejectBtn");
 		const restrictBtn = document.getElementById("hostRestrictBtn");
+		const unrestrictBtn = document.getElementById("hostUnrestrictBtn");
 		const status = String(row.status || "pending").toLowerCase();
 		const canApprove = Boolean(row.can_approve) || status === "pending";
 		const canReject = Boolean(row.can_reject) || status === "pending";
 		const canRestrict = Boolean(row.can_restrict) || status === "approved";
+		const canUnrestrict = Boolean(row.can_unrestrict) || status === "restricted";
 		const appKey = hostAppKey(row);
 		if (title) title.textContent = row.org_name || row.contact_full_name || "Host application";
 		const panLink = row.pan_card_url
@@ -946,14 +950,23 @@
 				}
 			});
 		});
-		const showActions = canApprove || canReject || canRestrict;
+		const showActions = canApprove || canReject || canRestrict || canUnrestrict;
 		if (reviewWrap) reviewWrap.hidden = !showActions;
 		if (reasonLabel) {
-			reasonLabel.textContent = canRestrict && !canApprove
-				? "Restrict reason (required)"
-				: "Rejection / restrict reason (required to reject or restrict)";
+			if (canUnrestrict && !canApprove && !canRestrict) {
+				reasonLabel.textContent = "Revoke note (optional)";
+			} else if (canRestrict && !canApprove) {
+				reasonLabel.textContent = "Restrict reason (required)";
+			} else {
+				reasonLabel.textContent = "Rejection / restrict reason (required to reject or restrict)";
+			}
 		}
-		if (reasonEl) reasonEl.value = "";
+		if (reasonEl) {
+			reasonEl.value = "";
+			reasonEl.placeholder = canUnrestrict && !canRestrict
+				? "Optional note after reviewing the support ticket…"
+				: "e.g. PAN image unclear — please re-upload a sharper scan.";
+		}
 		if (approveBtn) {
 			approveBtn.dataset.key = appKey;
 			approveBtn.hidden = !canApprove;
@@ -972,6 +985,12 @@
 			restrictBtn.disabled = !canRestrict;
 			restrictBtn.textContent = "Restrict access";
 		}
+		if (unrestrictBtn) {
+			unrestrictBtn.dataset.key = appKey;
+			unrestrictBtn.hidden = !canUnrestrict;
+			unrestrictBtn.disabled = !canUnrestrict;
+			unrestrictBtn.textContent = "Revoke restriction";
+		}
 		modal.hidden = false;
 		if (focusReview && reasonEl && showActions) reasonEl.focus();
 	}
@@ -989,10 +1008,15 @@
 			}
 			payload.rejection_reason = reason;
 		}
+		if (action === "unrestrict") {
+			const note = ((reasonEl && reasonEl.value) || "").trim();
+			if (note) payload.rejection_reason = note;
+		}
 		const labels = {
 			approve: ["Approving…", "Accept host", "Host accepted."],
 			reject: ["Rejecting…", "Reject", "Host rejected."],
 			restrict: ["Restricting…", "Restrict access", "Host access restricted."],
+			unrestrict: ["Revoking…", "Revoke restriction", "Restriction revoked."],
 		};
 		const [busy, idle, okMsg] = labels[action] || ["Saving…", "Save", "Saved."];
 		if (btn) {
@@ -1255,6 +1279,11 @@
 				openHostData(hostRestrictBtn.getAttribute("data-host-restrict"), true);
 				return;
 			}
+			const hostUnrestrictBtn = event.target.closest("[data-host-unrestrict]");
+			if (hostUnrestrictBtn) {
+				openHostData(hostUnrestrictBtn.getAttribute("data-host-unrestrict"), true);
+				return;
+			}
 			const eventBtn = event.target.closest("[data-event-key]");
 			if (eventBtn) {
 				const key = eventBtn.getAttribute("data-event-key");
@@ -1297,6 +1326,11 @@
 			const btn = event.currentTarget;
 			const key = btn && btn.dataset ? btn.dataset.key : "";
 			if (key) reviewHost(key, "restrict", btn);
+		});
+		document.getElementById("hostUnrestrictBtn")?.addEventListener("click", (event) => {
+			const btn = event.currentTarget;
+			const key = btn && btn.dataset ? btn.dataset.key : "";
+			if (key) reviewHost(key, "unrestrict", btn);
 		});
 		document.getElementById("answersModal")?.addEventListener("click", (event) => {
 			if (event.target.id === "answersModal") event.currentTarget.hidden = true;

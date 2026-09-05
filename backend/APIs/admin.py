@@ -1268,7 +1268,7 @@ def admin_update_support_ticket(
 
 
 class HostReviewRequest(BaseModel):
-    action: str  # approve | reject | restrict
+    action: str  # approve | reject | restrict | unrestrict
     rejection_reason: Optional[str] = None
 
 
@@ -1318,6 +1318,7 @@ def _serialize_host_application(app) -> Dict[str, Any]:
         "can_approve": status == "pending",
         "can_reject": status == "pending",
         "can_restrict": status == "approved",
+        "can_unrestrict": status == "restricted",
     }
 
 
@@ -1375,24 +1376,31 @@ def _backfill_host_applications(db: Session) -> None:
             _db_safe_rollback(db)
 
 
-def _notify_host_review(acc, *, approved: bool = False, restricted: bool = False) -> bool:
+def _notify_host_review(acc, *, approved: bool = False, restricted: bool = False, unrestricted: bool = False) -> bool:
     email_addr = (acc.contact_email or acc.email or "").strip()
     if not email_addr or "@" not in email_addr:
         return False
     name = (acc.contact_full_name or acc.org_name or "Host").strip()
-    if approved:
-        subject = "Your JOD Events host account is approved"
+    if approved or unrestricted:
+        subject = (
+            "Your JOD Events host restriction was revoked"
+            if unrestricted
+            else "Your JOD Events host account is approved"
+        )
+        lead = (
+            "Your Host Dashboard restriction has been revoked. You can access the Host Dashboard again."
+            if unrestricted
+            else "Your host account setup has been verified. You can now open the Host Dashboard and start creating events."
+        )
         text_body = (
             f"Hi {name},\n\n"
-            "Your host account setup has been verified. You can now open the Host Dashboard "
-            "and start creating events.\n\n"
+            f"{lead}\n\n"
             "Sign in at jodevents.com and go to Host Your Event.\n\n"
             "— JOD Events\n"
         )
         html_body = (
             f"<p>Hi {name},</p>"
-            "<p>Your host account setup has been <strong>verified</strong>. "
-            "You can now open the Host Dashboard and start creating events.</p>"
+            f"<p>{lead}</p>"
             "<p>Sign in at <a href=\"https://jodevents.com\">jodevents.com</a> "
             "and go to Host Your Event.</p>"
             "<p>— JOD Events</p>"
@@ -1404,14 +1412,15 @@ def _notify_host_review(acc, *, approved: bool = False, restricted: bool = False
             f"Hi {name},\n\n"
             "Your Host Dashboard access has been restricted by JOD Events Authority.\n\n"
             f"Reason: {reason}\n\n"
-            "Contact support if you need help.\n\n"
+            "You can raise a Help & Support ticket if you need this reviewed.\n\n"
             "— JOD Events\n"
         )
         html_body = (
             f"<p>Hi {name},</p>"
             "<p>Your Host Dashboard access has been <strong>restricted</strong> by JOD Events Authority.</p>"
             f"<p><strong>Reason:</strong> {reason}</p>"
-            "<p>Contact support if you need help.</p>"
+            "<p>You can raise a Help &amp; Support ticket at "
+            "<a href=\"https://jodevents.com/help\">jodevents.com/help</a> if you need this reviewed.</p>"
             "<p>— JOD Events</p>"
         )
     else:
@@ -1497,8 +1506,10 @@ def admin_review_host(
     from APIs.organizers import is_setup_complete, snapshot_host_application
 
     action = (payload.action or "").strip().lower()
-    if action not in ("approve", "reject", "restrict", "verified", "rejected"):
-        raise HTTPException(status_code=400, detail="action must be approve, reject, or restrict.")
+    if action in ("revoke", "revoke_restriction", "unrestrict"):
+        action = "unrestrict"
+    if action not in ("approve", "reject", "restrict", "unrestrict", "verified", "rejected"):
+        raise HTTPException(status_code=400, detail="action must be approve, reject, restrict, or unrestrict.")
     if action == "verified":
         action = "approve"
     if action == "rejected":
@@ -1591,7 +1602,7 @@ def admin_review_host(
             ))
         emailed = _notify_host_review(org_acc, approved=False)
         msg = "Host rejected."
-    else:  # restrict
+    elif action == "restrict":
         if not reason:
             raise HTTPException(status_code=400, detail="rejection_reason is required when restricting access.")
         if (org_acc.status or "").lower() != "verified" and not (app and (app.status or "").lower() == "approved"):
@@ -1605,6 +1616,25 @@ def admin_review_host(
         ))
         emailed = _notify_host_review(org_acc, restricted=True)
         msg = "Host access restricted."
+    else:  # unrestrict / revoke restriction
+        if (org_acc.status or "").lower() != "restricted" and not (app and (app.status or "").lower() == "restricted"):
+            raise HTTPException(status_code=400, detail="Only restricted hosts can have restriction revoked.")
+        if not is_setup_complete(org_acc):
+            raise HTTPException(status_code=400, detail="Host setup is incomplete; cannot restore dashboard access.")
+        note = reason or "Restriction revoked after review."
+        org_acc.status = "verified"
+        org_acc.verified_at = now
+        org_acc.rejection_reason = None
+        # Keep the restricted history row; add a new accepted entry for the revoke.
+        db.add(snapshot_host_application(
+            org_acc,
+            status="approved",
+            action="unrestrict",
+            review_reason=note,
+            reviewed_by=admin_email,
+        ))
+        emailed = _notify_host_review(org_acc, unrestricted=True)
+        msg = "Host restriction revoked."
 
     db.add(org_acc)
     db.commit()
