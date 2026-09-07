@@ -294,6 +294,37 @@
 	color: rgba(114,109,101,.45);
 }
 
+.auth-phone-row {
+	display: flex;
+	align-items: stretch;
+	gap: 0.5rem;
+	width: 100%;
+}
+
+.auth-phone-row .phone-country-select {
+	flex: 0 0 8.6rem;
+	width: auto;
+	max-width: 9.5rem;
+	padding: 0.75rem 0.45rem;
+	font-size: 0.84rem;
+}
+
+.auth-phone-row .phone-national-wrap {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.auth-phone-row .phone-national-wrap .form-input {
+	padding-left: 1rem;
+}
+
+.phone-hint {
+	margin: 0.4rem 0 0;
+	font-size: 0.78rem;
+	color: var(--muted);
+	line-height: 1.35;
+}
+
 /* Password toggle */
 .input-wrap .toggle-pw {
 	position: absolute;

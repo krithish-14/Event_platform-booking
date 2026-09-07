@@ -364,16 +364,21 @@ body.sub-page.is-auth-ready[data-user="guest"] .announcement-bar {
 /* --- Header / Nav --- */
 #header {
 	min-height: 0;
+	height: 0;
+	margin: 0;
+	padding: 0;
+	overflow: visible;
 	display: block;
 }
 
 #header:empty {
+	height: auto;
 	min-height: 4.6rem;
 }
 
 .site-header {
 	position: fixed;
-	top: 40px;
+	top: 0;
 	left: 0;
 	right: 0;
 	z-index: 40;
@@ -381,6 +386,11 @@ body.sub-page.is-auth-ready[data-user="guest"] .announcement-bar {
 	border-bottom: 1px solid rgba(229, 223, 213, .7);
 	backdrop-filter: blur(18px);
 	transition: top 0.3s ease, background .3s, border-color .3s, backdrop-filter .3s;
+}
+
+/* Home: sit below the announcement bar when it is present */
+body.home-page .site-header:not(.is-scrolled) {
+	top: var(--hero-announcement-height, 0px);
 }
 
 body.sub-page .site-header,
@@ -1096,13 +1106,20 @@ body.is-auth-ready[data-user="authenticated"] .mobile-auth-group {
 }
 
 body.home-page {
-	--hero-header-offset: calc(40px + var(--site-header-height, 4.6rem));
+	--hero-announcement-height: 0px;
+	--hero-header-offset: var(--site-header-height, 4.6rem);
 	--hero-banner-width: 1200;
 	--hero-banner-height: min(530px, calc(100vw * 530 / 1200));
 }
 
+body.home-page:has(.announcement-bar.has-published-event:not([hidden])) {
+	--hero-announcement-height: 40px;
+	--hero-header-offset: calc(40px + var(--site-header-height, 4.6rem));
+}
+
 body.home-page .hero {
-	padding-top: var(--hero-header-offset);
+	/* Reserved strip under fixed header is covered by the nav; banner media sits below it */
+	padding-top: 0;
 	overflow: hidden;
 	height: calc(var(--hero-header-offset) + var(--hero-banner-height));
 	max-height: none;

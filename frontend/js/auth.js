@@ -994,11 +994,16 @@ window.JodAuth = (() => {
 
 		const checkEmail = debounce(async (email) => {
 			const seq = ++emailCheckSeq;
-			if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			const emailOk = (window.JodContactRules && window.JodContactRules.isValidEmail)
+				? window.JodContactRules.isValidEmail(email)
+				: Boolean(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+			if (!emailOk) {
 				clearLiveStatus(emailInput);
 				emailAvailable = null;
+				if (email) setError(emailInput, "Enter valid mail id");
 				return;
 			}
+			setError(emailInput, "");
 			setLiveStatus(emailInput, null, "Checking\u2026");
 			if (emailInput) emailInput.style.borderColor = "#94a3b8";
 			try {
@@ -1052,7 +1057,21 @@ window.JodAuth = (() => {
 		}
 
 		const phoneInput = signupForm.querySelector("#signupPhone");
-		if (phoneInput) {
+		const phoneCountry = signupForm.querySelector("#signupPhoneCountry");
+		const phoneHint = document.getElementById("signupPhoneHint");
+		const contactRules = window.JodContactRules || null;
+
+		function syncSignupPhoneHint() {
+			if (!contactRules || !phoneCountry || !phoneHint) return;
+			const country = contactRules.getCountry(phoneCountry.value);
+			phoneHint.textContent = `${country.name} (+${country.dial}) requires exactly ${country.length} digits.`;
+		}
+
+		if (contactRules && phoneCountry && phoneInput) {
+			contactRules.bindPhoneField(phoneCountry, phoneInput);
+			syncSignupPhoneHint();
+			phoneCountry.addEventListener("change", syncSignupPhoneHint);
+		} else if (phoneInput) {
 			phoneInput.addEventListener("input", () => {
 				const digits = phoneInput.value.replace(/\D/g, "").slice(0, 10);
 				if (phoneInput.value !== digits) phoneInput.value = digits;
@@ -1187,7 +1206,10 @@ window.JodAuth = (() => {
 			const username = (usernameInput ? usernameInput.value : "").trim();
 			const email = (emailInput ? emailInput.value : "").trim();
 			const phoneEl = signupForm.querySelector("#signupPhone");
-			const phone = phoneEl ? phoneEl.value.replace(/\D/g, "") : "";
+			const phoneCountryEl = signupForm.querySelector("#signupPhoneCountry");
+			const dial = phoneCountryEl ? phoneCountryEl.value : "91";
+			const national = phoneEl ? phoneEl.value : "";
+			let phone = "";
 			const password = passwordInput ? passwordInput.value : "";
 			const confirm = confirmInput ? confirmInput.value : "";
 			let valid = true;
@@ -1207,10 +1229,27 @@ window.JodAuth = (() => {
 			else if (username.length < 3) { setError(signupForm.querySelector("#signupUsername"), "Username must be at least 3 characters."); valid = false; }
 
 			if (!email) { setError(signupForm.querySelector("#signupEmail"), "Email is required."); valid = false; }
-			else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError(signupForm.querySelector("#signupEmail"), "Enter a valid email address."); valid = false; }
+			else if (contactRules) {
+				const emailCheck = contactRules.validateEmail(email);
+				if (!emailCheck.ok) { setError(signupForm.querySelector("#signupEmail"), emailCheck.message); valid = false; }
+			} else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+				setError(signupForm.querySelector("#signupEmail"), "Enter valid mail id");
+				valid = false;
+			}
 
-			if (!phone) { setError(signupForm.querySelector("#signupPhone"), "Phone number is required."); valid = false; }
-			else if (!/^\d{10}$/.test(phone)) { setError(signupForm.querySelector("#signupPhone"), "Phone number must be exactly 10 digits."); valid = false; }
+			if (contactRules) {
+				const phoneCheck = contactRules.validatePhone(dial, national);
+				if (!phoneCheck.ok) {
+					setError(signupForm.querySelector("#signupPhone"), phoneCheck.message);
+					valid = false;
+				} else {
+					phone = phoneCheck.e164;
+				}
+			} else {
+				phone = String(national).replace(/\D/g, "");
+				if (!phone) { setError(signupForm.querySelector("#signupPhone"), "Phone number is required."); valid = false; }
+				else if (!/^\d{10}$/.test(phone)) { setError(signupForm.querySelector("#signupPhone"), "Phone number must be exactly 10 digits."); valid = false; }
+			}
 
 			if (!password) { setError(signupForm.querySelector("#signupPassword"), "Password is required."); valid = false; }
 			else if (password.length < 8) { setError(signupForm.querySelector("#signupPassword"), "Password must be at least 8 characters."); valid = false; }

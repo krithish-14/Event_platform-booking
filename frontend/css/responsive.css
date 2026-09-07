@@ -177,11 +177,11 @@
 		min-height: 0;
 	}
 	body.home-page {
-		--hero-header-offset: calc(40px + var(--site-header-height, 3.85rem));
+		--hero-header-offset: calc(var(--hero-announcement-height, 0px) + var(--site-header-height, 3.85rem));
 		--hero-banner-height: min(530px, calc(100vw * 530 / 1200));
 	}
 	body.home-page .hero {
-		padding-top: var(--hero-header-offset);
+		padding-top: 0;
 		padding-bottom: 0;
 		height: calc(var(--hero-header-offset) + var(--hero-banner-height));
 		max-height: none;
@@ -420,7 +420,7 @@
 	}
 	:root { --header-logo-height: 3.1rem; --site-header-height: 3.4rem; }
 	body.home-page {
-		--hero-header-offset: calc(40px + var(--site-header-height, 3.4rem));
+		--hero-header-offset: calc(var(--hero-announcement-height, 0px) + var(--site-header-height, 3.4rem));
 		--hero-banner-height: min(530px, calc(100vw * 530 / 1200));
 	}
 	.header-search {

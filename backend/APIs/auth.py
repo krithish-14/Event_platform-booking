@@ -180,6 +180,47 @@ def generate_customer_id(db: Session) -> str:
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
+# Dial code → exact national number length (keep in sync with frontend/js/phone-email-rules.js)
+_PHONE_COUNTRY_LENGTHS = {
+    "91": 10,   # India
+    "1": 10,    # US
+    "44": 10,   # UK
+    "971": 9,   # UAE
+    "65": 8,    # Singapore
+    "61": 9,    # Australia
+    "966": 9,   # Saudi Arabia
+    "974": 8,   # Qatar
+    "60": 9,    # Malaysia
+    "94": 9,    # Sri Lanka
+    "880": 10,  # Bangladesh
+    "977": 10,  # Nepal
+    "49": 11,   # Germany
+    "33": 9,    # France
+    "92": 10,   # Pakistan
+}
+
+
+def _normalize_phone(value: str) -> str:
+    digits = re.sub(r"\D", "", value or "")
+    if not digits:
+        raise ValueError("Phone number is required.")
+
+    # Match longest dial code first
+    for dial in sorted(_PHONE_COUNTRY_LENGTHS.keys(), key=len, reverse=True):
+        length = _PHONE_COUNTRY_LENGTHS[dial]
+        if digits.startswith(dial) and len(digits) == len(dial) + length:
+            return f"+{digits}"
+
+    # Legacy bare 10-digit Indian mobiles
+    if len(digits) == 10:
+        return f"+91{digits}"
+
+    raise ValueError(
+        "Enter a valid phone number with country code "
+        "(e.g. India +91 requires exactly 10 digits)."
+    )
+
+
 class UserRegisterRequest(BaseModel):
     email: EmailStr
     username: str
@@ -205,10 +246,7 @@ class UserRegisterRequest(BaseModel):
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v: str) -> str:
-        digits = re.sub(r"\D", "", v or "")
-        if len(digits) != 10:
-            raise ValueError("Phone number must be exactly 10 digits.")
-        return digits
+        return _normalize_phone(v)
 
     @field_validator("username")
     @classmethod

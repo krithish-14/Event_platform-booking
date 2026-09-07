@@ -2,13 +2,14 @@
 API endpoints for Event Organizer onboarding — Email OTP verification & Account setup with bank details.
 """
 
+import re
 import sys
 import uuid
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy import or_
 
 from Models import get_db, EmailOTP, OrganizerAccount, User, HostRegistrationLog, HostApplication
@@ -264,6 +265,32 @@ class AccountSetupRequest(BaseModel):
     accepted_agreement: bool = False
 
     is_final_submit: bool = False
+
+    @field_validator("contact_mobile")
+    @classmethod
+    def validate_contact_mobile(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        text = str(v).strip()
+        if not text:
+            return None
+        # Keep in sync with frontend/js/phone-email-rules.js
+        lengths = {
+            "91": 10, "1": 10, "44": 10, "971": 9, "65": 8, "61": 9,
+            "966": 9, "974": 8, "60": 9, "94": 9, "880": 10, "977": 10,
+            "49": 11, "33": 9, "92": 10,
+        }
+        digits = re.sub(r"\D", "", text)
+        for dial in sorted(lengths.keys(), key=len, reverse=True):
+            need = lengths[dial]
+            if digits.startswith(dial) and len(digits) == len(dial) + need:
+                return f"+{digits}"
+        if len(digits) == 10:
+            return f"+91{digits}"
+        raise ValueError(
+            "Enter a valid mobile number with country code "
+            "(e.g. India +91 requires exactly 10 digits)."
+        )
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────

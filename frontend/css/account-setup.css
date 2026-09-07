@@ -173,6 +173,33 @@
 	color: #94a3b8;
 }
 
+.phone-input-row {
+	display: flex;
+	align-items: stretch;
+	gap: 0.5rem;
+	width: 100%;
+}
+
+.phone-country-select {
+	flex: 0 0 8.75rem;
+	max-width: 9.5rem;
+	padding-left: 0.55rem;
+	padding-right: 0.4rem;
+	font-size: 0.84rem;
+}
+
+.phone-input-row .setup-input {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.phone-hint {
+	margin: 0.35rem 0 0;
+	font-size: 0.78rem;
+	color: #64748b;
+	line-height: 1.35;
+}
+
 /* Radio & Checkbox Groups */
 .radio-group-inline {
 	display: flex;

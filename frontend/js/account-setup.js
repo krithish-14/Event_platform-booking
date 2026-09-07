@@ -30,9 +30,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 	const setupAlertContent = document.getElementById("setupAlertContent");
 
 	const contactEmailInput = document.getElementById("contactEmail");
+	const contactMobileInput = document.getElementById("contactMobile");
+	const contactMobileCountry = document.getElementById("contactMobileCountry");
+	const contactMobileHint = document.getElementById("contactMobileHint");
 	const btnSaveDetails = document.getElementById("btnSaveDetails");
 	const btnProceed = document.getElementById("btnProceed");
 	const btnBack = document.getElementById("btnBack");
+
+	const rules = window.JodContactRules || null;
+
+	function syncMobileHint() {
+		if (!rules || !contactMobileCountry || !contactMobileHint) return;
+		const country = rules.getCountry(contactMobileCountry.value);
+		contactMobileHint.textContent = `${country.name} (+${country.dial}) requires exactly ${country.length} digits.`;
+	}
+
+	if (rules && contactMobileCountry && contactMobileInput) {
+		rules.bindPhoneField(contactMobileCountry, contactMobileInput);
+		syncMobileHint();
+		contactMobileCountry.addEventListener("change", syncMobileHint);
+	}
 
 	const tabStep1 = document.getElementById("tabStep1");
 	const tabStep2 = document.getElementById("tabStep2");
@@ -436,7 +453,14 @@ document.addEventListener("DOMContentLoaded", async () => {
  if (acc.contact_email && contactEmailInput && !contactEmailInput.value) {
  contactEmailInput.value = acc.contact_email;
  }
- if (acc.contact_mobile) document.getElementById("contactMobile").value = acc.contact_mobile;
+ if (acc.contact_mobile) {
+ if (rules && contactMobileCountry && contactMobileInput) {
+ rules.setPhoneFields(contactMobileCountry, contactMobileInput, acc.contact_mobile);
+ syncMobileHint();
+ } else if (contactMobileInput) {
+ contactMobileInput.value = acc.contact_mobile;
+ }
+ }
 
  if (acc.beneficiary_name) document.getElementById("beneficiaryName").value = acc.beneficiary_name;
  if (acc.account_type) document.getElementById("accountType").value = acc.account_type;
@@ -559,8 +583,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
  if (!contactFullName.value.trim()) return focusAndFail(contactFullName, "Please enter the contact person's full name.");
 
- const mobile = contactMobile.value.replace(/\D/g, "");
+ const emailValue = (contactEmailInput?.value || email || "").trim();
+ if (rules) {
+ const emailCheck = rules.validateEmail(emailValue);
+ if (!emailCheck.ok) return focusAndFail(contactEmailInput, emailCheck.message);
+ } else if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+ return focusAndFail(contactEmailInput, "Enter valid mail id");
+ }
+
+ const dial = contactMobileCountry?.value || "91";
+ const national = (contactMobile?.value || "").trim();
+ if (rules) {
+ const phoneCheck = rules.validatePhone(dial, national);
+ if (!phoneCheck.ok) return focusAndFail(contactMobile, phoneCheck.message);
+ } else {
+ const mobile = national.replace(/\D/g, "");
  if (mobile.length !== 10) return focusAndFail(contactMobile, "Please enter a valid 10-digit mobile number.");
+ }
 
  if (!undertaking.checked) return focusAndFail(undertaking, "Please read and accept the undertaking to continue.");
 
@@ -618,7 +657,16 @@ document.addEventListener("DOMContentLoaded", async () => {
  state: document.getElementById("stateSelect") ? document.getElementById("stateSelect").value : "",
  contact_full_name: document.getElementById("contactFullName")?.value.trim() || (currentUser && currentUser.full_name) || "",
  contact_email: targetEmail,
- contact_mobile: document.getElementById("contactMobile")?.value.trim() || "",
+ contact_mobile: (() => {
+ const dial = document.getElementById("contactMobileCountry")?.value || "91";
+ const national = document.getElementById("contactMobile")?.value || "";
+ if (rules) {
+ const phoneCheck = rules.validatePhone(dial, national);
+ if (phoneCheck.ok) return phoneCheck.e164;
+ }
+ const digits = String(national).replace(/\D/g, "");
+ return digits ? `+${String(dial).replace(/\D/g, "")}${digits}` : "";
+ })(),
  beneficiary_name: document.getElementById("beneficiaryName").value.trim(),
  account_type: document.getElementById("accountType").value,
  bank_name: document.getElementById("bankName").value,

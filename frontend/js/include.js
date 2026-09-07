@@ -31,22 +31,24 @@
 
 	function announcementBarHeight() {
  const bar = document.querySelector(".announcement-bar");
- if (!bar || !bar.classList.contains("has-published-event")) return 0;
+ if (!bar || bar.hidden || !bar.classList.contains("has-published-event")) return 0;
  if (window.getComputedStyle(bar).display === "none") return 0;
- return bar.offsetHeight || 40;
+ return Math.ceil(bar.getBoundingClientRect().height) || bar.offsetHeight || 40;
 	}
 
 	function syncHeaderOffset() {
  const header = document.querySelector(".site-header");
  if (!header) return;
- const headerHeight = Math.ceil(header.getBoundingClientRect().height) || header.offsetHeight;
+ const headerHeight = Math.ceil(header.getBoundingClientRect().height) || header.offsetHeight || 0;
  if (headerHeight > 0) {
  document.documentElement.style.setProperty("--site-header-height", `${headerHeight}px`);
  }
  if (!document.body.classList.contains("home-page")) return;
  // Use layout heights only. Measuring header.bottom - hero.top while
  // scrolling makes padding grow as the hero leaves the viewport (glitchy jump).
- const offset = Math.max(0, announcementBarHeight() + headerHeight);
+ const ann = announcementBarHeight();
+ document.documentElement.style.setProperty("--hero-announcement-height", `${ann}px`);
+ const offset = Math.max(0, ann + headerHeight);
  const value = `${offset}px`;
  if (document.body.style.getPropertyValue("--hero-header-offset") === value) return;
  document.body.style.setProperty("--hero-header-offset", value);
