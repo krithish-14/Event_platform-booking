@@ -22,8 +22,9 @@
 	const isLoginPage = pageName === "login.html";
 	const isSignupPage = pageName === "signup.html";
 	const isPolicyPage = ["privacy-policy.html", "terms-and-conditions.html", "return-and-refund-policy.html"].includes(pageName);
+	const isErrorPage = document.body.classList.contains("error-404-page") || pageName === "404.html";
 
-	if (isHome) {
+	if (isHome && !isErrorPage) {
 		document.body.classList.add("home-page");
 	} else {
 		document.body.classList.add("sub-page");
