@@ -36,7 +36,7 @@ body.dashboard-body {
 	font-family: 'Grift', sans-serif !important;
 }
 
-/* ââ Top Navigation Bar ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* ------ Top Navigation Bar ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 .dash-topbar {
 	height: 60px;
 	background-color: var(--dash-topbar-bg);
@@ -227,7 +227,7 @@ body.dashboard-body {
 	cursor: pointer;
 }
 
-/* ââ Layout Shell âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* ------ Layout Shell --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- */
 .dash-shell {
 	display: flex;
 	flex: 1;
@@ -235,7 +235,7 @@ body.dashboard-body {
 	overflow: hidden;
 }
 
-/* ââ Left Sidebar ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* ------ Left Sidebar ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 .dash-sidebar {
 	width: 78px;
 	background-color: var(--dash-sidebar-bg);
@@ -397,7 +397,7 @@ body.dashboard-body {
     box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.06) inset;
 }
 
-/* Tab section visibility â controlled exclusively via .active-tab */
+/* Tab section visibility --- controlled exclusively via .active-tab */
 .tab-section {
 	display: none;
 	position: relative;
@@ -411,7 +411,7 @@ body.dashboard-body {
 	z-index: 1;
 }
 
-/* ââ Main Content Area âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* ------ Main Content Area --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- */
 .dash-content {
 	flex: 1;
 	padding: 1.5rem;
@@ -421,7 +421,7 @@ body.dashboard-body {
 	gap: 1.25rem;
 }
 
-/* ââ KPI Cards Row (Top 3 Cards) ââââââââââââââââââââââââââââââââââââââââââââââ */
+/* ------ KPI Cards Row (Top 3 Cards) ------------------------------------------------------------------------------------------------------------------------------------------ */
 .kpi-row {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
@@ -473,7 +473,7 @@ body.dashboard-body {
 	margin-top: 0.15rem;
 }
 
-/* ââ Dashboard Grid Layout ââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* ------ Dashboard Grid Layout ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 .dash-grid-3 {
 	display: grid;
 	grid-template-columns: 1.2fr 1.5fr 1.3fr;
@@ -889,7 +889,7 @@ canvas#trendChartCanvas {
 	color: #94a3b8;
 }
 
-/* ââ RICH UI/UX FOR MANAGE YOUR EVENT FORM âââââââââââââââââââââââââââââââââââââââ */
+/* ------ RICH UI/UX FOR MANAGE YOUR EVENT FORM --------------------------------------------------------------------------------------------------------------------- */
 .rich-form-container {
 	background: #ffffff;
 	border-radius: 16px;
@@ -940,7 +940,7 @@ canvas#trendChartCanvas {
 	line-height: 1.5;
 }
 
-/* ââ Multi-Step Wizard Navigation âââââââââââââââââââââââââââ */
+/* ------ Multi-Step Wizard Navigation --------------------------------------------------------------------------------- */
 .wizard-steps {
 	display: flex;
 	align-items: center;
@@ -1701,31 +1701,82 @@ html[data-theme="dark"] .ticket-offer-hint {
 	.dash-topbar {
 		height: auto;
 		min-height: 56px;
-		flex-wrap: wrap;
-		padding: 0.55rem 0.85rem;
-		gap: 0.5rem;
+		flex-wrap: nowrap;
+		align-items: center;
+		padding: 0.55rem 0.75rem;
+		gap: 0.55rem;
+	}
+
+	.topbar-left {
+		flex: 1 1 auto;
+		min-width: 0;
+		gap: 0.45rem;
+	}
+
+	.event-title-wrap {
+		flex: 1 1 auto;
+		min-width: 0;
 	}
 
 	.event-title {
-		font-size: 0.95rem;
-		max-width: 52vw;
+		font-size: 0.9rem;
+		max-width: none;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
 	.topbar-right {
-		gap: 0.45rem;
-		flex-wrap: wrap;
+		flex: 0 0 auto;
+		gap: 0.35rem;
+		flex-wrap: nowrap;
 		justify-content: flex-end;
+		min-width: 0;
 	}
 
 	.topbar-link {
-		font-size: 0.75rem;
+		font-size: 0;
+		gap: 0;
+		padding: 0.35rem;
+		width: 2.15rem;
+		height: 2.15rem;
+		justify-content: center;
+		border-radius: 50%;
+		color: #cbd5e1;
+	}
+
+	.topbar-link svg {
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
 	}
 
 	.dash-mobile-back {
 		display: inline-flex;
+		width: 2.35rem;
+		height: 2.35rem;
+		padding: 0;
+		border-radius: 50%;
+		gap: 0;
+	}
+
+	.dash-mobile-back span {
+		display: none;
+	}
+
+	.btn-republish {
+		padding: 0.4rem 0.7rem;
+		font-size: 0.78rem;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.topbar-icon-btn,
+	.topbar-theme-toggle.theme-toggle {
+		width: 2.15rem;
+		height: 2.15rem;
+		padding: 0;
+		flex-shrink: 0;
 	}
 
 	.brand-logo-icon {
@@ -1808,15 +1859,32 @@ html[data-theme="dark"] .ticket-offer-hint {
 }
 
 @media (max-width: 640px) {
-	.topbar-link {
-		font-size: 0;
-		gap: 0;
-		padding: 0.3rem;
+	/* Intentional 2-row header: title row, then actions */
+	.dash-topbar {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 0.55rem;
+		padding: 0.65rem 0.8rem;
+	}
+
+	.topbar-left {
+		width: 100%;
+	}
+
+	.topbar-right {
+		width: 100%;
+		justify-content: flex-start;
+		gap: 0.4rem;
 	}
 
 	.btn-republish {
-		padding: 0.4rem 0.75rem;
-		font-size: 0.78rem;
+		margin-left: auto;
+		padding: 0.4rem 0.85rem;
+		font-size: 0.8rem;
+	}
+
+	.event-title {
+		font-size: 0.95rem;
 	}
 
 	.setup-grid-2,
@@ -1831,7 +1899,7 @@ html[data-theme="dark"] .ticket-offer-hint {
 	}
 }
 
-/* ââ FORM BUILDER STICKY LIVE PREVIEW âââââââââââââââââââââââââââââââââââââââââ */
+/* ------ FORM BUILDER STICKY LIVE PREVIEW --------------------------------------------------------------------------------------------------------------------------- */
 .preview-sticky-column {
 	position: -webkit-sticky !important;
 	position: sticky !important;
@@ -1848,7 +1916,7 @@ html[data-theme="dark"] .ticket-offer-hint {
 	scroll-behavior: smooth;
 }
 
-/* ââ INFORMATION SYMBOL 'i' BUTTON & MODAL STYLING ââââââââââââââââââââââââââââ */
+/* ------ INFORMATION SYMBOL 'i' BUTTON & MODAL STYLING ------------------------------------------------------------------------------------ */
 .info-details-btn {
 	background: #eff6ff;
 	border: 1.5px solid #bfdbfe;

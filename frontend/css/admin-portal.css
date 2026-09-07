@@ -50,11 +50,16 @@
 	height: 1.15rem;
 }
 
-.admin-brand img {
-	width: 36px;
-	height: 36px;
-	border-radius: 8px;
-	object-fit: cover;
+.admin-brand img,
+.admin-brand-logo {
+	width: auto;
+	height: 2.35rem;
+	max-width: 9.5rem;
+	border-radius: 0;
+	object-fit: contain;
+	object-position: left center;
+	display: block;
+	flex-shrink: 0;
 }
 
 .admin-brand strong {
@@ -119,6 +124,48 @@
 	flex-direction: column;
 	gap: 0.25rem;
 }
+
+.admin-sidebar {
+	display: flex;
+	flex-direction: column;
+}
+
+.admin-sidebar-nav {
+	flex: 1 1 auto;
+}
+
+.admin-sidebar-footer {
+	display: none;
+	flex-direction: column;
+	gap: 0.25rem;
+	margin-top: auto;
+	padding-top: 0.85rem;
+	border-top: 1px solid #eadfce;
+}
+
+.admin-sidebar-user {
+	margin: 0 0.65rem 0.45rem;
+	font-size: 0.78rem;
+	font-weight: 650;
+	color: #7a7168;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.admin-sidebar-extra {
+	text-decoration: none;
+}
+
+.admin-sidebar-logout {
+	color: #b91c1c;
+}
+
+.admin-sidebar-logout:hover {
+	background: #fef2f2;
+	color: #991b1b;
+}
+
 
 .admin-nav-item {
 	display: flex;
@@ -982,6 +1029,7 @@ button.admin-event-title:focus-visible {
 .admin-badge.resolved { background: #dcfce7; color: #166534; }
 .admin-badge.urgent { background: #fee2e2; color: #991b1b; }
 .admin-badge.high { background: #ffedd5; color: #9a3412; }
+.admin-badge.normal { background: #ecfdf3; color: #166534; }
 
 .qr-preview {
 	text-align: center;
@@ -1039,6 +1087,7 @@ button.admin-event-title:focus-visible {
 @media (max-width: 900px) {
 	.admin-nav-toggle {
 		display: inline-flex;
+		flex-shrink: 0;
 	}
 	.admin-sidebar {
 		position: absolute;
@@ -1067,18 +1116,96 @@ button.admin-event-title:focus-visible {
 	}
 	.admin-mobile-back {
 		display: inline-flex;
+		width: 2.35rem;
+		height: 2.35rem;
+		padding: 0;
+		border-radius: 50%;
+		gap: 0;
+		flex-shrink: 0;
 	}
-	.admin-brand > img {
+	.admin-mobile-back span {
+		display: none;
+	}
+	.admin-brand > img,
+	.admin-brand-logo {
 		display: none;
 	}
 	.admin-topbar {
-		flex-wrap: wrap;
-		gap: 0.6rem;
-		padding: 0.75rem 1rem;
+		flex-wrap: nowrap;
+		align-items: center;
+		gap: 0.55rem;
+		padding: 0.65rem 0.75rem;
+	}
+	.admin-brand {
+		flex: 1 1 auto;
+		min-width: 0;
+		gap: 0.45rem;
+	}
+	.admin-brand > div {
+		min-width: 0;
+	}
+	.admin-brand strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.admin-brand span {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.admin-topbar-right {
+		flex: 0 0 auto;
+		flex-wrap: nowrap;
+		align-items: center;
+		gap: 0.4rem;
+		min-width: 0;
+	}
+	.admin-topbar-right .admin-notify-btn,
+	.admin-topbar-right .admin-link,
+	.admin-topbar-right .admin-logout,
+	#adminUserLabel {
+		display: none !important;
+	}
+	.admin-theme-toggle {
+		width: 2.15rem;
+		height: 2.15rem;
+		flex-shrink: 0;
+	}
+	.admin-sidebar-footer {
+		display: flex;
+	}
+	html[data-theme="dark"] .admin-sidebar-footer {
+		border-top-color: #3a322a;
+	}
+	html[data-theme="dark"] .admin-sidebar-user {
+		color: #c8bfb4;
+	}
+	html[data-theme="dark"] .admin-sidebar-logout {
+		color: #fca5a5;
+	}
+	html[data-theme="dark"] .admin-sidebar-logout:hover {
+		background: #3a1f1f;
+		color: #fecaca;
+	}
+	.admin-shell {
+		height: auto;
+		flex: 1;
+		min-height: 0;
 	}
 }
 
 @media (max-width: 640px) {
+	.admin-topbar {
+		padding: 0.6rem 0.7rem;
+		gap: 0.45rem;
+	}
+	.admin-brand strong {
+		font-size: 0.9rem;
+	}
+	.admin-brand span {
+		font-size: 0.7rem;
+	}
 	.admin-kpi-row {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
@@ -1159,4 +1286,24 @@ html[data-theme="dark"] .admin-toolbar input {
 	background: #1c1814;
 	border-color: #3a322a;
 	color: #f5efe6;
+}
+
+html[data-theme="dark"] .admin-bar-row span,
+html[data-theme="dark"] .admin-legend li,
+html[data-theme="dark"] .admin-donut-center span {
+	color: #c8bfb4;
+}
+
+html[data-theme="dark"] .admin-bar-row em,
+html[data-theme="dark"] .admin-donut-center strong,
+html[data-theme="dark"] .admin-legend span {
+	color: #ffffff;
+}
+
+html[data-theme="dark"] .admin-bar-track {
+	background: #2a241e;
+}
+
+html[data-theme="dark"] .admin-donut-bg {
+	stroke: #2a241e;
 }

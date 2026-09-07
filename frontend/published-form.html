@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="UTF-8" />
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -24,10 +25,7 @@ fbq('track', 'PageView');
 <noscript><img height="1" width="1" style="display:none"
 src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 /></noscript>
-<!-- End Meta Pixel Code -->
-
-<meta name="google-site-verification" content="NZqKNPeMc18zMdyTI3izDvSSlpvp-k5-QxDip8XCFw8" />
-		<style id="jod-header-logo-critical">
+<!-- End Meta Pixel Code --> <meta name="google-site-verification" content="NZqKNPeMc18zMdyTI3izDvSSlpvp-k5-QxDip8XCFw8" /> <style id="jod-header-logo-critical">
 :root{--header-logo-height:4.25rem;--site-header-height:4.6rem}
 #header:empty{min-height:4.6rem;display:block}
 .site-header .brand-logo-slot{display:flex;align-items:center;height:4.25rem!important;max-height:4.25rem!important;max-width:11.2rem!important;overflow:hidden;flex-shrink:0}
@@ -40,18 +38,8 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 </style>
 <link rel="preload" as="image" href="/images/JOD%20Events%20Logo.png" fetchpriority="high" />
 <link rel="stylesheet" href="css/fonts.css?v=2" />
-<script src="js/theme.js?v=24"></script>
-		<script src="js/api-config.js?v=4"></script>
-<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<meta http-equiv="Cache-Control" content="no-store" />
-	<title>Event Registration Form | JOD Events</title>
-	<link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
-	<link rel="apple-touch-icon" href="/images/JOD%20Logo.png" />
-	<link rel="stylesheet" href="css/fonts.css?v=1" />
-	
-	<style>
-		@keyframes spin {
+<script src="js/theme.js?v=24"></script> <script src="js/api-config.js?v=4"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" /> <meta http-equiv="Cache-Control" content="no-store" /> <title>Event Registration Form | JOD Events</title> <link rel="icon" type="image/png" href="/images/JOD%20Logo.png" /> <link rel="apple-touch-icon" href="/images/JOD%20Logo.png" /> <link rel="stylesheet" href="css/fonts.css?v=1" /> <style> @keyframes spin {
 			to { transform: rotate(360deg); }
 		}
 		@keyframes fadeIn {
@@ -264,7 +252,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 			transform: none;
 		}
 
-		/* Success popup — must live on the viewport, not inside #pageContainer */
+		/* Success popup &#8212; must live on the viewport, not inside #pageContainer */
 		#successState {
 			display: none;
 			position: fixed;
@@ -538,101 +526,8 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->
-
-	<div id="policyModal" class="policy-modal" hidden>
-		<div class="policy-modal-card" role="dialog" aria-modal="true" aria-labelledby="policyModalTitle">
-			<div class="policy-modal-header">
-				<h2 id="policyModalTitle">Host Policies</h2>
-				<p>Please review the host policy details before continuing to the registration form.</p>
-			</div>
-			<div class="policy-modal-body" id="policyModalBody"></div>
-			<div class="policy-modal-footer">
-				<label class="policy-agree" for="policyAgreeCheck">
-					<input type="checkbox" id="policyAgreeCheck" />
-					<span>I agree</span>
-				</label>
-				<button type="button" class="policy-next-btn" id="policyNextBtn" disabled>Next</button>
-				<a class="policy-back-link" id="policyBackLink" href="/">Back to event</a>
-			</div>
-		</div>
-	</div>
-
-	<div id="pageContainer">
-		<button type="button" class="header-back-btn" id="formPageBack" data-header-back data-back-fallback="/" aria-label="Go back">
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-			<span>Back</span>
-		</button>
-		
-		<!-- ── LOADING STATE ─────────────────────────────────────────────────── -->
-		<div id="loadingState">
-			<div class="spinner"></div>
-			<h3 style="font-weight: 700; color: #334155;">Loading Form...</h3>
-			<p style="font-size: 0.88rem; color: #64748b; margin-top: 0.4rem;">Fetching published event registration details.</p>
-		</div>
-
-		<!-- ── ERROR STATE ───────────────────────────────────────────────────── -->
-		<div id="errorState">
-			<div style="font-size: 3rem; margin-bottom: 0.8rem;">⚠️</div>
-			<h3 id="errorTitle" style="font-weight: 800; color: #991b1b; margin-bottom: 0.5rem;">Form Not Found</h3>
-			<p id="errorMsg" style="font-size: 0.9rem; color: #7f1d1d; line-height: 1.5;">This registration form does not exist or has not been published yet.</p>
-		</div>
-
-		<!-- ── MAIN PUBLISHED FORM CARD ──────────────────────────────────────── -->
-		<div id="formCard">
-			
-			<!-- Header Banner Image -->
-			<div id="bannerContainer" class="banner-img-container">
-				<img id="bannerImg" src="" alt="Event Banner" />
-			</div>
-
-			<div class="form-card-body">
-				<!-- Form Title & Description Header -->
-				<div id="formHeader" class="form-header">
-					<h1 id="pubFormTitle" class="form-title">Event Registration Form</h1>
-					<p id="pubFormDesc" class="form-description"></p>
-				</div>
-
-				<!-- Dynamic Questions Form -->
-				<form id="pubFormElement">
-					<div id="questionsContainer"></div>
-
-					<!-- Attendee Email Field (if not already in schema) -->
-					<div id="attendeeEmailGroup" class="question-group" style="display: none;">
-						<label class="question-label">
-							Attendee Email Address <span class="req-star">*</span>
-						</label>
-						<span class="help-text">Used to send your registration confirmation ticket.</span>
-						<input type="email" id="attendeeEmailInput" class="form-input" placeholder="you@example.com" />
-					</div>
-
-					<button type="submit" id="submitBtn" class="submit-btn">
-						Submit Registration
-					</button>
-				</form>
-			</div>
-		</div>
-
-		<!-- Powered By Footer -->
-		<div class="powered-by">
-			Powered by <a href="#" onclick="return false;">JOD Events Platform</a>
-		</div>
-
-	</div>
-
-	<div id="successState" aria-hidden="true">
-		<div class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="successTitle">
-			<div class="success-icon">✓</div>
-			<h2 id="successTitle">Registration form completed</h2>
-			<p class="success-lead">Move to payment to finish your full registration process.</p>
-			<div class="success-actions">
-				<button type="button" class="success-btn success-btn-next" id="successNextBtn">Continue to Payment</button>
-			</div>
-		</div>
-	</div>
-
-	<script>
-		(function () {
+<!-- End Google Tag Manager (noscript) --> <div id="policyModal" class="policy-modal" hidden> <div class="policy-modal-card" role="dialog" aria-modal="true" aria-labelledby="policyModalTitle"> <div class="policy-modal-header"> <h2 id="policyModalTitle">Host Policies</h2> <p>Please review the host policy details before continuing to the registration form.</p> </div> <div class="policy-modal-body" id="policyModalBody"></div> <div class="policy-modal-footer"> <label class="policy-agree" for="policyAgreeCheck"> <input type="checkbox" id="policyAgreeCheck" /> <span>I agree</span> </label> <button type="button" class="policy-next-btn" id="policyNextBtn" disabled>Next</button> <a class="policy-back-link" id="policyBackLink" href="/">Back to event</a> </div> </div> </div> <div id="pageContainer"> <button type="button" class="header-back-btn" id="formPageBack" data-header-back data-back-fallback="/" aria-label="Go back"> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> <span>Back</span> </button> <!-- LOADING STATE --> <div id="loadingState"> <div class="spinner"></div> <h3 style="font-weight: 700; color: #334155;">Loading Form...</h3> <p style="font-size: 0.88rem; color: #64748b; margin-top: 0.4rem;">Fetching published event registration details.</p> </div> <!-- ERROR STATE --> <div id="errorState"> <div style="font-size: 3rem; margin-bottom: 0.8rem;">&#9888;&#65039;</div> <h3 id="errorTitle" style="font-weight: 800; color: #991b1b; margin-bottom: 0.5rem;">Form Not Found</h3> <p id="errorMsg" style="font-size: 0.9rem; color: #7f1d1d; line-height: 1.5;">This registration form does not exist or has not been published yet.</p> </div> <!-- MAIN PUBLISHED FORM CARD --> <div id="formCard"> <!-- Header Banner Image --> <div id="bannerContainer" class="banner-img-container"> <img id="bannerImg" src="" alt="Event Banner" /> </div> <div class="form-card-body"> <!-- Form Title & Description Header --> <div id="formHeader" class="form-header"> <h1 id="pubFormTitle" class="form-title">Event Registration Form</h1> <p id="pubFormDesc" class="form-description"></p> </div> <!-- Dynamic Questions Form --> <form id="pubFormElement"> <div id="questionsContainer"></div> <!-- Attendee Email Field (if not already in schema) --> <div id="attendeeEmailGroup" class="question-group" style="display: none;"> <label class="question-label"> Attendee Email Address <span class="req-star">*</span> </label> <span class="help-text">Used to send your registration confirmation ticket.</span> <input type="email" id="attendeeEmailInput" class="form-input" placeholder="you@example.com" /> </div> <button type="submit" id="submitBtn" class="submit-btn"> Submit Registration
+					</button> </form> </div> </div> <!-- Powered By Footer --> <div class="powered-by"> Powered by <a href="#" onclick="return false;">JOD Events Platform</a> </div> </div> <div id="successState" aria-hidden="true"> <div class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="successTitle"> <div class="success-icon">&#10003;</div> <h2 id="successTitle">Registration form completed</h2> <p class="success-lead">Move to payment to finish your full registration process.</p> <div class="success-actions"> <button type="button" class="success-btn success-btn-next" id="successNextBtn">Continue to Payment</button> </div> </div> </div> <script> (function () {
 			const localDev = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1") || window.location.hostname === "localhost";
 			const API_ROOT = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api');
 			const API_BASE = `${API_ROOT}/forms`;
@@ -848,7 +743,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				if (!blocks.length) {
 					blocks.push({
 						label: "Event Policy",
-						val: "By continuing, you agree to the host’s event policies and the JOD Events platform terms."
+						val: "By continuing, you agree to the host&#8217;s event policies and the JOD Events platform terms."
 					});
 				}
 				return blocks;
@@ -867,11 +762,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						: "Please review the host policy details before filling the registration form.";
 				}
 				policyModalBody.innerHTML = buildPolicyBlocks(info).map((b) => `
-					<div class="policy-block">
-						<h3>${escapeHtml(b.label)}</h3>
-						<p>${escapeHtml(b.val)}</p>
-					</div>
-				`).join("");
+					<div class="policy-block"> <h3>${escapeHtml(b.label)}</h3> <p>${escapeHtml(b.val)}</p> </div> `).join("");
 				if (policyAgreeCheck) policyAgreeCheck.checked = false;
 				if (policyNextBtn) policyNextBtn.disabled = true;
 				policyModal.hidden = false;
@@ -1036,37 +927,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 						case 'dropdown':
 							fieldHtml = `
-								<select id="${qId}" name="${qId}" class="form-select" ${q.required ? 'required' : ''} style="border-radius:${radius};">
-									<option value="" disabled selected>-- Select an option --</option>
-									${(q.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
-								</select>
-							`;
+								<select id="${qId}" name="${qId}" class="form-select" ${q.required ? 'required' : ''} style="border-radius:${radius};"> <option value="" disabled selected>-- Select an option --</option> ${(q.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+								</select> `;
 							break;
 
 						case 'radio':
 							fieldHtml = `
-								<div class="options-group">
-									${(q.options || []).map((opt, oIdx) => `
-										<label class="option-label">
-											<input type="radio" name="${qId}" value="${escapeHtml(opt)}" ${q.required && oIdx === 0 ? 'required' : ''} />
-											<span>${escapeHtml(opt)}</span>
-										</label>
-									`).join('')}
-								</div>
-							`;
+								<div class="options-group"> ${(q.options || []).map((opt, oIdx) => `
+										<label class="option-label"> <input type="radio" name="${qId}" value="${escapeHtml(opt)}" ${q.required && oIdx === 0 ? 'required' : ''} /> <span>${escapeHtml(opt)}</span> </label> `).join('')}
+								</div> `;
 							break;
 
 						case 'checkbox':
 							fieldHtml = `
-								<div class="options-group">
-									${(q.options || []).map(opt => `
-										<label class="option-label">
-											<input type="checkbox" name="${qId}" value="${escapeHtml(opt)}" />
-											<span>${escapeHtml(opt)}</span>
-										</label>
-									`).join('')}
-								</div>
-							`;
+								<div class="options-group"> ${(q.options || []).map(opt => `
+										<label class="option-label"> <input type="checkbox" name="${qId}" value="${escapeHtml(opt)}" /> <span>${escapeHtml(opt)}</span> </label> `).join('')}
+								</div> `;
 							break;
 
 						case 'date':
@@ -1075,17 +951,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 						case 'file_upload':
 							fieldHtml = `
-								<input type="file" id="${qId}" name="${qId}" class="form-input" ${q.required ? 'required' : ''} style="border-radius:${radius}; padding:0.5rem;" />
-							`;
+								<input type="file" id="${qId}" name="${qId}" class="form-input" ${q.required ? 'required' : ''} style="border-radius:${radius}; padding:0.5rem;" /> `;
 							break;
 
 						case 'terms':
 							fieldHtml = `
-								<label class="option-label" style="margin-top:0.3rem;">
-									<input type="checkbox" id="${qId}" name="${qId}" value="agreed" ${q.required ? 'required' : ''} />
-									<span>${escapeHtml(q.title || 'I agree to terms and conditions')}</span>
-								</label>
-							`;
+								<label class="option-label" style="margin-top:0.3rem;"> <input type="checkbox" id="${qId}" name="${qId}" value="agreed" ${q.required ? 'required' : ''} /> <span>${escapeHtml(q.title || 'I agree to terms and conditions')}</span> </label> `;
 							break;
 
 						default:
@@ -1093,10 +964,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					}
 
 					group.innerHTML = `
-						<label class="question-label" for="${qId}">
-							${escapeHtml(q.title || `Question ${idx + 1}`)} ${reqSpan}
-						</label>
-						${helpHtml}
+						<label class="question-label" for="${qId}"> ${escapeHtml(q.title || `Question ${idx + 1}`)} ${reqSpan}
+						</label> ${helpHtml}
 						${fieldHtml}
 					`;
 
@@ -1116,7 +985,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						hostBanner = document.createElement("div");
 						hostBanner.id = "hostReadOnlyBanner";
 						hostBanner.style.cssText = "background: #eff6ff; border: 1.5px solid #bfdbfe; color: #1e40af; padding: 0.85rem 1.25rem; border-radius: 10px; margin-bottom: 1.5rem; font-weight: 600; font-size: 0.88rem; display: flex; align-items: center; justify-content: space-between;";
-						hostBanner.innerHTML = `<span style="display:flex; align-items:center; gap:0.5rem;"><span style="font-size:1.1rem;">👁️</span><span><strong>Host Preview Mode:</strong> Form fields are disabled. Attendees fill out the live version.</span></span> <span style="background:#2563eb; color:#ffffff; font-weight:700; font-size:0.75rem; padding:0.2rem 0.65rem; border-radius:6px; white-space:nowrap;">Read Only</span>`;
+						hostBanner.innerHTML = `<span style="display:flex; align-items:center; gap:0.5rem;"><span style="font-size:1.1rem;">&#128065;&#65039;</span><span><strong>Host Preview Mode:</strong> Form fields are disabled. Attendees fill out the live version.</span></span> <span style="background:#2563eb; color:#ffffff; font-weight:700; font-size:0.75rem; padding:0.2rem 0.65rem; border-radius:6px; white-space:nowrap;">Read Only</span>`;
 						if (formHeader && formHeader.parentNode) {
 							formHeader.parentNode.insertBefore(hostBanner, formHeader);
 						}
@@ -1274,10 +1143,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				fetchPublishedForm();
 			}
 		})();
-	</script>
-	<script src="js/include.js?v=51"></script>
-	<script src="js/auth.js?v=33"></script>
-	<script src="js/profile.js?v=12"></script>
-	<script src="js/script.js?v=35"></script>
+	</script> <script src="js/include.js?v=51"></script> <script src="js/auth.js?v=33"></script> <script src="js/profile.js?v=12"></script> <script src="js/script.js?v=35"></script>
 </body>
 </html>

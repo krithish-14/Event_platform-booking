@@ -1,5 +1,5 @@
 /**
- * JOD Events — Shared public event utilities
+ * JOD Events \u2014 Shared public event utilities
  * Single source for API access, cards, hero, countdown (IST), and UI states.
  */
 (function (global) {
@@ -80,7 +80,7 @@
 
 	function formatPrice(price) {
 		const p = Number(price) || 0;
-		return p <= 0 ? "Free" : `₹${p.toLocaleString("en-IN")}`;
+		return p <= 0 ? "Free" : `\u20b9${p.toLocaleString("en-IN")}`;
 	}
 
 	function formatDateIST(iso) {
@@ -494,11 +494,11 @@
 			return;
 		}
 		if (!startMs || now >= startMs) {
-			el.textContent = "✨ Live Now";
+			el.textContent = "\u2728 Live Now";
 			return;
 		}
 		const parts = getCountdownParts(startMs);
-		el.textContent = `✨ ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m`;
+		el.textContent = `\u2728 ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m`;
 	}
 
 	function pruneExpiredPublicEvents() {
@@ -588,8 +588,8 @@
 		if (!container) return;
 		container.innerHTML = `
 			<div class="events-loading-state" style="grid-column:1/-1;text-align:center;padding:2.5rem 1rem;color:#64748b;">
-				<div style="margin-bottom:0.75rem;font-size:1.5rem;">⏳</div>
-				<p style="margin:0;font-weight:600;">${escapeHtml(message || "Loading events…")}</p>
+				<div style="margin-bottom:0.75rem;font-size:1.5rem;">\u23f3</div>
+				<p style="margin:0;font-weight:600;">${escapeHtml(message || "Loading events\u2026")}</p>
 			</div>
 		`;
 	}
@@ -599,7 +599,7 @@
 		container.classList.add("is-empty");
 		container.innerHTML = `
 			<div class="events-empty-state">
-				<div class="empty-icon" aria-hidden="true">📭</div>
+				<div class="empty-icon" aria-hidden="true">\ud83d\udced</div>
 				<h3>${escapeHtml(title || "No events available")}</h3>
 				<p>${escapeHtml(message || "Check back later for upcoming events.")}</p>
 			</div>
@@ -687,9 +687,9 @@
 			const desc = plainTextSnippet(event.description || "", 140);
 			descEl.textContent = desc || (event.category ? `${event.category} event` : "");
 		}
-		if (dateEl) dateEl.textContent = "📅 " + formatDateTimeIST(event.start_date);
-		if (venueEl) venueEl.textContent = "📍 " + (event.venue || event.location || "Venue TBA");
-		if (badgeEl) badgeEl.textContent = event.category ? `✨ ${event.category}` : "✨ Upcoming Event";
+		if (dateEl) dateEl.textContent = "\ud83d\udcc5 " + formatDateTimeIST(event.start_date);
+		if (venueEl) venueEl.textContent = "\ud83d\udccd " + (event.venue || event.location || "Venue TBA");
+		if (badgeEl) badgeEl.textContent = event.category ? `\u2728 ${event.category}` : "\u2728 Upcoming Event";
 		if (countdownEl) {
 			if (event.start_date) {
 				countdownEl.style.display = "";

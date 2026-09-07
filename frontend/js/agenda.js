@@ -5,173 +5,173 @@
 	"use strict";
 
 	function getApiBase() {
-		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
-			return window.JodConfig.getApiOrigin();
-		}
-		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
-			return window.JodHealth.getApiBaseUrl();
-		}
-		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
-		return "";
+ if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+ return window.JodConfig.getApiOrigin();
+ }
+ if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+ return window.JodHealth.getApiBaseUrl();
+ }
+ if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+ return "";
 	}
 
 	function getQueryParam(name) {
-		return new URLSearchParams(window.location.search).get(name) || "";
+ return new URLSearchParams(window.location.search).get(name) || "";
 	}
 
 	function formatDateFull(dateStr) {
-		if (!dateStr) return "";
-		try {
-			const d = new Date(dateStr);
-			if (isNaN(d.getTime())) return "";
-			return d.toLocaleDateString("en-US", {
-				weekday: "short",
-				month: "short",
-				day: "numeric",
-				year: "numeric",
-				hour: "2-digit",
-				minute: "2-digit"
-			});
-		} catch (_) {
-			return "";
-		}
+ if (!dateStr) return "";
+ try {
+ const d = new Date(dateStr);
+ if (isNaN(d.getTime())) return "";
+ return d.toLocaleDateString("en-US", {
+ weekday: "short",
+ month: "short",
+ day: "numeric",
+ year: "numeric",
+ hour: "2-digit",
+ minute: "2-digit"
+ });
+ } catch (_) {
+ return "";
+ }
 	}
 
 	function showUnavailable(message) {
-		const title = document.getElementById("agendaEventTitle");
-		const meta = document.getElementById("agendaEventMeta");
-		const roadmap = document.getElementById("agendaRoadmap");
-		if (title) title.textContent = "Agenda unavailable";
-		if (meta) meta.textContent = message || "This agenda could not be loaded.";
-		if (roadmap) {
-			roadmap.innerHTML = `<p class="agenda-empty"><a class="button button-primary button-sm" href="orders.html">Back to your orders</a></p>`;
-		}
+ const title = document.getElementById("agendaEventTitle");
+ const meta = document.getElementById("agendaEventMeta");
+ const roadmap = document.getElementById("agendaRoadmap");
+ if (title) title.textContent = "Agenda unavailable";
+ if (meta) meta.textContent = message || "This agenda could not be loaded.";
+ if (roadmap) {
+ roadmap.innerHTML = `<p class="agenda-empty"><a class="button button-primary button-sm" href="orders.html">Back to your orders</a></p>`;
+ }
 	}
 
 	async function loadBooking(bookingId) {
-		if (window.JodAuth && typeof window.JodAuth.ensureSession === "function") {
-			try { await window.JodAuth.ensureSession(); } catch (_) {}
-		}
-		const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
-			? window.JodAuth.fetchAuth.bind(window.JodAuth)
-			: fetch;
-		if (bookingId) {
-			try {
-				const res = await fetchFn(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}`, {
-					cache: "no-store",
-					credentials: "include",
-					allowGuest: true,
-					headers: { Accept: "application/json" }
-				});
-				if (res.ok) return await res.json();
-				if (res.status === 403) return { _error: "forbidden" };
-			} catch (_) {}
-		}
-		try {
-			const res = await fetchFn(`${getApiBase()}/api/bookings/my-bookings`, {
-				cache: "no-store",
-				credentials: "include",
-				allowGuest: true,
-				headers: { Accept: "application/json" }
-			});
-			if (res.ok) {
-				const rows = await res.json();
-				if (Array.isArray(rows) && rows.length) {
-					if (bookingId) {
-						const match = rows.find((row) => String(row.booking_id || "").replace(/-/g, "").toLowerCase() === String(bookingId).replace(/-/g, "").toLowerCase());
-						if (match) return match;
-					}
-					return rows[0];
-				}
-			}
-		} catch (_) {}
-		if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn()) {
-			return { _error: "notfound" };
-		}
-		return { _error: "signin" };
+ if (window.JodAuth && typeof window.JodAuth.ensureSession === "function") {
+ try { await window.JodAuth.ensureSession(); } catch (_) {}
+ }
+ const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+ ? window.JodAuth.fetchAuth.bind(window.JodAuth)
+ : fetch;
+ if (bookingId) {
+ try {
+ const res = await fetchFn(`${getApiBase()}/api/bookings/${encodeURIComponent(bookingId)}`, {
+ cache: "no-store",
+ credentials: "include",
+ allowGuest: true,
+ headers: { Accept: "application/json" }
+ });
+ if (res.ok) return await res.json();
+ if (res.status === 403) return { _error: "forbidden" };
+ } catch (_) {}
+ }
+ try {
+ const res = await fetchFn(`${getApiBase()}/api/bookings/my-bookings`, {
+ cache: "no-store",
+ credentials: "include",
+ allowGuest: true,
+ headers: { Accept: "application/json" }
+ });
+ if (res.ok) {
+ const rows = await res.json();
+ if (Array.isArray(rows) && rows.length) {
+ if (bookingId) {
+ const match = rows.find((row) => String(row.booking_id || "").replace(/-/g, "").toLowerCase() === String(bookingId).replace(/-/g, "").toLowerCase());
+ if (match) return match;
+ }
+ return rows[0];
+ }
+ }
+ } catch (_) {}
+ if (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn()) {
+ return { _error: "notfound" };
+ }
+ return { _error: "signin" };
 	}
 
 	async function loadPublicEvent(eventId) {
-		if (!eventId) return null;
-		try {
-			const res = await fetch(`${getApiBase()}/api/events/public/${encodeURIComponent(eventId)}`, { cache: "no-store" });
-			if (res.ok) return await res.json();
-		} catch (_) {}
-		return null;
+ if (!eventId) return null;
+ try {
+ const res = await fetch(`${getApiBase()}/api/events/public/${encodeURIComponent(eventId)}`, { cache: "no-store" });
+ if (res.ok) return await res.json();
+ } catch (_) {}
+ return null;
 	}
 
 	function renderAgenda(data) {
-		const title = data.event_title || data.title || "Event Agenda";
-		const venue = data.event_venue || data.venue || data.location || "";
-		const startLabel = formatDateFull(data.event_start_date || data.start_date);
-		const endLabel = formatDateFull(data.event_end_date || data.end_date);
-		const bookingId = data.booking_id || "";
-		const eventId = data.event_id || data.id || "";
+ const title = data.event_title || data.title || "Event Agenda";
+ const venue = data.event_venue || data.venue || data.location || "";
+ const startLabel = formatDateFull(data.event_start_date || data.start_date);
+ const endLabel = formatDateFull(data.event_end_date || data.end_date);
+ const bookingId = data.booking_id || "";
+ const eventId = data.event_id || data.id || "";
 
-		const titleEl = document.getElementById("agendaEventTitle");
-		const metaEl = document.getElementById("agendaEventMeta");
-		if (titleEl) titleEl.textContent = title;
-		if (metaEl) {
-			metaEl.textContent = [startLabel, venue].filter(Boolean).join(" · ");
-		}
+ const titleEl = document.getElementById("agendaEventTitle");
+ const metaEl = document.getElementById("agendaEventMeta");
+ if (titleEl) titleEl.textContent = title;
+ if (metaEl) {
+ metaEl.textContent = [startLabel, venue].filter(Boolean).join(" · ");
+ }
 
-		if (bookingId) {
-			const ticketLink = document.getElementById("agendaViewTicket");
-			const backLink = document.getElementById("agendaBackLink");
-			if (ticketLink) ticketLink.href = `ticket-details.html?id=${encodeURIComponent(bookingId)}`;
-			if (backLink) backLink.href = "orders.html";
-		}
-		if (eventId) {
-			const eventLink = document.getElementById("agendaViewEvent");
-			if (eventLink) eventLink.href = `event-details.html?id=${encodeURIComponent(eventId)}`;
-		}
+ if (bookingId) {
+ const ticketLink = document.getElementById("agendaViewTicket");
+ const backLink = document.getElementById("agendaBackLink");
+ if (ticketLink) ticketLink.href = `ticket-details.html?id=${encodeURIComponent(bookingId)}`;
+ if (backLink) backLink.href = "orders.html";
+ }
+ if (eventId) {
+ const eventLink = document.getElementById("agendaViewEvent");
+ if (eventLink) eventLink.href = `event-details.html?id=${encodeURIComponent(eventId)}`;
+ }
 
-		document.title = `${title} — Agenda | JOD Events`;
+ document.title = `${title} — Agenda | JOD Events`;
 
-		if (window.JodAgenda && typeof window.JodAgenda.renderRoadmap === "function") {
-			window.JodAgenda.renderRoadmap(document.getElementById("agendaRoadmap"), data.agenda, {
-				eventTitle: title,
-				startLabel,
-				endLabel,
-				venue
-			});
-		}
+ if (window.JodAgenda && typeof window.JodAgenda.renderRoadmap === "function") {
+ window.JodAgenda.renderRoadmap(document.getElementById("agendaRoadmap"), data.agenda, {
+ eventTitle: title,
+ startLabel,
+ endLabel,
+ venue
+ });
+ }
 	}
 
 	document.addEventListener("DOMContentLoaded", async () => {
-		const bookingId = getQueryParam("id") || getQueryParam("booking_id");
-		const eventId = getQueryParam("eventId") || getQueryParam("event");
+ const bookingId = getQueryParam("id") || getQueryParam("booking_id");
+ const eventId = getQueryParam("eventId") || getQueryParam("event");
 
-		if (bookingId) {
-			const booking = await loadBooking(bookingId);
-			if (!booking || booking._error) {
-				const messages = {
-					signin: "Please sign in to view this agenda.",
-					forbidden: "This agenda belongs to another account.",
-					notfound: "This ticket could not be found.",
-					unavailable: "This agenda is not available."
-				};
-				showUnavailable(messages[booking && booking._error] || messages.unavailable);
-				return;
-			}
-			if ((!Array.isArray(booking.agenda) || !booking.agenda.length) && booking.event_id) {
-				const event = await loadPublicEvent(booking.event_id);
-				if (event && Array.isArray(event.agenda)) booking.agenda = event.agenda;
-			}
-			renderAgenda(booking);
-			return;
-		}
+ if (bookingId) {
+ const booking = await loadBooking(bookingId);
+ if (!booking || booking._error) {
+ const messages = {
+ signin: "Please sign in to view this agenda.",
+ forbidden: "This agenda belongs to another account.",
+ notfound: "This ticket could not be found.",
+ unavailable: "This agenda is not available."
+ };
+ showUnavailable(messages[booking && booking._error] || messages.unavailable);
+ return;
+ }
+ if ((!Array.isArray(booking.agenda) || !booking.agenda.length) && booking.event_id) {
+ const event = await loadPublicEvent(booking.event_id);
+ if (event && Array.isArray(event.agenda)) booking.agenda = event.agenda;
+ }
+ renderAgenda(booking);
+ return;
+ }
 
-		if (eventId) {
-			const event = await loadPublicEvent(eventId);
-			if (!event) {
-				showUnavailable("This event agenda could not be found.");
-				return;
-			}
-			renderAgenda(event);
-			return;
-		}
+ if (eventId) {
+ const event = await loadPublicEvent(eventId);
+ if (!event) {
+ showUnavailable("This event agenda could not be found.");
+ return;
+ }
+ renderAgenda(event);
+ return;
+ }
 
-		showUnavailable("No ticket or event was selected.");
+ showUnavailable("No ticket or event was selected.");
 	});
 })();

@@ -1,5 +1,5 @@
 /**
- * JOD Events — customer dashboard
+ * JOD Events \u2014 customer dashboard
  * Loads profile, stats, wishlist, catalog, and bookings over the cookie session.
  */
 (function () {
@@ -277,7 +277,7 @@
 			if (!list.length) {
 				container.innerHTML = `
 					<div class="empty-state">
-						<div class="empty-icon">📅</div>
+						<div class="empty-icon">\ud83d\udcc5</div>
 						<p>No upcoming events right now.<br>
 						<a href="index.html#upcoming" style="color:var(--primary);font-weight:600">Browse the event calendar &rarr;</a></p>
 					</div>`;
@@ -305,8 +305,8 @@
 					<img src="${escapeHtml(img)}" alt="${title}" onerror="this.src='${escapeHtml(heroFb)}'" />
 					<div class="dash-event-body">
 						<h3>${title}</h3>
-						<p class="dash-event-meta">${when} · ${venue}</p>
-						<span class="dash-event-cta">View details →</span>
+						<p class="dash-event-meta">${when} \u00b7 ${venue}</p>
+						<span class="dash-event-cta">View details \u2192</span>
 					</div>
 				</a>`;
 			}).join("")}</div>`;
@@ -316,7 +316,7 @@
 			if (container) {
 				container.innerHTML = `
 					<div class="empty-state">
-						<div class="empty-icon">📅</div>
+						<div class="empty-icon">\ud83d\udcc5</div>
 						<p>Could not load upcoming events.<br>
 						<a href="index.html#upcoming" style="color:var(--primary);font-weight:600">Try the home page &rarr;</a></p>
 					</div>`;
@@ -383,7 +383,7 @@
 		if (!list.length) {
 			container.innerHTML = `
 				<div class="empty-state">
-					<div class="empty-icon">🎟️</div>
+					<div class="empty-icon">\ud83c\udf9f\ufe0f</div>
 					<p>You haven't booked any events yet.<br>
 					<a href="index.html#upcoming" style="color:var(--primary);font-weight:600">Explore upcoming events &rarr;</a></p>
 				</div>`;
@@ -423,7 +423,7 @@
 				<tr class="${cancelled ? "is-cancelled" : ""}">
 					<td style="font-weight:600;color:var(--foreground);">${escapeHtml(b.event_title || "Event")}</td>
 					<td>${escapeHtml(b.ticket_type || "Ticket")} (x${Number(b.quantity || 1)})</td>
-					<td style="font-weight:700;color:#16a34a;">₹${Number(b.total_price || 0).toLocaleString("en-IN")}</td>
+					<td style="font-weight:700;color:#16a34a;">\u20b9${Number(b.total_price || 0).toLocaleString("en-IN")}</td>
 					<td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
 					<td>${actionCell}</td>
 				</tr>`;

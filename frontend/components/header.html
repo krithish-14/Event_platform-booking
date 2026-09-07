@@ -1,77 +1,20 @@
-<div class="announcement-bar" hidden>
-	<div class="glow-layer"></div>
-	<div class="container announcement-inner">
-		<div class="announcement-copy">
-			<span class="pulse-dot" aria-hidden="true"></span>
-			<span class="eyebrow gold-text">Upcoming</span>
-			<span class="announcement-title"></span>
-		</div>
-		<div class="announcement-actions">
-			<span class="countdown-summary">Starts in <span data-summary-countdown>--d --h --m</span></span>
-			<a class="gold-link" href="/#upcoming">Reserve your seat <span
-					aria-hidden="true">&#8594;</span></a>
-		</div>
-	</div>
+<div class="announcement-bar" hidden> <div class="glow-layer"></div> <div class="container announcement-inner"> <div class="announcement-copy"> <span class="pulse-dot" aria-hidden="true"></span> <span class="eyebrow gold-text">Upcoming</span> <span class="announcement-title"></span> </div> <div class="announcement-actions"> <span class="countdown-summary">Starts in <span data-summary-countdown>--d --h --m</span></span> <a class="gold-link" href="/#upcoming">Reserve your seat <span
+ aria-hidden="true">&#8594;</span></a> </div> </div>
 </div>
 <header class="site-header" data-header>
-	<div class="container nav-inner">
-		<div class="header-leading">
-			<a class="brand" href="/" aria-label="JOD Events home">
-				<span class="brand-logo-slot">
-				<img
-					class="brand-logo"
-					src="/images/JOD%20Events%20Logo.png?v=3"
-					data-logo-light="/images/JOD Events Logo.png"
-					data-logo-dark="/images/Jod_log_Dark.webp"
-					alt="JOD Events"
-					width="179"
-					height="68"
-					loading="eager"
-					fetchpriority="high"
-					decoding="sync"
-					style="height:4.25rem;max-height:4.25rem;width:auto;max-width:11.2rem;object-fit:contain;display:block"
-				/>
-				</span>
-				<span class="brand-fallback" hidden>JOD Events</span>
-			</a>
-			<button type="button" class="header-back-btn" data-header-back aria-label="Go back">
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-				<span>Back</span>
-			</button>
-		</div>
-		<div class="header-search" role="search">
-			<svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
-				<path
-					d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-			</svg>
-			<input type="text" id="headerSearchInput" placeholder="Search events…" aria-label="Search events" autocomplete="off" />
-			<button type="button" class="search-clear" id="headerSearchClear" aria-label="Clear search">&times;</button>
-		</div>
-		<nav class="desktop-nav" aria-label="Primary navigation">
-			<a href="/">Home</a>
-			<a href="/about" aria-current="false">About</a>
-			<a href="/category">Category</a>
-			<a href="/host-your-event" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, '/account-setup', 'host');}">Host Your Event</a>
-			<a href="/gallery">Gallery</a>
-		</nav>
-		<button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Dark mode"></button>
-		<div class="nav-auth" id="navAuth">
-			<a class="button button-sm button-login" href="/login" id="nav-login-btn">Login</a>
-			<a class="button button-sm button-primary" href="/signup" id="nav-signup-btn"><span>Sign Up</span><span aria-hidden="true">&#8599;</span></a>
-		</div>
-		<button class="menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" data-menu-toggle>
-			<span></span><span></span>
-		</button>
-	</div>
-		<nav class="mobile-nav" aria-label="Mobile navigation" data-mobile-nav>
-		<a href="/">Home</a>
-		<a href="/about">About</a>
-		<a href="/category">Category</a>
-		<a href="/host-your-event" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, '/account-setup', 'host');}">Host Your Event</a>
-		<a href="/gallery">Gallery</a>
-		<div class="mobile-auth-group">
-			<a class="button button-login" href="/login">Login</a>
-			<a class="button button-primary" href="/signup">Sign Up</a>
-		</div>
-	</nav>
+<meta charset="UTF-8" />
+<div class="container nav-inner"> <div class="header-leading"> <a class="brand" href="/" aria-label="JOD Events home"> <span class="brand-logo-slot"> <img
+ class="brand-logo"
+ src="/images/JOD%20Events%20Logo.png?v=3"
+ data-logo-light="/images/JOD Events Logo.png"
+ data-logo-dark="/images/Jod_log_Dark.webp"
+ alt="JOD Events"
+ width="179"
+ height="68"
+ loading="eager"
+ fetchpriority="high"
+ decoding="sync"
+ style="height:4.25rem;max-height:4.25rem;width:auto;max-width:11.2rem;object-fit:contain;display:block"
+ /> </span> <span class="brand-fallback" hidden>JOD Events</span> </a> <button type="button" class="header-back-btn" data-header-back aria-label="Go back"> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> <span>Back</span> </button> </div> <div class="header-search" role="search"> <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"> <path
+ d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /> </svg> <input type="text" id="headerSearchInput" placeholder="Search events&#8230;" aria-label="Search events" autocomplete="off" /> <button type="button" class="search-clear" id="headerSearchClear" aria-label="Clear search">&times;</button> </div> <nav class="desktop-nav" aria-label="Primary navigation"> <a href="/">Home</a> <a href="/about" aria-current="false">About</a> <a href="/category">Category</a> <a href="/host-your-event" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, '/account-setup', 'host');}">Host Your Event</a> <a href="/gallery">Gallery</a> <a href="/admin-portal" data-admin-only hidden>Admin</a> </nav> <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Dark mode"></button> <div class="nav-auth" id="navAuth"> <a class="button button-sm button-login" href="/login" id="nav-login-btn">Login</a> <a class="button button-sm button-primary" href="/signup" id="nav-signup-btn"><span>Sign Up</span><span aria-hidden="true">&#8599;</span></a> </div> <button class="menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" data-menu-toggle> <span></span><span></span> </button> </div> <nav class="mobile-nav" aria-label="Mobile navigation" data-mobile-nav> <a href="/">Home</a> <a href="/about">About</a> <a href="/category">Category</a> <a href="/host-your-event" onclick="if(window.JodAuth && window.JodAuth.navigateToHostFlow){event.preventDefault();window.JodAuth.navigateToHostFlow();} else if(window.handleGuestOrNavigate){return window.handleGuestOrNavigate(event, '/account-setup', 'host');}">Host Your Event</a> <a href="/gallery">Gallery</a> <a href="/admin-portal" data-admin-only hidden>Admin</a> <div class="mobile-auth-group"> <a class="button button-login" href="/login">Login</a> <a class="button button-primary" href="/signup">Sign Up</a> </div> </nav>
 </header>

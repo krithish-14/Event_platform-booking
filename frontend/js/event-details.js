@@ -1,9 +1,9 @@
 /**
- * Dynamic Event Details Page — loads published events from API only.
+ * Dynamic Event Details Page \u2014 loads published events from API only.
  */
 document.addEventListener('DOMContentLoaded', () => {
-    initEventDetailsPage();
-    setupEventDescriptionToggle();
+ initEventDetailsPage();
+ setupEventDescriptionToggle();
 });
 
 let currentSelectedPrice = 0;
@@ -19,1209 +19,1209 @@ let galleryLightboxBound = false;
 let hasIssuedTicket = false;
 
 function setupEventDescriptionToggle() {
-    const descEl = document.getElementById("eventDescription");
-    const btn = document.getElementById("eventDescToggle");
-    if (!descEl || !btn) return;
+ const descEl = document.getElementById("eventDescription");
+ const btn = document.getElementById("eventDescToggle");
+ if (!descEl || !btn) return;
 
-    descEl.classList.add("is-collapsed");
-    const measure = () => {
-        const collapsed = descEl.classList.contains("is-collapsed");
-        if (!collapsed) {
-            btn.hidden = false;
-            btn.textContent = "Read less";
-            return;
-        }
-        const overflowing = descEl.scrollHeight > descEl.clientHeight + 4;
-        btn.hidden = !overflowing;
-        btn.textContent = "Read more";
-    };
+ descEl.classList.add("is-collapsed");
+ const measure = () => {
+ const collapsed = descEl.classList.contains("is-collapsed");
+ if (!collapsed) {
+ btn.hidden = false;
+ btn.textContent = "Read less";
+ return;
+ }
+ const overflowing = descEl.scrollHeight > descEl.clientHeight + 4;
+ btn.hidden = !overflowing;
+ btn.textContent = "Read more";
+ };
 
-    window.requestAnimationFrame(measure);
+ window.requestAnimationFrame(measure);
 
-    if (btn.dataset.bound === "1") return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", () => {
-        const nowCollapsed = descEl.classList.toggle("is-collapsed");
-        btn.textContent = nowCollapsed ? "Read more" : "Read less";
-        if (nowCollapsed) window.requestAnimationFrame(measure);
-    });
-    window.addEventListener("resize", () => {
-        if (descEl.classList.contains("is-collapsed")) window.requestAnimationFrame(measure);
-    });
+ if (btn.dataset.bound === "1") return;
+ btn.dataset.bound = "1";
+ btn.addEventListener("click", () => {
+ const nowCollapsed = descEl.classList.toggle("is-collapsed");
+ btn.textContent = nowCollapsed ? "Read more" : "Read less";
+ if (nowCollapsed) window.requestAnimationFrame(measure);
+ });
+ window.addEventListener("resize", () => {
+ if (descEl.classList.contains("is-collapsed")) window.requestAnimationFrame(measure);
+ });
 }
 
 async function readyAuthSession() {
-    if (window.JodAuth && typeof window.JodAuth.ensureSession === "function") {
-        try {
-            await window.JodAuth.ensureSession();
-        } catch (_) {}
-    } else if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
-        try {
-            await window.JodAuth.validateSession();
-        } catch (_) {}
-    }
+ if (window.JodAuth && typeof window.JodAuth.ensureSession === "function") {
+ try {
+ await window.JodAuth.ensureSession();
+ } catch (_) {}
+ } else if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+ try {
+ await window.JodAuth.validateSession();
+ } catch (_) {}
+ }
 }
 
 async function initEventDetailsPage() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const eventId = urlParams.get('id');
-    const EP = window.JodEventsPublic;
+ const urlParams = new URLSearchParams(window.location.search);
+ const eventId = urlParams.get('id');
+ const EP = window.JodEventsPublic;
 
-    showLoadingState();
+ showLoadingState();
 
-    if (!eventId) {
-        showUnavailableState("This event is currently unavailable.", "No event was selected.");
-        return;
-    }
+ if (!eventId) {
+ showUnavailableState("This event is currently unavailable.", "No event was selected.");
+ return;
+ }
 
-    if (!EP) {
-        showUnavailableState("Unable to load event details.", "Please refresh the page and try again.");
-        return;
-    }
+ if (!EP) {
+ showUnavailableState("Unable to load event details.", "Please refresh the page and try again.");
+ return;
+ }
 
-    await loadEventFromBackend(eventId);
-    await applyBookingCtaState(eventId);
-    document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") {
-            applyBookingCtaState(eventId);
-        }
-    });
+ await loadEventFromBackend(eventId);
+ await applyBookingCtaState(eventId);
+ document.addEventListener("visibilitychange", () => {
+ if (document.visibilityState === "visible") {
+ applyBookingCtaState(eventId);
+ }
+ });
 }
 
 function showLoadingState() {
-    const main = document.getElementById('mainContent');
-    const loading = document.getElementById('eventLoadingState');
-    const unavailable = document.getElementById('eventUnavailableState');
-    if (main) main.style.display = 'none';
-    if (unavailable) unavailable.style.display = 'none';
-    if (loading) loading.style.display = 'block';
+ const main = document.getElementById('mainContent');
+ const loading = document.getElementById('eventLoadingState');
+ const unavailable = document.getElementById('eventUnavailableState');
+ if (main) main.style.display = 'none';
+ if (unavailable) unavailable.style.display = 'none';
+ if (loading) loading.style.display = 'block';
 }
 
 function showUnavailableState(title, message) {
-    const main = document.getElementById('mainContent');
-    const loading = document.getElementById('eventLoadingState');
-    const unavailable = document.getElementById('eventUnavailableState');
-    const titleEl = document.getElementById('unavailableTitle');
-    const msgEl = document.getElementById('unavailableMessage');
-    if (loading) loading.style.display = 'none';
-    if (main) main.style.display = 'none';
-    if (unavailable) unavailable.style.display = 'block';
-    if (titleEl) titleEl.textContent = title || 'This event is currently unavailable.';
-    if (msgEl) msgEl.textContent = message || 'The event may be unpublished or no longer available.';
-    document.title = 'Event Unavailable — JOD Events';
+ const main = document.getElementById('mainContent');
+ const loading = document.getElementById('eventLoadingState');
+ const unavailable = document.getElementById('eventUnavailableState');
+ const titleEl = document.getElementById('unavailableTitle');
+ const msgEl = document.getElementById('unavailableMessage');
+ if (loading) loading.style.display = 'none';
+ if (main) main.style.display = 'none';
+ if (unavailable) unavailable.style.display = 'block';
+ if (titleEl) titleEl.textContent = title || 'This event is currently unavailable.';
+ if (msgEl) msgEl.textContent = message || 'The event may be unpublished or no longer available.';
+ document.title = 'Event Unavailable \u2014 JOD Events';
 }
 
 function showEventContent() {
-    const main = document.getElementById('mainContent');
-    const loading = document.getElementById('eventLoadingState');
-    const unavailable = document.getElementById('eventUnavailableState');
-    if (loading) loading.style.display = 'none';
-    if (unavailable) unavailable.style.display = 'none';
-    if (main) main.style.display = '';
+ const main = document.getElementById('mainContent');
+ const loading = document.getElementById('eventLoadingState');
+ const unavailable = document.getElementById('eventUnavailableState');
+ if (loading) loading.style.display = 'none';
+ if (unavailable) unavailable.style.display = 'none';
+ if (main) main.style.display = '';
 }
 
 async function loadEventFromBackend(eventId) {
-    const EP = window.JodEventsPublic;
-    try {
-        const data = await EP.fetchPublishedEventById(eventId);
-        currentEventData = data;
-        renderEventDOM(data);
-        showEventContent();
-        await loadRecommendedEvents(eventId);
-        EP.startCountdownTicker();
-    } catch (err) {
-        console.warn('Event details load failed:', err);
-        showUnavailableState(
-            err.code === 'UNAVAILABLE' ? 'This event is currently unavailable.' : 'Unable to load event details.',
-            err.message || 'Please try again later.'
-        );
-    }
+ const EP = window.JodEventsPublic;
+ try {
+ const data = await EP.fetchPublishedEventById(eventId);
+ currentEventData = data;
+ renderEventDOM(data);
+ showEventContent();
+ await loadRecommendedEvents(eventId);
+ EP.startCountdownTicker();
+ } catch (err) {
+ console.warn('Event details load failed:', err);
+ showUnavailableState(
+ err.code === 'UNAVAILABLE' ? 'This event is currently unavailable.' : 'Unable to load event details.',
+ err.message || 'Please try again later.'
+ );
+ }
 }
 
 async function loadRecommendedEvents(currentId) {
-    const EP = window.JodEventsPublic;
-    const grid = document.getElementById('recommendedGrid');
-    const block = document.getElementById('recommendedBlock');
-    if (!grid) return;
-    grid.innerHTML = '';
-    if (!EP) {
-        if (block) block.style.display = 'none';
-        return;
-    }
+ const EP = window.JodEventsPublic;
+ const grid = document.getElementById('recommendedGrid');
+ const block = document.getElementById('recommendedBlock');
+ if (!grid) return;
+ grid.innerHTML = '';
+ if (!EP) {
+ if (block) block.style.display = 'none';
+ return;
+ }
 
-    try {
-        const events = await EP.fetchPublishedEvents({ limit: 8 });
-        const others = events.filter(e => String(e.id) !== String(currentId)).slice(0, 4);
-        if (!others.length) {
-            if (block) block.style.display = 'none';
-            return;
-        }
-        grid.innerHTML = others.map(ev => {
-            const url = EP.eventDetailsUrl(ev);
-            const img = EP.escapeHtml(EP.resolveImage(ev.image_url));
-            const title = EP.escapeHtml(ev.title || 'Event');
-            const venue = EP.escapeHtml(ev.venue || ev.location || '');
-            const dateStr = EP.formatDateIST ? EP.escapeHtml(EP.formatDateIST(ev.start_date) || '') : '';
-            const meta = [dateStr, venue].filter(Boolean).join(' · ');
-            const heart = EP.wishlistHeartButton ? EP.wishlistHeartButton(ev.id) : '';
-            return `
-                <a href="${url}" class="rec-card">
-                    <div class="rec-card-media">
-                        <img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${EP.PLACEHOLDER_IMAGE}'" />
-                        ${heart}
-                    </div>
-                    <div class="rec-card-body">
-                        <h3 class="rec-card-title">${title}</h3>
-                        <p class="rec-card-meta">${meta}</p>
-                    </div>
-                </a>
-            `;
-        }).join('');
-        if (block) block.style.display = '';
-        if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === 'function') {
-            window.JodWishlist.refreshButtons(grid);
-        }
-    } catch (_) {
-        grid.innerHTML = '';
-        if (block) block.style.display = 'none';
-    }
+ try {
+ const events = await EP.fetchPublishedEvents({ limit: 8 });
+ const others = events.filter(e => String(e.id) !== String(currentId)).slice(0, 4);
+ if (!others.length) {
+ if (block) block.style.display = 'none';
+ return;
+ }
+ grid.innerHTML = others.map(ev => {
+ const url = EP.eventDetailsUrl(ev);
+ const img = EP.escapeHtml(EP.resolveImage(ev.image_url));
+ const title = EP.escapeHtml(ev.title || 'Event');
+ const venue = EP.escapeHtml(ev.venue || ev.location || '');
+ const dateStr = EP.formatDateIST ? EP.escapeHtml(EP.formatDateIST(ev.start_date) || '') : '';
+ const meta = [dateStr, venue].filter(Boolean).join(' \u00b7 ');
+ const heart = EP.wishlistHeartButton ? EP.wishlistHeartButton(ev.id) : '';
+ return `
+ <a href="${url}" class="rec-card">
+ <div class="rec-card-media">
+ <img src="${img}" alt="${title}" loading="lazy" onerror="this.src='${EP.PLACEHOLDER_IMAGE}'" />
+ ${heart}
+ </div>
+ <div class="rec-card-body">
+ <h3 class="rec-card-title">${title}</h3>
+ <p class="rec-card-meta">${meta}</p>
+ </div>
+ </a>
+ `;
+ }).join('');
+ if (block) block.style.display = '';
+ if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === 'function') {
+ window.JodWishlist.refreshButtons(grid);
+ }
+ } catch (_) {
+ grid.innerHTML = '';
+ if (block) block.style.display = 'none';
+ }
 }
 
 function getCategoryThemeConfig(category) {
-    const cat = (category || '').trim();
-    const themes = {
-        Sports: {
-            themeClass: 'category-theme-festival',
-            heroBadge: '🏅 Sports Event',
-            performersTitle: 'Athletes & Headliners',
-            highlightsTitle: 'Sponsors',
-            icon: '🏅'
-        },
-        Conferences: {
-            themeClass: 'category-theme-corporate',
-            heroBadge: '💼 Conference',
-            performersTitle: 'Speakers',
-            highlightsTitle: 'Sponsors',
-            icon: '💼'
-        },
-        Performances: {
-            themeClass: 'category-theme-comedy',
-            heroBadge: '🎭 Performance',
-            performersTitle: 'Artists',
-            highlightsTitle: 'Sponsors',
-            icon: '🎭'
-        },
-        Experiences: {
-            themeClass: 'category-theme-workshop',
-            heroBadge: '✨ Experience',
-            performersTitle: 'Hosts',
-            highlightsTitle: 'Sponsors',
-            icon: '✨'
-        },
-        Expositions: {
-            themeClass: 'category-theme-launch',
-            heroBadge: '🏛️ Exposition',
-            performersTitle: 'Exhibitors & Speakers',
-            highlightsTitle: 'Sponsors',
-            icon: '🏛️'
-        },
-        Parties: {
-            themeClass: 'category-theme-wedding',
-            heroBadge: '🎉 Party',
-            performersTitle: 'Artists',
-            highlightsTitle: 'Sponsors',
-            icon: '🎉'
-        },
-        Workshops: {
-            themeClass: 'category-theme-workshop',
-            heroBadge: '🛠️ Workshop',
-            performersTitle: 'Instructors',
-            highlightsTitle: 'Sponsors',
-            icon: '🛠️'
-        }
-    };
-    return themes[cat] || {
-        themeClass: 'category-theme-comedy',
-        heroBadge: cat || 'Event',
-        performersTitle: 'Artists & Speakers',
-        highlightsTitle: 'Sponsors',
-        icon: '🎟️'
-    };
+ const cat = (category || '').trim();
+ const themes = {
+ Sports: {
+ themeClass: 'category-theme-festival',
+ heroBadge: '\ud83c\udfc5 Sports Event',
+ performersTitle: 'Athletes & Headliners',
+ highlightsTitle: 'Sponsors',
+ icon: '\ud83c\udfc5'
+ },
+ Conferences: {
+ themeClass: 'category-theme-corporate',
+ heroBadge: '\ud83d\udcbc Conference',
+ performersTitle: 'Speakers',
+ highlightsTitle: 'Sponsors',
+ icon: '\ud83d\udcbc'
+ },
+ Performances: {
+ themeClass: 'category-theme-comedy',
+ heroBadge: '\ud83c\udfad Performance',
+ performersTitle: 'Artists',
+ highlightsTitle: 'Sponsors',
+ icon: '\ud83c\udfad'
+ },
+ Experiences: {
+ themeClass: 'category-theme-workshop',
+ heroBadge: '\u2728 Experience',
+ performersTitle: 'Hosts',
+ highlightsTitle: 'Sponsors',
+ icon: '\u2728'
+ },
+ Expositions: {
+ themeClass: 'category-theme-launch',
+ heroBadge: '\ud83c\udfdb\ufe0f Exposition',
+ performersTitle: 'Exhibitors & Speakers',
+ highlightsTitle: 'Sponsors',
+ icon: '\ud83c\udfdb\ufe0f'
+ },
+ Parties: {
+ themeClass: 'category-theme-wedding',
+ heroBadge: '\ud83c\udf89 Party',
+ performersTitle: 'Artists',
+ highlightsTitle: 'Sponsors',
+ icon: '\ud83c\udf89'
+ },
+ Workshops: {
+ themeClass: 'category-theme-workshop',
+ heroBadge: '\ud83d\udee0\ufe0f Workshop',
+ performersTitle: 'Instructors',
+ highlightsTitle: 'Sponsors',
+ icon: '\ud83d\udee0\ufe0f'
+ }
+ };
+ return themes[cat] || {
+ themeClass: 'category-theme-comedy',
+ heroBadge: cat || 'Event',
+ performersTitle: 'Artists & Speakers',
+ highlightsTitle: 'Sponsors',
+ icon: '\ud83c\udf9f\ufe0f'
+ };
 }
 
 function googleMapsVenueUrl(event) {
-    if (!event) return '';
-    const lat = Number(event.latitude);
-    const lon = Number(event.longitude);
-    if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
-        return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lon}`)}`;
-    }
-    const query = [event.venue, event.location, event.address]
-        .map((part) => String(part || '').trim())
-        .filter((part, index, list) => part && list.findIndex((item) => item.toLowerCase() === part.toLowerCase()) === index)
-        .join(', ');
-    if (!query) return '';
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+ if (!event) return '';
+ const lat = Number(event.latitude);
+ const lon = Number(event.longitude);
+ if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
+ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lon}`)}`;
+ }
+ const query = [event.venue, event.location, event.address]
+ .map((part) => String(part || '').trim())
+ .filter((part, index, list) => part && list.findIndex((item) => item.toLowerCase() === part.toLowerCase()) === index)
+ .join(', ');
+ if (!query) return '';
+ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 function bindVenueMapsLink(event) {
-    const venueLink = document.getElementById('infoVenueLink');
-    if (!venueLink) return;
-    const mapsUrl = googleMapsVenueUrl(event);
-    const format = String(event && event.event_format || '').toLowerCase();
-    const isOnline = format === 'online' || format === 'virtual';
-    if (mapsUrl && !isOnline) {
-        venueLink.href = mapsUrl;
-        venueLink.target = '_blank';
-        venueLink.rel = 'noopener noreferrer';
-        venueLink.classList.remove('is-disabled');
-        venueLink.setAttribute('title', 'Open venue in Google Maps');
-        venueLink.setAttribute('aria-disabled', 'false');
-        venueLink.onclick = null;
-    } else {
-        venueLink.href = '#';
-        venueLink.removeAttribute('target');
-        venueLink.classList.add('is-disabled');
-        venueLink.removeAttribute('title');
-        venueLink.setAttribute('aria-disabled', 'true');
-        venueLink.onclick = (evt) => evt.preventDefault();
-    }
+ const venueLink = document.getElementById('infoVenueLink');
+ if (!venueLink) return;
+ const mapsUrl = googleMapsVenueUrl(event);
+ const format = String(event && event.event_format || '').toLowerCase();
+ const isOnline = format === 'online' || format === 'virtual';
+ if (mapsUrl && !isOnline) {
+ venueLink.href = mapsUrl;
+ venueLink.target = '_blank';
+ venueLink.rel = 'noopener noreferrer';
+ venueLink.classList.remove('is-disabled');
+ venueLink.setAttribute('title', 'Open venue in Google Maps');
+ venueLink.setAttribute('aria-disabled', 'false');
+ venueLink.onclick = null;
+ } else {
+ venueLink.href = '#';
+ venueLink.removeAttribute('target');
+ venueLink.classList.add('is-disabled');
+ venueLink.removeAttribute('title');
+ venueLink.setAttribute('aria-disabled', 'true');
+ venueLink.onclick = (evt) => evt.preventDefault();
+ }
 }
 
 function renderEventDOM(event) {
-    if (!event) return;
-    const EP = window.JodEventsPublic;
-    const themeConfig = getCategoryThemeConfig(event.category);
+ if (!event) return;
+ const EP = window.JodEventsPublic;
+ const themeConfig = getCategoryThemeConfig(event.category);
 
-    document.body.classList.remove('category-theme-comedy', 'category-theme-corporate', 'category-theme-launch', 'category-theme-wedding', 'category-theme-festival', 'category-theme-workshop');
-    document.body.classList.add('sub-page', 'event-details-page', themeConfig.themeClass);
+ document.body.classList.remove('category-theme-comedy', 'category-theme-corporate', 'category-theme-launch', 'category-theme-wedding', 'category-theme-festival', 'category-theme-workshop');
+ document.body.classList.add('sub-page', 'event-details-page', themeConfig.themeClass);
 
-    document.title = `${event.title || 'Event Details'} — JOD Events`;
+ document.title = `${event.title || 'Event Details'} \u2014 JOD Events`;
 
-    const perfTitleEl = document.getElementById('performersTitle');
-    if (perfTitleEl) {
-        const customTitle = String(event.performers_title || '').trim();
-        perfTitleEl.textContent = customTitle || themeConfig.performersTitle;
-    }
+ const perfTitleEl = document.getElementById('performersTitle');
+ if (perfTitleEl) {
+ const customTitle = String(event.performers_title || '').trim();
+ perfTitleEl.textContent = customTitle || themeConfig.performersTitle;
+ }
 
-    const titleEl = document.getElementById('eventTitle');
-    if (titleEl) titleEl.textContent = event.title || 'Event';
+ const titleEl = document.getElementById('eventTitle');
+ if (titleEl) titleEl.textContent = event.title || 'Event';
 
-    const venueEl = document.getElementById('headerVenue');
-    if (venueEl) venueEl.textContent = `📍 ${event.venue || event.location || 'Event Venue'}`;
+ const venueEl = document.getElementById('headerVenue');
+ if (venueEl) venueEl.textContent = event.venue || event.location || 'Event Venue';
 
-    const heroFb = (window.JodConfig && window.JodConfig.assetUrl)
-        ? window.JodConfig.assetUrl('images/hero-event.jpg')
-        : 'https://assets.jodevents.com/images/hero-event.jpg';
+ const heroFb = (window.JodConfig && window.JodConfig.assetUrl)
+ ? window.JodConfig.assetUrl('images/hero-event.jpg')
+ : 'https://assets.jodevents.com/images/hero-event.jpg';
 
-    const imgEl = document.getElementById('eventImage');
-    if (imgEl) {
-        imgEl.src = EP ? EP.resolveImage(event.image_url) : (event.image_url ? (window.JodConfig && window.JodConfig.safeMediaUrl ? window.JodConfig.safeMediaUrl(event.image_url) : event.image_url) : heroFb);
-        imgEl.alt = event.title || 'Event Banner';
-    }
+ const imgEl = document.getElementById('eventImage');
+ if (imgEl) {
+ imgEl.src = EP ? EP.resolveImage(event.image_url) : (event.image_url ? (window.JodConfig && window.JodConfig.safeMediaUrl ? window.JodConfig.safeMediaUrl(event.image_url) : event.image_url) : heroFb);
+ imgEl.alt = event.title || 'Event Banner';
+ }
 
-    const wishBtn = document.getElementById('btnWishlist');
-    if (wishBtn && event.id) {
-        wishBtn.setAttribute('data-wishlist-event', String(event.id));
-        if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === 'function') {
-            window.JodWishlist.refreshButtons();
-        }
-    }
+ const wishBtn = document.getElementById('btnWishlist');
+ if (wishBtn && event.id) {
+ wishBtn.setAttribute('data-wishlist-event', String(event.id));
+ if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === 'function') {
+ window.JodWishlist.refreshButtons();
+ }
+ }
 
-    const formatTagEl = document.getElementById('eventFormatTag');
-    if (formatTagEl) formatTagEl.textContent = event.event_format || 'In-person';
+ const formatTagEl = document.getElementById('eventFormatTag');
+ if (formatTagEl) formatTagEl.textContent = event.event_format || 'In-person';
 
-    const catTagEl = document.getElementById('eventCategoryTag');
-    if (catTagEl) {
-        const cat = (event.category || '').trim();
-        catTagEl.textContent = cat || 'Sport';
-        catTagEl.style.display = cat ? '' : 'none';
-    }
+ const catTagEl = document.getElementById('eventCategoryTag');
+ if (catTagEl) {
+ const cat = (event.category || '').trim();
+ catTagEl.textContent = cat || 'Sport';
+ catTagEl.style.display = cat ? '' : 'none';
+ }
 
-    const descEl = document.getElementById('eventDescription');
-    if (descEl) {
-        const raw = String(event.description || '').trim();
-        const fallback = 'Event details will be shared by the host.';
-        const editor = window.JodDescEditor;
-        if (!raw) {
-            descEl.textContent = fallback;
-            descEl.classList.remove('is-rich');
-        } else if (editor && typeof editor.looksLikeHtml === 'function' && editor.looksLikeHtml(raw)) {
-            descEl.innerHTML = editor.sanitize(raw);
-            descEl.classList.add('is-rich');
-        } else {
-            descEl.textContent = raw;
-            descEl.classList.remove('is-rich');
-        }
-    }
-    setupEventDescriptionToggle();
+ const descEl = document.getElementById('eventDescription');
+ if (descEl) {
+ const raw = String(event.description || '').trim();
+ const fallback = 'Event details will be shared by the host.';
+ const editor = window.JodDescEditor;
+ if (!raw) {
+ descEl.textContent = fallback;
+ descEl.classList.remove('is-rich');
+ } else if (editor && typeof editor.looksLikeHtml === 'function' && editor.looksLikeHtml(raw)) {
+ descEl.innerHTML = editor.sanitize(raw);
+ descEl.classList.add('is-rich');
+ } else {
+ descEl.textContent = raw;
+ descEl.classList.remove('is-rich');
+ }
+ }
+ setupEventDescriptionToggle();
 
-    const scheduleEl = document.getElementById('infoSchedule');
-    if (scheduleEl && EP) {
-        scheduleEl.textContent = EP.formatDateTimeIST(event.start_date);
-    }
+ const scheduleEl = document.getElementById('infoSchedule');
+ if (scheduleEl && EP) {
+ scheduleEl.textContent = EP.formatDateTimeIST(event.start_date);
+ }
 
-    const durationEl = document.getElementById('infoDuration');
-    if (durationEl) {
-        const durationText = String(event.duration || '').trim();
-        durationEl.textContent = durationText || '—';
-    }
+ const durationEl = document.getElementById('infoDuration');
+ if (durationEl) {
+ const durationText = String(event.duration || '').trim();
+ durationEl.textContent = durationText || '\u2014';
+ }
 
-    const infoVenueEl = document.getElementById('infoVenue');
-    const venueLabel = String(event.venue || event.location || '').trim();
-    if (infoVenueEl) infoVenueEl.textContent = venueLabel;
+ const infoVenueEl = document.getElementById('infoVenue');
+ const venueLabel = String(event.venue || event.location || '').trim();
+ if (infoVenueEl) infoVenueEl.textContent = venueLabel;
 
-    const infoLocEl = document.getElementById('infoLocation');
-    const locationLabel = String(event.location || '').trim();
-    if (infoLocEl) {
-        const showSecondary = locationLabel && locationLabel.toLowerCase() !== venueLabel.toLowerCase();
-        infoLocEl.textContent = showSecondary ? locationLabel : '';
-        infoLocEl.style.display = showSecondary ? '' : 'none';
-    }
+ const infoLocEl = document.getElementById('infoLocation');
+ const locationLabel = String(event.location || '').trim();
+ if (infoLocEl) {
+ const showSecondary = locationLabel && locationLabel.toLowerCase() !== venueLabel.toLowerCase();
+ infoLocEl.textContent = showSecondary ? locationLabel : '';
+ infoLocEl.style.display = showSecondary ? '' : 'none';
+ }
 
-    const venueLink = document.getElementById('infoVenueLink');
-    bindVenueMapsLink(event);
-    if (venueLink && !venueLink.dataset.mapsBound) {
-        venueLink.dataset.mapsBound = '1';
-        venueLink.addEventListener('click', (evt) => {
-            if (venueLink.classList.contains('is-disabled')) {
-                evt.preventDefault();
-                return;
-            }
-            const mapsUrl = googleMapsVenueUrl(currentEventData || event);
-            if (!mapsUrl) {
-                evt.preventDefault();
-                return;
-            }
-            if (!venueLink.getAttribute('href') || venueLink.getAttribute('href') === '#') {
-                evt.preventDefault();
-                window.open(mapsUrl, '_blank', 'noopener,noreferrer');
-            }
-        });
-    }
+ const venueLink = document.getElementById('infoVenueLink');
+ bindVenueMapsLink(event);
+ if (venueLink && !venueLink.dataset.mapsBound) {
+ venueLink.dataset.mapsBound = '1';
+ venueLink.addEventListener('click', (evt) => {
+ if (venueLink.classList.contains('is-disabled')) {
+ evt.preventDefault();
+ return;
+ }
+ const mapsUrl = googleMapsVenueUrl(currentEventData || event);
+ if (!mapsUrl) {
+ evt.preventDefault();
+ return;
+ }
+ if (!venueLink.getAttribute('href') || venueLink.getAttribute('href') === '#') {
+ evt.preventDefault();
+ window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+ }
+ });
+ }
 
-    const countdownEl = document.getElementById('eventCountdown');
-    if (countdownEl && event.start_date && EP) {
-        countdownEl.dataset.countdown = event.start_date;
-        countdownEl.dataset.countdownEnd = event.end_date || '';
-        countdownEl.style.display = '';
-        EP.updateCountdownElement(countdownEl, event.start_date, event.end_date);
-    }
+ const countdownEl = document.getElementById('eventCountdown');
+ if (countdownEl && event.start_date && EP) {
+ countdownEl.dataset.countdown = event.start_date;
+ countdownEl.dataset.countdownEnd = event.end_date || '';
+ countdownEl.style.display = '';
+ EP.updateCountdownElement(countdownEl, event.start_date, event.end_date);
+ }
 
-    const startingPrice = lowestTicketPrice(event);
-    startingTicketPrice = startingPrice;
-    currentSelectedPrice = startingPrice;
-    setStartingPriceDisplay(startingPrice);
-    updateQuantityTotalDisplay(startingPrice);
+ const startingPrice = lowestTicketPrice(event);
+ startingTicketPrice = startingPrice;
+ currentSelectedPrice = startingPrice;
+ setStartingPriceDisplay(startingPrice);
+ updateQuantityTotalDisplay(startingPrice);
 
-    const escape = (EP && typeof EP.escapeHtml === 'function')
-        ? EP.escapeHtml
-        : (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+ const escape = (EP && typeof EP.escapeHtml === 'function')
+ ? EP.escapeHtml
+ : (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    applyEventShareMeta(event);
+ applyEventShareMeta(event);
 
-    const perfSection = document.getElementById('performersSection');
-    if (event.performers && Array.isArray(event.performers) && event.performers.length > 0) {
-        const pGrid = document.getElementById('performersGrid');
-        if (pGrid) {
-            pGrid.innerHTML = event.performers.map(p => {
-                const name = escape(p.name || 'Speaker');
-                const role = escape(p.role || '');
-                const photo = EP
-                    ? EP.escapeHtml(EP.resolveImage(p.image_url || p.photo_url))
-                    : heroFb;
-                return `
-                <div class="performer-card">
-                    <img class="performer-avatar" src="${photo}" alt="${name}" onerror="this.src='${heroFb}'" />
-                    <h3 class="performer-name">${name}</h3>
-                    ${role ? `<p class="performer-role">${role}</p>` : ''}
-                </div>`;
-            }).join('');
-        }
-        if (perfSection) perfSection.style.display = '';
-    } else if (perfSection) {
-        perfSection.style.display = 'none';
-    }
+ const perfSection = document.getElementById('performersSection');
+ if (event.performers && Array.isArray(event.performers) && event.performers.length > 0) {
+ const pGrid = document.getElementById('performersGrid');
+ if (pGrid) {
+ pGrid.innerHTML = event.performers.map(p => {
+ const name = escape(p.name || 'Speaker');
+ const role = escape(p.role || '');
+ const photo = EP
+ ? EP.escapeHtml(EP.resolveImage(p.image_url || p.photo_url))
+ : heroFb;
+ return `
+ <div class="performer-card">
+ <img class="performer-avatar" src="${photo}" alt="${name}" onerror="this.src='${heroFb}'" />
+ <h3 class="performer-name">${name}</h3>
+ ${role ? `<p class="performer-role">${role}</p>` : ''}
+ </div>`;
+ }).join('');
+ }
+ if (perfSection) perfSection.style.display = '';
+ } else if (perfSection) {
+ perfSection.style.display = 'none';
+ }
 
-    renderEventGallery(event, EP);
-    renderEventSponsors(event, EP, escape);
-    paintTicketTypes(event);
-    bindTicketPruneListener();
+ renderEventGallery(event, EP);
+ renderEventSponsors(event, EP, escape);
+ paintTicketTypes(event);
+ bindTicketPruneListener();
 }
 
 function collectGalleryUrls(event, EP) {
-    let raw = event ? event.gallery_images : null;
-    if (typeof raw === 'string') {
-        const trimmed = raw.trim();
-        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-            try { raw = JSON.parse(trimmed); } catch (_) { raw = trimmed ? [trimmed] : []; }
-        } else {
-            raw = trimmed ? [trimmed] : [];
-        }
-    }
-    if (!Array.isArray(raw)) raw = [];
-    return raw.map((item) => {
-        if (typeof item === 'string') return EP ? EP.resolveImage(item) : item;
-        if (item && typeof item === 'object') {
-            const url = item.url || item.image_url || item.src || '';
-            return url ? (EP ? EP.resolveImage(url) : url) : '';
-        }
-        return '';
-    }).filter(Boolean);
+ let raw = event ? event.gallery_images : null;
+ if (typeof raw === 'string') {
+ const trimmed = raw.trim();
+ if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+ try { raw = JSON.parse(trimmed); } catch (_) { raw = trimmed ? [trimmed] : []; }
+ } else {
+ raw = trimmed ? [trimmed] : [];
+ }
+ }
+ if (!Array.isArray(raw)) raw = [];
+ return raw.map((item) => {
+ if (typeof item === 'string') return EP ? EP.resolveImage(item) : item;
+ if (item && typeof item === 'object') {
+ const url = item.url || item.image_url || item.src || '';
+ return url ? (EP ? EP.resolveImage(url) : url) : '';
+ }
+ return '';
+ }).filter(Boolean);
 }
 
 function renderEventGallery(event, EP) {
-    const section = document.getElementById('gallerySection');
-    const grid = document.getElementById('galleryGrid');
-    const urls = collectGalleryUrls(event, EP);
-    galleryImages = urls;
-    if (!section || !grid) return;
-    if (!urls.length) {
-        section.style.display = 'none';
-        grid.innerHTML = '';
-        return;
-    }
+ const section = document.getElementById('gallerySection');
+ const grid = document.getElementById('galleryGrid');
+ const urls = collectGalleryUrls(event, EP);
+ galleryImages = urls;
+ if (!section || !grid) return;
+ if (!urls.length) {
+ section.style.display = 'none';
+ grid.innerHTML = '';
+ return;
+ }
 
-    const previewCount = 5;
-    const hasMore = urls.length > previewCount;
-    const visible = hasMore ? urls.slice(0, previewCount) : urls;
-    grid.innerHTML = visible.map((url, i) => {
-        const isOverlay = hasMore && i === visible.length - 1;
-        const openIndex = isOverlay ? 0 : i;
-        return `
-            <button type="button" class="gallery-thumb${isOverlay ? ' gallery-thumb--more' : ''}" data-gallery-index="${openIndex}">
-                <img src="${EP && EP.escapeHtml ? EP.escapeHtml(url) : ''}" alt="Gallery photo ${i + 1}" loading="lazy" />
-                ${isOverlay ? '<span class="gallery-thumb-overlay">See the Entire Gallery</span>' : ''}
-            </button>
-        `;
-    }).join('');
-    section.style.display = '';
-    grid.querySelectorAll('[data-gallery-index]').forEach((btn) => {
-        btn.addEventListener('click', () => openGalleryLightbox(Number(btn.dataset.galleryIndex)));
-    });
-    bindGalleryLightbox();
+ const previewCount = 5;
+ const hasMore = urls.length > previewCount;
+ const visible = hasMore ? urls.slice(0, previewCount) : urls;
+ grid.innerHTML = visible.map((url, i) => {
+ const isOverlay = hasMore && i === visible.length - 1;
+ const openIndex = isOverlay ? 0 : i;
+ return `
+ <button type="button" class="gallery-thumb${isOverlay ? ' gallery-thumb--more' : ''}" data-gallery-index="${openIndex}">
+ <img src="${EP && EP.escapeHtml ? EP.escapeHtml(url) : ''}" alt="Gallery photo ${i + 1}" loading="lazy" />
+ ${isOverlay ? '<span class="gallery-thumb-overlay">See the Entire Gallery</span>' : ''}
+ </button>
+ `;
+ }).join('');
+ section.style.display = '';
+ grid.querySelectorAll('[data-gallery-index]').forEach((btn) => {
+ btn.addEventListener('click', () => openGalleryLightbox(Number(btn.dataset.galleryIndex)));
+ });
+ bindGalleryLightbox();
 }
 
 function renderEventSponsors(event, EP, escape) {
-    const section = document.getElementById('sponsorsSection');
-    const grid = document.getElementById('sponsorsGrid');
-    if (!section || !grid) return;
+ const section = document.getElementById('sponsorsSection');
+ const grid = document.getElementById('sponsorsGrid');
+ if (!section || !grid) return;
 
-    // Use only the live sponsors list. Do not fall back to event.highlights —
-    // that field is a stale catalog snapshot and keeps deleted sponsors visible.
-    let sponsors = Array.isArray(event.sponsors) ? event.sponsors : [];
-    sponsors = sponsors.filter((s) => s && (s.logo_url || s.image_url || s.name || s.title));
-    if (!sponsors.length) {
-        section.style.display = 'none';
-        grid.innerHTML = '';
-        return;
-    }
+ // Use only the live sponsors list. Do not fall back to event.highlights \u2014
+ // that field is a stale catalog snapshot and keeps deleted sponsors visible.
+ let sponsors = Array.isArray(event.sponsors) ? event.sponsors : [];
+ sponsors = sponsors.filter((s) => s && (s.logo_url || s.image_url || s.name || s.title));
+ if (!sponsors.length) {
+ section.style.display = 'none';
+ grid.innerHTML = '';
+ return;
+ }
 
-    const esc = escape || ((s) => String(s || ''));
-    grid.innerHTML = sponsors.map((s) => {
-        const name = esc(s.name || s.title || '');
-        const logo = EP ? EP.escapeHtml(EP.resolveImage(s.logo_url || s.image_url)) : '';
-        return `
-            <div class="sponsor-logo-card">
-                ${logo ? `<img src="${logo}" alt="${name || 'Sponsor'}" onerror="this.style.display='none'" />` : ''}
-                ${name ? `<p class="sponsor-name">${name}</p>` : ''}
-            </div>
-        `;
-    }).join('');
-    section.style.display = '';
+ const esc = escape || ((s) => String(s || ''));
+ grid.innerHTML = sponsors.map((s) => {
+ const name = esc(s.name || s.title || '');
+ const logo = EP ? EP.escapeHtml(EP.resolveImage(s.logo_url || s.image_url)) : '';
+ return `
+ <div class="sponsor-logo-card">
+ ${logo ? `<img src="${logo}" alt="${name || 'Sponsor'}" onerror="this.style.display='none'" />` : ''}
+ ${name ? `<p class="sponsor-name">${name}</p>` : ''}
+ </div>
+ `;
+ }).join('');
+ section.style.display = '';
 }
 
 function bindGalleryLightbox() {
-    if (galleryLightboxBound) return;
-    const lightbox = document.getElementById('galleryLightbox');
-    if (!lightbox) return;
-    galleryLightboxBound = true;
+ if (galleryLightboxBound) return;
+ const lightbox = document.getElementById('galleryLightbox');
+ if (!lightbox) return;
+ galleryLightboxBound = true;
 
-    const closeBtn = document.getElementById('galleryLightboxClose');
-    const prevBtn = document.getElementById('galleryLightboxPrev');
-    const nextBtn = document.getElementById('galleryLightboxNext');
-    if (closeBtn) closeBtn.addEventListener('click', closeGalleryLightbox);
-    if (prevBtn) prevBtn.addEventListener('click', () => stepGalleryLightbox(-1));
-    if (nextBtn) nextBtn.addEventListener('click', () => stepGalleryLightbox(1));
-    lightbox.addEventListener('click', (e) => {
-        if (e.target === lightbox) closeGalleryLightbox();
-    });
-    document.addEventListener('keydown', (e) => {
-        if (lightbox.hidden) return;
-        if (e.key === 'Escape') closeGalleryLightbox();
-        if (e.key === 'ArrowLeft') stepGalleryLightbox(-1);
-        if (e.key === 'ArrowRight') stepGalleryLightbox(1);
-    });
+ const closeBtn = document.getElementById('galleryLightboxClose');
+ const prevBtn = document.getElementById('galleryLightboxPrev');
+ const nextBtn = document.getElementById('galleryLightboxNext');
+ if (closeBtn) closeBtn.addEventListener('click', closeGalleryLightbox);
+ if (prevBtn) prevBtn.addEventListener('click', () => stepGalleryLightbox(-1));
+ if (nextBtn) nextBtn.addEventListener('click', () => stepGalleryLightbox(1));
+ lightbox.addEventListener('click', (e) => {
+ if (e.target === lightbox) closeGalleryLightbox();
+ });
+ document.addEventListener('keydown', (e) => {
+ if (lightbox.hidden) return;
+ if (e.key === 'Escape') closeGalleryLightbox();
+ if (e.key === 'ArrowLeft') stepGalleryLightbox(-1);
+ if (e.key === 'ArrowRight') stepGalleryLightbox(1);
+ });
 }
 
 function openGalleryLightbox(index) {
-    if (!galleryImages.length) return;
-    galleryIndex = Number.isFinite(index) ? index : 0;
-    if (galleryIndex < 0) galleryIndex = 0;
-    if (galleryIndex >= galleryImages.length) galleryIndex = 0;
-    const lightbox = document.getElementById('galleryLightbox');
-    const img = document.getElementById('galleryLightboxImg');
-    const count = document.getElementById('galleryLightboxCount');
-    if (!lightbox || !img) return;
-    img.src = galleryImages[galleryIndex];
-    img.alt = `Gallery photo ${galleryIndex + 1}`;
-    if (count) count.textContent = `${galleryIndex + 1} / ${galleryImages.length}`;
-    const prevBtn = document.getElementById('galleryLightboxPrev');
-    const nextBtn = document.getElementById('galleryLightboxNext');
-    const showNav = galleryImages.length > 1;
-    if (prevBtn) prevBtn.style.display = showNav ? '' : 'none';
-    if (nextBtn) nextBtn.style.display = showNav ? '' : 'none';
-    lightbox.hidden = false;
-    document.body.style.overflow = 'hidden';
+ if (!galleryImages.length) return;
+ galleryIndex = Number.isFinite(index) ? index : 0;
+ if (galleryIndex < 0) galleryIndex = 0;
+ if (galleryIndex >= galleryImages.length) galleryIndex = 0;
+ const lightbox = document.getElementById('galleryLightbox');
+ const img = document.getElementById('galleryLightboxImg');
+ const count = document.getElementById('galleryLightboxCount');
+ if (!lightbox || !img) return;
+ img.src = galleryImages[galleryIndex];
+ img.alt = `Gallery photo ${galleryIndex + 1}`;
+ if (count) count.textContent = `${galleryIndex + 1} / ${galleryImages.length}`;
+ const prevBtn = document.getElementById('galleryLightboxPrev');
+ const nextBtn = document.getElementById('galleryLightboxNext');
+ const showNav = galleryImages.length > 1;
+ if (prevBtn) prevBtn.style.display = showNav ? '' : 'none';
+ if (nextBtn) nextBtn.style.display = showNav ? '' : 'none';
+ lightbox.hidden = false;
+ document.body.style.overflow = 'hidden';
 }
 
 function stepGalleryLightbox(delta) {
-    if (!galleryImages.length) return;
-    galleryIndex = (galleryIndex + delta + galleryImages.length) % galleryImages.length;
-    openGalleryLightbox(galleryIndex);
+ if (!galleryImages.length) return;
+ galleryIndex = (galleryIndex + delta + galleryImages.length) % galleryImages.length;
+ openGalleryLightbox(galleryIndex);
 }
 
 function closeGalleryLightbox() {
-    const lightbox = document.getElementById('galleryLightbox');
-    if (lightbox) lightbox.hidden = true;
-    document.body.style.overflow = '';
+ const lightbox = document.getElementById('galleryLightbox');
+ if (lightbox) lightbox.hidden = true;
+ document.body.style.overflow = '';
 }
 
 function liveTickets(event) {
-    const EP = window.JodEventsPublic;
-    if (EP && typeof EP.visibleTicketTypes === "function") {
-        return EP.visibleTicketTypes(event);
-    }
-    return (event && Array.isArray(event.ticket_types)) ? event.ticket_types : [];
+ const EP = window.JodEventsPublic;
+ if (EP && typeof EP.visibleTicketTypes === "function") {
+ return EP.visibleTicketTypes(event);
+ }
+ return (event && Array.isArray(event.ticket_types)) ? event.ticket_types : [];
 }
 
 function setBuyTicketEnabled(enabled, label) {
-    document.querySelectorAll(".btn-book-now").forEach((btn) => {
-        if (btn.classList.contains("btn-view-ticket")) return;
-        btn.disabled = !enabled;
-        btn.style.opacity = enabled ? "" : "0.55";
-        btn.style.cursor = enabled ? "" : "not-allowed";
-        if (label) btn.textContent = label;
-    });
+ document.querySelectorAll(".btn-book-now").forEach((btn) => {
+ if (btn.classList.contains("btn-view-ticket")) return;
+ btn.disabled = !enabled;
+ btn.style.opacity = enabled ? "" : "0.55";
+ btn.style.cursor = enabled ? "" : "not-allowed";
+ if (label) btn.textContent = label;
+ });
 }
 
 function maxTicketsPerPerson(event) {
-    const purchase = (event && event.ticket_purchase) || currentTicketPurchase || {};
-    const mode = String(purchase.mode || "single").toLowerCase();
-    if (mode !== "multiple") return 1;
-    const n = Number(purchase.per_person_limit);
-    return Number.isFinite(n) && n >= 2 ? Math.min(20, Math.round(n)) : 2;
+ const purchase = (event && event.ticket_purchase) || currentTicketPurchase || {};
+ const mode = String(purchase.mode || "single").toLowerCase();
+ if (mode !== "multiple") return 1;
+ const n = Number(purchase.per_person_limit);
+ return Number.isFinite(n) && n >= 2 ? Math.min(20, Math.round(n)) : 2;
 }
 
 function selectedTicketQty() {
-    const max = maxTicketsPerPerson(currentEventData);
-    const input = document.getElementById("ticketQtyInput");
-    let n = Number(input && input.value);
-    if (!Number.isFinite(n) || n < 1) n = 1;
-    n = Math.min(max, Math.round(n));
-    currentSelectedQty = n;
-    if (input) input.value = String(n);
-    return n;
+ const max = maxTicketsPerPerson(currentEventData);
+ const input = document.getElementById("ticketQtyInput");
+ let n = Number(input && input.value);
+ if (!Number.isFinite(n) || n < 1) n = 1;
+ n = Math.min(max, Math.round(n));
+ currentSelectedQty = n;
+ if (input) input.value = String(n);
+ return n;
 }
 
 function applyTicketPurchaseFromEvent(event) {
-    currentTicketPurchase = (event && event.ticket_purchase) || { mode: "single", per_person_limit: 1 };
-    const max = maxTicketsPerPerson(event);
-    const wrap = document.getElementById("ticketQtyWrap");
-    const input = document.getElementById("ticketQtyInput");
-    const hint = document.getElementById("ticketQtyHint");
-    if (wrap) wrap.hidden = max <= 1;
-    if (input) {
-        input.max = String(max);
-        input.min = "1";
-        if (Number(input.value) > max || Number(input.value) < 1) input.value = "1";
-    }
-    currentSelectedQty = selectedTicketQty();
-    if (hint) {
-        hint.textContent = max > 1
-            ? ("You can buy up to " + max + " tickets.")
-            : "";
-    }
-    const noteEl = document.getElementById("ticketPriceNote");
-    const note = String((currentTicketPurchase && currentTicketPurchase.price_note) || "").trim();
-    if (noteEl) {
-        noteEl.textContent = note;
-        noteEl.hidden = !note;
-    }
-    updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+ currentTicketPurchase = (event && event.ticket_purchase) || { mode: "single", per_person_limit: 1 };
+ const max = maxTicketsPerPerson(event);
+ const wrap = document.getElementById("ticketQtyWrap");
+ const input = document.getElementById("ticketQtyInput");
+ const hint = document.getElementById("ticketQtyHint");
+ if (wrap) wrap.hidden = max <= 1;
+ if (input) {
+ input.max = String(max);
+ input.min = "1";
+ if (Number(input.value) > max || Number(input.value) < 1) input.value = "1";
+ }
+ currentSelectedQty = selectedTicketQty();
+ if (hint) {
+ hint.textContent = max > 1
+ ? ("You can buy up to " + max + " tickets.")
+ : "";
+ }
+ const noteEl = document.getElementById("ticketPriceNote");
+ const note = String((currentTicketPurchase && currentTicketPurchase.price_note) || "").trim();
+ if (noteEl) {
+ noteEl.textContent = note;
+ noteEl.hidden = !note;
+ }
+ updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
 }
 
 function bindTicketQtyControls() {
-    const minus = document.getElementById("ticketQtyMinus");
-    const plus = document.getElementById("ticketQtyPlus");
-    const input = document.getElementById("ticketQtyInput");
-    if (minus && !minus.dataset.bound) {
-        minus.dataset.bound = "1";
-        minus.addEventListener("click", () => {
-            const max = maxTicketsPerPerson(currentEventData);
-            currentSelectedQty = Math.max(1, selectedTicketQty() - 1);
-            if (input) input.value = String(Math.min(max, currentSelectedQty));
-            updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
-        });
-    }
-    if (plus && !plus.dataset.bound) {
-        plus.dataset.bound = "1";
-        plus.addEventListener("click", () => {
-            const max = maxTicketsPerPerson(currentEventData);
-            currentSelectedQty = Math.min(max, selectedTicketQty() + 1);
-            if (input) input.value = String(currentSelectedQty);
-            updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
-        });
-    }
-    if (input && !input.dataset.bound) {
-        input.dataset.bound = "1";
-        input.addEventListener("change", () => {
-            selectedTicketQty();
-            updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
-        });
-    }
+ const minus = document.getElementById("ticketQtyMinus");
+ const plus = document.getElementById("ticketQtyPlus");
+ const input = document.getElementById("ticketQtyInput");
+ if (minus && !minus.dataset.bound) {
+ minus.dataset.bound = "1";
+ minus.addEventListener("click", () => {
+ const max = maxTicketsPerPerson(currentEventData);
+ currentSelectedQty = Math.max(1, selectedTicketQty() - 1);
+ if (input) input.value = String(Math.min(max, currentSelectedQty));
+ updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+ });
+ }
+ if (plus && !plus.dataset.bound) {
+ plus.dataset.bound = "1";
+ plus.addEventListener("click", () => {
+ const max = maxTicketsPerPerson(currentEventData);
+ currentSelectedQty = Math.min(max, selectedTicketQty() + 1);
+ if (input) input.value = String(currentSelectedQty);
+ updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+ });
+ }
+ if (input && !input.dataset.bound) {
+ input.dataset.bound = "1";
+ input.addEventListener("change", () => {
+ selectedTicketQty();
+ updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+ });
+ }
 }
 
 function paintTicketTypes(event) {
-    const tList = document.getElementById("ticketsList");
-    if (!tList) return;
-    const EP = window.JodEventsPublic;
-    const escape = (EP && typeof EP.escapeHtml === "function")
-        ? EP.escapeHtml
-        : (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const ended = EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(event) === "ended";
-    if (ended) {
-        tList.innerHTML = '<p class="ticket-unavailable">This event has ended.</p>';
-        setBuyTicketEnabled(false, "Event ended");
-        startingTicketPrice = 0;
-        setStartingPriceDisplay(0);
-        updateQuantityTotalDisplay(0);
-        const qtyWrap = document.getElementById("ticketQtyWrap");
-        if (qtyWrap) qtyWrap.hidden = true;
-        return;
-    }
-    const types = liveTickets(event);
-    if (!types.length) {
-        const hadTimed = Array.isArray(event.ticket_types) && event.ticket_types.length > 0;
-        tList.innerHTML = `<p class="ticket-unavailable">${hadTimed ? "This ticket offer is not on sale right now." : "Tickets will be announced soon."}</p>`;
-        setBuyTicketEnabled(false, hadTimed ? "Offer closed" : "Unavailable");
-        const qtyWrap = document.getElementById("ticketQtyWrap");
-        if (qtyWrap) qtyWrap.hidden = true;
-        return;
-    }
-    setBuyTicketEnabled(true, "Buy Ticket");
-    tList.innerHTML = types.map((t, idx) => {
-        const start = EP && EP.ticketSaleStart ? EP.ticketSaleStart(t) : (t.sales_start || "");
-        const end = EP && EP.ticketSaleEnd ? EP.ticketSaleEnd(t) : (t.sales_end || "");
-        const timed = Boolean(start || end);
-        const name = escape(t.name || "Ticket");
-        const price = Number(t.price) || 0;
-        const qrUrl = escape(t.payment_qr_url || t.qr_url || t.payment_qr || "");
-        return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}">
-            <div>
-                ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${escape(start)}" data-ticket-end="${escape(end)}"></div>` : ""}
-                <div class="ticket-name">${name}</div>
-                <div class="ticket-status">${escape(t.availability || (timed ? "Limited-time offer" : "Available"))}</div>
-            </div>
-            <div class="ticket-price">${price <= 0 ? "Free" : "₹" + Number(price).toLocaleString("en-IN")}</div>
-        </div>`;
-    }).join("");
-    tList.querySelectorAll("[data-ticket-option]").forEach((opt) => {
-        opt.addEventListener("click", () => selectTicketOption(opt, Number(opt.dataset.price), opt.dataset.name));
-    });
-    const first = types[0];
-    currentSelectedTicketType = first.name || "General Admission";
-    currentSelectedPrice = Number(first.price) || 0;
-    currentSelectedPaymentQr = first.payment_qr_url || first.qr_url || first.payment_qr || "";
-    bindTicketQtyControls();
-    applyTicketPurchaseFromEvent(event);
-    updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
-    if (EP && typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
+ const tList = document.getElementById("ticketsList");
+ if (!tList) return;
+ const EP = window.JodEventsPublic;
+ const escape = (EP && typeof EP.escapeHtml === "function")
+ ? EP.escapeHtml
+ : (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+ const ended = EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(event) === "ended";
+ if (ended) {
+ tList.innerHTML = '<p class="ticket-unavailable">This event has ended.</p>';
+ setBuyTicketEnabled(false, "Event ended");
+ startingTicketPrice = 0;
+ setStartingPriceDisplay(0);
+ updateQuantityTotalDisplay(0);
+ const qtyWrap = document.getElementById("ticketQtyWrap");
+ if (qtyWrap) qtyWrap.hidden = true;
+ return;
+ }
+ const types = liveTickets(event);
+ if (!types.length) {
+ const hadTimed = Array.isArray(event.ticket_types) && event.ticket_types.length > 0;
+ tList.innerHTML = `<p class="ticket-unavailable">${hadTimed ? "This ticket offer is not on sale right now." : "Tickets will be announced soon."}</p>`;
+ setBuyTicketEnabled(false, hadTimed ? "Offer closed" : "Unavailable");
+ const qtyWrap = document.getElementById("ticketQtyWrap");
+ if (qtyWrap) qtyWrap.hidden = true;
+ return;
+ }
+ setBuyTicketEnabled(true, "Buy Ticket");
+ tList.innerHTML = types.map((t, idx) => {
+ const start = EP && EP.ticketSaleStart ? EP.ticketSaleStart(t) : (t.sales_start || "");
+ const end = EP && EP.ticketSaleEnd ? EP.ticketSaleEnd(t) : (t.sales_end || "");
+ const timed = Boolean(start || end);
+ const name = escape(t.name || "Ticket");
+ const price = Number(t.price) || 0;
+ const qrUrl = escape(t.payment_qr_url || t.qr_url || t.payment_qr || "");
+ return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}">
+ <div>
+ ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${escape(start)}" data-ticket-end="${escape(end)}"></div>` : ""}
+ <div class="ticket-name">${name}</div>
+ <div class="ticket-status">${escape(t.availability || (timed ? "Limited-time offer" : "Available"))}</div>
+ </div>
+ <div class="ticket-price">${price <= 0 ? "Free" : "\u20b9" + Number(price).toLocaleString("en-IN")}</div>
+ </div>`;
+ }).join("");
+ tList.querySelectorAll("[data-ticket-option]").forEach((opt) => {
+ opt.addEventListener("click", () => selectTicketOption(opt, Number(opt.dataset.price), opt.dataset.name));
+ });
+ const first = types[0];
+ currentSelectedTicketType = first.name || "General Admission";
+ currentSelectedPrice = Number(first.price) || 0;
+ currentSelectedPaymentQr = first.payment_qr_url || first.qr_url || first.payment_qr || "";
+ bindTicketQtyControls();
+ applyTicketPurchaseFromEvent(event);
+ updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+ if (EP && typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
 }
 
 let ticketPruneBound = false;
 function bindTicketPruneListener() {
-    if (ticketPruneBound) return;
-    ticketPruneBound = true;
-    window.addEventListener("jod:tickets-pruned", () => {
-        if (currentEventData) syncTicketAvailability(currentEventData);
-    });
+ if (ticketPruneBound) return;
+ ticketPruneBound = true;
+ window.addEventListener("jod:tickets-pruned", () => {
+ if (currentEventData) syncTicketAvailability(currentEventData);
+ });
 }
 
 function syncTicketAvailability(event) {
-    const tList = document.getElementById("ticketsList");
-    if (!tList) return;
-    const remaining = tList.querySelectorAll("[data-ticket-option]");
-    if (!remaining.length) {
-        paintTicketTypes(event);
-        return;
-    }
-    if (!tList.querySelector(".ticket-type-option.selected") && remaining[0]) {
-        remaining[0].click();
-        return;
-    }
-    const selected = tList.querySelector(".ticket-type-option.selected");
-    if (selected) {
-        updateSelectedPriceUI(Number(selected.dataset.price) || 0, selected.dataset.name);
-    }
+ const tList = document.getElementById("ticketsList");
+ if (!tList) return;
+ const remaining = tList.querySelectorAll("[data-ticket-option]");
+ if (!remaining.length) {
+ paintTicketTypes(event);
+ return;
+ }
+ if (!tList.querySelector(".ticket-type-option.selected") && remaining[0]) {
+ remaining[0].click();
+ return;
+ }
+ const selected = tList.querySelector(".ticket-type-option.selected");
+ if (selected) {
+ updateSelectedPriceUI(Number(selected.dataset.price) || 0, selected.dataset.name);
+ }
 }
 
 function selectTicketOption(element, price, ticketName) {
-    const options = document.querySelectorAll('.ticket-type-option');
-    options.forEach(opt => opt.classList.remove('selected'));
-    element.classList.add('selected');
+ const options = document.querySelectorAll('.ticket-type-option');
+ options.forEach(opt => opt.classList.remove('selected'));
+ element.classList.add('selected');
 
-    currentSelectedPrice = price;
-    currentSelectedPaymentQr = (element && element.dataset && element.dataset.paymentQr) || "";
-    if (ticketName) {
-        currentSelectedTicketType = ticketName;
-    } else {
-        const nameEl = element.querySelector('.ticket-name');
-        if (nameEl && nameEl.textContent) {
-            currentSelectedTicketType = nameEl.textContent.trim();
-        }
-    }
-    updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
+ currentSelectedPrice = price;
+ currentSelectedPaymentQr = (element && element.dataset && element.dataset.paymentQr) || "";
+ if (ticketName) {
+ currentSelectedTicketType = ticketName;
+ } else {
+ const nameEl = element.querySelector('.ticket-name');
+ if (nameEl && nameEl.textContent) {
+ currentSelectedTicketType = nameEl.textContent.trim();
+ }
+ }
+ updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
 }
 
 function lowestTicketPrice(event) {
-    const types = liveTickets(event);
-    const prices = types
-        .map((t) => Number(t && t.price))
-        .filter((n) => Number.isFinite(n));
-    if (prices.length) return Math.min(...prices);
-    const fallback = Number(event && event.price);
-    return Number.isFinite(fallback) ? fallback : 0;
+ const types = liveTickets(event);
+ const prices = types
+ .map((t) => Number(t && t.price))
+ .filter((n) => Number.isFinite(n));
+ if (prices.length) return Math.min(...prices);
+ const fallback = Number(event && event.price);
+ return Number.isFinite(fallback) ? fallback : 0;
 }
 
 function formatTicketPrice(price) {
-    return Number(price) <= 0 ? 'Free' : `₹${Number(price).toLocaleString('en-IN')}`;
+ return Number(price) <= 0 ? 'Free' : `\u20b9${Number(price).toLocaleString('en-IN')}`;
 }
 
 function setStartingPriceDisplay(price) {
-    const displayPrice = document.getElementById('displayPrice');
-    if (displayPrice) displayPrice.textContent = formatTicketPrice(price);
-    const mobilePrice = document.getElementById('mobileStickyPrice');
-    if (mobilePrice) mobilePrice.textContent = formatTicketPrice(price);
+ const displayPrice = document.getElementById('displayPrice');
+ if (displayPrice) displayPrice.textContent = formatTicketPrice(price);
+ const mobilePrice = document.getElementById('mobileStickyPrice');
+ if (mobilePrice) mobilePrice.textContent = formatTicketPrice(price);
 }
 
 function updateQuantityTotalDisplay(unitPrice) {
-    const totalEl = document.getElementById('ticketQtyTotalPrice');
-    if (!totalEl) return;
-    const qty = selectedTicketQty();
-    const total = (Number(unitPrice) || 0) * qty;
-    totalEl.textContent = formatTicketPrice(total);
+ const totalEl = document.getElementById('ticketQtyTotalPrice');
+ if (!totalEl) return;
+ const qty = selectedTicketQty();
+ const total = (Number(unitPrice) || 0) * qty;
+ totalEl.textContent = formatTicketPrice(total);
 }
 
 function updateSelectedPriceUI(price, ticketName) {
-    const unit = Number(price) || 0;
-    currentSelectedPrice = unit;
-    // Top "Ticket Starts at" stays on the event's initial lowest price.
-    setStartingPriceDisplay(startingTicketPrice);
-    updateQuantityTotalDisplay(unit);
-    const label = String(ticketName || "").trim();
-    document.querySelectorAll(".bar-price-group p").forEach((el) => {
-        if (el.textContent === "Your ticket") return;
-        el.dataset.defaultLabel = el.dataset.defaultLabel || el.textContent || "Starts from";
-        el.textContent = el.dataset.defaultLabel || "Starts from";
-    });
+ const unit = Number(price) || 0;
+ currentSelectedPrice = unit;
+ // Top "Ticket Starts at" stays on the event's initial lowest price.
+ setStartingPriceDisplay(startingTicketPrice);
+ updateQuantityTotalDisplay(unit);
+ const label = String(ticketName || "").trim();
+ document.querySelectorAll(".bar-price-group p").forEach((el) => {
+ if (el.textContent === "Your ticket") return;
+ el.dataset.defaultLabel = el.dataset.defaultLabel || el.textContent || "Starts from";
+ el.textContent = el.dataset.defaultLabel || "Starts from";
+ });
 }
 
 function absoluteShareUrl(event) {
-    const id = event && event.id ? String(event.id) : "";
-    const origin = (window.location && window.location.origin) || "https://jodevents.com";
-    if (id) return `${origin.replace(/\/$/, "")}/event-details?id=${encodeURIComponent(id)}`;
-    try {
-        return window.location.href.split("#")[0];
-    } catch (_) {
-        return "https://jodevents.com/event-details";
-    }
+ const id = event && event.id ? String(event.id) : "";
+ const origin = (window.location && window.location.origin) || "https://jodevents.com";
+ if (id) return `${origin.replace(/\/$/, "")}/event-details?id=${encodeURIComponent(id)}`;
+ try {
+ return window.location.href.split("#")[0];
+ } catch (_) {
+ return "https://jodevents.com/event-details";
+ }
 }
 
 function absoluteMediaUrl(raw) {
-    const EP = window.JodEventsPublic;
-    let url = "";
-    if (EP && typeof EP.resolveImage === "function") {
-        url = EP.resolveImage(raw || "");
-    } else if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
-        url = window.JodConfig.safeMediaUrl(raw || "", "images/hero-event.jpg");
-    } else {
-        url = String(raw || "").trim();
-    }
-    if (!url) url = "https://assets.jodevents.com/images/hero-event.jpg";
-    if (/^https?:\/\//i.test(url)) return url;
-    if (url.startsWith("//")) return `https:${url}`;
-    const origin = (window.location && window.location.origin) || "https://jodevents.com";
-    if (url.startsWith("/")) return `${origin}${url}`;
-    return `${origin}/${url.replace(/^\.\//, "")}`;
+ const EP = window.JodEventsPublic;
+ let url = "";
+ if (EP && typeof EP.resolveImage === "function") {
+ url = EP.resolveImage(raw || "");
+ } else if (window.JodConfig && typeof window.JodConfig.safeMediaUrl === "function") {
+ url = window.JodConfig.safeMediaUrl(raw || "", "images/hero-event.jpg");
+ } else {
+ url = String(raw || "").trim();
+ }
+ if (!url) url = "https://assets.jodevents.com/images/hero-event.jpg";
+ if (/^https?:\/\//i.test(url)) return url;
+ if (url.startsWith("//")) return `https:${url}`;
+ const origin = (window.location && window.location.origin) || "https://jodevents.com";
+ if (url.startsWith("/")) return `${origin}${url}`;
+ return `${origin}/${url.replace(/^\.\//, "")}`;
 }
 
 function setMetaTag(attr, key, value) {
-    if (!value) return;
-    let el = document.head.querySelector(`meta[${attr}="${key}"]`);
-    if (!el) {
-        el = document.createElement("meta");
-        el.setAttribute(attr, key);
-        document.head.appendChild(el);
-    }
-    el.setAttribute("content", value);
+ if (!value) return;
+ let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+ if (!el) {
+ el = document.createElement("meta");
+ el.setAttribute(attr, key);
+ document.head.appendChild(el);
+ }
+ el.setAttribute("content", value);
 }
 
 function applyEventShareMeta(event) {
-    if (!event) return;
-    const title = String(event.title || "Event Details").trim() || "Event Details";
-    const rawDesc = (window.JodDescEditor && typeof window.JodDescEditor.stripToText === "function")
-        ? window.JodDescEditor.stripToText(event.description || "")
-        : String(event.description || "").replace(/<[^>]+>/g, " ");
-    const desc = String(rawDesc || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 220) || `Book tickets for ${title} on JOD Events.`;
-    const pageUrl = absoluteShareUrl(event);
-    const imageUrl = absoluteMediaUrl(event.image_url || event.card_image || "");
+ if (!event) return;
+ const title = String(event.title || "Event Details").trim() || "Event Details";
+ const rawDesc = (window.JodDescEditor && typeof window.JodDescEditor.stripToText === "function")
+ ? window.JodDescEditor.stripToText(event.description || "")
+ : String(event.description || "").replace(/<[^>]+>/g, " ");
+ const desc = String(rawDesc || "")
+ .replace(/\s+/g, " ")
+ .trim()
+ .slice(0, 220) || `Book tickets for ${title} on JOD Events.`;
+ const pageUrl = absoluteShareUrl(event);
+ const imageUrl = absoluteMediaUrl(event.image_url || event.card_image || "");
 
-    document.title = `${title} — JOD Events`;
-    setMetaTag("name", "description", desc);
-    setMetaTag("property", "og:type", "website");
-    setMetaTag("property", "og:site_name", "JOD Events");
-    setMetaTag("property", "og:title", title);
-    setMetaTag("property", "og:description", desc);
-    setMetaTag("property", "og:url", pageUrl);
-    setMetaTag("property", "og:image", imageUrl);
-    setMetaTag("property", "og:image:alt", title);
-    setMetaTag("name", "twitter:card", "summary_large_image");
-    setMetaTag("name", "twitter:title", title);
-    setMetaTag("name", "twitter:description", desc);
-    setMetaTag("name", "twitter:image", imageUrl);
+ document.title = `${title} \u2014 JOD Events`;
+ setMetaTag("name", "description", desc);
+ setMetaTag("property", "og:type", "website");
+ setMetaTag("property", "og:site_name", "JOD Events");
+ setMetaTag("property", "og:title", title);
+ setMetaTag("property", "og:description", desc);
+ setMetaTag("property", "og:url", pageUrl);
+ setMetaTag("property", "og:image", imageUrl);
+ setMetaTag("property", "og:image:alt", title);
+ setMetaTag("name", "twitter:card", "summary_large_image");
+ setMetaTag("name", "twitter:title", title);
+ setMetaTag("name", "twitter:description", desc);
+ setMetaTag("name", "twitter:image", imageUrl);
 
-    let canonical = document.head.querySelector('link[rel="canonical"]');
-    if (!canonical) {
-        canonical = document.createElement("link");
-        canonical.setAttribute("rel", "canonical");
-        document.head.appendChild(canonical);
-    }
-    canonical.setAttribute("href", pageUrl);
+ let canonical = document.head.querySelector('link[rel="canonical"]');
+ if (!canonical) {
+ canonical = document.createElement("link");
+ canonical.setAttribute("rel", "canonical");
+ document.head.appendChild(canonical);
+ }
+ canonical.setAttribute("href", pageUrl);
 }
 
 function copyEventShareLink() {
-    const shareUrl = absoluteShareUrl(currentEventData);
-    navigator.clipboard.writeText(shareUrl).then(() => {
-        showToast('Event link copied to clipboard! 📋');
-    }).catch(() => {
-        showToast('Sharing link: ' + shareUrl);
-    });
+ const shareUrl = absoluteShareUrl(currentEventData);
+ navigator.clipboard.writeText(shareUrl).then(() => {
+ showToast('Event link copied to clipboard! \ud83d\udccb');
+ }).catch(() => {
+ showToast('Sharing link: ' + shareUrl);
+ });
 }
 
 function showToast(message) {
-    const toast = document.getElementById('toastMsg');
-    if (!toast) return;
-    toast.textContent = message;
-    toast.classList.add('show');
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
+ const toast = document.getElementById('toastMsg');
+ if (!toast) return;
+ toast.textContent = message;
+ toast.classList.add('show');
+ setTimeout(() => {
+ toast.classList.remove('show');
+ }, 3000);
 }
 
 function authFetch(url, options) {
-    const opts = Object.assign({
-        cache: "no-store",
-        credentials: "include",
-        headers: { Accept: "application/json" }
-    }, options || {});
-    if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
-        return window.JodAuth.fetchAuth(url, opts);
-    }
-    return fetch(url, opts);
+ const opts = Object.assign({
+ cache: "no-store",
+ credentials: "include",
+ headers: { Accept: "application/json" }
+ }, options || {});
+ if (window.JodAuth && typeof window.JodAuth.fetchAuth === "function") {
+ return window.JodAuth.fetchAuth(url, opts);
+ }
+ return fetch(url, opts);
 }
 
 function ticketPageHref(bookingId, qrToken) {
-    const params = new URLSearchParams();
-    if (qrToken) params.set("token", qrToken);
-    if (bookingId) params.set("id", bookingId);
-    const qs = params.toString();
-    return qs ? `ticket-details.html?${qs}` : "orders.html";
+ const params = new URLSearchParams();
+ if (qrToken) params.set("token", qrToken);
+ if (bookingId) params.set("id", bookingId);
+ const qs = params.toString();
+ return qs ? `ticket-details.html?${qs}` : "orders.html";
 }
 
 function getApiRoot() {
-    if (window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
-        return window.JodConfig.getApiOrigin().replace(/\/$/, "");
-    }
-    if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE.replace(/\/$/, "");
-    if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
-        return window.JodHealth.getApiBaseUrl().replace(/\/$/, "");
-    }
-    return (window.JOD_API_BASE_OVERRIDE || "").replace(/\/$/, "");
+ if (window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+ return window.JodConfig.getApiOrigin().replace(/\/$/, "");
+ }
+ if (window.JodAuth && window.JodAuth.API_BASE) return window.JodAuth.API_BASE.replace(/\/$/, "");
+ if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+ return window.JodHealth.getApiBaseUrl().replace(/\/$/, "");
+ }
+ return (window.JOD_API_BASE_OVERRIDE || "").replace(/\/$/, "");
 }
 
 function sameEventId(a, b) {
-    const x = String(a || "").trim().toLowerCase().replace(/-/g, "");
-    const y = String(b || "").trim().toLowerCase().replace(/-/g, "");
-    return Boolean(x && y && x === y);
+ const x = String(a || "").trim().toLowerCase().replace(/-/g, "");
+ const y = String(b || "").trim().toLowerCase().replace(/-/g, "");
+ return Boolean(x && y && x === y);
 }
 
 function normEventTitle(value) {
-    return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+ return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function bookingMatchesEvent(row, eventId, eventData) {
-    if (!row) return false;
-    if (sameEventId(row.event_id, eventId)) return true;
-    const eventTitle = normEventTitle(eventData && eventData.title);
-    const bookingTitle = normEventTitle(row.event_title);
-    if (eventTitle && bookingTitle && (eventTitle === bookingTitle || eventTitle.includes(bookingTitle) || bookingTitle.includes(eventTitle))) {
-        return true;
-    }
-    return false;
+ if (!row) return false;
+ if (sameEventId(row.event_id, eventId)) return true;
+ const eventTitle = normEventTitle(eventData && eventData.title);
+ const bookingTitle = normEventTitle(row.event_title);
+ if (eventTitle && bookingTitle && (eventTitle === bookingTitle || eventTitle.includes(bookingTitle) || bookingTitle.includes(eventTitle))) {
+ return true;
+ }
+ return false;
 }
 
 function isActiveBookingRow(row) {
-    const status = String((row && row.status) || "").toUpperCase();
-    const ticketStatus = String((row && row.ticket_status) || "").toUpperCase();
-    if (["CANCELLED", "CANCELED", "REFUNDED"].includes(status)) return false;
-    if (["CANCELLED", "CANCELED"].includes(ticketStatus)) return false;
-    return true;
+ const status = String((row && row.status) || "").toUpperCase();
+ const ticketStatus = String((row && row.ticket_status) || "").toUpperCase();
+ if (["CANCELLED", "CANCELED", "REFUNDED"].includes(status)) return false;
+ if (["CANCELLED", "CANCELED"].includes(ticketStatus)) return false;
+ return true;
 }
 
 function ticketStateFromBooking(row) {
-    return {
-        state: "ticket",
-        booking_id: row.booking_id,
-        ticket_type: row.ticket_type,
-        price: row.total_price != null ? row.total_price : row.price,
-        event_title: row.event_title,
-        venue: row.event_venue || row.venue
-    };
+ return {
+ state: "ticket",
+ booking_id: row.booking_id,
+ ticket_type: row.ticket_type,
+ price: row.total_price != null ? row.total_price : row.price,
+ event_title: row.event_title,
+ venue: row.event_venue || row.venue
+ };
 }
 
 function findCachedBookingForEvent(eventId) {
-    try {
-        const key = window.JodAuth && typeof window.JodAuth.bookingsCacheKey === "function"
-            ? window.JodAuth.bookingsCacheKey()
-            : null;
-        if (!key) return null;
-        const cache = JSON.parse(localStorage.getItem(key) || "[]");
-        if (!Array.isArray(cache)) return null;
-        return cache.find((row) => row && row.booking_id && bookingMatchesEvent(row, eventId, currentEventData) && isActiveBookingRow(row)) || null;
-    } catch (_) {
-        return null;
-    }
+ try {
+ const key = window.JodAuth && typeof window.JodAuth.bookingsCacheKey === "function"
+ ? window.JodAuth.bookingsCacheKey()
+ : null;
+ if (!key) return null;
+ const cache = JSON.parse(localStorage.getItem(key) || "[]");
+ if (!Array.isArray(cache)) return null;
+ return cache.find((row) => row && row.booking_id && bookingMatchesEvent(row, eventId, currentEventData) && isActiveBookingRow(row)) || null;
+ } catch (_) {
+ return null;
+ }
 }
 
 async function fetchMyBookingForEvent(eventId) {
-    if (!eventId) return null;
-    try {
-        const res = await authFetch(`${getApiRoot()}/api/bookings/my-bookings`, { allowGuest: true });
-        if (!res.ok) return null;
-        const rows = await res.json();
-        if (!Array.isArray(rows)) return null;
-        return rows.find((row) => row && row.booking_id && bookingMatchesEvent(row, eventId, currentEventData) && isActiveBookingRow(row)) || null;
-    } catch (_) {
-        return null;
-    }
+ if (!eventId) return null;
+ try {
+ const res = await authFetch(`${getApiRoot()}/api/bookings/my-bookings`, { allowGuest: true });
+ if (!res.ok) return null;
+ const rows = await res.json();
+ if (!Array.isArray(rows)) return null;
+ return rows.find((row) => row && row.booking_id && bookingMatchesEvent(row, eventId, currentEventData) && isActiveBookingRow(row)) || null;
+ } catch (_) {
+ return null;
+ }
 }
 
 async function fetchRegistrationStatus(eventId) {
-    if (!eventId) return { state: "new" };
-    await readyAuthSession();
-    const loggedIn = window.JodAuth && typeof window.JodAuth.isLoggedIn === "function"
-        ? window.JodAuth.isLoggedIn()
-        : false;
-    let status = { state: "new" };
-    let apiOk = false;
-    if (loggedIn) {
-        try {
-            const res = await authFetch(
-                `${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`,
-                { allowGuest: true }
-            );
-            if (res.ok) {
-                apiOk = true;
-                const data = await res.json();
-                if (data && data.state) status = data;
-            }
-        } catch (_) {}
-    }
-    if (status.state === "ticket" && status.booking_id) return status;
-    if (loggedIn && apiOk && status.state !== "ticket") return status;
-    const mine = loggedIn ? await fetchMyBookingForEvent(eventId) : null;
-    if (mine) {
-        const row = ticketStateFromBooking(mine);
-        row.qr_token = mine.qr_token || null;
-        return row;
-    }
-    const cached = findCachedBookingForEvent(eventId);
-    if (cached) {
-        const row = ticketStateFromBooking(cached);
-        row.qr_token = cached.qr_token || null;
-        return row;
-    }
-    return status;
+ if (!eventId) return { state: "new" };
+ await readyAuthSession();
+ const loggedIn = window.JodAuth && typeof window.JodAuth.isLoggedIn === "function"
+ ? window.JodAuth.isLoggedIn()
+ : false;
+ let status = { state: "new" };
+ let apiOk = false;
+ if (loggedIn) {
+ try {
+ const res = await authFetch(
+ `${getApiRoot()}/api/bookings/registration-status?event_id=${encodeURIComponent(eventId)}`,
+ { allowGuest: true }
+ );
+ if (res.ok) {
+ apiOk = true;
+ const data = await res.json();
+ if (data && data.state) status = data;
+ }
+ } catch (_) {}
+ }
+ if (status.state === "ticket" && status.booking_id) return status;
+ if (loggedIn && apiOk && status.state !== "ticket") return status;
+ const mine = loggedIn ? await fetchMyBookingForEvent(eventId) : null;
+ if (mine) {
+ const row = ticketStateFromBooking(mine);
+ row.qr_token = mine.qr_token || null;
+ return row;
+ }
+ const cached = findCachedBookingForEvent(eventId);
+ if (cached) {
+ const row = ticketStateFromBooking(cached);
+ row.qr_token = cached.qr_token || null;
+ return row;
+ }
+ return status;
 }
 
 function setBookNowLabels(label) {
-    document.querySelectorAll(".btn-book-now").forEach((btn) => {
-        if (btn.classList.contains("btn-view-ticket")) return;
-        btn.textContent = label;
-    });
+ document.querySelectorAll(".btn-book-now").forEach((btn) => {
+ if (btn.classList.contains("btn-view-ticket")) return;
+ btn.textContent = label;
+ });
 }
 
 function setPostPurchaseLinks(bookingId, qrToken) {
-    const ticketHref = ticketPageHref(bookingId, qrToken);
-    const agendaHref = bookingId
-        ? `agenda.html?id=${encodeURIComponent(bookingId)}`
-        : "orders.html";
-    document.querySelectorAll(".post-purchase-actions [data-action='view-ticket']").forEach((el) => {
-        el.setAttribute("href", ticketHref);
-    });
-    document.querySelectorAll(".post-purchase-actions [data-action='view-agenda']").forEach((el) => {
-        el.setAttribute("href", agendaHref);
-    });
+ const ticketHref = ticketPageHref(bookingId, qrToken);
+ const agendaHref = bookingId
+ ? `agenda.html?id=${encodeURIComponent(bookingId)}`
+ : "orders.html";
+ document.querySelectorAll(".post-purchase-actions [data-action='view-ticket']").forEach((el) => {
+ el.setAttribute("href", ticketHref);
+ });
+ document.querySelectorAll(".post-purchase-actions [data-action='view-agenda']").forEach((el) => {
+ el.setAttribute("href", agendaHref);
+ });
 }
 
 function showPostPurchaseActions(bookingId, qrToken) {
-    hasIssuedTicket = true;
-    setPostPurchaseLinks(bookingId, qrToken);
-    // Keep Buy Ticket visible so the same user can purchase again for this event.
-    document.querySelectorAll(".btn-book-now").forEach((btn) => {
-        if (btn.classList.contains("btn-view-ticket")) return;
-        btn.hidden = false;
-        btn.style.removeProperty("display");
-        if (!btn.disabled) btn.textContent = "Buy Ticket";
-    });
-    document.querySelectorAll(".post-purchase-actions").forEach((el) => {
-        el.hidden = false;
-    });
-    document.querySelectorAll(".bar-price-group p").forEach((el) => {
-        el.dataset.defaultLabel = el.dataset.defaultLabel || el.textContent;
-        el.textContent = "Your ticket";
-    });
+ hasIssuedTicket = true;
+ setPostPurchaseLinks(bookingId, qrToken);
+ // Keep Buy Ticket visible so the same user can purchase again for this event.
+ document.querySelectorAll(".btn-book-now").forEach((btn) => {
+ if (btn.classList.contains("btn-view-ticket")) return;
+ btn.hidden = false;
+ btn.style.removeProperty("display");
+ if (!btn.disabled) btn.textContent = "Buy Ticket";
+ });
+ document.querySelectorAll(".post-purchase-actions").forEach((el) => {
+ el.hidden = false;
+ });
+ document.querySelectorAll(".bar-price-group p").forEach((el) => {
+ el.dataset.defaultLabel = el.dataset.defaultLabel || el.textContent;
+ el.textContent = "Your ticket";
+ });
 }
 
 function hidePostPurchaseActions() {
-    hasIssuedTicket = false;
-    document.querySelectorAll(".btn-book-now").forEach((btn) => {
-        if (btn.classList.contains("btn-view-ticket")) return;
-        btn.hidden = false;
-        btn.style.removeProperty("display");
-    });
-    document.querySelectorAll(".post-purchase-actions").forEach((el) => {
-        el.hidden = true;
-    });
-    document.querySelectorAll(".bar-price-group p").forEach((el) => {
-        el.textContent = el.dataset.defaultLabel || "Starts from";
-    });
+ hasIssuedTicket = false;
+ document.querySelectorAll(".btn-book-now").forEach((btn) => {
+ if (btn.classList.contains("btn-view-ticket")) return;
+ btn.hidden = false;
+ btn.style.removeProperty("display");
+ });
+ document.querySelectorAll(".post-purchase-actions").forEach((el) => {
+ el.hidden = true;
+ });
+ document.querySelectorAll(".bar-price-group p").forEach((el) => {
+ el.textContent = el.dataset.defaultLabel || "Starts from";
+ });
 }
 
 async function applyBookingCtaState(eventId) {
-    const status = await fetchRegistrationStatus(eventId);
-    const hasTicket = Boolean(status.has_ticket || status.state === "ticket" || status.booking_id);
-    if (hasTicket) {
-        showPostPurchaseActions(status.booking_id, status.qr_token);
-        setBuyTicketEnabled(true, "Buy Ticket");
-    } else {
-        hidePostPurchaseActions();
-        setBookNowLabels("Buy Ticket");
-    }
-    return status;
+ const status = await fetchRegistrationStatus(eventId);
+ const hasTicket = Boolean(status.has_ticket || status.state === "ticket" || status.booking_id);
+ if (hasTicket) {
+ showPostPurchaseActions(status.booking_id, status.qr_token);
+ setBuyTicketEnabled(true, "Buy Ticket");
+ } else {
+ hidePostPurchaseActions();
+ setBookNowLabels("Buy Ticket");
+ }
+ return status;
 }
 
 async function triggerBookingModal() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const eventId = currentEventData ? currentEventData.id : urlParams.get("id");
+ const urlParams = new URLSearchParams(window.location.search);
+ const eventId = currentEventData ? currentEventData.id : urlParams.get("id");
 
-    if (!eventId || !currentEventData) {
-        showToast("This event is currently unavailable.");
-        return;
-    }
-    const EP = window.JodEventsPublic;
-    if (EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(currentEventData) === "ended") {
-        showToast("This event has ended.");
-        return;
-    }
-    if (EP && typeof EP.visibleTicketTypes === "function") {
-        const live = EP.visibleTicketTypes(currentEventData);
-        if (!live.length && Array.isArray(currentEventData.ticket_types) && currentEventData.ticket_types.length) {
-            showToast("This ticket offer is not on sale right now.");
-            return;
-        }
-    }
+ if (!eventId || !currentEventData) {
+ showToast("This event is currently unavailable.");
+ return;
+ }
+ const EP = window.JodEventsPublic;
+ if (EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(currentEventData) === "ended") {
+ showToast("This event has ended.");
+ return;
+ }
+ if (EP && typeof EP.visibleTicketTypes === "function") {
+ const live = EP.visibleTicketTypes(currentEventData);
+ if (!live.length && Array.isArray(currentEventData.ticket_types) && currentEventData.ticket_types.length) {
+ showToast("This ticket offer is not on sale right now.");
+ return;
+ }
+ }
 
-    const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")
-        ? window.JodAuth.isLoggedIn()
-        : Boolean((function () {
-            try {
-                const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
-                return raw && raw !== "null";
-            } catch (_) { return false; }
-        })());
+ const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")
+ ? window.JodAuth.isLoggedIn()
+ : Boolean((function () {
+ try {
+ const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
+ return raw && raw !== "null";
+ } catch (_) { return false; }
+ })());
 
-    if (!isAuth) {
-        const currentTarget = window.location.pathname + window.location.search + window.location.hash;
-        if (window.JodAuth && typeof window.JodAuth.openGuestAuthModal === "function") {
-            window.JodAuth.openGuestAuthModal({
-                title: "Sign Up to Book Tickets",
-                message: "You need to create an account or sign in to complete registration for this event.",
-                targetUrl: currentTarget,
-                badge: "🎟️ Account Required"
-            });
-        } else {
-            showToast("Please sign up or log in to book tickets. Redirecting… 🎟️");
-            try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-            setTimeout(() => { window.location.href = `signup.html?redirect=${encodeURIComponent(currentTarget)}`; }, 800);
-        }
-        return;
-    }
+ if (!isAuth) {
+ const currentTarget = window.location.pathname + window.location.search + window.location.hash;
+ if (window.JodAuth && typeof window.JodAuth.openGuestAuthModal === "function") {
+ window.JodAuth.openGuestAuthModal({
+ title: "Sign Up to Book Tickets",
+ message: "You need to create an account or sign in to complete registration for this event.",
+ targetUrl: currentTarget,
+ badge: "\ud83c\udf9f\ufe0f Account Required"
+ });
+ } else {
+ showToast("Please sign up or log in to book tickets. Redirecting\u2026 \ud83c\udf9f\ufe0f");
+ try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
+ setTimeout(() => { window.location.href = `signup.html?redirect=${encodeURIComponent(currentTarget)}`; }, 800);
+ }
+ return;
+ }
 
-    let ticketType = typeof currentSelectedTicketType !== "undefined" ? currentSelectedTicketType : "General Admission";
-    const activeOptName = document.querySelector('.ticket-type-option.selected .ticket-name');
-    if (activeOptName && activeOptName.textContent.trim()) {
-        ticketType = activeOptName.textContent.trim();
-    }
-    const price = typeof currentSelectedPrice !== "undefined" ? currentSelectedPrice : 0;
+ let ticketType = typeof currentSelectedTicketType !== "undefined" ? currentSelectedTicketType : "General Admission";
+ const activeOptName = document.querySelector('.ticket-type-option.selected .ticket-name');
+ if (activeOptName && activeOptName.textContent.trim()) {
+ ticketType = activeOptName.textContent.trim();
+ }
+ const price = typeof currentSelectedPrice !== "undefined" ? currentSelectedPrice : 0;
 
-    const status = await fetchRegistrationStatus(eventId);
-    // Holding a ticket must not block another purchase. Resume only real payment_pending.
-    if (status.state === "ticket") {
-        status.state = "new";
-        status.ticket_type = null;
-        status.price = null;
-    }
+ const status = await fetchRegistrationStatus(eventId);
+ // Holding a ticket must not block another purchase. Resume only real payment_pending.
+ if (status.state === "ticket") {
+ status.state = "new";
+ status.ticket_type = null;
+ status.price = null;
+ }
 
-    const pendingTicket = status.ticket_type || ticketType;
-    const pendingPrice = (status.price != null && status.price !== "") ? status.price : price;
-    const selectedOpt = document.querySelector(".ticket-type-option.selected");
-    const types = (currentEventData && Array.isArray(currentEventData.ticket_types)) ? currentEventData.ticket_types : [];
-    const ticketKey = String(pendingTicket || "").replace(/\+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
-    const matchedTicket = types.find((item) => {
-        const name = String((item && (item.name || item.ticket_name || item.type)) || "").replace(/\+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
-        return name && name === ticketKey;
-    });
-    const pendingQr = (matchedTicket && (matchedTicket.payment_qr_url || matchedTicket.qr_url || matchedTicket.payment_qr))
-        || (selectedOpt && selectedOpt.dataset && selectedOpt.dataset.paymentQr)
-        || currentSelectedPaymentQr
-        || "";
-    try {
-        sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify({
-            eventId: eventId,
-            eventTitle: status.event_title || (currentEventData && currentEventData.title) || "",
-            venue: status.venue || (currentEventData && (currentEventData.venue || currentEventData.location)) || "",
-            ticket: pendingTicket,
-            price: String(pendingPrice),
-            quantity: selectedTicketQty(),
-            paymentQrUrl: pendingQr,
-            priceNote: String((currentTicketPurchase && currentTicketPurchase.price_note)
-                || (currentEventData && currentEventData.ticket_purchase && currentEventData.ticket_purchase.price_note)
-                || "")
-        }));
-            } catch (_) {}
+ const pendingTicket = status.ticket_type || ticketType;
+ const pendingPrice = (status.price != null && status.price !== "") ? status.price : price;
+ const selectedOpt = document.querySelector(".ticket-type-option.selected");
+ const types = (currentEventData && Array.isArray(currentEventData.ticket_types)) ? currentEventData.ticket_types : [];
+ const ticketKey = String(pendingTicket || "").replace(/\+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+ const matchedTicket = types.find((item) => {
+ const name = String((item && (item.name || item.ticket_name || item.type)) || "").replace(/\+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+ return name && name === ticketKey;
+ });
+ const pendingQr = (matchedTicket && (matchedTicket.payment_qr_url || matchedTicket.qr_url || matchedTicket.payment_qr))
+ || (selectedOpt && selectedOpt.dataset && selectedOpt.dataset.paymentQr)
+ || currentSelectedPaymentQr
+ || "";
+ try {
+ sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify({
+ eventId: eventId,
+ eventTitle: status.event_title || (currentEventData && currentEventData.title) || "",
+ venue: status.venue || (currentEventData && (currentEventData.venue || currentEventData.location)) || "",
+ ticket: pendingTicket,
+ price: String(pendingPrice),
+ quantity: selectedTicketQty(),
+ paymentQrUrl: pendingQr,
+ priceNote: String((currentTicketPurchase && currentTicketPurchase.price_note)
+ || (currentEventData && currentEventData.ticket_purchase && currentEventData.ticket_purchase.price_note)
+ || "")
+ }));
+ } catch (_) {}
 
-    const regUrl = new URL("published-form.html", window.location.href);
-    regUrl.searchParams.set("eventId", eventId);
-    regUrl.searchParams.set("ticket", pendingTicket);
-    regUrl.searchParams.set("price", String(pendingPrice));
-    regUrl.searchParams.set("v", "21");
-    if (status.state === "payment_pending") {
-        regUrl.searchParams.set("resume", "payment");
-    }
-    window.location.href = regUrl.toString();
+ const regUrl = new URL("published-form.html", window.location.href);
+ regUrl.searchParams.set("eventId", eventId);
+ regUrl.searchParams.set("ticket", pendingTicket);
+ regUrl.searchParams.set("price", String(pendingPrice));
+ regUrl.searchParams.set("v", "21");
+ if (status.state === "payment_pending") {
+ regUrl.searchParams.set("resume", "payment");
+ }
+ window.location.href = regUrl.toString();
 }

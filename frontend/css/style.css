@@ -146,7 +146,7 @@ small,
 	padding: 3rem 0;
 }
 
-/* ── Auth-gated sections (default-hidden until JS evaluates auth) ─ */
+/* --- Auth-gated sections (default-hidden until JS evaluates auth) --- */
 [data-auth-only="true"] {
 	display: none !important;
 }
@@ -175,7 +175,7 @@ body.home-page .announcement-bar.has-published-event {
 	display: block !important;
 }
 
-/* ── Sub-pages: ALWAYS hide announcement bar regardless of auth ─ */
+/* --- Sub-pages: ALWAYS hide announcement bar regardless of auth --- */
 body.sub-page [data-auth-only="true"].announcement-bar,
 body.sub-page .announcement-bar {
 	display: none !important;
@@ -274,7 +274,7 @@ body.sub-page .announcement-bar {
 	text-transform: uppercase;
 }
 
-/* ── Announcement bar ──────────────────────────────────────── */
+/* --- Announcement bar --- */
 .announcement-bar {
 	position: fixed;
 	top: 0;
@@ -344,7 +344,7 @@ body.sub-page.is-auth-ready[data-user="guest"] .announcement-bar {
 	display: none !important;
 }
 
-/* ── Pulse dot ─────────────────────────────────────────────── */
+/* --- Pulse dot --- */
 .pulse-dot {
 	position: relative;
 	display: inline-block;
@@ -361,7 +361,7 @@ body.sub-page.is-auth-ready[data-user="guest"] .announcement-bar {
 	height: .375rem;
 }
 
-/* ── Header / Nav ──────────────────────────────────────────── */
+/* --- Header / Nav --- */
 #header {
 	min-height: 0;
 	display: block;
@@ -415,7 +415,7 @@ body.sub-page .dashboard-hero {
 	align-self: center;
 }
 
-/* ── Header Search Bar (between logo & nav) ────────────────── */
+/* --- Header Search Bar (between logo & nav) --- */
 .header-search {
 	position: relative;
 	flex: 1 1 12rem;
@@ -522,7 +522,7 @@ body.sub-page .dashboard-hero {
 	margin-bottom: 1rem;
 }
 
-/* ── Search Suggestions Dropdown ────────────────────────────── */
+/* --- Search Suggestions Dropdown --- */
 .search-suggestions-dropdown {
 	position: absolute;
 	top: calc(100% + 8px);
@@ -914,6 +914,11 @@ mark.search-highlight {
 	color: transparent;
 }
 
+.desktop-nav > a[data-admin-only][hidden],
+.mobile-nav > a[data-admin-only][hidden] {
+	display: none !important;
+}
+
 .upcoming-nav-link {
 	display: inline-flex;
 	align-items: center;
@@ -935,7 +940,7 @@ mark.search-highlight {
 	text-transform: uppercase;
 }
 
-/* ── Theme toggle (guest and logged-in) ────────────────────── */
+/* --- Theme toggle (guest and logged-in) --- */
 .theme-toggle {
 	width: 2.5rem;
 	height: 2.5rem;
@@ -965,7 +970,7 @@ mark.search-highlight {
 	display: none !important;
 }
 
-/* ── Nav Auth Buttons ──────────────────────────────────────── */
+/* --- Nav Auth Buttons --- */
 .nav-auth {
 	display: flex;
 	align-items: center;
@@ -1008,7 +1013,7 @@ body.is-auth-ready[data-user="authenticated"] .mobile-auth-group {
 	background: rgba(255, 117, 8, .06);
 }
 
-/* ── Buttons ───────────────────────────────────────────────── */
+/* --- Buttons --- */
 .button {
 	display: inline-flex;
 	align-items: center;
@@ -1083,7 +1088,7 @@ body.is-auth-ready[data-user="authenticated"] .mobile-auth-group {
 	display: none;
 }
 
-/* ── Hero ──────────────────────────────────────────────────── */
+/* --- Hero --- */
 .hero {
 	min-height: 0;
 	display: flex;
@@ -1406,7 +1411,7 @@ h2 em {
 	text-transform: uppercase;
 }
 
-/* ── Featured Event Card ───────────────────────────────────── */
+/* --- Featured Event Card --- */
 .featured-event {
 	overflow: hidden;
 	width: 100%;
@@ -1500,7 +1505,7 @@ h2 em {
 	line-height: 1.25;
 }
 
-/* ── Countdown ─────────────────────────────────────────────── */
+/* --- Countdown --- */
 .event-countdown {
 	display: grid;
 	grid-template-columns: repeat(4, 1fr);
@@ -1559,7 +1564,7 @@ h2 em {
 	color: transparent;
 }
 
-/* ── Marquee ───────────────────────────────────────────────── */
+/* --- Marquee --- */
 .marquee {
 	position: relative;
 	z-index: 2;
@@ -1597,7 +1602,7 @@ html[data-theme="dark"] .marquee {
 	color: transparent;
 }
 
-/* ── Stats ─────────────────────────────────────────────────── */
+/* --- Stats --- */
 .stats-section {
 	background: #fffaf4;
 	padding: 2.5rem 0 2rem;
@@ -1635,7 +1640,7 @@ html[data-theme="dark"] .marquee {
 	text-transform: uppercase;
 }
 
-/* ── Section headings ──────────────────────────────────────── */
+/* --- Section headings --- */
 .section-heading {
 	max-width: 42rem;
 	margin-inline: auto;
@@ -1665,7 +1670,7 @@ html[data-theme="dark"] .marquee {
 	margin-left: 0;
 }
 
-/* ── Event Cards / Grid ────────────────────────────────────── */
+/* --- Event Cards / Grid --- */
 .event-grid,
 .services-grid,
 .process-grid {
@@ -1899,7 +1904,7 @@ html[data-theme="dark"] .marquee {
 	background: var(--brand-gradient);
 }
 
-/* ── Carousel ──────────────────────────────────────────────── */
+/* --- Carousel --- */
 .event-carousel {
 	position: relative;
 	margin-top: 2rem;
@@ -1999,7 +2004,7 @@ html[data-theme="dark"] .marquee {
 	right: 0;
 }
 
-/* ── Categories Carousel ───────────────────────────────────── */
+/* --- Categories Carousel --- */
 .categories-section {
 	background: #fffaf4;
 }
@@ -2181,7 +2186,7 @@ html[data-theme="dark"] .marquee {
 	right: 0 !important;
 }
 
-/* ── Split / About grids ───────────────────────────────────── */
+/* --- Split / About grids --- */
 .split-grid {
 	display: grid;
 	grid-template-columns: repeat(2, 1fr);
@@ -2253,7 +2258,7 @@ html[data-theme="dark"] .marquee {
 	font-size: .6875rem;
 }
 
-/* ── Services ──────────────────────────────────────────────── */
+/* --- Services --- */
 .services-grid {
 	grid-template-columns: repeat(3, 1fr);
 }
@@ -2314,7 +2319,7 @@ html[data-theme="dark"] .marquee {
 	vertical-align: middle;
 }
 
-/* ── Capabilities ──────────────────────────────────────────── */
+/* --- Capabilities --- */
 .capabilities {
 	background: linear-gradient(180deg, var(--dark) 0%, var(--dark-soft) 100%);
 }
@@ -2358,7 +2363,7 @@ html[data-theme="dark"] .marquee {
 	backdrop-filter: blur(8px);
 }
 
-/* ── Process ───────────────────────────────────────────────── */
+/* --- Process --- */
 .process-grid {
 	grid-template-columns: repeat(3, 1fr);
 }
@@ -2389,7 +2394,7 @@ html[data-theme="dark"] .marquee {
 	font-size: .875rem;
 }
 
-/* ── Why Us ────────────────────────────────────────────────── */
+/* --- Why Us --- */
 .why-grid {
 	align-items: center;
 }
@@ -2435,7 +2440,7 @@ html[data-theme="dark"] .marquee {
 }
 
 
-/* ── Home Teaser Grid ──────────────────────────────────────── */
+/* --- Home Teaser Grid --- */
 .home-teasers {
 	background: var(--cream);
 }
@@ -2486,7 +2491,7 @@ html[data-theme="dark"] .marquee {
 	margin: 0;
 }
 
-/* ── Past Events (home, logged-in) ─────────────────────────── */
+/* --- Past Events (home, logged-in) --- */
 .home-past-events {
 	background: var(--cream);
 }
@@ -2566,7 +2571,7 @@ html[data-theme="dark"] .marquee {
 	background: var(--cream);
 }
 
-/* ── FAQ ───────────────────────────────────────────────────── */
+/* --- FAQ --- */
 
 .faq-list {
 	overflow: hidden;
@@ -2631,7 +2636,7 @@ html[data-theme="dark"] .marquee {
 	transform: rotate(180deg);
 }
 
-/* ── Final CTA ─────────────────────────────────────────────── */
+/* --- Final CTA --- */
 .final-cta {
 	text-align: center;
 }
@@ -2659,7 +2664,7 @@ html[data-theme="dark"] .marquee {
 	margin-top: 2rem;
 }
 
-/* ── Footer ────────────────────────────────────────────────── */
+/* --- Footer --- */
 .site-footer {
 	padding: 3rem 0 1.5rem;
 	border-top: 1px solid var(--border);
@@ -2843,7 +2848,7 @@ html[data-theme="dark"] .marquee {
 	font-weight: 600;
 }
 
-/* ── Policy & About Page specific styles ─────────────────── */
+/* --- Policy & About Page specific styles --- */
 .policy-hero {
 	min-height: 20rem;
 	display: flex;
@@ -3071,7 +3076,7 @@ body.sub-page .policy-hero {
 	z-index: 1;
 }
 
-/* ── Modal ─────────────────────────────────────────────────── */
+/* --- Modal --- */
 .modal-backdrop[hidden] {
 	display: none;
 }
@@ -3224,7 +3229,7 @@ body.sub-page .policy-hero {
 	cursor: pointer;
 }
 
-/* ── Background canvas + Splash ───────────────────────────── */
+/* --- Background canvas + Splash --- */
 .bg-canvas {
 	position: fixed;
 	inset: 0;
@@ -3394,7 +3399,7 @@ body.sub-page .policy-hero {
 	animation: splash-tagline-in .7s ease-out 1.1s both;
 }
 
-/* ── Keyframes ─────────────────────────────────────────────── */
+/* --- Keyframes --- */
 @keyframes marquee {
 	from {
 		transform: translateX(0);
@@ -3574,7 +3579,7 @@ body.sub-page .policy-hero {
 	}
 }
 
-/* ── Host Your Event Page ──────────────────────────────────── */
+/* --- Host Your Event Page --- */
 .host-hero {
 	min-height: 24rem;
 }
@@ -3734,7 +3739,7 @@ body.sub-page .policy-hero {
 	margin-top: 0.75rem;
 }
 
-/* ── Host Modal ────────────────────────────────────────────── */
+/* --- Host Modal --- */
 .host-modal-backdrop[hidden] {
 	display: none;
 }
@@ -3978,7 +3983,7 @@ body.sub-page .policy-hero {
 	}
 }
 
-/* ── Location toast & modal (JodLocation) ─────────────────── */
+/* --- Location toast & modal (JodLocation) --- */
 #jodLocationToast {
 	position: fixed;
 	z-index: 90;
@@ -4348,7 +4353,7 @@ body.jod-loc-modal-open {
 	}
 }
 
-/* ── Guest Auth Modal (Live Trending Events & Universal) ──── */
+/* --- Guest Auth Modal (Live Trending Events & Universal) --- */
 .guest-auth-modal-backdrop[hidden] {
 	display: none !important;
 }
@@ -4541,7 +4546,7 @@ body.jod-loc-modal-open {
 	to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ── Dark theme surfaces (orange on warm black) ─────────────── */
+/* --- Dark theme surfaces (orange on warm black) --- */
 html[data-theme="dark"] body {
 	background: var(--background);
 	color: var(--foreground);

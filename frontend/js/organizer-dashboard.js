@@ -382,7 +382,7 @@ async function initOrganizerDashboard() {
 	const IMAGE_SIZE_MSG = "Your image is not in this standard size. Maximum file size is 5MB.";
 	const BANNER_TARGET_W = 1200;
 	const BANNER_TARGET_H = 530;
-	const BANNER_DIM_MSG = "Your image is not in this standard size. Use 1200 × 530 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
+	const BANNER_DIM_MSG = "Your image is not in this standard size. Use 1200 \u00d7 530 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
 
 	function hasAllowedImageMagicBytes(bytes) {
 		if (!bytes || bytes.length < 12) return false;
@@ -659,7 +659,7 @@ async function initOrganizerDashboard() {
 		return;
 	}
 
-	// Require authenticated session — do not fabricate tokens
+	// Require authenticated session \u2014 do not fabricate tokens
 	const isLoggedIn = window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn();
 	if (!isLoggedIn) {
 		window.location.href = "login.html?redirect=" + encodeURIComponent(`organizer-dashboard.html?email=${encodeURIComponent(email)}`);
@@ -702,7 +702,7 @@ async function initOrganizerDashboard() {
 		}
 	} catch (_) {}
 
-	// ── Organizer Verification State Management ──────────────────────────────
+	// \u2500\u2500 Organizer Verification State Management \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	let currentVerificationInfo = null;
 
 	async function fetchVerificationStatus(forceRefresh) {
@@ -711,7 +711,7 @@ async function initOrganizerDashboard() {
 				headers: getAuthHeaders()
 			});
 			if (!res.ok) {
-				// No record / 404 etc — treat as NOT_SUBMITTED
+				// No record / 404 etc \u2014 treat as NOT_SUBMITTED
 				currentVerificationInfo = {
 					verification_status: "NOT_SUBMITTED",
 					can_publish_events: false,
@@ -766,7 +766,7 @@ async function initOrganizerDashboard() {
 	}
 
 	function progressStepClass(idx, completed) {
-		return completed ? "✓" : "○";
+		return completed ? "\u2713" : "\u25cb";
 	}
 
 	function renderVerificationPanel(info) {
@@ -793,13 +793,13 @@ async function initOrganizerDashboard() {
 					<p style="margin:0.4rem 0 0; opacity:0.92; font-size:0.92rem; line-height:1.45;">All information is encrypted and used exclusively for payout verification.</p>
 				</div>
 				${status === "VERIFIED" ? `
-					<div style="background:rgba(255,255,255,0.15); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">✓ VERIFIED</div>
+					<div style="background:rgba(255,255,255,0.15); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">\u2713 VERIFIED</div>
 				` : status === "PENDING" ? `
-					<div style="background:rgba(255,255,255,0.15); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">⏳ UNDER REVIEW</div>
+					<div style="background:rgba(255,255,255,0.15); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">\u23f3 UNDER REVIEW</div>
 				` : status === "REJECTED" ? `
-					<div style="background:rgba(239,68,68,0.25); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">✗ REJECTED</div>
+					<div style="background:rgba(239,68,68,0.25); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">\u2717 REJECTED</div>
 				` : `
-					<div style="background:rgba(255,255,255,0.15); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">○ NOT SUBMITTED</div>
+					<div style="background:rgba(255,255,255,0.15); padding:0.35rem 0.85rem; border-radius:999px; font-size:0.78rem; font-weight:700;">\u25cb NOT SUBMITTED</div>
 				`}
 			</div>
 
@@ -810,7 +810,7 @@ async function initOrganizerDashboard() {
 						<div style="width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:800;
 							background:${s.ok ? '#10b981' : (status === 'PENDING' && i === 3 ? '#f59e0b' : '#e2e8f0')};
 							color:${s.ok || (status === 'PENDING' && i === 3) ? '#ffffff' : '#64748b'};">
-							${s.ok ? '✓' : (status === 'PENDING' && i === 3 ? '◷' : (i + 1))}
+							${s.ok ? '\u2713' : (status === 'PENDING' && i === 3 ? '\u25f7' : (i + 1))}
 						</div>
 						<div style="font-size:0.8rem; font-weight:700; color:${s.ok ? '#065f46' : '#334155'};">${s.label}</div>
 					</div>
@@ -823,7 +823,7 @@ async function initOrganizerDashboard() {
 		if (status === "PENDING") {
 			bodyHtml = `
 				<div style="padding:2.5rem 2rem; text-align:center;">
-					<div style="font-size:3.2rem; margin-bottom:0.8rem;">⏳</div>
+					<div style="font-size:3.2rem; margin-bottom:0.8rem;">\u23f3</div>
 					<h3 style="margin:0 0 0.5rem; font-size:1.35rem; font-weight:800; color:#0f172a;">Verification is under review</h3>
 					<p style="margin:0 0 1.5rem; color:#475569; line-height:1.55;">
 						We have received your organizer KYC documents and are currently verifying them.
@@ -840,7 +840,7 @@ async function initOrganizerDashboard() {
 		} else if (status === "VERIFIED") {
 			bodyHtml = `
 				<div style="padding:2.5rem 2rem; text-align:center;">
-					<div style="font-size:3.2rem; margin-bottom:0.8rem;">✅</div>
+					<div style="font-size:3.2rem; margin-bottom:0.8rem;">\u2705</div>
 					<h3 style="margin:0 0 0.5rem; font-size:1.35rem; font-weight:800; color:#0f172a;">Organizer verification completed successfully</h3>
 					<p style="margin:0 0 1.5rem; color:#475569; line-height:1.55;">
 						You can now publish events. Your payout bank details have been locked for security.
@@ -851,7 +851,7 @@ async function initOrganizerDashboard() {
 				</div>
 			`;
 		} else {
-			// NOT_SUBMITTED or REJECTED → show KYC form
+			// NOT_SUBMITTED or REJECTED \u2192 show KYC form
 			const isRejected = status === "REJECTED";
 			bodyHtml = `
 				<div style="padding:1.75rem 2rem; overflow-y:auto; flex:1;">
@@ -913,7 +913,7 @@ async function initOrganizerDashboard() {
 								<div>
 									<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Upload PAN Card Image <span style="color:#ef4444;">*</span></label>
 									<input type="file" id="kyc_pan_file" accept=".jpg,.jpeg,.png,.pdf" style="width:100%; padding:0.55rem; border:1.5px dashed #cbd5e1; border-radius:8px; font-size:0.86rem; background:#f8fafc;" />
-									${account.pan_card_url ? `<div id="kyc_pan_existing" style="margin-top:0.5rem; font-size:0.82rem; color:#166534; font-weight:600;">✓ PAN document on file. You may upload a new copy to replace it.</div>` : ''}
+									${account.pan_card_url ? `<div id="kyc_pan_existing" style="margin-top:0.5rem; font-size:0.82rem; color:#166534; font-weight:600;">\u2713 PAN document on file. You may upload a new copy to replace it.</div>` : ''}
 									<div id="kyc_pan_file_error" style="color:#dc2626; font-size:0.78rem; font-weight:600; margin-top:0.25rem; display:none;"></div>
 								</div>
 							</div>
@@ -927,7 +927,7 @@ async function initOrganizerDashboard() {
 							<div>
 								<label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Upload Cancelled Cheque Image <span style="color:#ef4444;">*</span></label>
 								<input type="file" id="kyc_cheque_file" accept=".jpg,.jpeg,.png,.pdf" style="width:100%; padding:0.55rem; border:1.5px dashed #cbd5e1; border-radius:8px; font-size:0.86rem; background:#f8fafc;" />
-								${account.cancelled_cheque_url ? `<div id="kyc_cheque_existing" style="margin-top:0.5rem; font-size:0.82rem; color:#166534; font-weight:600;">✓ Cancelled cheque on file. You may upload a new copy to replace it.</div>` : ''}
+								${account.cancelled_cheque_url ? `<div id="kyc_cheque_existing" style="margin-top:0.5rem; font-size:0.82rem; color:#166534; font-weight:600;">\u2713 Cancelled cheque on file. You may upload a new copy to replace it.</div>` : ''}
 								<div id="kyc_cheque_file_error" style="color:#dc2626; font-size:0.78rem; font-weight:600; margin-top:0.25rem; display:none;"></div>
 							</div>
 						</div>
@@ -1134,7 +1134,7 @@ async function initOrganizerDashboard() {
 		}
 	}
 
-	// ── Access Control: verification overlay (disabled until admin portal) ──
+	// \u2500\u2500 Access Control: verification overlay (disabled until admin portal) \u2500\u2500
 	if (VERIFICATION_UI_ENABLED) {
 	await fetchVerificationStatus(true);
 	const vs = currentVerificationInfo ? currentVerificationInfo.verification_status : "NOT_SUBMITTED";
@@ -1393,7 +1393,7 @@ async function initOrganizerDashboard() {
 	}
 
 	function zeroHostKpis() {
-		if (kpiSales) kpiSales.textContent = "₹0.00";
+		if (kpiSales) kpiSales.textContent = "\u20b90.00";
 		if (kpiRegs) kpiRegs.textContent = "0";
 		if (kpiPending) kpiPending.textContent = "0";
 		if (kpiAttendees) kpiAttendees.textContent = "0";
@@ -1483,7 +1483,7 @@ async function initOrganizerDashboard() {
 		if (typeof populateDesignRows === "function") populateDesignRows([], []);
 	}
 
-	// ── Dynamic Dashboard Data Loader ──────────────────────────────────────────
+	// \u2500\u2500 Dynamic Dashboard Data Loader \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	async function loadDashboardData() {
 		if (!email) return;
 		try {
@@ -1505,7 +1505,7 @@ async function initOrganizerDashboard() {
 					if (d.event_title && dashEventTitle) dashEventTitle.textContent = d.event_title;
 
 					// Top 3 KPI Cards
-					if (kpiSales) kpiSales.textContent = `₹${(d.total_sales || 0).toLocaleString("en-IN", {minimumFractionDigits: 2})}`;
+					if (kpiSales) kpiSales.textContent = `\u20b9${(d.total_sales || 0).toLocaleString("en-IN", {minimumFractionDigits: 2})}`;
 					if (kpiRegs) kpiRegs.textContent = (d.total_registrations || 0).toLocaleString("en-IN");
 					if (kpiPending) {
 						const pendingCount = (d.pending_registrations != null)
@@ -1649,10 +1649,10 @@ async function initOrganizerDashboard() {
 		}
 		body.innerHTML = rows.map((row) => {
 			const checked = row.status === "checked_in";
-			const when = row.checked_in_at ? new Date(row.checked_in_at).toLocaleString() : "—";
-			const volunteer = checked ? (row.volunteer_name || row.scanned_by || "—") : "—";
+			const when = row.checked_in_at ? new Date(row.checked_in_at).toLocaleString() : "\u2014";
+			const volunteer = checked ? (row.volunteer_name || row.scanned_by || "\u2014") : "\u2014";
 			const ticketBits = [row.booking_ref, row.ticket_type].filter((bit) => String(bit || "").trim());
-			const ticketLabel = ticketBits.length ? ticketBits.join(" · ") : "Ticket";
+			const ticketLabel = ticketBits.length ? ticketBits.join(" \u00b7 ") : "Ticket";
 			const badge = checked
 				? `<span style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:700;">Checked-in</span>`
 				: `<span style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:700;">Yet to check-in</span>`;
@@ -1757,15 +1757,15 @@ async function initOrganizerDashboard() {
 			let message = data.message || detail || (ok ? `${value} checked in successfully.` : "Could not validate this ticket.");
 			if (ok && !/^new check-in/i.test(message)) {
 				message = ticketId
-					? `New check-in — ticket ${ticketId}. ${message}`
-					: `New check-in — ${message}`;
+					? `New check-in \u2014 ticket ${ticketId}. ${message}`
+					: `New check-in \u2014 ${message}`;
 			}
 			if (already && !/duplicate/i.test(message)) {
 				message = ticketId
-					? `Duplicate check-in — ticket ${ticketId}. ${message}`
-					: `Duplicate check-in — ${message}`;
+					? `Duplicate check-in \u2014 ticket ${ticketId}. ${message}`
+					: `Duplicate check-in \u2014 ${message}`;
 			}
-			paintCheckinResult(resultEl, ok, (ok ? "✓ " : "") + message.replace(/^✓\s*/, ""), already);
+			paintCheckinResult(resultEl, ok, (ok ? "\u2713 " : "") + message.replace(/^\u2713\s*/, ""), already);
 			await loadDashboardData();
 			await loadAttendanceData();
 			return data;
@@ -1776,7 +1776,7 @@ async function initOrganizerDashboard() {
 		}
 	}
 
-	// ── Initializer: Load organizer state & apply initial tab ──────────────────
+	// \u2500\u2500 Initializer: Load organizer state & apply initial tab \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	(async function initDashboardStateAndTab() {
 		await loadDashboardData();
 
@@ -1829,7 +1829,7 @@ async function initOrganizerDashboard() {
 
 	function formatInr(amount, withSign) {
 		const value = Number(amount || 0);
-		const formatted = `₹${Math.abs(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+		const formatted = `\u20b9${Math.abs(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 		if (!withSign) return formatted;
 		if (value > 0) return `+${formatted}`;
 		if (value < 0) return `-${formatted}`;
@@ -1949,7 +1949,7 @@ async function initOrganizerDashboard() {
 				if (communications.length === 0) {
 					commHistoryContainer.innerHTML = `
 						<div style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 8px;">
-							<div style="font-size: 1.5rem; margin-bottom: 0.4rem;">📢</div>
+							<div style="font-size: 1.5rem; margin-bottom: 0.4rem;">\ud83d\udce2</div>
 							<div style="font-weight: 700; color: #475569;">No Communications Sent Yet</div>
 							<div style="font-size: 0.82rem; margin-top: 0.2rem;">Use the composer above to broadcast updates to ticket holders by pass type.</div>
 						</div>
@@ -1971,7 +1971,7 @@ async function initOrganizerDashboard() {
 		}
 	}
 
-	// ── Exhibitors Dynamic Table & Modal Handler ─────────────────────────────
+	// \u2500\u2500 Exhibitors Dynamic Table & Modal Handler \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	let cachedExhibitors = [];
 
 	async function loadExhibitors() {
@@ -2013,7 +2013,7 @@ async function initOrganizerDashboard() {
 			tableBody.innerHTML = `
 				<tr>
 					<td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8;">
-						<div style="font-size: 1.5rem; margin-bottom: 0.4rem;">🎪</div>
+						<div style="font-size: 1.5rem; margin-bottom: 0.4rem;">\ud83c\udfaa</div>
 						<div style="font-weight: 700; color: #475569;">No Exhibitors Added Yet</div>
 						<div style="font-size: 0.82rem; margin-top: 0.2rem;">Click "+ Add New Exhibitor" above to add booth vendors and partners.</div>
 					</td>
@@ -2095,7 +2095,7 @@ async function initOrganizerDashboard() {
 				if (res.ok) {
 					closeExhibitorModal();
 					loadExhibitors();
-					showNotification("✓ Exhibitor added successfully!");
+					showNotification("\u2713 Exhibitor added successfully!");
 				}
 			} catch (err) {
 				console.warn("Could not save exhibitor:", err);
@@ -2103,7 +2103,7 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-	// ── Gate Management & Scanner Access Logic ──────────────────────────────
+	// \u2500\u2500 Gate Management & Scanner Access Logic \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	let cachedGates = [];
 	let cachedScanners = [];
 
@@ -2149,8 +2149,8 @@ async function initOrganizerDashboard() {
 		gatesTableBody.innerHTML = gates.map(g => `
 			<tr style="border-bottom: 1px solid #f1f5f9;">
 				<td class="dash-ink" style="padding: 0.75rem 1rem; font-weight: 700;">${escapeVolunteerHtml(g.gate_name)}</td>
-				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${escapeVolunteerHtml(g.gate_code || '—')}</td>
-				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${escapeVolunteerHtml(g.gate_description || '—')}</td>
+				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${escapeVolunteerHtml(g.gate_code || '\u2014')}</td>
+				<td class="dash-muted-text" style="padding: 0.75rem 1rem;">${escapeVolunteerHtml(g.gate_description || '\u2014')}</td>
 				<td style="padding: 0.75rem 1rem;">
 					<span style="background: ${g.status === 'Active' ? '#f0fdf4' : '#fee2e2'}; border: 1px solid ${g.status === 'Active' ? '#bbf7d0' : '#fecaca'}; color: ${g.status === 'Active' ? '#166534' : '#991b1b'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer;" class="btn-toggle-gate-status" data-id="${escapeVolunteerHtml(g.gate_id)}" data-status="${escapeVolunteerHtml(g.status)}">
 						${escapeVolunteerHtml(g.status)}
@@ -2286,7 +2286,7 @@ async function initOrganizerDashboard() {
 					if (gateIdInput) gateIdInput.value = "";
 					if (btnCancelGateEdit) btnCancelGateEdit.style.display = "none";
 					loadGates();
-					showNotification("✓ Gate saved successfully!");
+					showNotification("\u2713 Gate saved successfully!");
 				} else {
 					const errData = await res.json();
 					alert(errData.detail || "Could not save gate.");
@@ -2365,7 +2365,7 @@ async function initOrganizerDashboard() {
 		tableBody.innerHTML = volunteers.map((row) => {
 			const st = volunteerStatusStyle(row.status);
 			const roleLabel = (row.role || "SCANNER").toUpperCase() === "SCANNER" ? "Scanner" : escapeVolunteerHtml(row.role);
-			const gateLabel = row.gate_name || "—";
+			const gateLabel = row.gate_name || "\u2014";
 			const canResend = String(row.status || "").toUpperCase() === "PENDING";
 			const canRevoke = ["PENDING", "ACTIVE"].includes(String(row.status || "").toUpperCase());
 			const actions = [];
@@ -2382,7 +2382,7 @@ async function initOrganizerDashboard() {
 				<td class="dash-muted-text" style="padding: 0.8rem 1rem;">${escapeVolunteerHtml(gateLabel)}</td>
 				<td class="dash-muted-text" style="padding: 0.8rem 1rem;">${roleLabel}</td>
 				<td style="padding: 0.8rem 1rem;"><span style="background: ${st.bg}; border: 1px solid ${st.border}; color: ${st.color}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">${st.label}</span></td>
-				<td style="padding: 0.8rem 1rem; text-align: right;">${actions.join("") || "—"}</td>
+				<td style="padding: 0.8rem 1rem; text-align: right;">${actions.join("") || "\u2014"}</td>
 			</tr>`;
 		}).join("");
 
@@ -2424,7 +2424,7 @@ async function initOrganizerDashboard() {
 						showVolunteerInviteLink(data.invite_url, volunteerName, data.email_sent);
 						loadVolunteers();
 						showNotification(data.email_sent === false
-							? "Invitation link ready. Email could not be sent — copy the live link."
+							? "Invitation link ready. Email could not be sent \u2014 copy the live link."
 							: "Invitation resent.");
 					} else {
 						alert(apiErrorMessage(data, "Could not resend invitation."));
@@ -2642,13 +2642,13 @@ async function initOrganizerDashboard() {
 		if (btnManage) {
 			btnManage.innerHTML = published
 				? "<span>Update Manage</span>"
-				: "<span>Save &amp; Next: Design</span> →";
+				: "<span>Save &amp; Next: Design</span> \u2192";
 			delete btnManage.dataset.originalLabel;
 		}
 		if (btnDesign) {
 			btnDesign.innerHTML = published
 				? "<span>Update Design</span>"
-				: "<span>Save &amp; Next: Registration Form</span> →";
+				: "<span>Save &amp; Next: Registration Form</span> \u2192";
 			delete btnDesign.dataset.originalLabel;
 		}
 		if (btnForm) {
@@ -3085,7 +3085,7 @@ async function initOrganizerDashboard() {
 		console.warn("Could not fetch current host event:", err);
 	}
 
-	// ── Live Auto-Save / UPSERT Synchronization ────────────────────────────────
+	// \u2500\u2500 Live Auto-Save / UPSERT Synchronization \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	let autoSaveTimer = null;
 
 	async function autoSaveManageEvent(notifyError = false) {
@@ -3269,13 +3269,13 @@ async function initOrganizerDashboard() {
 		if (dateInput && dateInput.value) {
 			try {
 				const dt = new Date(dateInput.value);
-				metaText = `${dt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} • ${format}`;
+				metaText = `${dt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} \u2022 ${format}`;
 			} catch (_) {
 				metaText = format;
 			}
 		}
 		if (locationInput && locationInput.value.trim()) {
-			metaText += ` • ${locationInput.value.trim()}`;
+			metaText += ` \u2022 ${locationInput.value.trim()}`;
 		}
 
 		if (dashEventTitle) dashEventTitle.textContent = title;
@@ -3313,7 +3313,7 @@ async function initOrganizerDashboard() {
 	async function advanceManageToDesign() {
 		if (!validateManageWizardStep()) return;
 		const btn = document.getElementById("btnManageNext");
-		setWizardNavBusy(btn, true, "<span>Saving…</span>");
+		setWizardNavBusy(btn, true, "<span>Saving\u2026</span>");
 		try {
 			const saved = await autoSaveManageEvent(true);
 			syncManageWizardPreview();
@@ -3322,10 +3322,10 @@ async function initOrganizerDashboard() {
 				return;
 			}
 			if (isPublishedLifecycle() || currentLifecycle === "ended") {
-				showNotification("✓ Manage section updated successfully");
+				showNotification("\u2713 Manage section updated successfully");
 				return;
 			}
-			showNotification("Step 1 of 4 complete: Event details saved. Continuing to Design…");
+			showNotification("Step 1 of 4 complete: Event details saved. Continuing to Design\u2026");
 			switchTab("design");
 		} finally {
 			setWizardNavBusy(btn, false);
@@ -3334,7 +3334,7 @@ async function initOrganizerDashboard() {
 
 	async function advanceDesignToRegistrations() {
 		const btn = document.getElementById("btnSaveDesign");
-		setWizardNavBusy(btn, true, "<span>Saving…</span>");
+		setWizardNavBusy(btn, true, "<span>Saving\u2026</span>");
 		try {
 			const saved = await saveFullEventDesign(true);
 			if (!saved) {
@@ -3342,10 +3342,10 @@ async function initOrganizerDashboard() {
 				return;
 			}
 			if (isPublishedLifecycle() || currentLifecycle === "ended") {
-				showNotification("✓ Design section updated successfully");
+				showNotification("\u2713 Design section updated successfully");
 				return;
 			}
-			showNotification("Step 2 of 4 complete: Design assets saved. Continuing to Registration Form…");
+			showNotification("Step 2 of 4 complete: Design assets saved. Continuing to Registration Form\u2026");
 			switchTab("registrations");
 		} catch (err) {
 			showNotification(err.message || "Failed to save design assets.");
@@ -3641,7 +3641,7 @@ async function initOrganizerDashboard() {
 		venueFillingFromMap = true;
 		input.value = text;
 		venueFillingFromMap = false;
-		setVenueHint("📍 " + text + " — drag the pin to adjust", true);
+		setVenueHint("\ud83d\udccd " + text + " \u2014 drag the pin to adjust", true);
 		triggerManageAutoSave();
 	}
 
@@ -3717,7 +3717,7 @@ async function initOrganizerDashboard() {
 	}
 
 	async function reverseGeocodeVenue(lat, lon) {
-		setVenueHint("Looking up street, area, and pincode…");
+		setVenueHint("Looking up street, area, and pincode\u2026");
 		try {
 			let formatted = "";
 			try {
@@ -3745,14 +3745,14 @@ async function initOrganizerDashboard() {
 				setVenueHint("Pin dropped. Drag again if this is not the right spot.");
 			}
 		} catch (_) {
-			setVenueHint("Pin dropped. Street lookup failed — you can still type the address.");
+			setVenueHint("Pin dropped. Street lookup failed \u2014 you can still type the address.");
 		}
 	}
 
 	async function geocodeVenueQuery(query) {
 		const q = String(query || "").trim();
 		if (q.length < 3) return;
-		setVenueHint("Finding this venue on the map…");
+		setVenueHint("Finding this venue on the map\u2026");
 		try {
 			let hitLat = NaN;
 			let hitLon = NaN;
@@ -3807,7 +3807,7 @@ async function initOrganizerDashboard() {
 	async function initVenueMapPicker() {
 		ensureVenueMapMarkup();
 		updateVenueMapVisibility();
-		setVenueHint("Loading the map…");
+		setVenueHint("Loading the map\u2026");
 		try {
 			await loadLeafletAssets();
 		} catch (err) {
@@ -3869,7 +3869,7 @@ async function initOrganizerDashboard() {
 				</div>
 			</div>
 			<div class="setup-form-group">
-				<label>Ticket Price (₹) <span style="color: #ef4444;">*</span></label>
+				<label>Ticket Price (\u20b9) <span style="color: #ef4444;">*</span></label>
 				<div class="input-icon-wrap">
 					<span class="input-icon">&#8377;</span>
 						<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="${attrEscape(price)}" />
@@ -4206,14 +4206,14 @@ async function initOrganizerDashboard() {
 			if (window.JodCropModal && typeof window.JodCropModal.open === "function") {
 				window.JodCropModal.open(file, () => {
 					renderHostSettingsAvatar();
-					showNotification("✓ Profile photo updated.");
+					showNotification("\u2713 Profile photo updated.");
 				});
 				return;
 			}
 			const reader = new FileReader();
 			reader.onload = (ev) => {
 				applyHostAvatarDataUrl(ev.target.result);
-				showNotification("✓ Profile photo updated.");
+				showNotification("\u2713 Profile photo updated.");
 			};
 			reader.readAsDataURL(file);
 		});
@@ -4258,19 +4258,19 @@ async function initOrganizerDashboard() {
 				existingBanner.id = "settingsVerificationBanner";
 				sectionSettings.insertBefore(existingBanner, sectionSettings.firstChild.nextSibling);
 			}
-			let bannerBg = "#f8fafc", bannerBorder = "#e2e8f0", bannerColor = "#475569", bannerTitle = "Verification Status", bannerIcon = "○", bannerSub = "", ctaLabel = null, ctaAction = null;
+			let bannerBg = "#f8fafc", bannerBorder = "#e2e8f0", bannerColor = "#475569", bannerTitle = "Verification Status", bannerIcon = "\u25cb", bannerSub = "", ctaLabel = null, ctaAction = null;
 
 			if (vs === "VERIFIED") {
 				bannerBg = "#f0fdf4"; bannerBorder = "#bbf7d0"; bannerColor = "#166534";
-				bannerIcon = "✓"; bannerTitle = "Organizer Verified";
+				bannerIcon = "\u2713"; bannerTitle = "Organizer Verified";
 				bannerSub = "Your verification has been approved. Bank details are locked for payout security.";
 			} else if (vs === "PENDING") {
 				bannerBg = "#fffbeb"; bannerBorder = "#fde68a"; bannerColor = "#92400e";
-				bannerIcon = "◷"; bannerTitle = "Verification Under Review";
+				bannerIcon = "\u25f7"; bannerTitle = "Verification Under Review";
 				bannerSub = "Your KYC documents have been submitted and are under review. You can publish events after approval.";
 			} else if (vs === "REJECTED") {
 				bannerBg = "#fef2f2"; bannerBorder = "#fecaca"; bannerColor = "#991b1b";
-				bannerIcon = "✗"; bannerTitle = "Verification Rejected";
+				bannerIcon = "\u2717"; bannerTitle = "Verification Rejected";
 				bannerSub = rejection ? `Reason: ${rejection}. Please update your details and resubmit.` : "Your verification was rejected. Please update your details and resubmit.";
 				ctaLabel = "Update & Resubmit Verification";
 				ctaAction = () => window.openOrganizerVerificationPanel && window.openOrganizerVerificationPanel();
@@ -4328,7 +4328,7 @@ async function initOrganizerDashboard() {
 					if (acc.pan_number && profPan) profPan.value = acc.pan_number;
 					if (acc.org_address && profAddress) profAddress.value = acc.org_address;
 
-					// Bank Details stay locked for payout security — changes go through support.
+					// Bank Details stay locked for payout security \u2014 changes go through support.
 					const profBankBeneficiary = document.getElementById("profBankBeneficiary");
 					const profBankName = document.getElementById("profBankName");
 					const profBankAccountType = document.getElementById("profBankAccountType");
@@ -4352,7 +4352,7 @@ async function initOrganizerDashboard() {
 					if (acc.account_number && profBankAccountNumber) {
 						const rawAcc = String(acc.account_number);
 						profBankAccountNumber.value = rawAcc.length > 4
-							? `•••• •••• ${rawAcc.slice(-4)}`
+							? `\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ${rawAcc.slice(-4)}`
 							: rawAcc;
 					}
 					if (acc.bank_ifsc && profBankIfsc) profBankIfsc.value = acc.bank_ifsc;
@@ -4373,7 +4373,7 @@ async function initOrganizerDashboard() {
 	if (profileForm) {
 		profileForm.addEventListener("submit", (e) => {
 			e.preventDefault();
-			showNotification("✓ Profile details updated successfully. Bank payout information remains locked for security.");
+			showNotification("\u2713 Profile details updated successfully. Bank payout information remains locked for security.");
 		});
 	}
 
@@ -4450,7 +4450,7 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-	// ── DESIGN & MEDIA ASSETS HANDLERS ────────────────────────────────────────
+	// \u2500\u2500 DESIGN & MEDIA ASSETS HANDLERS \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 	// Hero Banner Upload
 	const bannerDropzone = document.getElementById("bannerDropzone");
@@ -4586,7 +4586,7 @@ async function initOrganizerDashboard() {
 			setInlineUploadError(host, "");
 			const dims = await readImageDimensions(file);
 			if (dims && (dims.width < 300 || dims.height < 150)) {
-				setInlineUploadError(host, `Card image is ${dims.width} × ${dims.height}px. Minimum size is 300 × 150 px.`);
+				setInlineUploadError(host, `Card image is ${dims.width} \u00d7 ${dims.height}px. Minimum size is 300 \u00d7 150 px.`);
 				cardImageFileInput.value = "";
 				return;
 			}
@@ -4655,7 +4655,7 @@ async function initOrganizerDashboard() {
 						<button type="button" class="btn-upload-sponsor-logo" style="background:#fff; border:1.5px solid #cbd5e1; color:#2563eb; font-weight:700; border-radius:8px; padding:0 0.8rem; flex:1; height:44px; font-size:0.85rem; cursor:pointer;">${logoUrl ? "Replace Logo" : "Upload Logo"}</button>
 						<button type="button" class="btn-remove-sponsor" title="Remove Sponsor" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:8px; padding:0 0.8rem; cursor:pointer; font-weight:700; height:44px;">&times;</button>
 					</div>
-					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP · Max 5MB</span>
+					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP \u00b7 Max 5MB</span>
 					${logoUrl ? `<img class="sponsor-preview-img" src="${resolveUploadUrl(logoUrl)}" alt="Sponsor logo" style="display:block; width:100%; max-width:180px; height:72px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; background:#fff; padding:6px;" />` : ""}
 				</div>
 			</div>
@@ -4683,7 +4683,7 @@ async function initOrganizerDashboard() {
 			const errorHost = div.querySelector(".sponsor-logo-wrap");
 			setInlineUploadError(errorHost, "");
 			try {
-				uploadBtn.textContent = "Uploading…";
+				uploadBtn.textContent = "Uploading\u2026";
 				uploadBtn.disabled = true;
 				const url = await uploadDesignAsset(file, "sponsor_logo");
 				div.dataset.logoUrl = url;
@@ -4748,7 +4748,7 @@ async function initOrganizerDashboard() {
 						<button type="button" class="btn-upload-artist-photo" style="background:#fff; border:1.5px solid #cbd5e1; color:#2563eb; font-weight:700; border-radius:8px; padding:0 0.8rem; flex:1; height:44px; font-size:0.85rem; cursor:pointer;">${photoUrl ? "Replace Photo" : "Upload Photo"}</button>
 						<button type="button" class="btn-remove-artist" title="Remove Artist" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:8px; padding:0 0.8rem; cursor:pointer; font-weight:700; height:44px;">&times;</button>
 					</div>
-					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP · Max 5MB</span>
+					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP \u00b7 Max 5MB</span>
 					${photoUrl ? `<img class="artist-preview-img" src="${resolveUploadUrl(photoUrl)}" alt="Artist photo" style="display:block; width:72px; height:72px; object-fit:cover; border-radius:50%; border:1px solid #e2e8f0; background:#f8fafc;" />` : ""}
 				</div>
 			</div>
@@ -4777,7 +4777,7 @@ async function initOrganizerDashboard() {
 			const errorHost = div.querySelector(".artist-photo-wrap");
 			setInlineUploadError(errorHost, "");
 			try {
-				uploadBtn.textContent = "Uploading…";
+				uploadBtn.textContent = "Uploading\u2026";
 				uploadBtn.disabled = true;
 				const url = await uploadDesignAsset(file, "artist_photo");
 				div.dataset.photoUrl = url;
@@ -4972,7 +4972,7 @@ async function initOrganizerDashboard() {
 	}
 
 
-// ── EVENT DAY LIVE QR SCANNER ────────────────────────────────────────
+// \u2500\u2500 EVENT DAY LIVE QR SCANNER \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	const cameraVideo          = document.getElementById("cameraVideo");
 	const cameraCanvas         = document.getElementById("cameraCanvas");
 	const cameraLoadingOverlay = document.getElementById("cameraLoadingOverlay");
@@ -4988,7 +4988,7 @@ async function initOrganizerDashboard() {
 	let _scanRafId = null;
 	let _lastDetectedCode = null;
 
-	// Open Camera Modal → auto-start camera
+	// Open Camera Modal \u2192 auto-start camera
 	if (btnLaunchCameraScanner && cameraScannerModal) {
 		btnLaunchCameraScanner.addEventListener("click", async () => {
 			cameraScannerModal.style.display = "flex";
@@ -5069,7 +5069,7 @@ async function initOrganizerDashboard() {
 					setTimeout(() => {
 						if (cameraTargetBox) cameraTargetBox.style.borderColor = "#10b981";
 						if (cameraStatusLabel) {
-							cameraStatusLabel.textContent = "Scanning for QR code…";
+							cameraStatusLabel.textContent = "Scanning for QR code\u2026";
 							cameraStatusLabel.style.color = "#10b981";
 						}
 					}, 1800);
@@ -5173,7 +5173,7 @@ async function initOrganizerDashboard() {
 		if (cameraLoadingOverlay) cameraLoadingOverlay.style.display = "none";
 		if (cameraScanFrame) cameraScanFrame.style.display = "flex";
 		if (cameraStatusLabel) {
-			cameraStatusLabel.textContent = "Scanning for QR code…";
+			cameraStatusLabel.textContent = "Scanning for QR code\u2026";
 			cameraStatusLabel.style.color = "#10b981";
 		}
 
@@ -5181,18 +5181,18 @@ async function initOrganizerDashboard() {
 	}
 
 
-	// ── CAMERA QR SCANNER – VERIFY BUTTON ────────────────────────────────
+	// \u2500\u2500 CAMERA QR SCANNER \u2013 VERIFY BUTTON \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	const cameraQrInput        = document.getElementById("cameraQrInput");
 	const btnVerifyQr          = document.getElementById("btnVerifyQr");
 	const scanHistoryWrap      = document.getElementById("scanHistoryWrap");
 	const scanHistoryList      = document.getElementById("scanHistoryList");
 
-	// Map: qrCode → { count, name, firstTime }
+	// Map: qrCode \u2192 { count, name, firstTime }
 	const _scanRegistry = new Map();
 
 	// Mock attendee data keyed by QR code prefix (in production replace with API call)
 	function _mockLookup(code) {
-		// Simple deterministic mock – in production this would call the backend
+		// Simple deterministic mock \u2013 in production this would call the backend
 		const names = ["Ananya Sharma", "Karthik Raja", "Priya Nair", "Vikram S.", "Demo Attendee"];
 		const types = ["VIP Access Pass", "General Admission", "Speaker Pass", "Press Pass", "Exhibitor Pass"];
 		const gates = ["Gate 1", "Gate 2", "Gate A", "Main Entrance"];
@@ -5209,10 +5209,10 @@ async function initOrganizerDashboard() {
 		scanHistoryWrap.style.display = "block";
 		const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 		const color = status === "valid" ? "#10b981" : (status === "invalid" ? "#f87171" : "#f59e0b");
-		const label = status === "valid" ? "✔ Valid" : (status === "invalid" ? "✖ Invalid" : "⚠ Duplicate");
+		const label = status === "valid" ? "\u2714 Valid" : (status === "invalid" ? "\u2716 Invalid" : "\u26a0 Duplicate");
 		const row = document.createElement("div");
 		row.style.cssText = "display:flex;justify-content:space-between;align-items:center;background:#1e293b;border-radius:6px;padding:0.4rem 0.7rem;font-size:0.8rem;";
-		row.innerHTML = `<span style="color:#f1f5f9;font-weight:600;">${escapeVolunteerHtml(name)}</span><span style="color:#94a3b8;font-size:0.75rem;">${escapeVolunteerHtml(String(code).slice(0,18))}…</span><span style="color:${color};font-weight:700;">${label}</span><span style="color:#64748b;font-size:0.72rem;">${escapeVolunteerHtml(now)}</span>`;
+		row.innerHTML = `<span style="color:#f1f5f9;font-weight:600;">${escapeVolunteerHtml(name)}</span><span style="color:#94a3b8;font-size:0.75rem;">${escapeVolunteerHtml(String(code).slice(0,18))}\u2026</span><span style="color:${color};font-weight:700;">${label}</span><span style="color:#64748b;font-size:0.72rem;">${escapeVolunteerHtml(now)}</span>`;
 		scanHistoryList.insertBefore(row, scanHistoryList.firstChild);
 	}
 
@@ -5318,7 +5318,7 @@ async function initOrganizerDashboard() {
 					loadVolunteers();
 					loadEventDayVolunteerStats();
 					if (data.email_sent === false) {
-						showNotification(`Volunteer added. Email could not be sent — copy the live invitation link.`);
+						showNotification(`Volunteer added. Email could not be sent \u2014 copy the live invitation link.`);
 				} else {
 						showNotification(`Invitation sent to ${volunteerEmail}.`);
 					}
@@ -5692,7 +5692,7 @@ async function initOrganizerDashboard() {
 					setStatus("No mobile number on your organizer account. Add it in Host Settings, or verify by email.");
 					return;
 				}
-				setStatus("Sending OTP…", true);
+				setStatus("Sending OTP\u2026", true);
 				try {
 					const fetchFn = window.JodAuth && typeof window.JodAuth.fetchAuth === "function"
 						? window.JodAuth.fetchAuth
@@ -5725,7 +5725,7 @@ async function initOrganizerDashboard() {
 					return;
 				}
 				verifying = true;
-				setStatus("Verifying…", true);
+				setStatus("Verifying\u2026", true);
 				try {
 					const fetchFn = window.JodAuth && typeof window.JodAuth.fetchAuth === "function"
 						? window.JodAuth.fetchAuth
@@ -5787,11 +5787,11 @@ async function initOrganizerDashboard() {
 	function showPublishConfirm(manageData, onConfirm) {
 		const readyNote = VERIFICATION_UI_ENABLED
 			? `<div style="display:flex; gap:0.55rem; align-items:center; background:#f0fdf4; color:#166534; padding:0.75rem 1rem; border-radius:8px; border:1px solid #bbf7d0; font-size:0.85rem; font-weight:600;">
-						<span style="font-size:1rem;">✓</span>
+						<span style="font-size:1rem;">\u2713</span>
 						<span>Organizer verification passed. Proceeding to publish.</span>
 					</div>`
 			: `<div style="display:flex; gap:0.55rem; align-items:center; background:#eff6ff; color:#1e40af; padding:0.75rem 1rem; border-radius:8px; border:1px solid #bfdbfe; font-size:0.85rem; font-weight:600;">
-						<span style="font-size:1rem;">ℹ</span>
+						<span style="font-size:1rem;">\u2139</span>
 						<span>Your design, policies, and registration form will go live for attendees.</span>
 					</div>`;
 		let modal = document.getElementById("publishGateModal");
@@ -5817,7 +5817,7 @@ async function initOrganizerDashboard() {
 				</div>
 				<div style="display:flex; justify-content:flex-end; gap:0.65rem; padding:1rem 1.75rem 1.5rem; border-top:1px solid #e2e8f0; background:#f8fafc;">
 					<button id="publishConfirmCancel" type="button" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#475569; padding:0.55rem 1.15rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">Cancel</button>
-					<button id="publishConfirmOk" type="button" style="background:linear-gradient(135deg, #10b981 0%, #047857 100%); color:#fff; padding:0.55rem 1.25rem; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">✓ Publish Event Now</button>
+					<button id="publishConfirmOk" type="button" style="background:linear-gradient(135deg, #10b981 0%, #047857 100%); color:#fff; padding:0.55rem 1.25rem; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer;">\u2713 Publish Event Now</button>
 				</div>
 			</div>
 		`;
@@ -5848,8 +5848,8 @@ async function initOrganizerDashboard() {
 		_publishInFlight = true;
 		const btnPublish = document.getElementById("btnPublishForm");
 		const btnTop = document.getElementById("btnTopPublish");
-		setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
-		setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
+		setWizardNavBusy(btnPublish, true, "<span>Publishing\u2026</span>");
+		setWizardNavBusy(btnTop, true, "<span>Publishing\u2026</span>");
 
 		try {
 			const manageSaved = await autoSaveManageEvent();
@@ -5877,8 +5877,8 @@ async function initOrganizerDashboard() {
 		showPublishConfirm(manageData, async () => {
 			closePublishGateModal();
 				_publishInFlight = true;
-				setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
-				setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
+				setWizardNavBusy(btnPublish, true, "<span>Publishing\u2026</span>");
+				setWizardNavBusy(btnTop, true, "<span>Publishing\u2026</span>");
 
 				async function postPublishEvent() {
 				const cur = await ensureCurrentEventExists();
@@ -5958,8 +5958,8 @@ async function initOrganizerDashboard() {
 					setWizardNavBusy(btnTop, false);
 					const verified = await showPublishAuthOtpModal();
 					if (!verified) return false;
-					setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
-					setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
+					setWizardNavBusy(btnPublish, true, "<span>Publishing\u2026</span>");
+					setWizardNavBusy(btnTop, true, "<span>Publishing\u2026</span>");
 					await postPublishEvent();
 					return true;
 				}
@@ -5969,8 +5969,8 @@ async function initOrganizerDashboard() {
 					setWizardNavBusy(btnTop, false);
 					const verified = await showPublishAuthOtpModal();
 					if (!verified) return;
-					setWizardNavBusy(btnPublish, true, "<span>Publishing…</span>");
-					setWizardNavBusy(btnTop, true, "<span>Publishing…</span>");
+					setWizardNavBusy(btnPublish, true, "<span>Publishing\u2026</span>");
+					setWizardNavBusy(btnTop, true, "<span>Publishing\u2026</span>");
 					await postPublishEvent();
 			} catch (err) {
 				const msg = err && err.message ? err.message : String(err || "");
@@ -6035,12 +6035,12 @@ async function initOrganizerDashboard() {
 		});
 	};
 
-	// ── Information Symbol 'i' Modal Logic ────────────────────────────────────
+	// \u2500\u2500 Information Symbol 'i' Modal Logic \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	const INFO_DETAILS_DATA = {
 		"exhibitors-overview": {
 			badge: "Exhibitors & Booth AI",
 			title: "AI Booth Placement & Traffic Optimization",
-			icon: "🎪",
+			icon: "\ud83c\udfaa",
 			description: "Our machine learning engine analyzes floor plans, attendee demographic interests, and entry gate traffic flows to suggest peak booth locations and dynamic pricing.",
 			sections: [
 				{
@@ -6048,16 +6048,16 @@ async function initOrganizerDashboard() {
 					content: "1. <strong>Heatmap Simulation:</strong> Maps predicted footfall vectors from main entrances to key stage halls.<br/>2. <strong>Category Balance:</strong> Distributes direct competitors across different aisle zones.<br/>3. <strong>Revenue Maximization:</strong> Adjusts booth tier pricing based on historical demand."
 				},
 				{
-					heading: "🚀 Traffic Optimization",
-					content: "<strong>Recommendation:</strong> Relocate TechCorp booth #B-12 to Hall A Entrance to boost footfall by +24%.<br/><br/>• <strong>+24% Footfall Surge:</strong> Positioning near Hall A Entrance increases attendee exposure.<br/>• <strong>Queue Reduction:</strong> Reduces choke points in secondary corridors.<br/>• <strong>Sponsor Value:</strong> High visibility increases booth lead captures."
+					heading: "\ud83d\ude80 Traffic Optimization",
+					content: "<strong>Recommendation:</strong> Relocate TechCorp booth #B-12 to Hall A Entrance to boost footfall by +24%.<br/><br/>\u2022 <strong>+24% Footfall Surge:</strong> Positioning near Hall A Entrance increases attendee exposure.<br/>\u2022 <strong>Queue Reduction:</strong> Reduces choke points in secondary corridors.<br/>\u2022 <strong>Sponsor Value:</strong> High visibility increases booth lead captures."
 				},
 				{
-					heading: "💎 Sponsorship Pricing Suggestion",
-					content: "High demand predicted for Hall C Premium booths. Suggest +15% package price surge for late registrations.<br/><br/>• <strong>Inventory Remaining:</strong> Only 22% of Hall C booths available.<br/>• <strong>Suggested Surge:</strong> +15% price increase.<br/>• <strong>Projected Extra Revenue:</strong> ₹45,000."
+					heading: "\ud83d\udc8e Sponsorship Pricing Suggestion",
+					content: "High demand predicted for Hall C Premium booths. Suggest +15% package price surge for late registrations.<br/><br/>\u2022 <strong>Inventory Remaining:</strong> Only 22% of Hall C booths available.<br/>\u2022 <strong>Suggested Surge:</strong> +15% price increase.<br/>\u2022 <strong>Projected Extra Revenue:</strong> \u20b945,000."
 				},
 				{
-					heading: "📊 Popular Booth Forecast",
-					content: "Booths #A-01 to #A-05 are predicted to receive 65% of attendee check-in scans.<br/><br/>• <strong>Avg Dwell Time:</strong> 8.5 minutes per visitor.<br/>• <strong>Peak Traffic Hours:</strong> 11:30 AM & 02:30 PM.<br/>• <strong>Recommended Prep:</strong> Assign dedicated volunteer scanners and Wi-Fi repeaters to Hall A."
+					heading: "\ud83d\udcca Popular Booth Forecast",
+					content: "Booths #A-01 to #A-05 are predicted to receive 65% of attendee check-in scans.<br/><br/>\u2022 <strong>Avg Dwell Time:</strong> 8.5 minutes per visitor.<br/>\u2022 <strong>Peak Traffic Hours:</strong> 11:30 AM & 02:30 PM.<br/>\u2022 <strong>Recommended Prep:</strong> Assign dedicated volunteer scanners and Wi-Fi repeaters to Hall A."
 				},
 				{
 					heading: "Recommended Action Plan",
@@ -6068,12 +6068,12 @@ async function initOrganizerDashboard() {
 		"traffic-opt": {
 			badge: "Traffic Analytics",
 			title: "Traffic Optimization Details",
-			icon: "🚀",
+			icon: "\ud83d\ude80",
 			description: "Detailed analysis for relocating high-traffic exhibitors (e.g. TechCorp booth #B-12) to Hall A Entrance.",
 			sections: [
 				{
 					heading: "Impact & Benefits",
-					content: "• <strong>+24% Footfall Surge:</strong> Positioning near Hall A Entrance increases attendee exposure.<br/>• <strong>Queue Reduction:</strong> Reduces choke points in secondary corridors.<br/>• <strong>Sponsor Value:</strong> High visibility increases booth lead captures."
+					content: "\u2022 <strong>+24% Footfall Surge:</strong> Positioning near Hall A Entrance increases attendee exposure.<br/>\u2022 <strong>Queue Reduction:</strong> Reduces choke points in secondary corridors.<br/>\u2022 <strong>Sponsor Value:</strong> High visibility increases booth lead captures."
 				},
 				{
 					heading: "Implementation",
@@ -6084,12 +6084,12 @@ async function initOrganizerDashboard() {
 		"sponsorship-pricing": {
 			badge: "Pricing Intelligence",
 			title: "Sponsorship Pricing & Dynamic Surge",
-			icon: "💎",
+			icon: "\ud83d\udc8e",
 			description: "Algorithmically calculated price surge model based on inventory scarcity and time remaining until event day.",
 			sections: [
 				{
 					heading: "Current Metrics",
-					content: "• <strong>Inventory Remaining:</strong> Only 22% of Hall C booths available.<br/>• <strong>Suggested Surge:</strong> +15% price increase.<br/>• <strong>Projected Extra Revenue:</strong> ₹45,000."
+					content: "\u2022 <strong>Inventory Remaining:</strong> Only 22% of Hall C booths available.<br/>\u2022 <strong>Suggested Surge:</strong> +15% price increase.<br/>\u2022 <strong>Projected Extra Revenue:</strong> \u20b945,000."
 				},
 				{
 					heading: "Best Practice",
@@ -6100,12 +6100,12 @@ async function initOrganizerDashboard() {
 		"booth-forecast": {
 			badge: "Predictive Analytics",
 			title: "Popular Booth Check-in Forecast",
-			icon: "📊",
+			icon: "\ud83d\udcca",
 			description: "Predicts attendee scan distribution across all booths based on ticket surveys and industry interests.",
 			sections: [
 				{
 					heading: "Key Predictions",
-					content: "• <strong>Top Zone:</strong> Booths #A-01 to #A-05 will attract 65% of total scans.<br/>• <strong>Avg Dwell Time:</strong> 8.5 minutes per visitor.<br/>• <strong>Peak Traffic Hours:</strong> 11:30 AM & 02:30 PM."
+					content: "\u2022 <strong>Top Zone:</strong> Booths #A-01 to #A-05 will attract 65% of total scans.<br/>\u2022 <strong>Avg Dwell Time:</strong> 8.5 minutes per visitor.<br/>\u2022 <strong>Peak Traffic Hours:</strong> 11:30 AM & 02:30 PM."
 				},
 				{
 					heading: "Recommended Prep",
@@ -6116,24 +6116,24 @@ async function initOrganizerDashboard() {
 		"communicate-overview": {
 			badge: "Communication Hub",
 			title: "Omnichannel Broadcast Studio Guide",
-			icon: "📢",
+			icon: "\ud83d\udce2",
 			description: "Centralized messaging studio to compose, schedule, and broadcast multi-channel announcements across Email, SMS, WhatsApp, and Mobile Push.",
 			sections: [
 				{
-					heading: "✉️ Email Campaigns",
-					content: "Send personalized broadcast emails, ticket confirmations, calendar invites, and automated event reminders.<br/><br/>• <strong>Delivery Rate:</strong> 99.4% inbox placement.<br/>• <strong>Avg Open Rate:</strong> 42.8% for event broadcasts.<br/>• <strong>Supported Media:</strong> PDF Tickets, Calendar Passes (.ics), Custom HTML.<br/>• <strong>Pro Tip:</strong> Schedule your primary reminder email 24 hours prior to door opening for maximum attendance turn-out."
+					heading: "\u2709\ufe0f Email Campaigns",
+					content: "Send personalized broadcast emails, ticket confirmations, calendar invites, and automated event reminders.<br/><br/>\u2022 <strong>Delivery Rate:</strong> 99.4% inbox placement.<br/>\u2022 <strong>Avg Open Rate:</strong> 42.8% for event broadcasts.<br/>\u2022 <strong>Supported Media:</strong> PDF Tickets, Calendar Passes (.ics), Custom HTML.<br/>\u2022 <strong>Pro Tip:</strong> Schedule your primary reminder email 24 hours prior to door opening for maximum attendance turn-out."
 				},
 				{
-					heading: "📱 SMS & Push Alerts",
-					content: "Instant delivery channel for urgent notifications, parking updates, schedule shifts, and security alerts.<br/><br/>• <strong>Delivery Speed:</strong> Delivered within 3 seconds worldwide.<br/>• <strong>Open Rate:</strong> 98% read rate.<br/>• <strong>DLT Verification:</strong> Compliant with Indian telecom DLT regulations.<br/>• <strong>Usage:</strong> Reserve SMS for urgent gate check-in pass delivery and emergencies."
+					heading: "\ud83d\udcf1 SMS & Push Alerts",
+					content: "Instant delivery channel for urgent notifications, parking updates, schedule shifts, and security alerts.<br/><br/>\u2022 <strong>Delivery Speed:</strong> Delivered within 3 seconds worldwide.<br/>\u2022 <strong>Open Rate:</strong> 98% read rate.<br/>\u2022 <strong>DLT Verification:</strong> Compliant with Indian telecom DLT regulations.<br/>\u2022 <strong>Usage:</strong> Reserve SMS for urgent gate check-in pass delivery and emergencies."
 				},
 				{
-					heading: "💬 WhatsApp Integration",
-					content: "Direct WhatsApp messaging with interactive buttons, green-tick verification, and instant QR pass delivery.<br/><br/>• <strong>Instant Ticket Delivery:</strong> Sends PDF tickets directly to attendee WhatsApp.<br/>• <strong>Read Rate:</strong> 95% within 5 minutes.<br/>• <strong>Interactive Buttons:</strong> 'View Venue Map', 'Add to Calendar', 'Ask Bot'.<br/>• <strong>Setup:</strong> Ensure WhatsApp template permissions are active prior to mass blasts."
+					heading: "\ud83d\udcac WhatsApp Integration",
+					content: "Direct WhatsApp messaging with interactive buttons, green-tick verification, and instant QR pass delivery.<br/><br/>\u2022 <strong>Instant Ticket Delivery:</strong> Sends PDF tickets directly to attendee WhatsApp.<br/>\u2022 <strong>Read Rate:</strong> 95% within 5 minutes.<br/>\u2022 <strong>Interactive Buttons:</strong> 'View Venue Map', 'Add to Calendar', 'Ask Bot'.<br/>\u2022 <strong>Setup:</strong> Ensure WhatsApp template permissions are active prior to mass blasts."
 				},
 				{
-					heading: "📣 Announcement Center",
-					content: "Broadcast live notices across attendee mobile web apps, hall digital signage screens, and stage audio.<br/><br/>• <strong>Screen Takeover:</strong> Push emergency or keynote alerts to hall screens.<br/>• <strong>Targeting:</strong> Select specific halls, VIP lounges, or all venue zones.<br/>• <strong>Auto-Translation:</strong> Instant translation into major regional languages.<br/>• <strong>Best Practice:</strong> Publish key session start alerts 10 minutes beforehand to direct crowd movement."
+					heading: "\ud83d\udce3 Announcement Center",
+					content: "Broadcast live notices across attendee mobile web apps, hall digital signage screens, and stage audio.<br/><br/>\u2022 <strong>Screen Takeover:</strong> Push emergency or keynote alerts to hall screens.<br/>\u2022 <strong>Targeting:</strong> Select specific halls, VIP lounges, or all venue zones.<br/>\u2022 <strong>Auto-Translation:</strong> Instant translation into major regional languages.<br/>\u2022 <strong>Best Practice:</strong> Publish key session start alerts 10 minutes beforehand to direct crowd movement."
 				},
 				{
 					heading: "Targeting & AI Copywriter",
@@ -6144,12 +6144,12 @@ async function initOrganizerDashboard() {
 		"email-campaigns": {
 			badge: "Channel Details",
 			title: "Email Campaigns & Automation Studio",
-			icon: "✉️",
+			icon: "\u2709\ufe0f",
 			description: "Send personalized broadcast emails, ticket confirmations, calendar invites, and automated event reminders.",
 			sections: [
 				{
 					heading: "Performance Standards",
-					content: "• <strong>Delivery Rate:</strong> 99.4% inbox placement.<br/>• <strong>Avg Open Rate:</strong> 42.8% for event broadcasts.<br/>• <strong>Supported Media:</strong> PDF Tickets, Calendar Passes (.ics), Custom HTML."
+					content: "\u2022 <strong>Delivery Rate:</strong> 99.4% inbox placement.<br/>\u2022 <strong>Avg Open Rate:</strong> 42.8% for event broadcasts.<br/>\u2022 <strong>Supported Media:</strong> PDF Tickets, Calendar Passes (.ics), Custom HTML."
 				},
 				{
 					heading: "Pro Tips",
@@ -6160,12 +6160,12 @@ async function initOrganizerDashboard() {
 		"sms-push-alerts": {
 			badge: "Channel Details",
 			title: "SMS & Mobile Push Emergency Broadcasts",
-			icon: "📱",
+			icon: "\ud83d\udcf1",
 			description: "Instant delivery channel for urgent notifications, parking updates, schedule shifts, and security alerts.",
 			sections: [
 				{
 					heading: "Key Specifications",
-					content: "• <strong>Delivery Speed:</strong> Delivered within 3 seconds worldwide.<br/>• <strong>Open Rate:</strong> 98% read rate.<br/>• <strong>DLT Verification:</strong> Compliant with Indian telecom DLT regulations."
+					content: "\u2022 <strong>Delivery Speed:</strong> Delivered within 3 seconds worldwide.<br/>\u2022 <strong>Open Rate:</strong> 98% read rate.<br/>\u2022 <strong>DLT Verification:</strong> Compliant with Indian telecom DLT regulations."
 				},
 				{
 					heading: "Usage Recommendations",
@@ -6176,12 +6176,12 @@ async function initOrganizerDashboard() {
 		"whatsapp-integration": {
 			badge: "Channel Details",
 			title: "WhatsApp Official Business API",
-			icon: "💬",
+			icon: "\ud83d\udcac",
 			description: "Direct WhatsApp messaging with interactive buttons, green-tick verification, and instant QR pass delivery.",
 			sections: [
 				{
 					heading: "Capabilities & Features",
-					content: "• <strong>Instant Ticket Delivery:</strong> Sends PDF tickets directly to attendee WhatsApp.<br/>• <strong>Read Rate:</strong> 95% within 5 minutes.<br/>• <strong>Interactive Buttons:</strong> 'View Venue Map', 'Add to Calendar', 'Ask Bot'."
+					content: "\u2022 <strong>Instant Ticket Delivery:</strong> Sends PDF tickets directly to attendee WhatsApp.<br/>\u2022 <strong>Read Rate:</strong> 95% within 5 minutes.<br/>\u2022 <strong>Interactive Buttons:</strong> 'View Venue Map', 'Add to Calendar', 'Ask Bot'."
 				},
 				{
 					heading: "Setup Guide",
@@ -6192,12 +6192,12 @@ async function initOrganizerDashboard() {
 		"announcement-center": {
 			badge: "Channel Details",
 			title: "Announcement & Screen Broadcast Center",
-			icon: "📢",
+			icon: "\ud83d\udce2",
 			description: "Broadcast live notices across attendee mobile web apps, hall digital signage screens, and stage audio.",
 			sections: [
 				{
 					heading: "Channel Functions",
-					content: "• <strong>Screen Takeover:</strong> Push emergency or keynote alerts to hall screens.<br/>• <strong>Targeting:</strong> Select specific halls, VIP lounges, or all venue zones.<br/>• <strong>Auto-Translation:</strong> Instant translation into major regional languages."
+					content: "\u2022 <strong>Screen Takeover:</strong> Push emergency or keynote alerts to hall screens.<br/>\u2022 <strong>Targeting:</strong> Select specific halls, VIP lounges, or all venue zones.<br/>\u2022 <strong>Auto-Translation:</strong> Instant translation into major regional languages."
 				},
 				{
 					heading: "Best Practice",
@@ -6208,24 +6208,24 @@ async function initOrganizerDashboard() {
 		"reports-overview": {
 			badge: "Executive Reports",
 			title: "Reports & Financial Intelligence",
-			icon: "📈",
+			icon: "\ud83d\udcc8",
 			description: "Comprehensive financial intelligence breakdown including gross sales, platform fees, taxes, attendee demographics, and AI-powered executive insights.",
 			sections: [
 				{
 					heading: "Financial Calculation Standard",
-					content: "• <strong>Gross Revenue:</strong> Sum of all ticket tier transactions.<br/>• <strong>Platform Fee:</strong> 5% service fee on each ticket sale.<br/>• <strong>Taxes/GST:</strong> 18% statutory tax on each ticket sale.<br/>• <strong>Net Payout:</strong> Transferred to verified bank account after reconciliation."
+					content: "\u2022 <strong>Gross Revenue:</strong> Sum of all ticket tier transactions.<br/>\u2022 <strong>Platform Fee:</strong> 5% service fee on each ticket sale.<br/>\u2022 <strong>Taxes/GST:</strong> 18% statutory tax on each ticket sale.<br/>\u2022 <strong>Net Payout:</strong> Transferred to verified bank account after reconciliation."
 				},
 				{
-					heading: "⚡ Registration Trend & Velocity",
-					content: "Real-time registration sales velocity, daily run-rate, and peak purchase window tracking.<br/><br/>• <strong>Peak Hours:</strong> 6:00 PM - 9:30 PM.<br/>• <strong>Weekly Velocity:</strong> +18% growth week-over-week.<br/>• <strong>Checkout Conversion:</strong> 94.2% completion rate.<br/>• <strong>Action Step:</strong> Trigger automated cart-abandonment emails for uncompleted registrations."
+					heading: "\u26a1 Registration Trend & Velocity",
+					content: "Real-time registration sales velocity, daily run-rate, and peak purchase window tracking.<br/><br/>\u2022 <strong>Peak Hours:</strong> 6:00 PM - 9:30 PM.<br/>\u2022 <strong>Weekly Velocity:</strong> +18% growth week-over-week.<br/>\u2022 <strong>Checkout Conversion:</strong> 94.2% completion rate.<br/>\u2022 <strong>Action Step:</strong> Trigger automated cart-abandonment emails for uncompleted registrations."
 				},
 				{
-					heading: "🎯 Marketing Attribution & Source Tracking",
-					content: "Multi-touch attribution to determine which marketing campaigns generate the highest ticket sales.<br/><br/>• <strong>Instagram Stories:</strong> 41% of total registrations.<br/>• <strong>LinkedIn Posts:</strong> Highest ticket value (₹1,250 avg).<br/>• <strong>Direct Referral:</strong> 22% organic word-of-mouth.<br/>• <strong>Optimization Tip:</strong> Reallocate budget towards top-converting Instagram and LinkedIn channels."
+					heading: "\ud83c\udfaf Marketing Attribution & Source Tracking",
+					content: "Multi-touch attribution to determine which marketing campaigns generate the highest ticket sales.<br/><br/>\u2022 <strong>Instagram Stories:</strong> 41% of total registrations.<br/>\u2022 <strong>LinkedIn Posts:</strong> Highest ticket value (\u20b91,250 avg).<br/>\u2022 <strong>Direct Referral:</strong> 22% organic word-of-mouth.<br/>\u2022 <strong>Optimization Tip:</strong> Reallocate budget towards top-converting Instagram and LinkedIn channels."
 				},
 				{
-					heading: "🏷️ Ticket Tier Elasticity & Pricing Insights",
-					content: "Monitors ticket tier sell-out velocity to recommend optimal tier caps and price points.<br/><br/>• <strong>General Pass:</strong> 82% sold.<br/>• <strong>VIP Pass:</strong> 3.5x higher profit margin per seat.<br/>• <strong>Dynamic Suggestion:</strong> Introduce 'Phase 2 Late Pass' tier.<br/>• <strong>Strategy:</strong> Close Early Bird tier early to create scarcity demand for standard passes."
+					heading: "\ud83c\udff7\ufe0f Ticket Tier Elasticity & Pricing Insights",
+					content: "Monitors ticket tier sell-out velocity to recommend optimal tier caps and price points.<br/><br/>\u2022 <strong>General Pass:</strong> 82% sold.<br/>\u2022 <strong>VIP Pass:</strong> 3.5x higher profit margin per seat.<br/>\u2022 <strong>Dynamic Suggestion:</strong> Introduce 'Phase 2 Late Pass' tier.<br/>\u2022 <strong>Strategy:</strong> Close Early Bird tier early to create scarcity demand for standard passes."
 				},
 				{
 					heading: "Audience Analytics",
@@ -6236,12 +6236,12 @@ async function initOrganizerDashboard() {
 		"reg-trend-insight": {
 			badge: "Sales Insights",
 			title: "Registration Trend & Velocity",
-			icon: "⚡",
+			icon: "\u26a1",
 			description: "Real-time registration sales velocity, daily run-rate, and peak purchase window tracking.",
 			sections: [
 				{
 					heading: "Analytics Breakdown",
-					content: "• <strong>Peak Hours:</strong> 6:00 PM - 9:30 PM.<br/>• <strong>Weekly Velocity:</strong> +18% growth week-over-week.<br/>• <strong>Checkout Conversion:</strong> 94.2% completion rate."
+					content: "\u2022 <strong>Peak Hours:</strong> 6:00 PM - 9:30 PM.<br/>\u2022 <strong>Weekly Velocity:</strong> +18% growth week-over-week.<br/>\u2022 <strong>Checkout Conversion:</strong> 94.2% completion rate."
 				},
 				{
 					heading: "Action Step",
@@ -6252,12 +6252,12 @@ async function initOrganizerDashboard() {
 		"mktg-source-insight": {
 			badge: "Marketing ROI",
 			title: "Marketing Attribution & Source Tracking",
-			icon: "🎯",
+			icon: "\ud83c\udfaf",
 			description: "Multi-touch attribution to determine which marketing campaigns generate the highest ticket sales.",
 			sections: [
 				{
 					heading: "Top Performers",
-					content: "• <strong>Instagram Stories:</strong> 41% of total registrations.<br/>• <strong>LinkedIn Posts:</strong> Highest ticket value (₹1,250 avg).<br/>• <strong>Direct Referral:</strong> 22% organic word-of-mouth."
+					content: "\u2022 <strong>Instagram Stories:</strong> 41% of total registrations.<br/>\u2022 <strong>LinkedIn Posts:</strong> Highest ticket value (\u20b91,250 avg).<br/>\u2022 <strong>Direct Referral:</strong> 22% organic word-of-mouth."
 				},
 				{
 					heading: "Optimization Tip",
@@ -6268,12 +6268,12 @@ async function initOrganizerDashboard() {
 		"pricing-insight": {
 			badge: "Pricing Strategy",
 			title: "Ticket Tier Elasticity & Pricing Insights",
-			icon: "🏷️",
+			icon: "\ud83c\udff7\ufe0f",
 			description: "Monitors ticket tier sell-out velocity to recommend optimal tier caps and price points.",
 			sections: [
 				{
 					heading: "Current Metrics",
-					content: "• <strong>General Pass:</strong> 82% sold.<br/>• <strong>VIP Pass:</strong> 3.5x higher profit margin per seat.<br/>• <strong>Dynamic Suggestion:</strong> Introduce 'Phase 2 Late Pass' tier."
+					content: "\u2022 <strong>General Pass:</strong> 82% sold.<br/>\u2022 <strong>VIP Pass:</strong> 3.5x higher profit margin per seat.<br/>\u2022 <strong>Dynamic Suggestion:</strong> Introduce 'Phase 2 Late Pass' tier."
 				},
 				{
 					heading: "Strategy Recommendation",
@@ -6284,12 +6284,12 @@ async function initOrganizerDashboard() {
 		"eventday-crowd-alert": {
 			badge: "Live Safety & Ops",
 			title: "AI Crowd Density & Safety Monitoring",
-			icon: "🚨",
+			icon: "\ud83d\udea8",
 			description: "Real-time gate scanner frequency monitoring and computer vision crowd density alerts.",
 			sections: [
 				{
 					heading: "Live Safety Thresholds",
-					content: "• <strong>Current Gate Flow:</strong> 42 check-ins/minute (Normal).<br/>• <strong>Max Safety Capacity:</strong> 80 check-ins/minute.<br/>• <strong>Average Queue Time:</strong> 1.2 minutes."
+					content: "\u2022 <strong>Current Gate Flow:</strong> 42 check-ins/minute (Normal).<br/>\u2022 <strong>Max Safety Capacity:</strong> 80 check-ins/minute.<br/>\u2022 <strong>Average Queue Time:</strong> 1.2 minutes."
 				},
 				{
 					heading: "Automated Bottleneck Protocol",
@@ -6300,16 +6300,16 @@ async function initOrganizerDashboard() {
 		"eventday-overview": {
 			badge: "Live Operations",
 			title: "Event Day Live Operations Guide",
-			icon: "🚨",
+			icon: "\ud83d\udea8",
 			description: "Real-time command center for managing door check-ins, entry gate configurations, volunteer scanner passes, crowd safety alerts, and live incident management.",
 			sections: [
 				{
 					heading: "Gate Operations",
-					content: "• <strong>QR Ticket Validation:</strong> Use device camera or manual input to validate attendee ticket numbers instantly.<br/>• <strong>Gate Management:</strong> Create isolated entry gates (e.g. Gate 1, VIP Portal) specific to this event.<br/>• <strong>Staff Scanner Passes:</strong> Assign passcode credentials to gate volunteers to track live scan throughput."
+					content: "\u2022 <strong>QR Ticket Validation:</strong> Use device camera or manual input to validate attendee ticket numbers instantly.<br/>\u2022 <strong>Gate Management:</strong> Create isolated entry gates (e.g. Gate 1, VIP Portal) specific to this event.<br/>\u2022 <strong>Staff Scanner Passes:</strong> Assign passcode credentials to gate volunteers to track live scan throughput."
 				},
 				{
-					heading: "🚨 AI Crowd Density & Bottleneck Alert",
-					content: "Real-time gate scanner frequency monitoring and computer vision crowd density alerts.<br/><br/>• <strong>Current Gate Flow:</strong> 42 check-ins/minute (Normal).<br/>• <strong>Max Safety Capacity:</strong> 80 check-ins/minute.<br/>• <strong>Average Queue Time:</strong> 1.2 minutes."
+					heading: "\ud83d\udea8 AI Crowd Density & Bottleneck Alert",
+					content: "Real-time gate scanner frequency monitoring and computer vision crowd density alerts.<br/><br/>\u2022 <strong>Current Gate Flow:</strong> 42 check-ins/minute (Normal).<br/>\u2022 <strong>Max Safety Capacity:</strong> 80 check-ins/minute.<br/>\u2022 <strong>Average Queue Time:</strong> 1.2 minutes."
 				},
 				{
 					heading: "Automated Bottleneck Protocol",
@@ -6335,12 +6335,12 @@ async function initOrganizerDashboard() {
 		const data = INFO_DETAILS_DATA[typeKey] || {
 			badge: "Information",
 			title: "Details & Insights",
-			icon: "ℹ️",
+			icon: "\u2139\ufe0f",
 			description: "Detailed information for this section.",
 			sections: []
 		};
 
-		if (infoModalIconBg) infoModalIconBg.textContent = data.icon || "ℹ️";
+		if (infoModalIconBg) infoModalIconBg.textContent = data.icon || "\u2139\ufe0f";
 		if (infoModalBadge) infoModalBadge.textContent = data.badge || "MODULE INFO CARD";
 		if (infoModalTitle) infoModalTitle.textContent = data.title || "Information Card";
 
@@ -6439,7 +6439,7 @@ setTimeout(() => {
 		const anyActive = sections.some(s => s && s.classList.contains('active-tab'));
 		if (!anyActive) {
 			const fallbackTab = getInitialTabFromUrl() || 'overview';
-			console.warn('No active tab section after init — falling back to:', fallbackTab);
+			console.warn('No active tab section after init \u2014 falling back to:', fallbackTab);
 			if (typeof window.switchTab === 'function') window.switchTab(fallbackTab);
 		}
 	} catch (e) { console.warn('Visibility fallback check failed', e); }

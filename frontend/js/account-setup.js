@@ -1,30 +1,30 @@
 document.addEventListener("DOMContentLoaded", async () => {
 	const API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/organizers');
-        const authFetch = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
-                ? window.JodAuth.fetchAuth
-                : window.fetch.bind(window);
+ const authFetch = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
+ ? window.JodAuth.fetchAuth
+ : window.fetch.bind(window);
 
 	function getAuthHeaders() {
-		const token = window.JodAuth ? window.JodAuth.getToken() : null;
-		return token ? { "Authorization": `Bearer ${token}` } : {};
+ const token = window.JodAuth ? window.JodAuth.getToken() : null;
+ return token ? { "Authorization": `Bearer ${token}` } : {};
 	}
 
 	if (typeof window.updateNavAuth === "function") {
-		window.updateNavAuth();
+ window.updateNavAuth();
 	}
 
 	const currentUser = window.JodAuth ? window.JodAuth.getUser() : null;
 	const urlParams = new URLSearchParams(window.location.search);
 
 	if (!(window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn())) {
-		window.location.href = "login.html?redirect=" + encodeURIComponent("account-setup.html");
-		return;
+ window.location.href = "login.html?redirect=" + encodeURIComponent("account-setup.html");
+ return;
 	}
 
 	// Primary email is the logged-in user's email
 	let email = (currentUser && currentUser.email)
-		? currentUser.email
-		: (urlParams.get("email") || sessionStorage.getItem("verified_organizer_email") || "");
+ ? currentUser.email
+ : (urlParams.get("email") || sessionStorage.getItem("verified_organizer_email") || "");
 
 	const setupAlert = document.getElementById("setupAlert");
 	const setupAlertContent = document.getElementById("setupAlertContent");
@@ -74,637 +74,637 @@ document.addEventListener("DOMContentLoaded", async () => {
 	let panCardUrl = null;
 	let cancelledChequeUrl = null;
 
-        function getDraftStorageKey(targetEmail = email || contactEmailInput?.value || "") {
-                const normalizedEmail = String(targetEmail || "guest").trim().toLowerCase();
-                return `jod_account_setup_draft:${normalizedEmail}`;
-        }
+ function getDraftStorageKey(targetEmail = email || contactEmailInput?.value || "") {
+ const normalizedEmail = String(targetEmail || "guest").trim().toLowerCase();
+ return `jod_account_setup_draft:${normalizedEmail}`;
+ }
 
-        function saveDraftToLocal(payload) {
-                try {
-                        localStorage.setItem(getDraftStorageKey(payload.email), JSON.stringify({
-                                ...payload,
-                                saved_at: new Date().toISOString()
-                        }));
-                } catch (err) {
-                        console.warn("Unable to store account setup draft locally.", err);
-                }
-        }
+ function saveDraftToLocal(payload) {
+ try {
+ localStorage.setItem(getDraftStorageKey(payload.email), JSON.stringify({
+ ...payload,
+ saved_at: new Date().toISOString()
+ }));
+ } catch (err) {
+ console.warn("Unable to store account setup draft locally.", err);
+ }
+ }
 
-        function loadDraftFromLocal(targetEmail = email || contactEmailInput?.value || "") {
-                try {
-                        const raw = localStorage.getItem(getDraftStorageKey(targetEmail));
-                        return raw ? JSON.parse(raw) : null;
-                } catch (err) {
-                        console.warn("Unable to read local account setup draft.", err);
-                        return null;
-                }
-        }
+ function loadDraftFromLocal(targetEmail = email || contactEmailInput?.value || "") {
+ try {
+ const raw = localStorage.getItem(getDraftStorageKey(targetEmail));
+ return raw ? JSON.parse(raw) : null;
+ } catch (err) {
+ console.warn("Unable to read local account setup draft.", err);
+ return null;
+ }
+ }
 
-        function clearDraftFromLocal(targetEmail = email || contactEmailInput?.value || "") {
-                try {
-                        localStorage.removeItem(getDraftStorageKey(targetEmail));
-                } catch (err) {
-                        console.warn("Unable to clear local account setup draft.", err);
-                }
-        }
+ function clearDraftFromLocal(targetEmail = email || contactEmailInput?.value || "") {
+ try {
+ localStorage.removeItem(getDraftStorageKey(targetEmail));
+ } catch (err) {
+ console.warn("Unable to clear local account setup draft.", err);
+ }
+ }
 
 	function showAlert(msg, type = "error") {
-		setupAlert.style.display = "block";
-		if (type === "error") {
-			setupAlertContent.style.background = "#fef2f2";
-			setupAlertContent.style.color = "#991b1b";
-			setupAlertContent.style.border = "1px solid #fecaca";
-		} else {
-			setupAlertContent.style.background = "#f0fdf4";
-			setupAlertContent.style.color = "#166534";
-			setupAlertContent.style.border = "1px solid #bbf7d0";
-		}
-		setupAlertContent.textContent = msg;
-		window.scrollTo({ top: 0, behavior: "smooth" });
+ setupAlert.style.display = "block";
+ if (type === "error") {
+ setupAlertContent.style.background = "#fef2f2";
+ setupAlertContent.style.color = "#991b1b";
+ setupAlertContent.style.border = "1px solid #fecaca";
+ } else {
+ setupAlertContent.style.background = "#f0fdf4";
+ setupAlertContent.style.color = "#166534";
+ setupAlertContent.style.border = "1px solid #bbf7d0";
+ }
+ setupAlertContent.textContent = msg;
+ window.scrollTo({ top: 0, behavior: "smooth" });
 	}
 
 	function hideAlert() {
-		setupAlert.style.display = "none";
+ setupAlert.style.display = "none";
 	}
 
 	if (!email) {
-		email = "";
+ email = "";
 	}
 
 	if (contactEmailInput) {
-		contactEmailInput.value = email;
-		if (email) {
-			contactEmailInput.readOnly = true;
-			contactEmailInput.style.backgroundColor = "#f8fafc";
-		} else {
-			contactEmailInput.readOnly = false;
-			contactEmailInput.style.backgroundColor = "#ffffff";
-			contactEmailInput.placeholder = "Enter your contact email address";
-		}
+ contactEmailInput.value = email;
+ if (email) {
+ contactEmailInput.readOnly = true;
+ contactEmailInput.style.backgroundColor = "#f8fafc";
+ } else {
+ contactEmailInput.readOnly = false;
+ contactEmailInput.style.backgroundColor = "#ffffff";
+ contactEmailInput.placeholder = "Enter your contact email address";
+ }
 	}
 
 	const contactNameInput = document.getElementById("contactFullName");
 	const orgNameInput = document.getElementById("orgName");
 	if (currentUser) {
-		if (contactNameInput && !contactNameInput.value && currentUser.full_name) {
-			contactNameInput.value = currentUser.full_name;
-		}
-		if (orgNameInput && !orgNameInput.value && currentUser.full_name) {
-			orgNameInput.value = currentUser.full_name;
-		}
+ if (contactNameInput && !contactNameInput.value && currentUser.full_name) {
+ contactNameInput.value = currentUser.full_name;
+ }
+ if (orgNameInput && !orgNameInput.value && currentUser.full_name) {
+ orgNameInput.value = currentUser.full_name;
+ }
 	}
 
 	// ── Wizard Step Navigation ────────────────────────────────────────────────
 	function goToStep(step) {
-		currentStep = step;
-		hideAlert();
+ currentStep = step;
+ hideAlert();
 
-		step1Section.style.display = "none";
-		step2Section.style.display = "none";
-		step3Section.style.display = "none";
+ step1Section.style.display = "none";
+ step2Section.style.display = "none";
+ step3Section.style.display = "none";
 
-		tabStep1.classList.remove("active");
-		tabStep2.classList.remove("active");
-		tabStep3.classList.remove("active");
+ tabStep1.classList.remove("active");
+ tabStep2.classList.remove("active");
+ tabStep3.classList.remove("active");
 
-		if (step === 1) {
-			step1Section.style.display = "block";
-			tabStep1.classList.add("active");
-			btnBack.style.display = "none";
-			btnProceed.textContent = "Continue to Upload Documents";
-		} else if (step === 2) {
-			step2Section.style.display = "block";
-			tabStep1.classList.add("active");
-			tabStep2.classList.add("active"); // Match screenshot: step 1 and step 2 active blue
-			btnBack.style.display = "inline-block";
-			btnProceed.textContent = "Continue to Sign Agreement";
-		} else if (step === 3) {
-			step3Section.style.display = "block";
-			tabStep1.classList.add("active");
-			tabStep2.classList.add("active");
-			tabStep3.classList.add("active");
-			btnBack.style.display = "inline-block";
-			btnProceed.textContent = "Complete & Submit";
-		}
-		window.scrollTo({ top: 0, behavior: "smooth" });
+ if (step === 1) {
+ step1Section.style.display = "block";
+ tabStep1.classList.add("active");
+ btnBack.style.display = "none";
+ btnProceed.textContent = "Continue to Upload Documents";
+ } else if (step === 2) {
+ step2Section.style.display = "block";
+ tabStep1.classList.add("active");
+ tabStep2.classList.add("active"); // Match screenshot: step 1 and step 2 active blue
+ btnBack.style.display = "inline-block";
+ btnProceed.textContent = "Continue to Sign Agreement";
+ } else if (step === 3) {
+ step3Section.style.display = "block";
+ tabStep1.classList.add("active");
+ tabStep2.classList.add("active");
+ tabStep3.classList.add("active");
+ btnBack.style.display = "inline-block";
+ btnProceed.textContent = "Complete & Submit";
+ }
+ window.scrollTo({ top: 0, behavior: "smooth" });
 	}
 
 	tabStep1.addEventListener("click", () => goToStep(1));
 	tabStep2.addEventListener("click", () => {
-		if (validateStep1()) goToStep(2);
+ if (validateStep1()) goToStep(2);
 	});
 	tabStep3.addEventListener("click", () => {
-		if (validateStep1() && validateStep2()) goToStep(3);
+ if (validateStep1() && validateStep2()) goToStep(3);
 	});
 
 	btnBack.addEventListener("click", () => {
-		if (currentStep > 1) goToStep(currentStep - 1);
+ if (currentStep > 1) goToStep(currentStep - 1);
 	});
 
 	// ── GSTIN Toggle & Dynamic Rows ───────────────────────────────────────────
 	function toggleGstinContainer() {
-		const isYes = document.querySelector('input[name="has_gstin"]:checked')?.value === "yes";
-		if (isYes) {
-			gstinContainer.style.display = "block";
-		} else {
-			gstinContainer.style.display = "none";
-		}
+ const isYes = document.querySelector('input[name="has_gstin"]:checked')?.value === "yes";
+ if (isYes) {
+ gstinContainer.style.display = "block";
+ } else {
+ gstinContainer.style.display = "none";
+ }
 	}
 
 	gstinRadios.forEach(radio => radio.addEventListener("change", toggleGstinContainer));
 
 	function createGstinRowHtml(num = "", state = "") {
-		const div = document.createElement("div");
-		div.className = "setup-grid-2 gstin-row";
-		div.style.marginBottom = "0.75rem";
-		div.style.position = "relative";
-		div.innerHTML = `
-			<div class="setup-form-group">
-				<label>GSTIN Number</label>
-				<input type="text" class="setup-input gstin-num-input" placeholder="Enter your GSTIN Number" maxlength="15" style="text-transform: uppercase;" value="${num}" />
-			</div>
-			<div class="setup-form-group">
-				<label>State</label>
-				<div style="display: flex; gap: 0.5rem;">
-					<input type="text" class="setup-input gstin-state-input" placeholder="State" value="${state}" />
-					<button type="button" class="btn-remove-gstin" title="Remove" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 6px; padding: 0 0.8rem; cursor: pointer; font-weight: 700;">&times;</button>
-				</div>
-			</div>
-		`;
+ const div = document.createElement("div");
+ div.className = "setup-grid-2 gstin-row";
+ div.style.marginBottom = "0.75rem";
+ div.style.position = "relative";
+ div.innerHTML = `
+ <div class="setup-form-group">
+ <label>GSTIN Number</label>
+ <input type="text" class="setup-input gstin-num-input" placeholder="Enter your GSTIN Number" maxlength="15" style="text-transform: uppercase;" value="${num}" />
+ </div>
+ <div class="setup-form-group">
+ <label>State</label>
+ <div style="display: flex; gap: 0.5rem;">
+ <input type="text" class="setup-input gstin-state-input" placeholder="State" value="${state}" />
+ <button type="button" class="btn-remove-gstin" title="Remove" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 6px; padding: 0 0.8rem; cursor: pointer; font-weight: 700;">&times;</button>
+ </div>
+ </div>
+ `;
 
-		const removeBtn = div.querySelector(".btn-remove-gstin");
-		removeBtn.addEventListener("click", () => {
-			if (gstinRows.children.length > 1) {
-				div.remove();
-			} else {
-				div.querySelector(".gstin-num-input").value = "";
-				div.querySelector(".gstin-state-input").value = "";
-			}
-		});
+ const removeBtn = div.querySelector(".btn-remove-gstin");
+ removeBtn.addEventListener("click", () => {
+ if (gstinRows.children.length > 1) {
+ div.remove();
+ } else {
+ div.querySelector(".gstin-num-input").value = "";
+ div.querySelector(".gstin-state-input").value = "";
+ }
+ });
 
-		return div;
+ return div;
 	}
 
 	if (btnAddGstinRow) {
-		btnAddGstinRow.addEventListener("click", () => {
-			gstinRows.appendChild(createGstinRowHtml());
-		});
+ btnAddGstinRow.addEventListener("click", () => {
+ gstinRows.appendChild(createGstinRowHtml());
+ });
 	}
 
 	function getGstinDataString() {
-		const isYes = document.querySelector('input[name="has_gstin"]:checked')?.value === "yes";
-		if (!isYes) return null;
+ const isYes = document.querySelector('input[name="has_gstin"]:checked')?.value === "yes";
+ if (!isYes) return null;
 
-		const rows = gstinRows.querySelectorAll(".gstin-row");
-		const entries = [];
-		rows.forEach(r => {
-			const num = r.querySelector(".gstin-num-input")?.value.trim().toUpperCase();
-			const st = r.querySelector(".gstin-state-input")?.value.trim();
-			if (num) {
-				entries.push(st ? `${num} (${st})` : num);
-			}
-		});
-		return entries.join(", ");
+ const rows = gstinRows.querySelectorAll(".gstin-row");
+ const entries = [];
+ rows.forEach(r => {
+ const num = r.querySelector(".gstin-num-input")?.value.trim().toUpperCase();
+ const st = r.querySelector(".gstin-state-input")?.value.trim();
+ if (num) {
+ entries.push(st ? `${num} (${st})` : num);
+ }
+ });
+ return entries.join(", ");
 	}
 
 	function populateGstinRows(gstinStr) {
-		gstinRows.innerHTML = "";
-		if (!gstinStr) {
-			gstinRows.appendChild(createGstinRowHtml());
-			return;
-		}
+ gstinRows.innerHTML = "";
+ if (!gstinStr) {
+ gstinRows.appendChild(createGstinRowHtml());
+ return;
+ }
 
-		const parts = gstinStr.split(", ");
-		parts.forEach(p => {
-			const match = p.match(/^([A-Z0-9]+)(?:\s*\((.*?)\))?$/);
-			if (match) {
-				gstinRows.appendChild(createGstinRowHtml(match[1], match[2] || ""));
-			} else {
-				gstinRows.appendChild(createGstinRowHtml(p, ""));
-			}
-		});
-		if (gstinRows.children.length === 0) {
-			gstinRows.appendChild(createGstinRowHtml());
-		}
+ const parts = gstinStr.split(", ");
+ parts.forEach(p => {
+ const match = p.match(/^([A-Z0-9]+)(?:\s*\((.*?)\))?$/);
+ if (match) {
+ gstinRows.appendChild(createGstinRowHtml(match[1], match[2] || ""));
+ } else {
+ gstinRows.appendChild(createGstinRowHtml(p, ""));
+ }
+ });
+ if (gstinRows.children.length === 0) {
+ gstinRows.appendChild(createGstinRowHtml());
+ }
 	}
 
 	// ── File Upload Logic ─────────────────────────────────────────────────────
 	async function uploadDocumentFile(file, docType) {
-		hideAlert();
-		if (file.size > 2 * 1024 * 1024) {
-			showAlert("File size should not be greater than 2mb.");
-			return false;
-		}
+ hideAlert();
+ if (file.size > 2 * 1024 * 1024) {
+ showAlert("File size should not be greater than 2mb.");
+ return false;
+ }
 
-		const allowedExts = ["jpg", "jpeg", "png", "pdf"];
-		const ext = file.name.split(".").pop().toLowerCase();
-		if (!allowedExts.includes(ext)) {
-			showAlert("Upload a clear image in .jpg or .pdf format only.");
-			return false;
-		}
+ const allowedExts = ["jpg", "jpeg", "png", "pdf"];
+ const ext = file.name.split(".").pop().toLowerCase();
+ if (!allowedExts.includes(ext)) {
+ showAlert("Upload a clear image in .jpg or .pdf format only.");
+ return false;
+ }
 
-		const formData = new FormData();
-		formData.append("email", email);
-		formData.append("doc_type", docType);
-		formData.append("file", file);
+ const formData = new FormData();
+ formData.append("email", email);
+ formData.append("doc_type", docType);
+ formData.append("file", file);
 
-		try {
-                        const res = await authFetch(`${API_BASE}/upload-document`, {
-				method: "POST",
-				body: formData
-			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.detail || "File upload failed.");
+ try {
+ const res = await authFetch(`${API_BASE}/upload-document`, {
+ method: "POST",
+ body: formData
+ });
+ const data = await res.json();
+ if (!res.ok) throw new Error(data.detail || "File upload failed.");
 
-			if (docType === "pan_card") {
-				panCardUrl = data.file_url;
-				panFileName.textContent = `✓ ${file.name}`;
-				panDropzoneContent.style.display = "none";
-				panDropzonePreview.style.display = "block";
-			} else if (docType === "cancelled_cheque") {
-				cancelledChequeUrl = data.file_url;
-				chequeFileName.textContent = `✓ ${file.name}`;
-				chequeDropzoneContent.style.display = "none";
-				chequeDropzonePreview.style.display = "block";
-			}
+ if (docType === "pan_card") {
+ panCardUrl = data.file_url;
+ panFileName.textContent = `✓ ${file.name}`;
+ panDropzoneContent.style.display = "none";
+ panDropzonePreview.style.display = "block";
+ } else if (docType === "cancelled_cheque") {
+ cancelledChequeUrl = data.file_url;
+ chequeFileName.textContent = `✓ ${file.name}`;
+ chequeDropzoneContent.style.display = "none";
+ chequeDropzonePreview.style.display = "block";
+ }
 
-                        saveDraftToLocal(getFormData(false));
-			showAlert(`${docType.replace('_', ' ').toUpperCase()} uploaded successfully!`, "success");
-			return true;
-		} catch (err) {
-			showAlert(err.message || "Failed to upload file.");
-			return false;
-		}
+ saveDraftToLocal(getFormData(false));
+ showAlert(`${docType.replace('_', ' ').toUpperCase()} uploaded successfully!`, "success");
+ return true;
+ } catch (err) {
+ showAlert(err.message || "Failed to upload file.");
+ return false;
+ }
 	}
 
 	// PAN Card Dropzone Event Handlers
 	panDropzone.addEventListener("click", (e) => {
-		if (e.target.id !== "btnClearPanFile") panFileInput.click();
+ if (e.target.id !== "btnClearPanFile") panFileInput.click();
 	});
 	panFileInput.addEventListener("change", (e) => {
-		if (e.target.files[0]) uploadDocumentFile(e.target.files[0], "pan_card");
+ if (e.target.files[0]) uploadDocumentFile(e.target.files[0], "pan_card");
 	});
 	panDropzone.addEventListener("dragover", (e) => {
-		e.preventDefault();
-		panDropzone.classList.add("dragover");
+ e.preventDefault();
+ panDropzone.classList.add("dragover");
 	});
 	panDropzone.addEventListener("dragleave", () => panDropzone.classList.remove("dragover"));
 	panDropzone.addEventListener("drop", (e) => {
-		e.preventDefault();
-		panDropzone.classList.remove("dragover");
-		if (e.dataTransfer.files[0]) uploadDocumentFile(e.dataTransfer.files[0], "pan_card");
+ e.preventDefault();
+ panDropzone.classList.remove("dragover");
+ if (e.dataTransfer.files[0]) uploadDocumentFile(e.dataTransfer.files[0], "pan_card");
 	});
 	btnClearPanFile.addEventListener("click", (e) => {
-		e.stopPropagation();
-		panCardUrl = null;
-		panFileInput.value = "";
-		panDropzoneContent.style.display = "flex";
-		panDropzonePreview.style.display = "none";
+ e.stopPropagation();
+ panCardUrl = null;
+ panFileInput.value = "";
+ panDropzoneContent.style.display = "flex";
+ panDropzonePreview.style.display = "none";
 	});
 
 	// Cancelled Cheque Dropzone Event Handlers
 	chequeDropzone.addEventListener("click", (e) => {
-		if (e.target.id !== "btnClearChequeFile") chequeFileInput.click();
+ if (e.target.id !== "btnClearChequeFile") chequeFileInput.click();
 	});
 	chequeFileInput.addEventListener("change", (e) => {
-		if (e.target.files[0]) uploadDocumentFile(e.target.files[0], "cancelled_cheque");
+ if (e.target.files[0]) uploadDocumentFile(e.target.files[0], "cancelled_cheque");
 	});
 	chequeDropzone.addEventListener("dragover", (e) => {
-		e.preventDefault();
-		chequeDropzone.classList.add("dragover");
+ e.preventDefault();
+ chequeDropzone.classList.add("dragover");
 	});
 	chequeDropzone.addEventListener("dragleave", () => chequeDropzone.classList.remove("dragover"));
 	chequeDropzone.addEventListener("drop", (e) => {
-		e.preventDefault();
-		chequeDropzone.classList.remove("dragover");
-		if (e.dataTransfer.files[0]) uploadDocumentFile(e.dataTransfer.files[0], "cancelled_cheque");
+ e.preventDefault();
+ chequeDropzone.classList.remove("dragover");
+ if (e.dataTransfer.files[0]) uploadDocumentFile(e.dataTransfer.files[0], "cancelled_cheque");
 	});
 	btnClearChequeFile.addEventListener("click", (e) => {
-		e.stopPropagation();
-		cancelledChequeUrl = null;
-		chequeFileInput.value = "";
-		chequeDropzoneContent.style.display = "flex";
-		chequeDropzonePreview.style.display = "none";
+ e.stopPropagation();
+ cancelledChequeUrl = null;
+ chequeFileInput.value = "";
+ chequeDropzoneContent.style.display = "flex";
+ chequeDropzonePreview.style.display = "none";
 	});
 
 	// Example Modals
 	linkViewPanExample.addEventListener("click", (e) => {
-		e.preventDefault();
-		exampleModalTitle.textContent = "Sample PAN Card Example";
-		exampleModalImg.src = "https://placehold.co/500x300/e2e8f0/1e293b?text=Sample+PAN+Card+Format";
-		exampleModalBackdrop.style.display = "flex";
+ e.preventDefault();
+ exampleModalTitle.textContent = "Sample PAN Card Example";
+ exampleModalImg.src = "https://placehold.co/500x300/e2e8f0/1e293b?text=Sample+PAN+Card+Format";
+ exampleModalBackdrop.style.display = "flex";
 	});
 	linkViewChequeExample.addEventListener("click", (e) => {
-		e.preventDefault();
-		exampleModalTitle.textContent = "Sample Cancelled Cheque Example";
-		exampleModalImg.src = "https://placehold.co/500x300/e2e8f0/1e293b?text=Sample+Cancelled+Cheque+Format";
-		exampleModalBackdrop.style.display = "flex";
+ e.preventDefault();
+ exampleModalTitle.textContent = "Sample Cancelled Cheque Example";
+ exampleModalImg.src = "https://placehold.co/500x300/e2e8f0/1e293b?text=Sample+Cancelled+Cheque+Format";
+ exampleModalBackdrop.style.display = "flex";
 	});
 	btnCloseExampleModal.addEventListener("click", () => {
-		exampleModalBackdrop.style.display = "none";
+ exampleModalBackdrop.style.display = "none";
 	});
 	exampleModalBackdrop.addEventListener("click", (e) => {
-		if (e.target === exampleModalBackdrop) exampleModalBackdrop.style.display = "none";
+ if (e.target === exampleModalBackdrop) exampleModalBackdrop.style.display = "none";
 	});
 
-        function applyDraftData(acc) {
-                if (!acc) return;
+ function applyDraftData(acc) {
+ if (!acc) return;
 
-                if (acc.org_name) document.getElementById("orgName").value = acc.org_name;
-                if (acc.pan_number && document.getElementById("panNumber")) document.getElementById("panNumber").value = acc.pan_number;
-                if (acc.org_address && document.getElementById("orgAddress")) document.getElementById("orgAddress").value = acc.org_address;
+ if (acc.org_name) document.getElementById("orgName").value = acc.org_name;
+ if (acc.pan_number && document.getElementById("panNumber")) document.getElementById("panNumber").value = acc.pan_number;
+ if (acc.org_address && document.getElementById("orgAddress")) document.getElementById("orgAddress").value = acc.org_address;
 
-                const hasGstinRadioValue = acc.has_gstin ? "yes" : "no";
-                const gstinRadio = document.querySelector(`input[name="has_gstin"][value="${hasGstinRadioValue}"]`);
-                if (gstinRadio) gstinRadio.checked = true;
-                toggleGstinContainer();
-                if (acc.has_gstin && acc.gstin_number) {
-                        populateGstinRows(acc.gstin_number);
-                }
+ const hasGstinRadioValue = acc.has_gstin ? "yes" : "no";
+ const gstinRadio = document.querySelector(`input[name="has_gstin"][value="${hasGstinRadioValue}"]`);
+ if (gstinRadio) gstinRadio.checked = true;
+ toggleGstinContainer();
+ if (acc.has_gstin && acc.gstin_number) {
+ populateGstinRows(acc.gstin_number);
+ }
 
-                if (acc.accepted_undertaking !== undefined) {
-                        document.getElementById("acceptUndertaking").checked = Boolean(acc.accepted_undertaking);
-                }
+ if (acc.accepted_undertaking !== undefined) {
+ document.getElementById("acceptUndertaking").checked = Boolean(acc.accepted_undertaking);
+ }
 
-                const itrRadioValue = acc.itr_filed ? "yes" : "no";
-                const itrRadio = document.querySelector(`input[name="itr_filed"][value="${itrRadioValue}"]`);
-                if (itrRadio) itrRadio.checked = true;
+ const itrRadioValue = acc.itr_filed ? "yes" : "no";
+ const itrRadio = document.querySelector(`input[name="itr_filed"][value="${itrRadioValue}"]`);
+ if (itrRadio) itrRadio.checked = true;
 
-                if (acc.state) document.getElementById("stateSelect").value = acc.state;
+ if (acc.state) document.getElementById("stateSelect").value = acc.state;
 
-                if (acc.contact_full_name) document.getElementById("contactFullName").value = acc.contact_full_name;
-                if (acc.contact_email && contactEmailInput && !contactEmailInput.value) {
-                        contactEmailInput.value = acc.contact_email;
-                }
-                if (acc.contact_mobile) document.getElementById("contactMobile").value = acc.contact_mobile;
+ if (acc.contact_full_name) document.getElementById("contactFullName").value = acc.contact_full_name;
+ if (acc.contact_email && contactEmailInput && !contactEmailInput.value) {
+ contactEmailInput.value = acc.contact_email;
+ }
+ if (acc.contact_mobile) document.getElementById("contactMobile").value = acc.contact_mobile;
 
-                if (acc.beneficiary_name) document.getElementById("beneficiaryName").value = acc.beneficiary_name;
-                if (acc.account_type) document.getElementById("accountType").value = acc.account_type;
-                if (acc.bank_name) document.getElementById("bankName").value = acc.bank_name;
-                if (acc.account_number) document.getElementById("accountNumber").value = acc.account_number;
-                if (acc.bank_ifsc) document.getElementById("bankIfsc").value = acc.bank_ifsc;
+ if (acc.beneficiary_name) document.getElementById("beneficiaryName").value = acc.beneficiary_name;
+ if (acc.account_type) document.getElementById("accountType").value = acc.account_type;
+ if (acc.bank_name) document.getElementById("bankName").value = acc.bank_name;
+ if (acc.account_number) document.getElementById("accountNumber").value = acc.account_number;
+ if (acc.bank_ifsc) document.getElementById("bankIfsc").value = acc.bank_ifsc;
 
-                if (acc.pan_card_url) {
-                        panCardUrl = acc.pan_card_url;
-                        panFileName.textContent = `✓ Uploaded: ${acc.pan_card_url.split('/').pop()}`;
-                        panDropzoneContent.style.display = "none";
-                        panDropzonePreview.style.display = "block";
-                }
+ if (acc.pan_card_url) {
+ panCardUrl = acc.pan_card_url;
+ panFileName.textContent = `✓ Uploaded: ${acc.pan_card_url.split('/').pop()}`;
+ panDropzoneContent.style.display = "none";
+ panDropzonePreview.style.display = "block";
+ }
 
-                if (acc.cancelled_cheque_url) {
-                        cancelledChequeUrl = acc.cancelled_cheque_url;
-                        chequeFileName.textContent = `✓ Uploaded: ${acc.cancelled_cheque_url.split('/').pop()}`;
-                        chequeDropzoneContent.style.display = "none";
-                        chequeDropzonePreview.style.display = "block";
-                }
+ if (acc.cancelled_cheque_url) {
+ cancelledChequeUrl = acc.cancelled_cheque_url;
+ chequeFileName.textContent = `✓ Uploaded: ${acc.cancelled_cheque_url.split('/').pop()}`;
+ chequeDropzoneContent.style.display = "none";
+ chequeDropzonePreview.style.display = "block";
+ }
 
-                const agreementValue = acc.accepted_agreement !== undefined
-                        ? acc.accepted_agreement
-                        : acc.accept_final_agreement;
-                if (agreementValue !== undefined) {
-                        const finalAgreementCheckbox = document.getElementById("acceptFinalAgreement");
-                        if (finalAgreementCheckbox) {
-                                finalAgreementCheckbox.checked = Boolean(agreementValue);
-                        }
-                }
-        }
+ const agreementValue = acc.accepted_agreement !== undefined
+ ? acc.accepted_agreement
+ : acc.accept_final_agreement;
+ if (agreementValue !== undefined) {
+ const finalAgreementCheckbox = document.getElementById("acceptFinalAgreement");
+ if (finalAgreementCheckbox) {
+ finalAgreementCheckbox.checked = Boolean(agreementValue);
+ }
+ }
+ }
 
-        // Land the host on the first step that still needs input instead of always step 1.
-        function firstIncompleteStep(acc) {
-                const hasBank = Boolean(
-                        acc && acc.beneficiary_name && acc.account_type && acc.bank_name
-                        && acc.account_number && acc.bank_ifsc && acc.pan_number
-                );
-                if (!hasBank) return 1;
-                if (!panCardUrl || !cancelledChequeUrl) return 2;
-                return 3;
-        }
+ // Land the host on the first step that still needs input instead of always step 1.
+ function firstIncompleteStep(acc) {
+ const hasBank = Boolean(
+ acc && acc.beneficiary_name && acc.account_type && acc.bank_name
+ && acc.account_number && acc.bank_ifsc && acc.pan_number
+ );
+ if (!hasBank) return 1;
+ if (!panCardUrl || !cancelledChequeUrl) return 2;
+ return 3;
+ }
 
 	// Fetch existing account data if available to pre-fill
-        let serverDraftLoaded = false;
+ let serverDraftLoaded = false;
 	try {
-                const res = await authFetch(`${API_BASE}/account-setup?email=${encodeURIComponent(email)}`);
-		if (res.ok) {
-			const data = await res.json();
-			if (data.account) {
-                                serverDraftLoaded = true;
-				const acc = data.account;
-				const setupComplete = window.JodAuth && typeof window.JodAuth.isHostSetupComplete === "function"
-					? window.JodAuth.isHostSetupComplete(acc, data)
-					: Boolean(data.setup_complete);
-				const status = String(data.verification_status || "").toUpperCase();
-				if (setupComplete && status !== "REJECTED") {
-					const access = window.JodAuth && typeof window.JodAuth.canAccessHostDashboard === "function"
-						? window.JodAuth.canAccessHostDashboard(data)
-						: Boolean(data.dashboard_access);
-					window.location.href = access
-						? `organizer-dashboard.html?email=${encodeURIComponent(email)}`
-						: `host-pending.html?email=${encodeURIComponent(email)}`;
-					return;
-				}
-                                applyDraftData(acc);
-                                saveDraftToLocal({
-                                        ...acc,
-                                        accepted_agreement: document.getElementById("acceptFinalAgreement")?.checked,
-                                        is_final_submit: false
-                                });
-                                goToStep(firstIncompleteStep(acc));
-			}
-		}
+ const res = await authFetch(`${API_BASE}/account-setup?email=${encodeURIComponent(email)}`);
+ if (res.ok) {
+ const data = await res.json();
+ if (data.account) {
+ serverDraftLoaded = true;
+ const acc = data.account;
+ const setupComplete = window.JodAuth && typeof window.JodAuth.isHostSetupComplete === "function"
+ ? window.JodAuth.isHostSetupComplete(acc, data)
+ : Boolean(data.setup_complete);
+ const status = String(data.verification_status || "").toUpperCase();
+ if (setupComplete && status !== "REJECTED") {
+ const access = window.JodAuth && typeof window.JodAuth.canAccessHostDashboard === "function"
+ ? window.JodAuth.canAccessHostDashboard(data)
+ : Boolean(data.dashboard_access);
+ window.location.href = access
+ ? `organizer-dashboard.html?email=${encodeURIComponent(email)}`
+ : `host-pending.html?email=${encodeURIComponent(email)}`;
+ return;
+ }
+ applyDraftData(acc);
+ saveDraftToLocal({
+ ...acc,
+ accepted_agreement: document.getElementById("acceptFinalAgreement")?.checked,
+ is_final_submit: false
+ });
+ goToStep(firstIncompleteStep(acc));
+ }
+ }
 	} catch (e) {
-		console.log("No existing draft found or server offline.");
+ console.log("No existing draft found or server offline.");
 	}
 
-        if (!serverDraftLoaded) {
-                const localDraft = loadDraftFromLocal();
-                if (localDraft) {
-                        applyDraftData(localDraft);
-                        goToStep(firstIncompleteStep(localDraft));
-                        showAlert("Loaded your saved draft. You can continue from where you left off.", "success");
-                }
-        }
+ if (!serverDraftLoaded) {
+ const localDraft = loadDraftFromLocal();
+ if (localDraft) {
+ applyDraftData(localDraft);
+ goToStep(firstIncompleteStep(localDraft));
+ showAlert("Loaded your saved draft. You can continue from where you left off.", "success");
+ }
+ }
 
 	function focusAndFail(field, message) {
-		showAlert(message);
-		if (field && typeof field.focus === "function") field.focus();
-		return false;
+ showAlert(message);
+ if (field && typeof field.focus === "function") field.focus();
+ return false;
 	}
 
 	function validateStep1() {
-		const orgName = document.getElementById("orgName");
-		const panNumber = document.getElementById("panNumber");
-		const orgAddress = document.getElementById("orgAddress");
-		const contactFullName = document.getElementById("contactFullName");
-		const contactMobile = document.getElementById("contactMobile");
-		const undertaking = document.getElementById("acceptUndertaking");
-		const beneficiaryNameEl = document.getElementById("beneficiaryName");
-		const accountTypeEl = document.getElementById("accountType");
-		const bankNameEl = document.getElementById("bankName");
-		const accountNumberEl = document.getElementById("accountNumber");
-		const bankIfscEl = document.getElementById("bankIfsc");
+ const orgName = document.getElementById("orgName");
+ const panNumber = document.getElementById("panNumber");
+ const orgAddress = document.getElementById("orgAddress");
+ const contactFullName = document.getElementById("contactFullName");
+ const contactMobile = document.getElementById("contactMobile");
+ const undertaking = document.getElementById("acceptUndertaking");
+ const beneficiaryNameEl = document.getElementById("beneficiaryName");
+ const accountTypeEl = document.getElementById("accountType");
+ const bankNameEl = document.getElementById("bankName");
+ const accountNumberEl = document.getElementById("accountNumber");
+ const bankIfscEl = document.getElementById("bankIfsc");
 
-		if (!orgName.value.trim()) return focusAndFail(orgName, "Please enter your organisation or individual name.");
+ if (!orgName.value.trim()) return focusAndFail(orgName, "Please enter your organisation or individual name.");
 
-		const pan = panNumber.value.trim().toUpperCase();
-		if (!pan) return focusAndFail(panNumber, "Please enter your PAN card number.");
-		if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
-			return focusAndFail(panNumber, "Please enter a valid 10-character PAN number (e.g. ABCDE1234F).");
-		}
+ const pan = panNumber.value.trim().toUpperCase();
+ if (!pan) return focusAndFail(panNumber, "Please enter your PAN card number.");
+ if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+ return focusAndFail(panNumber, "Please enter a valid 10-character PAN number (e.g. ABCDE1234F).");
+ }
 
-		if (!orgAddress.value.trim()) return focusAndFail(orgAddress, "Please enter your organisation or individual address.");
+ if (!orgAddress.value.trim()) return focusAndFail(orgAddress, "Please enter your organisation or individual address.");
 
-		if (document.querySelector('input[name="has_gstin"]:checked')?.value === "yes" && !getGstinDataString()) {
-			return focusAndFail(gstinRows.querySelector(".gstin-num-input"), "Please enter at least one GSTIN number, or select 'No'.");
-		}
+ if (document.querySelector('input[name="has_gstin"]:checked')?.value === "yes" && !getGstinDataString()) {
+ return focusAndFail(gstinRows.querySelector(".gstin-num-input"), "Please enter at least one GSTIN number, or select 'No'.");
+ }
 
-		if (!contactFullName.value.trim()) return focusAndFail(contactFullName, "Please enter the contact person's full name.");
+ if (!contactFullName.value.trim()) return focusAndFail(contactFullName, "Please enter the contact person's full name.");
 
-		const mobile = contactMobile.value.replace(/\D/g, "");
-		if (mobile.length !== 10) return focusAndFail(contactMobile, "Please enter a valid 10-digit mobile number.");
+ const mobile = contactMobile.value.replace(/\D/g, "");
+ if (mobile.length !== 10) return focusAndFail(contactMobile, "Please enter a valid 10-digit mobile number.");
 
-		if (!undertaking.checked) return focusAndFail(undertaking, "Please read and accept the undertaking to continue.");
+ if (!undertaking.checked) return focusAndFail(undertaking, "Please read and accept the undertaking to continue.");
 
-		if (!beneficiaryNameEl.value.trim()) return focusAndFail(beneficiaryNameEl, "Please enter Beneficiary Name.");
-		if (!accountTypeEl.value) return focusAndFail(accountTypeEl, "Please select Account Type.");
-		if (!bankNameEl.value) return focusAndFail(bankNameEl, "Please select Bank Name.");
+ if (!beneficiaryNameEl.value.trim()) return focusAndFail(beneficiaryNameEl, "Please enter Beneficiary Name.");
+ if (!accountTypeEl.value) return focusAndFail(accountTypeEl, "Please select Account Type.");
+ if (!bankNameEl.value) return focusAndFail(bankNameEl, "Please select Bank Name.");
 
-		const accountNumber = accountNumberEl.value.trim();
-		if (!accountNumber) return focusAndFail(accountNumberEl, "Please enter Account Number.");
-		if (!/^\d{6,20}$/.test(accountNumber)) return focusAndFail(accountNumberEl, "Please enter a valid account number (6-20 digits).");
+ const accountNumber = accountNumberEl.value.trim();
+ if (!accountNumber) return focusAndFail(accountNumberEl, "Please enter Account Number.");
+ if (!/^\d{6,20}$/.test(accountNumber)) return focusAndFail(accountNumberEl, "Please enter a valid account number (6-20 digits).");
 
-		const bankIfsc = bankIfscEl.value.trim().toUpperCase();
-		if (!bankIfsc) return focusAndFail(bankIfscEl, "Please enter Bank IFSC.");
-		if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIfsc)) {
-			return focusAndFail(bankIfscEl, "Please enter a valid IFSC code (e.g. HDFC0001234).");
-		}
-		return true;
+ const bankIfsc = bankIfscEl.value.trim().toUpperCase();
+ if (!bankIfsc) return focusAndFail(bankIfscEl, "Please enter Bank IFSC.");
+ if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIfsc)) {
+ return focusAndFail(bankIfscEl, "Please enter a valid IFSC code (e.g. HDFC0001234).");
+ }
+ return true;
 	}
 
 	function validateStep2() {
-		if (!panCardUrl) {
-			showAlert("Please upload your PAN card image before continuing.");
-			return false;
-		}
-		if (!cancelledChequeUrl) {
-			showAlert("Please upload your cancelled cheque image before continuing.");
-			return false;
-		}
-		return true;
+ if (!panCardUrl) {
+ showAlert("Please upload your PAN card image before continuing.");
+ return false;
+ }
+ if (!cancelledChequeUrl) {
+ showAlert("Please upload your cancelled cheque image before continuing.");
+ return false;
+ }
+ return true;
 	}
 
 	function validateStep3() {
-		const finalAgreement = document.getElementById("acceptFinalAgreement");
-		if (!finalAgreement || !finalAgreement.checked) {
-			return focusAndFail(finalAgreement, "Please sign the agreement by accepting the terms to finish your setup.");
-		}
-		return true;
+ const finalAgreement = document.getElementById("acceptFinalAgreement");
+ if (!finalAgreement || !finalAgreement.checked) {
+ return focusAndFail(finalAgreement, "Please sign the agreement by accepting the terms to finish your setup.");
+ }
+ return true;
 	}
 
 	function getFormData(isFinal = false) {
-		const hasGstinVal = document.querySelector('input[name="has_gstin"]:checked')?.value === "yes";
-		const itrFiledVal = document.querySelector('input[name="itr_filed"]:checked')?.value === "yes";
-		const undertakingChecked = Boolean(document.getElementById("acceptUndertaking")?.checked);
-		const targetEmail = (email || contactEmailInput?.value || "").trim();
+ const hasGstinVal = document.querySelector('input[name="has_gstin"]:checked')?.value === "yes";
+ const itrFiledVal = document.querySelector('input[name="itr_filed"]:checked')?.value === "yes";
+ const undertakingChecked = Boolean(document.getElementById("acceptUndertaking")?.checked);
+ const targetEmail = (email || contactEmailInput?.value || "").trim();
 
-		return {
-			email: targetEmail,
-			org_name: (document.getElementById("orgName")?.value || "").trim() || (currentUser && currentUser.full_name) || "",
-			pan_number: (document.getElementById("panNumber")?.value || "").trim().toUpperCase(),
-			org_address: (document.getElementById("orgAddress")?.value || "").trim(),
-			has_gstin: hasGstinVal,
-			gstin_number: getGstinDataString(),
-			accepted_undertaking: undertakingChecked,
-			itr_filed: itrFiledVal,
-			state: document.getElementById("stateSelect") ? document.getElementById("stateSelect").value : "",
-			contact_full_name: document.getElementById("contactFullName")?.value.trim() || (currentUser && currentUser.full_name) || "",
-                        contact_email: targetEmail,
-			contact_mobile: document.getElementById("contactMobile")?.value.trim() || "",
-			beneficiary_name: document.getElementById("beneficiaryName").value.trim(),
-			account_type: document.getElementById("accountType").value,
-			bank_name: document.getElementById("bankName").value,
-			account_number: document.getElementById("accountNumber").value.trim(),
-			bank_ifsc: document.getElementById("bankIfsc").value.trim().toUpperCase(),
-			pan_card_url: panCardUrl,
-			cancelled_cheque_url: cancelledChequeUrl,
-                        accepted_agreement: document.getElementById("acceptFinalAgreement")?.checked || false,
-			is_final_submit: isFinal
-		};
+ return {
+ email: targetEmail,
+ org_name: (document.getElementById("orgName")?.value || "").trim() || (currentUser && currentUser.full_name) || "",
+ pan_number: (document.getElementById("panNumber")?.value || "").trim().toUpperCase(),
+ org_address: (document.getElementById("orgAddress")?.value || "").trim(),
+ has_gstin: hasGstinVal,
+ gstin_number: getGstinDataString(),
+ accepted_undertaking: undertakingChecked,
+ itr_filed: itrFiledVal,
+ state: document.getElementById("stateSelect") ? document.getElementById("stateSelect").value : "",
+ contact_full_name: document.getElementById("contactFullName")?.value.trim() || (currentUser && currentUser.full_name) || "",
+ contact_email: targetEmail,
+ contact_mobile: document.getElementById("contactMobile")?.value.trim() || "",
+ beneficiary_name: document.getElementById("beneficiaryName").value.trim(),
+ account_type: document.getElementById("accountType").value,
+ bank_name: document.getElementById("bankName").value,
+ account_number: document.getElementById("accountNumber").value.trim(),
+ bank_ifsc: document.getElementById("bankIfsc").value.trim().toUpperCase(),
+ pan_card_url: panCardUrl,
+ cancelled_cheque_url: cancelledChequeUrl,
+ accepted_agreement: document.getElementById("acceptFinalAgreement")?.checked || false,
+ is_final_submit: isFinal
+ };
 	}
 
 	async function submitAccountSetup(isFinal = false, options = {}) {
-		hideAlert();
-		const payload = getFormData(isFinal);
-                saveDraftToLocal(payload);
+ hideAlert();
+ const payload = getFormData(isFinal);
+ saveDraftToLocal(payload);
 
-		try {
-			btnProceed.disabled = true;
-			btnSaveDetails.disabled = true;
+ try {
+ btnProceed.disabled = true;
+ btnSaveDetails.disabled = true;
 
-                        const res = await authFetch(`${API_BASE}/account-setup`, {
-				method: "POST",
-                                headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(payload)
-			});
+ const res = await authFetch(`${API_BASE}/account-setup`, {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(payload)
+ });
 
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.detail || "Failed to save account setup details.");
+ const data = await res.json();
+ if (!res.ok) throw new Error(data.detail || "Failed to save account setup details.");
 
-			if (isFinal) {
-                                clearDraftFromLocal(payload.email);
-				const access = Boolean(data.dashboard_access);
-				showAlert(
-					access
-						? "Setup complete. Redirecting to your Event Organizer Dashboard..."
-						: "Thank you — your hosting registration has been noted. Redirecting...",
-					"success"
-				);
-				setTimeout(() => {
-					window.location.href = access
-						? `organizer-dashboard.html?email=${encodeURIComponent(email)}`
-						: "host-pending.html";
-				}, 900);
-			} else if (!options.silent) {
-				showAlert("Details saved. You can continue from here whenever you are ready.", "success");
-			}
-			return true;
-		} catch (err) {
-                        const fallbackMessage = isFinal
-                                ? "We couldn't submit right now. Your details are still saved locally, so you can come back and continue."
-                                : "Draft saved on this browser. The server could not be reached right now, but your values will still be here when you return.";
-                        showAlert(err.message === "Failed to fetch" ? fallbackMessage : (err.message || fallbackMessage));
-			return false;
-		} finally {
-			btnProceed.disabled = false;
-			btnSaveDetails.disabled = false;
-		}
+ if (isFinal) {
+ clearDraftFromLocal(payload.email);
+ const access = Boolean(data.dashboard_access);
+ showAlert(
+ access
+ ? "Setup complete. Redirecting to your Event Organizer Dashboard..."
+ : "Thank you — your hosting registration has been noted. Redirecting...",
+ "success"
+ );
+ setTimeout(() => {
+ window.location.href = access
+ ? `organizer-dashboard.html?email=${encodeURIComponent(email)}`
+ : "host-pending.html";
+ }, 900);
+ } else if (!options.silent) {
+ showAlert("Details saved. You can continue from here whenever you are ready.", "success");
+ }
+ return true;
+ } catch (err) {
+ const fallbackMessage = isFinal
+ ? "We couldn't submit right now. Your details are still saved locally, so you can come back and continue."
+ : "Draft saved on this browser. The server could not be reached right now, but your values will still be here when you return.";
+ showAlert(err.message === "Failed to fetch" ? fallbackMessage : (err.message || fallbackMessage));
+ return false;
+ } finally {
+ btnProceed.disabled = false;
+ btnSaveDetails.disabled = false;
+ }
 	}
 
 	btnSaveDetails.addEventListener("click", () => {
-		if (!validateStep1()) return;
-		submitAccountSetup(false);
+ if (!validateStep1()) return;
+ submitAccountSetup(false);
 	});
 
 	btnProceed.addEventListener("click", async () => {
-		if (!validateStep1()) return;
+ if (!validateStep1()) return;
 
-		if (currentStep === 1) {
-			const saved = await submitAccountSetup(false, { silent: true });
-			if (saved) goToStep(2);
-			return;
-		}
+ if (currentStep === 1) {
+ const saved = await submitAccountSetup(false, { silent: true });
+ if (saved) goToStep(2);
+ return;
+ }
 
-		if (currentStep === 2) {
-			if (!validateStep2()) return;
-			const saved = await submitAccountSetup(false, { silent: true });
-			if (saved) goToStep(3);
-			return;
-		}
+ if (currentStep === 2) {
+ if (!validateStep2()) return;
+ const saved = await submitAccountSetup(false, { silent: true });
+ if (saved) goToStep(3);
+ return;
+ }
 
-		if (!validateStep2()) {
-			goToStep(2);
-			return;
-		}
-		if (!validateStep3()) return;
-		submitAccountSetup(true);
+ if (!validateStep2()) {
+ goToStep(2);
+ return;
+ }
+ if (!validateStep3()) return;
+ submitAccountSetup(true);
 	});
 });

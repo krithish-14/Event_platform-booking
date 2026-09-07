@@ -245,7 +245,7 @@
 	requestAnimationFrame(loop);
 })();
 
-// ── Global Navigation Auth State Manager ──────────────────────
+// \u2500\u2500 Global Navigation Auth State Manager \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 (function initGlobalNavAuth() {
 	"use strict";
 
@@ -424,7 +424,7 @@
 	applyAuthVisibility();
 	updateNavAuth();
 
-	/* ── Location flow (homepage) ─────────────── */
+	/* \u2500\u2500 Location flow (homepage) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	if (window.JodLocation) {
 		if (window.JodLocation.hasAcquiredLocation()) {
 			window.JodLocation.applyCachedRecommendations();
@@ -466,7 +466,7 @@
 
 	function updateCardCountdown(element) {
 		const value = getCountdown(element.dataset.cardCountdown);
-		element.textContent = `✨ ${pad(value.days)}d : ${pad(value.hours)}h : ${pad(value.minutes)}m`;
+		element.textContent = `\u2728 ${pad(value.days)}d : ${pad(value.hours)}h : ${pad(value.minutes)}m`;
 	}
 
 	function updateTimers() {
@@ -490,7 +490,7 @@
 	onScroll();
 	window.addEventListener("scroll", onScroll, { passive: true });
 
-	/* ── Header Search Bar wiring ─────────────────────────────── */
+	/* \u2500\u2500 Header Search Bar wiring \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	function wireHeaderSearch(root) {
 		if (!root) return;
 		const input = root.querySelector("input[type='text']");
@@ -560,7 +560,7 @@
 	document.addEventListener("keydown", (event) => { if (event.key === "Escape" && modal && !modal.hidden) closeModal(); });
 	window.JodCloseFeaturedModal = closeModal;
 
-	/* ── Guest Auth Modal for Live Trending Events ───────────── */
+	/* \u2500\u2500 Guest Auth Modal for Live Trending Events \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	const guestAuthModal = document.getElementById("guestAuthModal");
 	const guestAuthModalCloseBtn = document.getElementById("guestAuthModalCloseBtn");
 	const guestAuthModalCloseBackdrop = document.getElementById("guestAuthModalCloseBackdrop");
@@ -752,7 +752,7 @@
 
 	document.querySelectorAll("[data-category-carousel]").forEach(initCategoryCarousel);
 
-	/* ── Host Your Event - Card Modal ──────────────────────── */
+	/* \u2500\u2500 Host Your Event - Card Modal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	const HOST_ICON_SVGS = {
 		performances: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="40" r="10"></circle><path d="M42 14 L42 44"></path><path d="M42 44 C42 44 44 20 54 18"></path><path d="M49 18 C50 22 47 24 42 24"></path><path d="M30 22 L30 36"></path><path d="M32 24 L32 34"></path><circle cx="24" cy="40" r="3"></circle></svg>`,
 		experiences: `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 52 L16 34 L24 26 L24 52 Z"></path><path d="M28 52 L28 38 L36 30 L36 52 Z"></path><path d="M40 52 L40 42 L48 34 L48 52 Z"></path><path d="M10 52 L54 52"></path><path d="M20 20 C20 17 22 15 24 15 C26 15 27 16 28 18 C29 16 30 15 32 15 C34 15 36 17 36 20"></path><path d="M22 10 C23 8 25 7 27 8 C29 9 29 11 28 12"></path><path d="M36 10 C37 8 39 7 41 8 C43 9 43 11 42 12"></path></svg>`,

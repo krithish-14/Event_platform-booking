@@ -7,7 +7,7 @@
 	}
 }
 
-/* ── Per-section play (mouse + scroll, copy stays on top) ── */
+/* --- Per-section play (mouse + scroll, copy stays on top) --- */
 
 [data-about-play] {
 	--mx: 0;

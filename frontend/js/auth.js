@@ -1,7 +1,7 @@
 window.JodAuth = (() => {
 	"use strict";
 
-	/* ── Config ────────────────────────────────────────────── */
+	/* \u2500\u2500 Config \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	function getApiBase() {
 		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
 			return window.JodConfig.getApiOrigin();
@@ -14,7 +14,7 @@ window.JodAuth = (() => {
 	}
 
 
-	/* ── Public Auth Helpers (exposed as window.JodAuth) ──── */
+	/* \u2500\u2500 Public Auth Helpers (exposed as window.JodAuth) \u2500\u2500\u2500\u2500 */
 	function getToken() {
 		try {
 			localStorage.removeItem("jod_access_token");
@@ -411,7 +411,7 @@ window.JodAuth = (() => {
 				return null;
 			}
 			if (res.status === 403) {
-				// Inactive account — clear local cache; not a CSRF case (GET).
+				// Inactive account \u2014 clear local cache; not a CSRF case (GET).
 				clearAuth();
 				syncThemeAfterAuth();
 				return null;
@@ -485,7 +485,7 @@ window.JodAuth = (() => {
 		return res;
 	}
 
-	/* ── Helpers ───────────────────────────────────────────── */
+	/* \u2500\u2500 Helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	function setError(input, msg) {
 		if (!input) return;
 		const wrap = input.closest(".form-group") || input.closest(".input-wrap")?.parentElement;
@@ -543,7 +543,7 @@ window.JodAuth = (() => {
 		btn.classList.toggle("is-loading", loading);
 	}
 
-	/* ── Password strength ─────────────────────────────────── */
+	/* \u2500\u2500 Password strength \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	function calcStrength(pw) {
 		let s = 0;
 		if (pw.length >= 8) s++;
@@ -563,18 +563,18 @@ window.JodAuth = (() => {
 		});
 	}
 
-	/* ── Password visibility toggle ────────────────────────── */
+	/* \u2500\u2500 Password visibility toggle \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	function initTogglePw(btn, input) {
 		if (!btn || !input) return;
 		btn.addEventListener("click", () => {
 			const isText = input.type === "text";
 			input.type = isText ? "password" : "text";
-			btn.textContent = isText ? "👁" : "🙈";
+			btn.textContent = isText ? "\ud83d\udc41" : "\ud83d\ude48";
 			btn.setAttribute("aria-label", isText ? "Show password" : "Hide password");
 		});
 	}
 
-	/* ── Login form ────────────────────────────────────────── */
+	/* \u2500\u2500 Login form \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	const loginForm = document.getElementById("loginForm");
 	if (loginForm) {
 		const alertEl = loginForm.querySelector(".form-alert");
@@ -625,7 +625,7 @@ window.JodAuth = (() => {
 						current_pathname: window.location.pathname
 					});
 
-					showAlert(alertEl, "success", "Login successful! Redirecting…");
+					showAlert(alertEl, "success", "Login successful! Redirecting\u2026");
 					queueLocationPrompt(data.user);
 					queueFeaturedModalAfterLogin();
 
@@ -642,7 +642,7 @@ window.JodAuth = (() => {
 			}
 		}
 
-		// Click handler on the button (type="button") — never triggers form submit
+		// Click handler on the button (type="button") \u2014 never triggers form submit
 		submitBtn.addEventListener("click", doLogin);
 
 		// Also handle Enter key in the password field
@@ -654,7 +654,7 @@ window.JodAuth = (() => {
 		});
 	}
 
-	/* ── Forgot password (email → OTP → new password) ─────── */
+	/* \u2500\u2500 Forgot password (email \u2192 OTP \u2192 new password) \u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	const forgotRoot = document.getElementById("forgotPasswordRoot");
 	if (forgotRoot) {
 		const alertEl = forgotRoot.querySelector(".form-alert");
@@ -907,7 +907,7 @@ window.JodAuth = (() => {
 		if (prefill && emailInput) emailInput.value = prefill;
 	}
 
-	/* ── Sign Up form ──────────────────────────────────────── */
+	/* \u2500\u2500 Sign Up form \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	const signupForm = document.getElementById("signupForm");
 	if (signupForm) {
 		const alertEl = signupForm.querySelector(".form-alert");
@@ -921,7 +921,7 @@ window.JodAuth = (() => {
 		initTogglePw(signupForm.querySelector("#toggleSignupPw"), signupForm.querySelector("#signupPassword"));
 		initTogglePw(signupForm.querySelector("#toggleConfirmPw"), signupForm.querySelector("#signupConfirmPassword"));
 
-		/* ── Live availability helpers ─────────────────────── */
+		/* \u2500\u2500 Live availability helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 		function setLiveStatus(inputEl, available, message) {
 			if (!inputEl) return;
 			const wrap = inputEl.closest(".form-group") || inputEl.parentElement;
@@ -948,8 +948,8 @@ window.JodAuth = (() => {
 			}
 			inputEl.classList.remove("has-error");
 			statusEl.innerHTML = available
-				? `<span style="color:#16a34a;">✓</span> <span style="color:#16a34a;">${message}</span>`
-				: `<span style="color:#dc2626;">✕</span> <span style="color:#dc2626;">${message}</span>`;
+				? `<span style="color:#16a34a;">\u2713</span> <span style="color:#16a34a;">${message}</span>`
+				: `<span style="color:#dc2626;">\u2715</span> <span style="color:#dc2626;">${message}</span>`;
 			inputEl.style.borderColor = available ? "#16a34a" : "#dc2626";
 		}
 
@@ -999,7 +999,7 @@ window.JodAuth = (() => {
 				emailAvailable = null;
 				return;
 			}
-			setLiveStatus(emailInput, null, "Checking…");
+			setLiveStatus(emailInput, null, "Checking\u2026");
 			if (emailInput) emailInput.style.borderColor = "#94a3b8";
 			try {
 				const data = await fetchAvailability({ email });
@@ -1024,7 +1024,7 @@ window.JodAuth = (() => {
 				usernameAvailable = null;
 				return;
 			}
-			setLiveStatus(usernameInput, null, "Checking…");
+			setLiveStatus(usernameInput, null, "Checking\u2026");
 			if (usernameInput) usernameInput.style.borderColor = "#94a3b8";
 			try {
 				const data = await fetchAvailability({ username });
@@ -1083,7 +1083,7 @@ window.JodAuth = (() => {
 		async function openPrivacyModal() {
 			if (!privacyModal) return;
 			if (privacyBody && !privacyBodyLoaded) {
-				privacyBody.innerHTML = "<p>Loading privacy policy…</p>";
+				privacyBody.innerHTML = "<p>Loading privacy policy\u2026</p>";
 				try {
 					const urls = [
 						"/components/privacy-policy-body.html?v=3",
@@ -1166,7 +1166,7 @@ window.JodAuth = (() => {
 				}
 			} catch (_) { }
 
-			showAlert(alertEl, "success", "Account created! Redirecting…");
+			showAlert(alertEl, "success", "Account created! Redirecting\u2026");
 			queueLocationPrompt(data && data.user);
 			queueFeaturedModalAfterLogin();
 			setTimeout(() => {
@@ -1310,12 +1310,12 @@ window.JodAuth = (() => {
 
 		signupForm.addEventListener("submit", doSignup);
 
-		// Click handler on button (type="button") — decoupled from form submit entirely
+		// Click handler on button (type="button") \u2014 decoupled from form submit entirely
 		submitBtn.addEventListener("click", doSignup);
 	}
 
 
-	/* ── Google OAuth Integration ────────────────────────────── */
+	/* \u2500\u2500 Google OAuth Integration \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	async function handleGoogleCredentialResponse(response, alertEl, btnEl) {
 		if (!response || (!response.credential && !response.code)) {
 			if (alertEl) showAlert(alertEl, "error", "Google authentication was cancelled or failed.");
@@ -1348,7 +1348,7 @@ window.JodAuth = (() => {
 			} else {
 				persistAuthSession(data.access_token, data.user);
 
-				if (alertEl) showAlert(alertEl, "success", "Google Sign-In successful! Redirecting…");
+				if (alertEl) showAlert(alertEl, "success", "Google Sign-In successful! Redirecting\u2026");
 				queueLocationPrompt(data.user);
 				queueFeaturedModalAfterLogin();
 
@@ -1580,7 +1580,7 @@ window.JodAuth = (() => {
 		})();
 	}
 
-	/* ── Guest Auth Modal (Universal) ────────────────────────── */
+	/* \u2500\u2500 Guest Auth Modal (Universal) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	function ensureGuestModal() {
 		let modal = document.getElementById("guestAuthModal");
 		if (!modal) {
@@ -1740,7 +1740,7 @@ window.JodAuth = (() => {
 			title: "Sign Up to Book Tickets",
 			message: "You can browse this event as a guest. Sign up or log in to reserve tickets.",
 			targetUrl: targetUrl || (window.location.pathname + window.location.search + window.location.hash),
-			badge: "🎟️ Account Required"
+			badge: "\ud83c\udf9f\ufe0f Account Required"
 		});
 	}
 
@@ -1782,7 +1782,7 @@ window.JodAuth = (() => {
 					title: "Sign Up to Host Your Event",
 					message: "Create your account or log in to list events, publish registration forms, and manage your attendees with JOD Events.",
 					targetUrl: "account-setup.html",
-					badge: "✨ Host Your Event"
+					badge: "\u2728 Host Your Event"
 				});
 				return;
 			}
@@ -1798,7 +1798,7 @@ window.JodAuth = (() => {
 					title: "Sign Up to Book Tickets",
 					message: "You need to sign up or log in to reserve tickets for this event.",
 					targetUrl: currentTarget,
-					badge: "🎟️ Account Required"
+					badge: "\ud83c\udf9f\ufe0f Account Required"
 				});
 			}
 		}, true);
@@ -1812,7 +1812,7 @@ window.JodAuth = (() => {
 				title: "Sign Up to Host Your Event",
 				message: "Create your account or log in to list events, publish registration forms, and manage your attendees with JOD Events.",
 				targetUrl: "account-setup.html",
-				badge: "✨ Host Your Event"
+				badge: "\u2728 Host Your Event"
 			});
 			return;
 		}
@@ -1861,7 +1861,7 @@ window.JodAuth = (() => {
 		}
 	}
 
-	/* ── Expose Public API ─────────────────────────────────── */
+	/* \u2500\u2500 Expose Public API \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 	return {
 		get API_BASE() { return getApiBase(); },
 		getApiBase,

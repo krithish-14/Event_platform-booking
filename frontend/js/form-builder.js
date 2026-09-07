@@ -216,7 +216,7 @@ function initFormBuilder() {
 			}
 			if (uploadBtn) {
 				const shortName = file.name.length > 14 ? `${file.name.substring(0, 14)}...` : file.name;
-				uploadBtn.textContent = `✓ ${shortName}`;
+				uploadBtn.textContent = `\u2713 ${shortName}`;
 				uploadBtn.style.color = "#10b981";
 			}
 			renderLivePreview();
@@ -301,7 +301,7 @@ function initFormBuilder() {
 	}
 
 	if (themeBannerUrl) themeBannerUrl.addEventListener("input", () => {
-		// User typed manually — clear stored upload data so typed URL is used
+		// User typed manually \u2014 clear stored upload data so typed URL is used
 		delete themeBannerUrl.dataset.uploadSrc;
 		renderLivePreview();
 	});
@@ -388,7 +388,7 @@ function initFormBuilder() {
 	let allSubmissionsData = [];
 	let submissionQuestionColumns = [];
 
-	// ── Sub-Tab Switcher ──────────────────────────────────────────────────────
+	// \u2500\u2500 Sub-Tab Switcher \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	function styleSubTab(tab, active) {
 		if (!tab) return;
 		if (active) {
@@ -427,7 +427,7 @@ function initFormBuilder() {
 		subTabCancellations.addEventListener("click", () => showRegistrationSubView("cancellations"));
 	}
 
-	// ── Render Left Builder Questions List ────────────────────────────────────
+	// \u2500\u2500 Render Left Builder Questions List \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	function renderBuilderQuestions() {
 		if (!questions || !Array.isArray(questions) || questions.length === 0) {
 			questions = [
@@ -526,8 +526,8 @@ function initFormBuilder() {
 						</div>
 
 						<div style="display: flex; align-items: center; gap: 0.4rem;">
-							<button type="button" class="btn-move-up" title="Move Up" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;">↑</button>
-							<button type="button" class="btn-move-down" title="Move Down" ${idx === questions.length - 1 ? 'disabled style="opacity:0.3;"' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;">↓</button>
+							<button type="button" class="btn-move-up" title="Move Up" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;">\u2191</button>
+							<button type="button" class="btn-move-down" title="Move Down" ${idx === questions.length - 1 ? 'disabled style="opacity:0.3;"' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;">\u2193</button>
 							<button type="button" class="btn-duplicate-q" title="Duplicate Question" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; border-radius:6px; padding:0.25rem 0.65rem; cursor:pointer; font-weight:700; font-size:0.8rem;">Copy</button>
 							<button type="button" class="btn-delete-q" title="Delete Question" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:6px; padding:0.25rem 0.65rem; cursor:pointer; font-weight:700; font-size:0.8rem;">Delete</button>
 						</div>
@@ -679,7 +679,7 @@ function initFormBuilder() {
 		});
 	}
 
-	// ── Render Right Column Instant Live Preview ──────────────────────────────
+	// \u2500\u2500 Render Right Column Instant Live Preview \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	function renderLivePreview() {
 		if (!previewRenderedForm) return;
 
@@ -809,7 +809,7 @@ function initFormBuilder() {
 				case 'file_upload':
 					fieldHtml = `
 						<div style="border:1.5px dashed #cbd5e1; background:#ffffff; border-radius:${radius}; padding:1rem; text-align:center;">
-							<span style="font-weight:600; font-size:0.85rem; color:#2563eb;">Upload File ↗</span>
+							<span style="font-weight:600; font-size:0.85rem; color:#2563eb;">Upload File \u2197</span>
 						</div>
 					`;
 					break;
@@ -834,7 +834,7 @@ function initFormBuilder() {
 		});
 	}
 
-	// ── Form Input Change Listeners ───────────────────────────────────────────
+	// \u2500\u2500 Form Input Change Listeners \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	if (builderFormTitle) builderFormTitle.addEventListener("input", renderLivePreview);
 	if (builderFormDesc) builderFormDesc.addEventListener("input", renderLivePreview);
 	if (themePrimaryColor) themePrimaryColor.addEventListener("input", renderLivePreview);
@@ -940,7 +940,7 @@ function initFormBuilder() {
 				formStatusBadge.style.background = updated ? "#f0fdf4" : "#fef3c7";
 				formStatusBadge.style.color = updated ? "#166534" : "#b45309";
 			}
-			const successLabel = updated ? "✓ Registration form updated successfully" : "✓ Registration form saved";
+			const successLabel = updated ? "\u2713 Registration form updated successfully" : "\u2713 Registration form saved";
 			if (btn) { btn.textContent = successLabel; btn.style.color = "#059669"; }
 			if (window.showNotification) {
 				window.showNotification(successLabel);
@@ -1023,7 +1023,7 @@ function initFormBuilder() {
 			isPublished = true;
 
 			if (formStatusBadge) {
-				formStatusBadge.textContent = "Live & Published ✓";
+				formStatusBadge.textContent = "Live & Published \u2713";
 				formStatusBadge.style.background = "#f0fdf4";
 				formStatusBadge.style.color = "#166534";
 			}
@@ -1034,7 +1034,7 @@ function initFormBuilder() {
 
 			// Success state on button
 			if (btn) {
-				btn.innerHTML = `✓ Published! Opening Preview...`;
+				btn.innerHTML = `\u2713 Published! Opening Preview...`;
 				btn.style.background = "linear-gradient(135deg, #059669 0%, #047857 100%)";
 				btn.style.opacity = "1";
 			}
@@ -1170,7 +1170,7 @@ function initFormBuilder() {
 					formVersionBadge.textContent = `Version: ${version}`;
 				}
 				if (data.is_published && formStatusBadge) {
-					formStatusBadge.textContent = "Live & Published ✓";
+					formStatusBadge.textContent = "Live & Published \u2713";
 					formStatusBadge.style.background = "#f0fdf4";
 					formStatusBadge.style.color = "#166534";
 				}
@@ -1195,7 +1195,7 @@ function initFormBuilder() {
 		renderLivePreview();
 	}
 
-	// ── Submissions & Analytics Manager ───────────────────────────────────────
+	// \u2500\u2500 Submissions & Analytics Manager \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	async function loadSubmissionsData() {
 		if (!submissionsTableBody) return;
 		const eventId = resolveActiveEventId() || "";
@@ -1212,7 +1212,7 @@ function initFormBuilder() {
 			if (data.analytics) {
 				if (kpiTotalSubmissions) kpiTotalSubmissions.textContent = data.analytics.total_registrations;
 				if (kpiCompletionRate) kpiCompletionRate.textContent = data.analytics.completion_rate || "0%";
-				if (kpiAvgTime) kpiAvgTime.textContent = data.analytics.avg_completion_time || "—";
+				if (kpiAvgTime) kpiAvgTime.textContent = data.analytics.avg_completion_time || "\u2014";
 			}
 			allSubmissionsData = Array.isArray(data.submissions) ? data.submissions : [];
 			applySubmissionFilters();
@@ -1291,17 +1291,17 @@ function initFormBuilder() {
 		const values = sub.answer_values || {};
 		const leftover = sub.answers || {};
 		const rows = [
-			["Name", sub.attendee_name || "—"],
-			["Email", sub.user_email || "—"],
-			["Phone", sub.phone || "—"],
-			["Ticket", sub.ticket_type || "—"],
-			["Status", sub.status || "—"],
-			["Submitted", sub.submitted_at || "—"]
+			["Name", sub.attendee_name || "\u2014"],
+			["Email", sub.user_email || "\u2014"],
+			["Phone", sub.phone || "\u2014"],
+			["Ticket", sub.ticket_type || "\u2014"],
+			["Status", sub.status || "\u2014"],
+			["Submitted", sub.submitted_at || "\u2014"]
 		];
 		const seen = new Set(rows.map((row) => row[0].toLowerCase()));
 		Object.keys(values).forEach((key) => {
 			if (!seen.has(String(key).toLowerCase())) {
-				rows.push([key, values[key] || "—"]);
+				rows.push([key, values[key] || "\u2014"]);
 				seen.add(String(key).toLowerCase());
 			}
 		});
@@ -1309,7 +1309,7 @@ function initFormBuilder() {
 			if (String(key).startsWith("_")) return;
 			if (seen.has(String(key).toLowerCase())) return;
 			const val = leftover[key];
-			rows.push([key, Array.isArray(val) ? val.join(", ") : String(val ?? "—")]);
+			rows.push([key, Array.isArray(val) ? val.join(", ") : String(val ?? "\u2014")]);
 			seen.add(String(key).toLowerCase());
 		});
 		return rows;
@@ -1388,9 +1388,9 @@ function initFormBuilder() {
 			tr.style.borderBottom = "1px solid #e2e8f0";
 			tr.innerHTML = `
 				<td style="padding:0.85rem 1.2rem; font-weight:700; color:#2563eb;">#${escapeHtml(sub.id)}</td>
-				<td style="padding:0.85rem 1.2rem; font-weight:600; color:#0f172a;">${escapeHtml(sub.attendee_name || "—")}</td>
+				<td style="padding:0.85rem 1.2rem; font-weight:600; color:#0f172a;">${escapeHtml(sub.attendee_name || "\u2014")}</td>
 				<td style="padding:0.85rem 1.2rem; font-weight:600; color:#0f172a;">${escapeHtml(sub.user_email || "")}</td>
-				<td style="padding:0.85rem 1.2rem; color:#334155;">${escapeHtml(sub.ticket_type || "—")}</td>
+				<td style="padding:0.85rem 1.2rem; color:#334155;">${escapeHtml(sub.ticket_type || "\u2014")}</td>
 				<td style="padding:0.85rem 1.2rem; color:#64748b; white-space:nowrap;">${escapeHtml(sub.submitted_at || "")}</td>
 				<td style="padding:0.85rem 1.2rem;"><span style="background:#f0fdf4; color:#166534; padding:0.15rem 0.6rem; border-radius:12px; font-weight:700; font-size:0.78rem;">${escapeHtml(sub.status || "submitted")}</span></td>
 				${extra}
@@ -1412,7 +1412,7 @@ function initFormBuilder() {
 	let cancellationRequests = [];
 
 	function formatMoney(value) {
-		return `₹${Number(value || 0).toLocaleString("en-IN")}`;
+		return `\u20b9${Number(value || 0).toLocaleString("en-IN")}`;
 	}
 
 	function openDetailModal(title, rows) {
@@ -1423,7 +1423,7 @@ function initFormBuilder() {
 		if (body) {
 			const pairs = (rows || []).filter((row) => row && row[0]);
 			body.innerHTML = pairs.length
-				? pairs.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value == null || value === "" ? "—" : value)}</dd>`).join("")
+				? pairs.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value == null || value === "" ? "\u2014" : value)}</dd>`).join("")
 				: `<dt>Details</dt><dd>No data stored for this request.</dd>`;
 		}
 		modal.removeAttribute("hidden");
@@ -1452,7 +1452,7 @@ function initFormBuilder() {
 			["Ticket", req.ticket_type],
 			["Quantity", req.quantity],
 			["Amount", formatMoney(pay.total_price != null ? pay.total_price : req.total_price)],
-			["GST", pay.gst_amount != null ? formatMoney(pay.gst_amount) : "—"],
+			["GST", pay.gst_amount != null ? formatMoney(pay.gst_amount) : "\u2014"],
 			["Payment mode", pay.payment_mode],
 			["Payment ID", pay.payment_id],
 			["Bank", pay.bank_name],

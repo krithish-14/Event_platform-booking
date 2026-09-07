@@ -14,325 +14,325 @@
 	let scanSessionHistory = [];
 
 	function getApiBase() {
-		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
-			return window.JodConfig.getApiOrigin();
-		}
-		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
-			return window.JodHealth.getApiBaseUrl();
-		}
-		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
-		return "";
+ if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+ return window.JodConfig.getApiOrigin();
+ }
+ if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+ return window.JodHealth.getApiBaseUrl();
+ }
+ if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
+ return "";
 	}
 
 	function escHtml(value) {
-		if (typeof window.escHtml === "function") return window.escHtml(value);
-		return String(value == null ? "" : value)
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;")
-			.replace(/"/g, "&quot;");
+ if (typeof window.escHtml === "function") return window.escHtml(value);
+ return String(value == null ? "" : value)
+ .replace(/&/g, "&amp;")
+ .replace(/</g, "&lt;")
+ .replace(/>/g, "&gt;")
+ .replace(/"/g, "&quot;");
 	}
 
 	function requireScannerLogin() {
-		const authToken = window.JodAuth && typeof window.JodAuth.getToken === "function"
-			? window.JodAuth.getToken()
-			: null;
-		if (!authToken || authToken === "null" || authToken === "undefined") {
-			alert("Please sign in to use the ticket scanner.");
-			window.location.href = "login.html?redirect=" + encodeURIComponent("scanner.html");
-			return false;
-		}
-		return true;
+ const authToken = window.JodAuth && typeof window.JodAuth.getToken === "function"
+ ? window.JodAuth.getToken()
+ : null;
+ if (!authToken || authToken === "null" || authToken === "undefined") {
+ alert("Please sign in to use the ticket scanner.");
+ window.location.href = "login.html?redirect=" + encodeURIComponent("scanner.html");
+ return false;
+ }
+ return true;
 	}
 
 	function playAudioBeep(type) {
-		try {
-			const ctx = new (window.AudioContext || window.webkitAudioContext)();
-			const osc = ctx.createOscillator();
-			const gain = ctx.createGain();
-			osc.connect(gain);
-			gain.connect(ctx.destination);
+ try {
+ const ctx = new (window.AudioContext || window.webkitAudioContext)();
+ const osc = ctx.createOscillator();
+ const gain = ctx.createGain();
+ osc.connect(gain);
+ gain.connect(ctx.destination);
 
-			if (type === "success") {
-				osc.type = "sine";
-				osc.frequency.setValueAtTime(880, ctx.currentTime);
-				osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.15);
-				gain.gain.setValueAtTime(0.3, ctx.currentTime);
-				gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
-				osc.start(ctx.currentTime);
-				osc.stop(ctx.currentTime + 0.25);
-			} else {
-				osc.type = "sawtooth";
-				osc.frequency.setValueAtTime(220, ctx.currentTime);
-				osc.frequency.setValueAtTime(180, ctx.currentTime + 0.15);
-				gain.gain.setValueAtTime(0.4, ctx.currentTime);
-				gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
-				osc.start(ctx.currentTime);
-				osc.stop(ctx.currentTime + 0.35);
-			}
-		} catch (_) {}
+ if (type === "success") {
+ osc.type = "sine";
+ osc.frequency.setValueAtTime(880, ctx.currentTime);
+ osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.15);
+ gain.gain.setValueAtTime(0.3, ctx.currentTime);
+ gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+ osc.start(ctx.currentTime);
+ osc.stop(ctx.currentTime + 0.25);
+ } else {
+ osc.type = "sawtooth";
+ osc.frequency.setValueAtTime(220, ctx.currentTime);
+ osc.frequency.setValueAtTime(180, ctx.currentTime + 0.15);
+ gain.gain.setValueAtTime(0.4, ctx.currentTime);
+ gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+ osc.start(ctx.currentTime);
+ osc.stop(ctx.currentTime + 0.35);
+ }
+ } catch (_) {}
 	}
 
 	async function startCamera() {
-		const video = document.getElementById("scannerVideo");
-		if (!video) return;
+ const video = document.getElementById("scannerVideo");
+ if (!video) return;
 
-		if (videoStream) {
-			stopCamera();
-		}
+ if (videoStream) {
+ stopCamera();
+ }
 
-		try {
-			const constraints = {
-				video: {
-					facingMode: currentFacingMode,
-					width: { ideal: 1280 },
-					height: { ideal: 720 }
-				}
-			};
-			videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-			video.srcObject = videoStream;
-			await video.play();
-			isScanningActive = true;
-			requestAnimationFrame(processScanFrame);
-		} catch (err) {
-			console.warn("Camera start warning:", err);
-			alert("Camera access notice: Could not start camera stream. You can use the manual token input field below to verify tickets.");
-		}
+ try {
+ const constraints = {
+ video: {
+ facingMode: currentFacingMode,
+ width: { ideal: 1280 },
+ height: { ideal: 720 }
+ }
+ };
+ videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+ video.srcObject = videoStream;
+ await video.play();
+ isScanningActive = true;
+ requestAnimationFrame(processScanFrame);
+ } catch (err) {
+ console.warn("Camera start warning:", err);
+ alert("Camera access notice: Could not start camera stream. You can use the manual token input field below to verify tickets.");
+ }
 	}
 
 	function stopCamera() {
-		isScanningActive = false;
-		if (videoStream) {
-			videoStream.getTracks().forEach(track => track.stop());
-			videoStream = null;
-		}
+ isScanningActive = false;
+ if (videoStream) {
+ videoStream.getTracks().forEach(track => track.stop());
+ videoStream = null;
+ }
 	}
 
 	function processScanFrame() {
-		if (!isScanningActive) return;
+ if (!isScanningActive) return;
 
-		const video = document.getElementById("scannerVideo");
-		if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-			if (!isProcessingToken) {
-				const canvas = document.createElement("canvas");
-				canvas.width = video.videoWidth;
-				canvas.height = video.videoHeight;
-				const ctx = canvas.getContext("2d");
-				ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+ const video = document.getElementById("scannerVideo");
+ if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+ if (!isProcessingToken) {
+ const canvas = document.createElement("canvas");
+ canvas.width = video.videoWidth;
+ canvas.height = video.videoHeight;
+ const ctx = canvas.getContext("2d");
+ ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-				const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-				if (typeof jsQR !== "undefined") {
-					const code = jsQR(imageData.data, imageData.width, imageData.height, {
-						inversionAttempts: "dontInvert"
-					});
-					if (code && code.data) {
-						const rawToken = code.data.trim();
-						if (rawToken.startsWith("JOD-TKT-") || rawToken.startsWith("JOD-")) {
-							handleScannedToken(rawToken);
-						}
-					}
-				}
-			}
-		}
+ const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+ if (typeof jsQR !== "undefined") {
+ const code = jsQR(imageData.data, imageData.width, imageData.height, {
+ inversionAttempts: "dontInvert"
+ });
+ if (code && code.data) {
+ const rawToken = code.data.trim();
+ if (rawToken.startsWith("JOD-TKT-") || rawToken.startsWith("JOD-")) {
+ handleScannedToken(rawToken);
+ }
+ }
+ }
+ }
+ }
 
-		if (isScanningActive) {
-			requestAnimationFrame(processScanFrame);
-		}
+ if (isScanningActive) {
+ requestAnimationFrame(processScanFrame);
+ }
 	}
 
 	async function handleScannedToken(tokenStr) {
-		if (isProcessingToken || !tokenStr) return;
-		isProcessingToken = true;
+ if (isProcessingToken || !tokenStr) return;
+ isProcessingToken = true;
 
-		const apiBase = getApiBase();
-		const authToken = window.JodAuth && typeof window.JodAuth.getToken === "function"
-			? window.JodAuth.getToken()
-			: null;
-		const staffUser = window.JodAuth ? window.JodAuth.getUser() : null;
-		const staffName = staffUser ? (staffUser.full_name || staffUser.username) : "Gate Scanner Staff";
+ const apiBase = getApiBase();
+ const authToken = window.JodAuth && typeof window.JodAuth.getToken === "function"
+ ? window.JodAuth.getToken()
+ : null;
+ const staffUser = window.JodAuth ? window.JodAuth.getUser() : null;
+ const staffName = staffUser ? (staffUser.full_name || staffUser.username) : "Gate Scanner Staff";
 
-		const endpoint = isCheckinMode ? `${apiBase}/api/tickets/checkin` : `${apiBase}/api/tickets/verify`;
+ const endpoint = isCheckinMode ? `${apiBase}/api/tickets/checkin` : `${apiBase}/api/tickets/verify`;
 
-		try {
-			const headers = { "Content-Type": "application/json" };
-			if (authToken) {
-				headers["Authorization"] = `Bearer ${authToken}`;
-			}
+ try {
+ const headers = { "Content-Type": "application/json" };
+ if (authToken) {
+ headers["Authorization"] = `Bearer ${authToken}`;
+ }
 
-			const res = await fetch(endpoint, {
-				method: "POST",
-				headers: headers,
-				credentials: "include",
-				body: JSON.stringify({
-					qr_token: tokenStr,
-					scanned_by: staffName
-				})
-			});
+ const res = await fetch(endpoint, {
+ method: "POST",
+ headers: headers,
+ credentials: "include",
+ body: JSON.stringify({
+ qr_token: tokenStr,
+ scanned_by: staffName
+ })
+ });
 
-			const data = await res.json();
-			renderResultBanner(data, tokenStr);
-			addScanHistoryItem(data, tokenStr);
+ const data = await res.json();
+ renderResultBanner(data, tokenStr);
+ addScanHistoryItem(data, tokenStr);
 
-		} catch (err) {
-			renderResultBanner({
-				valid: false,
-				status: "INVALID",
-				message: `Network error verifying ticket token (${err.message}).`
-			}, tokenStr);
-		}
+ } catch (err) {
+ renderResultBanner({
+ valid: false,
+ status: "INVALID",
+ message: `Network error verifying ticket token (${err.message}).`
+ }, tokenStr);
+ }
 	}
 
 	function renderResultBanner(res, tokenStr) {
-		const banner = document.getElementById("resultBanner");
-		const titleEl = document.getElementById("resultStatusTitle");
-		const tagEl = document.getElementById("resultBadgeTag");
-		const msgEl = document.getElementById("resultMessageText");
+ const banner = document.getElementById("resultBanner");
+ const titleEl = document.getElementById("resultStatusTitle");
+ const tagEl = document.getElementById("resultBadgeTag");
+ const msgEl = document.getElementById("resultMessageText");
 
-		const resEvent = document.getElementById("resEvent");
-		const resCustomer = document.getElementById("resCustomer");
-		const resCategory = document.getElementById("resCategory");
-		const resSeat = document.getElementById("resSeat");
-		const resToken = document.getElementById("resToken");
-		const resTime = document.getElementById("resTime");
+ const resEvent = document.getElementById("resEvent");
+ const resCustomer = document.getElementById("resCustomer");
+ const resCategory = document.getElementById("resCategory");
+ const resSeat = document.getElementById("resSeat");
+ const resToken = document.getElementById("resToken");
+ const resTime = document.getElementById("resTime");
 
-		if (!banner) return;
-		banner.style.display = "block";
+ if (!banner) return;
+ banner.style.display = "block";
 
-		const nowStr = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+ const nowStr = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-		if (res.valid && (res.status === "VALID" || res.status === "USED")) {
-			playAudioBeep("success");
-			banner.className = "result-banner result-valid";
-			titleEl.textContent = isCheckinMode ? "✅ NEW CHECK-IN" : "✅ VALID TICKET";
-			tagEl.textContent = isCheckinMode ? "NEW" : "VALID";
-			tagEl.className = "badge-mini badge-mini-valid";
-			msgEl.textContent = res.message || (res.ticket_id
-				? `New check-in — ticket ${res.ticket_id}.`
-				: "Ticket successfully verified for venue entry.");
-		} else if (res.status === "ALREADY_USED" || res.duplicate || res.already_checked_in) {
-			playAudioBeep("error");
-			banner.className = "result-banner result-used";
-			titleEl.textContent = "⚠️ DUPLICATE CHECK-IN";
-			tagEl.textContent = "DUPLICATE";
-			tagEl.className = "badge-mini badge-mini-used";
-			msgEl.textContent = res.message || (res.ticket_id
-				? `Duplicate — ticket ${res.ticket_id} was already checked in.`
-				: "This ticket has already passed gate check-in earlier!");
-		} else {
-			playAudioBeep("error");
-			banner.className = "result-banner result-invalid";
-			titleEl.textContent = "❌ INVALID TICKET";
-			tagEl.textContent = res.status || "DENIED";
-			tagEl.className = "badge-mini badge-mini-invalid";
-			msgEl.textContent = res.message || "Ticket token is invalid or cancelled.";
-		}
+ if (res.valid && (res.status === "VALID" || res.status === "USED")) {
+ playAudioBeep("success");
+ banner.className = "result-banner result-valid";
+ titleEl.textContent = isCheckinMode ? "✅ NEW CHECK-IN" : "✅ VALID TICKET";
+ tagEl.textContent = isCheckinMode ? "NEW" : "VALID";
+ tagEl.className = "badge-mini badge-mini-valid";
+ msgEl.textContent = res.message || (res.ticket_id
+ ? `New check-in — ticket ${res.ticket_id}.`
+ : "Ticket successfully verified for venue entry.");
+ } else if (res.status === "ALREADY_USED" || res.duplicate || res.already_checked_in) {
+ playAudioBeep("error");
+ banner.className = "result-banner result-used";
+ titleEl.textContent = "⚠️ DUPLICATE CHECK-IN";
+ tagEl.textContent = "DUPLICATE";
+ tagEl.className = "badge-mini badge-mini-used";
+ msgEl.textContent = res.message || (res.ticket_id
+ ? `Duplicate — ticket ${res.ticket_id} was already checked in.`
+ : "This ticket has already passed gate check-in earlier!");
+ } else {
+ playAudioBeep("error");
+ banner.className = "result-banner result-invalid";
+ titleEl.textContent = "❌ INVALID TICKET";
+ tagEl.textContent = res.status || "DENIED";
+ tagEl.className = "badge-mini badge-mini-invalid";
+ msgEl.textContent = res.message || "Ticket token is invalid or cancelled.";
+ }
 
-		if (resEvent) resEvent.textContent = res.event || "--";
-		if (resCustomer) resCustomer.textContent = res.customer_name || "--";
-		if (resCategory) resCategory.textContent = res.ticket_type || "--";
-		if (resSeat) resSeat.textContent = res.seat || "--";
-		if (resToken) resToken.textContent = tokenStr;
-		if (resTime) resTime.textContent = nowStr;
+ if (resEvent) resEvent.textContent = res.event || "--";
+ if (resCustomer) resCustomer.textContent = res.customer_name || "--";
+ if (resCategory) resCategory.textContent = res.ticket_type || "--";
+ if (resSeat) resSeat.textContent = res.seat || "--";
+ if (resToken) resToken.textContent = tokenStr;
+ if (resTime) resTime.textContent = nowStr;
 
-		banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+ banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
 	}
 
 	function addScanHistoryItem(res, tokenStr) {
-		const container = document.getElementById("scanHistoryContainer");
-		if (!container) return;
+ const container = document.getElementById("scanHistoryContainer");
+ if (!container) return;
 
-		const timeStr = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-		let badgeClass = "badge-mini-valid";
-		let badgeLabel = "VALID";
+ const timeStr = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+ let badgeClass = "badge-mini-valid";
+ let badgeLabel = "VALID";
 
-		if (!res.valid) {
-			if (res.status === "ALREADY_USED") {
-				badgeClass = "badge-mini-used";
-				badgeLabel = "USED";
-			} else {
-				badgeClass = "badge-mini-invalid";
-				badgeLabel = "INVALID";
-			}
-		}
+ if (!res.valid) {
+ if (res.status === "ALREADY_USED") {
+ badgeClass = "badge-mini-used";
+ badgeLabel = "USED";
+ } else {
+ badgeClass = "badge-mini-invalid";
+ badgeLabel = "INVALID";
+ }
+ }
 
-		const itemHtml = `
-			<div class="history-item">
-				<div>
-					<div style="font-weight: 700; color: #fff;">${escHtml(res.event || "Ticket Scan")} &bull; ${escHtml(res.customer_name || "Guest")}</div>
-					<div style="font-size: 0.75rem; color: #9ca3af; font-family: inherit; margin-top: 0.15rem;">${escHtml(tokenStr)}</div>
-				</div>
-				<div style="text-align: right;">
-					<span class="badge-mini ${badgeClass}">${escHtml(badgeLabel)}</span>
-					<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.2rem;">${escHtml(timeStr)}</div>
-				</div>
-			</div>`;
+ const itemHtml = `
+ <div class="history-item">
+ <div>
+ <div style="font-weight: 700; color: #fff;">${escHtml(res.event || "Ticket Scan")} &bull; ${escHtml(res.customer_name || "Guest")}</div>
+ <div style="font-size: 0.75rem; color: #9ca3af; font-family: inherit; margin-top: 0.15rem;">${escHtml(tokenStr)}</div>
+ </div>
+ <div style="text-align: right;">
+ <span class="badge-mini ${badgeClass}">${escHtml(badgeLabel)}</span>
+ <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.2rem;">${escHtml(timeStr)}</div>
+ </div>
+ </div>`;
 
-		if (scanSessionHistory.length === 0) {
-			container.innerHTML = itemHtml;
-		} else {
-			container.insertAdjacentHTML("afterbegin", itemHtml);
-		}
-		scanSessionHistory.unshift({ res, tokenStr });
+ if (scanSessionHistory.length === 0) {
+ container.innerHTML = itemHtml;
+ } else {
+ container.insertAdjacentHTML("afterbegin", itemHtml);
+ }
+ scanSessionHistory.unshift({ res, tokenStr });
 	}
 
 	function bindUIEvents() {
-		const btnModeCheckin = document.getElementById("btnModeCheckin");
-		const btnModeVerify = document.getElementById("btnModeVerify");
-		const btnStartCamera = document.getElementById("btnStartCamera");
-		const btnSwitchCamera = document.getElementById("btnSwitchCamera");
-		const btnSubmitManual = document.getElementById("btnSubmitManualToken");
-		const manualInput = document.getElementById("manualTokenInput");
-		const btnScanNext = document.getElementById("btnScanNext");
+ const btnModeCheckin = document.getElementById("btnModeCheckin");
+ const btnModeVerify = document.getElementById("btnModeVerify");
+ const btnStartCamera = document.getElementById("btnStartCamera");
+ const btnSwitchCamera = document.getElementById("btnSwitchCamera");
+ const btnSubmitManual = document.getElementById("btnSubmitManualToken");
+ const manualInput = document.getElementById("manualTokenInput");
+ const btnScanNext = document.getElementById("btnScanNext");
 
-		btnModeCheckin?.addEventListener("click", () => {
-			isCheckinMode = true;
-			btnModeCheckin.classList.add("active");
-			btnModeVerify.classList.remove("active");
-		});
+ btnModeCheckin?.addEventListener("click", () => {
+ isCheckinMode = true;
+ btnModeCheckin.classList.add("active");
+ btnModeVerify.classList.remove("active");
+ });
 
-		btnModeVerify?.addEventListener("click", () => {
-			isCheckinMode = false;
-			btnModeVerify.classList.add("active");
-			btnModeCheckin.classList.remove("active");
-		});
+ btnModeVerify?.addEventListener("click", () => {
+ isCheckinMode = false;
+ btnModeVerify.classList.add("active");
+ btnModeCheckin.classList.remove("active");
+ });
 
-		btnStartCamera?.addEventListener("click", () => {
-			startCamera();
-		});
+ btnStartCamera?.addEventListener("click", () => {
+ startCamera();
+ });
 
-		btnSwitchCamera?.addEventListener("click", () => {
-			currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
-			startCamera();
-		});
+ btnSwitchCamera?.addEventListener("click", () => {
+ currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+ startCamera();
+ });
 
-		btnSubmitManual?.addEventListener("click", () => {
-			const tok = manualInput ? manualInput.value.trim() : "";
-			if (tok) {
-				handleScannedToken(tok);
-			} else {
-				alert("Please enter a valid JOD-TKT-... token code.");
-			}
-		});
+ btnSubmitManual?.addEventListener("click", () => {
+ const tok = manualInput ? manualInput.value.trim() : "";
+ if (tok) {
+ handleScannedToken(tok);
+ } else {
+ alert("Please enter a valid JOD-TKT-... token code.");
+ }
+ });
 
-		manualInput?.addEventListener("keypress", (e) => {
-			if (e.key === "Enter") {
-				btnSubmitManual?.click();
-			}
-		});
+ manualInput?.addEventListener("keypress", (e) => {
+ if (e.key === "Enter") {
+ btnSubmitManual?.click();
+ }
+ });
 
-		btnScanNext?.addEventListener("click", () => {
-			isProcessingToken = false;
-			const banner = document.getElementById("resultBanner");
-			if (banner) banner.style.display = "none";
-			if (manualInput) manualInput.value = "";
-		});
+ btnScanNext?.addEventListener("click", () => {
+ isProcessingToken = false;
+ const banner = document.getElementById("resultBanner");
+ if (banner) banner.style.display = "none";
+ if (manualInput) manualInput.value = "";
+ });
 	}
 
 	document.addEventListener("DOMContentLoaded", () => {
-		if (!requireScannerLogin()) return;
-		bindUIEvents();
-		// Auto-start camera if available
-		startCamera();
+ if (!requireScannerLogin()) return;
+ bindUIEvents();
+ // Auto-start camera if available
+ startCamera();
 	});
 
 })();

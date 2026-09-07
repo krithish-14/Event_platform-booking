@@ -10,9 +10,9 @@
 
 	if (token) {
 
-		window.location.replace(`volunteer-portal.html?token=${encodeURIComponent(token)}`);
+ window.location.replace(`volunteer-portal.html?token=${encodeURIComponent(token)}`);
 
-		return;
+ return;
 
 	}
 
@@ -28,11 +28,11 @@
 
 	card.innerHTML = `
 
-		<div class="vol-kicker">Volunteer Invitation</div>
+ <div class="vol-kicker">Volunteer Invitation</div>
 
-		<h1 class="vol-title">Invitation not found</h1>
+ <h1 class="vol-title">Invitation not found</h1>
 
-		<p class="vol-sub">This link is missing a valid invitation token.</p>
+ <p class="vol-sub">This link is missing a valid invitation token.</p>
 
 	`;
 

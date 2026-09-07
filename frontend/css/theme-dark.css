@@ -44,7 +44,7 @@ html[data-theme="dark"] th {
 	border-color: rgba(255, 138, 31, 0.22);
 }
 
-/* ── Header / nav (never white bar + white hover text) ─────── */
+/* --- Header / nav (never white bar + white hover text) --- */
 html[data-theme="dark"] .site-header,
 html[data-theme="dark"] body.sub-page .site-header,
 html[data-theme="dark"] body.event-details-page .site-header,
@@ -169,7 +169,7 @@ html[data-theme="dark"] .card-category {
 	color: #f6f0e8 !important;
 }
 
-/* ── Home FAQ: hover must not go cream/white ───────────────── */
+/* --- Home FAQ: hover must not go cream/white --- */
 html[data-theme="dark"] .faq-list {
 	background: #1c1814 !important;
 	border-color: rgba(255, 138, 31, 0.28) !important;
@@ -195,7 +195,7 @@ html[data-theme="dark"] .faq-item p {
 	color: #c8bfb4 !important;
 }
 
-/* ── Stats section dark background ─────────────────────────── */
+/* --- Stats section dark background --- */
 html[data-theme="dark"] .stats-section {
 	background: #0e0c0a !important;
 	border-color: rgba(255, 138, 31, 0.12) !important;
@@ -205,7 +205,7 @@ html[data-theme="dark"] .stat-item span {
 	color: #a89880 !important;
 }
 
-/* ── Service card text fixes ────────────────────────────────── */
+/* --- Service card text fixes --- */
 html[data-theme="dark"] .service-card h3 {
 	color: #fff8f0 !important;
 }
@@ -218,7 +218,7 @@ html[data-theme="dark"] .service-card ul {
 	color: #8a7a68 !important;
 }
 
-/* ── Cards / forms / surfaces ──────────────────────────────── */
+/* --- Cards / forms / surfaces --- */
 html[data-theme="dark"] .event-card,
 html[data-theme="dark"] .service-card,
 html[data-theme="dark"] .team-card,
@@ -348,7 +348,7 @@ html[data-theme="dark"] .help-faq-item:hover {
 	border-color: rgba(255, 138, 31, 0.45) !important;
 }
 
-/* ── Category listing ──────────────────────────────────────── */
+/* --- Category listing --- */
 html[data-theme="dark"] .category-page,
 html[data-theme="dark"] .category-content-section,
 html[data-theme="dark"] .category-main {
@@ -404,7 +404,7 @@ html[data-theme="dark"] .cat-empty-state {
 	color: #f6f0e8 !important;
 }
 
-/* ── Event details (category themes must not force white) ──── */
+/* --- Event details (category themes must not force white) --- */
 html[data-theme="dark"] body.event-details-page.category-theme-comedy,
 html[data-theme="dark"] body.event-details-page.category-theme-corporate,
 html[data-theme="dark"] body.event-details-page.category-theme-launch,
@@ -502,7 +502,7 @@ html[data-theme="dark"] .event-countdown span {
 	color: #f6f0e8 !important;
 }
 
-/* ── Organizer dashboard form ──────────────────────────────── */
+/* --- Organizer dashboard form --- */
 html[data-theme="dark"] .form-section-divider {
 	background: #241c14 !important;
 	color: #FFA136 !important;
@@ -557,7 +557,7 @@ html[data-theme="dark"] .crop-modal-card {
 	border-top-color: rgba(255, 138, 31, 0.22) !important;
 }
 
-/* ── Ticket / payment leftover light panels ────────────────── */
+/* --- Ticket / payment leftover light panels --- */
 html[data-theme="dark"] body.ticket-page .site-header + *,
 html[data-theme="dark"] .payment-card,
 html[data-theme="dark"] .bill-card,
@@ -607,7 +607,7 @@ html[data-theme="dark"] .btn-cancel-order:hover {
 	background: rgba(220, 38, 38, 0.18) !important;
 }
 
-/* ── Organizer dashboard: beat inline #ffffff / #0f172a ────── */
+/* --- Organizer dashboard: beat inline #ffffff / #0f172a --- */
 html[data-theme="dark"] {
 	--dash-sidebar-bg: #161310;
 	--dash-main-bg: #0f0d0b;
@@ -877,7 +877,7 @@ html[data-theme="dark"] body.dashboard-body .tab-section h4:not(.theme-exempt *)
 	color: #fff8f0 !important;
 }
 
-/* ── Account setup / bank details ──────────────────────────── */
+/* --- Account setup / bank details --- */
 html[data-theme="dark"] .setup-wrapper {
 	background: #0e0c0a !important;
 	color: #f6f0e8 !important;
@@ -1053,7 +1053,7 @@ html[data-theme="dark"] body.dashboard-body .section-title-select {
 	font-weight: 800;
 }
 
-/* ── Admin QR portal (light table + inherited cream text was unreadable) ── */
+/* --- Admin QR portal (light table + inherited cream text was unreadable) --- */
 html[data-theme="dark"] body.admin-portal-body {
 	background: #0e0c0a !important;
 	color: #f6f0e8 !important;
@@ -1169,7 +1169,7 @@ html[data-theme="dark"] body.admin-portal-body .admin-theme-toggle {
 	border-color: rgba(255, 138, 31, 0.4) !important;
 }
 
-/* ── Leftover blue / navy copy → white ─────────────────────── */
+/* --- Leftover blue / navy copy → white --- */
 html[data-theme="dark"] .suggestion-title,
 html[data-theme="dark"] .search-empty-state p,
 html[data-theme="dark"] .policy-block-title,

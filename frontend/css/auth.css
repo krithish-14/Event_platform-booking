@@ -2,7 +2,7 @@
    auth.css — Login & Sign Up page styles
    ══════════════════════════════════════════════════════════════ */
 
-/* ── Auth shell ────────────────────────────────────────────── */
+/* --- Auth shell --- */
 .auth-page-body {
 	min-height: 100vh;
 	display: flex;
@@ -10,7 +10,7 @@
 	background: var(--background);
 }
 
-/* ── Split layout ──────────────────────────────────────────── */
+/* --- Split layout --- */
 .auth-split {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
@@ -18,7 +18,7 @@
 	min-height: calc(100vh - 4.75rem);
 }
 
-/* ── Brand / left panel ────────────────────────────────────── */
+/* --- Brand / left panel --- */
 .auth-brand-panel {
 	position: relative;
 	display: flex;
@@ -192,7 +192,7 @@
 	font-size: .75rem;
 }
 
-/* ── Form / right panel ────────────────────────────────────── */
+/* --- Form / right panel --- */
 .auth-form-panel {
 	display: flex;
 	flex-direction: column;
@@ -227,7 +227,7 @@
 	font-size: .875rem;
 }
 
-/* ── Form controls ─────────────────────────────────────────── */
+/* --- Form controls --- */
 .form-group {
 	margin-bottom: .875rem;
 }
@@ -313,7 +313,7 @@
 
 .form-input.has-toggle { padding-right: 2.75rem; }
 
-/* ── Password strength ─────────────────────────────────────── */
+/* --- Password strength --- */
 .pw-strength-bar {
 	display: flex;
 	gap: .25rem;
@@ -343,7 +343,7 @@
 .pw-strength-bar.strength-3 ~ .pw-strength-label { color: #f0b429; }
 .pw-strength-bar.strength-4 ~ .pw-strength-label { color: #27c27b; }
 
-/* ── Field error ───────────────────────────────────────────── */
+/* --- Field error --- */
 .field-error {
 	display: none;
 	margin-top: .375rem;
@@ -352,7 +352,7 @@
 }
 .field-error.is-visible { display: block; animation: float-up .25s ease-out both; }
 
-/* ── Form extras ───────────────────────────────────────────── */
+/* --- Form extras --- */
 .form-row-split {
 	display: flex;
 	align-items: center;
@@ -384,7 +384,7 @@
 }
 .forgot-link:hover { filter: brightness(1.15); }
 
-/* ── Submit button ─────────────────────────────────────────── */
+/* --- Submit button --- */
 .btn-auth-submit {
 	display: flex;
 	align-items: center;
@@ -430,7 +430,7 @@
 .btn-auth-submit.is-loading .btn-spinner { display: block; }
 .btn-auth-submit.is-loading .btn-label { opacity: .7; }
 
-/* ── Divider ───────────────────────────────────────────────── */
+/* --- Divider --- */
 .auth-divider {
 	display: flex;
 	align-items: center;
@@ -450,7 +450,7 @@
 	white-space: nowrap;
 }
 
-/* ── Social login / Google OAuth ───────────────────────────── */
+/* --- Social login / Google OAuth --- */
 .btn-google-auth {
 	display: flex;
 	align-items: center;
@@ -505,7 +505,7 @@
 .btn-google-auth.is-loading .btn-google-icon { display: none; }
 .btn-google-auth.is-loading .btn-label { opacity: .7; }
 
-/* ── Google Dev Modal Dialog ─────────────────────────────── */
+/* --- Google Dev Modal Dialog --- */
 .google-modal-backdrop {
 	position: fixed;
 	inset: 0;
@@ -579,7 +579,7 @@
 .btn-social:hover { border-color: rgba(255,117,8,.35); background: rgba(255,117,8,.04); transform: translateY(-1px); }
 .btn-social-icon { font-size: 1rem; }
 
-/* ── Switch link ───────────────────────────────────────────── */
+/* --- Switch link --- */
 .auth-switch {
 	margin-top: 1.5rem;
 	text-align: center;
@@ -596,7 +596,7 @@
 }
 .auth-switch a:hover { filter: brightness(1.15); }
 
-/* ── Alert / feedback ──────────────────────────────────────── */
+/* --- Alert / feedback --- */
 .form-alert {
 	display: none;
 	align-items: center;
@@ -731,7 +731,7 @@
 	font-weight: 600;
 }
 
-/* ── Terms note ────────────────────────────────────────────── */
+/* --- Terms note --- */
 .auth-terms {
 	margin-top: 1rem;
 	text-align: center;

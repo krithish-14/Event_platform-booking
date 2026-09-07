@@ -1,6 +1,6 @@
-/* ─────────────────────────────────────────────────────────────
+/* ---
    JOD Events — BookMyShow-Style M-Ticket Redesign Styles
-   ───────────────────────────────────────────────────────────── */
+   --- */
 
 .ticket-page {
 	background: #0f1115;
@@ -11,7 +11,7 @@
 	padding: calc(var(--site-header-height, 4.6rem) + 1.5rem) 0 4rem;
 }
 
-/* ── Top Navigation Bar ──────────────────────────────────── */
+/* --- Top Navigation Bar --- */
 .ticket-top-nav {
 	display: flex;
 	align-items: center;
@@ -76,7 +76,7 @@
 	font-family: inherit;
 }
 
-/* ── BookMyShow Style M-Ticket Wrapper ───────────────────── */
+/* --- BookMyShow Style M-Ticket Wrapper --- */
 .ticket-mticket-wrapper {
 	max-width: 480px;
 	margin: 0 auto 2rem;
@@ -484,7 +484,7 @@
 	font-weight: 500;
 }
 
-/* ── Bottom Action Buttons ───────────────────────────────── */
+/* --- Bottom Action Buttons --- */
 .ticket-actions-bar {
 	display: flex;
 	align-items: center;
@@ -603,7 +603,7 @@
 	color: #fff;
 }
 
-/* ── Print & PDF Formatting — ticket card only ────────────────────────────── */
+/* --- Print & PDF Formatting — ticket card only --- */
 @media print {
 	@page {
 		size: A4 portrait;

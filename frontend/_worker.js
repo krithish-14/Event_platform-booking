@@ -9,27 +9,27 @@ const FALLBACK_IMAGE = "https://assets.jodevents.com/images/hero-event.jpg";
 
 function clipDescription(text, title) {
 	const cleaned = String(text || "")
-		.replace(/<\s*br\s*\/?\s*>/gi, " ")
-		.replace(/<\s*\/\s*(p|div|h[1-6]|li|blockquote)\s*>/gi, " ")
-		.replace(/<[^>]+>/g, " ")
-		.replace(/&nbsp;/gi, " ")
-		.replace(/&amp;/g, "&")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"')
-		.replace(/\.([A-Za-z])/g, ". $1")
-		.replace(/([A-Z]{2,})([A-Z][a-z])/g, "$1 $2")
-		.replace(/\s+/g, " ")
-		.trim();
+ .replace(/<\s*br\s*\/?\s*>/gi, " ")
+ .replace(/<\s*\/\s*(p|div|h[1-6]|li|blockquote)\s*>/gi, " ")
+ .replace(/<[^>]+>/g, " ")
+ .replace(/&nbsp;/gi, " ")
+ .replace(/&amp;/g, "&")
+ .replace(/&lt;/g, "<")
+ .replace(/&gt;/g, ">")
+ .replace(/&quot;/g, '"')
+ .replace(/\.([A-Za-z])/g, ". $1")
+ .replace(/([A-Z]{2,})([A-Z][a-z])/g, "$1 $2")
+ .replace(/\s+/g, " ")
+ .trim();
 	if (cleaned) return cleaned.slice(0, 220);
 	return `Book tickets for ${title} on JOD Events.`;
 }
 
 function escapeAttr(value) {
 	return String(value || "")
-		.replace(/&/g, "&amp;")
-		.replace(/"/g, "&quot;")
-		.replace(/</g, "&lt;");
+ .replace(/&/g, "&amp;")
+ .replace(/"/g, "&quot;")
+ .replace(/</g, "&lt;");
 }
 
 function absoluteMediaUrl(raw, apiOrigin, siteOrigin) {
@@ -38,10 +38,10 @@ function absoluteMediaUrl(raw, apiOrigin, siteOrigin) {
 	if (/^https?:\/\//i.test(text)) return text;
 	if (text.startsWith("//")) return `https:${text}`;
 	if (text.startsWith("/")) {
-		if (text.startsWith("/uploads") || text.startsWith("/media") || text.startsWith("/api/")) {
-			return `${apiOrigin}${text}`;
-		}
-		return `${siteOrigin}${text}`;
+ if (text.startsWith("/uploads") || text.startsWith("/media") || text.startsWith("/api/")) {
+ return `${apiOrigin}${text}`;
+ }
+ return `${siteOrigin}${text}`;
 	}
 	if (text.startsWith("images/")) return `https://assets.jodevents.com/${text}`;
 	if (text.startsWith("uploads/")) return `${apiOrigin}/${text}`;
@@ -59,20 +59,20 @@ function isLocalHost(hostname) {
 
 async function fetchEvent(eventId, apiOrigin) {
 	const urls = [
-		`${apiOrigin}/api/events/public/${encodeURIComponent(eventId)}`,
-		`${apiOrigin}/api/events/${encodeURIComponent(eventId)}`,
+ `${apiOrigin}/api/events/public/${encodeURIComponent(eventId)}`,
+ `${apiOrigin}/api/events/${encodeURIComponent(eventId)}`,
 	];
 	for (const endpoint of urls) {
-		try {
-			const res = await fetch(endpoint, {
-				headers: { Accept: "application/json", "User-Agent": "JOD-Events-OG/1.0" },
-			});
-			if (!res.ok) continue;
-			const data = await res.json();
-			if (data && (data.title || data.image_url || data.description)) return data;
-		} catch (_) {
-			/* try next */
-		}
+ try {
+ const res = await fetch(endpoint, {
+ headers: { Accept: "application/json", "User-Agent": "JOD-Events-OG/1.0" },
+ });
+ if (!res.ok) continue;
+ const data = await res.json();
+ if (data && (data.title || data.image_url || data.description)) return data;
+ } catch (_) {
+ /* try next */
+ }
 	}
 	return null;
 }
@@ -83,32 +83,32 @@ function applyShareTags(html, event, pageUrl, apiOrigin, siteOrigin) {
 	const image = absoluteMediaUrl(event.image_url || event.card_image || "", apiOrigin, siteOrigin);
 	const docTitle = `${title} — JOD Events`;
 	const replacements = [
-		["name", "description", description],
-		["property", "og:title", title],
-		["property", "og:description", description],
-		["property", "og:url", pageUrl],
-		["property", "og:image", image],
-		["property", "og:image:alt", title],
-		["name", "twitter:title", title],
-		["name", "twitter:description", description],
-		["name", "twitter:image", image],
+ ["name", "description", description],
+ ["property", "og:title", title],
+ ["property", "og:description", description],
+ ["property", "og:url", pageUrl],
+ ["property", "og:image", image],
+ ["property", "og:image:alt", title],
+ ["name", "twitter:title", title],
+ ["name", "twitter:description", description],
+ ["name", "twitter:image", image],
 	];
 	let out = String(html || "");
 	for (const [attr, key, value] of replacements) {
-		const escaped = escapeAttr(value);
-		const re = new RegExp(
-			`(<meta\\b[^>]*\\b${attr}=["']${key}["'][^>]*\\bcontent=["'])([^"']*)(["'])`,
-			"i"
-		);
-		if (re.test(out)) out = out.replace(re, `$1${escaped}$3`);
+ const escaped = escapeAttr(value);
+ const re = new RegExp(
+ `(<meta\\b[^>]*\\b${attr}=["']${key}["'][^>]*\\bcontent=["'])([^"']*)(["'])`,
+ "i"
+ );
+ if (re.test(out)) out = out.replace(re, `$1${escaped}$3`);
 	}
 	out = out.replace(/<title>[^<]*<\/title>/i, `<title>${escapeAttr(docTitle)}</title>`);
 	out = out.replace(
-		/(<link\b[^>]*\brel=["']canonical["'][^>]*\bhref=["'])([^"']*)(["'])/i,
-		`$1${escapeAttr(pageUrl)}$3`
+ /(<link\b[^>]*\brel=["']canonical["'][^>]*\bhref=["'])([^"']*)(["'])/i,
+ `$1${escapeAttr(pageUrl)}$3`
 	);
 	if (!out.includes("jod-og:event")) {
-		out = out.replace(/<\/head>/i, "<!-- jod-og:event -->\n</head>");
+ out = out.replace(/<\/head>/i, "<!-- jod-og:event -->\n</head>");
 	}
 	return out;
 }
@@ -128,44 +128,44 @@ async function handleEventDetails(request, env) {
 	const siteOrigin = local ? url.origin : SITE_ORIGIN;
 	const eventId = (url.searchParams.get("id") || "").trim();
 	const pageUrl = eventId
-		? `${siteOrigin}/event-details?id=${encodeURIComponent(eventId)}`
-		: `${siteOrigin}/event-details`;
+ ? `${siteOrigin}/event-details?id=${encodeURIComponent(eventId)}`
+ : `${siteOrigin}/event-details`;
 
 	const assetRes = await loadEventDetailsHtml(env, url.origin);
 	if (!assetRes) {
-		if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
-			return env.ASSETS.fetch(request);
-		}
-		return new Response("Event details unavailable.", { status: 503 });
+ if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
+ return env.ASSETS.fetch(request);
+ }
+ return new Response("Event details unavailable.", { status: 503 });
 	}
 
 	if (!eventId) return assetRes;
 
 	try {
-		const event = await fetchEvent(eventId, apiOrigin);
-		if (!event) return assetRes;
-		const html = applyShareTags(await assetRes.text(), event, pageUrl, apiOrigin, siteOrigin);
-		return new Response(html, {
-			status: 200,
-			headers: {
-				"content-type": "text/html; charset=utf-8",
-				"cache-control": "public, max-age=60, must-revalidate",
-			},
-		});
+ const event = await fetchEvent(eventId, apiOrigin);
+ if (!event) return assetRes;
+ const html = applyShareTags(await assetRes.text(), event, pageUrl, apiOrigin, siteOrigin);
+ return new Response(html, {
+ status: 200,
+ headers: {
+ "content-type": "text/html; charset=utf-8",
+ "cache-control": "public, max-age=60, must-revalidate",
+ },
+ });
 	} catch (_) {
-		return assetRes;
+ return assetRes;
 	}
 }
 
 export default {
 	async fetch(request, env) {
-		const url = new URL(request.url);
-		if (isEventDetailsPath(url.pathname)) {
-			return handleEventDetails(request, env);
-		}
-		if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
-			return env.ASSETS.fetch(request);
-		}
-		return new Response("Not found", { status: 404 });
+ const url = new URL(request.url);
+ if (isEventDetailsPath(url.pathname)) {
+ return handleEventDetails(request, env);
+ }
+ if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
+ return env.ASSETS.fetch(request);
+ }
+ return new Response("Not found", { status: 404 });
 	},
 };

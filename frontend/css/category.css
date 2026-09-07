@@ -1,6 +1,6 @@
-/* ─────────────────────────────────────────────────────────────
+/* ---
    JOD Events — Category Listing Page Styles (BookMyShow Layout)
-   ───────────────────────────────────────────────────────────── */
+   --- */
 
 .category-page {
 	background: var(--background);
@@ -11,7 +11,7 @@
 	padding-top: 76px;
 }
 
-/* ── Hero Section ─────────────────────────────────────────── */
+/* --- Hero Section --- */
 .category-hero-section {
 	padding: 2.5rem 0 1.5rem;
 	background: linear-gradient(135deg, #25211c 0%, #1a1714 100%);
@@ -38,7 +38,7 @@
 	color: rgba(255, 255, 255, .75);
 }
 
-/* ── Horizontal Sub-topics Chips Bar ─────────────────────── */
+/* --- Horizontal Sub-topics Chips Bar --- */
 .subtopics-bar {
 	display: flex;
 	align-items: center;
@@ -86,7 +86,7 @@
 	box-shadow: 0 4px 14px rgba(255, 117, 8, .4);
 }
 
-/* ── Main Layout Container ───────────────────────────────── */
+/* --- Main Layout Container --- */
 .category-content-section {
 	padding: 2rem 0 4rem;
 }
@@ -98,7 +98,7 @@
 	align-items: start;
 }
 
-/* ── Left Sidebar Filter Panel ───────────────────────────── */
+/* --- Left Sidebar Filter Panel --- */
 .cat-sidebar {
 	position: sticky;
 	top: 90px;
@@ -298,7 +298,7 @@
 	box-shadow: 0 2px 8px rgba(255, 117, 8, .3);
 }
 
-/* ── Right Main Content Area ─────────────────────────────── */
+/* --- Right Main Content Area --- */
 .results-bar {
 	display: flex;
 	align-items: center;
@@ -347,7 +347,7 @@
 	cursor: pointer;
 }
 
-/* ── Category Events Grid (compact home-style cards) ─────── */
+/* --- Category Events Grid (compact home-style cards) --- */
 .category-events-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -543,7 +543,7 @@
 	color: var(--ink);
 }
 
-/* ── Empty State ─────────────────────────────────────────── */
+/* --- Empty State --- */
 .cat-empty-state {
 	padding: 4rem 2rem;
 	border: 1px solid var(--border);
@@ -571,7 +571,7 @@
 	font-size: .9rem;
 }
 
-/* ── Responsive Layout Rules ─────────────────────────────── */
+/* --- Responsive Layout Rules --- */
 @media (max-width: 900px) {
 	.cat-layout {
 		grid-template-columns: 1fr;

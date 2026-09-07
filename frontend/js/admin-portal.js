@@ -35,13 +35,13 @@
 	}
 
 	function formatWhen(iso) {
-		if (!iso) return "—";
+		if (!iso) return "\u2014";
 		let raw = String(iso).trim();
 		if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)) {
 			raw = raw.replace(" ", "T") + "Z";
 		}
 		const d = new Date(raw);
-		if (Number.isNaN(d.getTime())) return "—";
+		if (Number.isNaN(d.getTime())) return "\u2014";
 		return d.toLocaleString("en-IN", {
 			timeZone: "Asia/Kolkata",
 			day: "2-digit",
@@ -83,8 +83,11 @@
 				return null;
 			}
 			const me = await res.json();
+			const email = me.email || (current && current.email) || "Admin";
 			const label = document.getElementById("adminUserLabel");
-			if (label) label.textContent = me.email || (current && current.email) || "Admin";
+			if (label) label.textContent = email;
+			const labelMobile = document.getElementById("adminUserLabelMobile");
+			if (labelMobile) labelMobile.textContent = email;
 			return me;
 		} catch (_) {
 			window.location.href = "login.html";
@@ -150,7 +153,7 @@
 				</td>
 				<td>
 					<div class="admin-ticket-title">${escapeHtml(row.ticket_type || "Ticket")}</div>
-					<div class="admin-muted">₹${Number(row.ticket_price || 0).toLocaleString("en-IN")}</div>
+					<div class="admin-muted">\u20b9${Number(row.ticket_price || 0).toLocaleString("en-IN")}</div>
 				</td>
 				<td class="admin-submitted">${escapeHtml(formatWhen(row.submitted_at))}</td>
 				<td><span class="admin-badge cancel">Cancellation requested</span></td>
@@ -174,7 +177,7 @@
 			</td>
 			<td>
 				<div class="admin-ticket-title">${escapeHtml(row.ticket_type || "Ticket")}</div>
-				<div class="admin-muted">₹${Number(row.ticket_price || 0).toLocaleString("en-IN")}</div>
+				<div class="admin-muted">\u20b9${Number(row.ticket_price || 0).toLocaleString("en-IN")}</div>
 				${row.transaction_id ? `<div class="admin-muted">Txn ${escapeHtml(row.transaction_id)}</div>` : ""}
 			</td>
 			<td class="admin-submitted">${escapeHtml(formatWhen(row.submitted_at))}</td>
@@ -268,14 +271,15 @@
 		const badge = document.getElementById("adminNotifyBadge");
 		const tickets = Array.isArray(window.__supportTickets) ? window.__supportTickets.slice() : [];
 		const openCount = tickets.filter((t) => (t.status || "open") !== "resolved").length;
-		if (badge) {
+		const badges = [badge, document.getElementById("adminNotifyBadgeMobile")].filter(Boolean);
+		badges.forEach((el) => {
 			if (openCount > 0) {
-				badge.hidden = false;
-				badge.textContent = openCount > 99 ? "99+" : String(openCount);
+				el.hidden = false;
+				el.textContent = openCount > 99 ? "99+" : String(openCount);
 			} else {
-				badge.hidden = true;
+				el.hidden = true;
 			}
-		}
+		});
 		if (!list) return;
 		if (!tickets.length) {
 			list.innerHTML = `<div class="admin-notify-empty">No Help &amp; Support tickets yet.</div>`;
@@ -296,8 +300,8 @@
 					<span class="admin-badge ${escapeHtml(status)}">${escapeHtml(supportStatusLabel(status))}</span>
 				</div>
 				<strong class="admin-notify-subject">${escapeHtml(ticket.subject || "Support issue")}</strong>
-				<p class="admin-notify-meta">${escapeHtml(ticket.name || "")} · ${escapeHtml(ticket.category || "")} · ${escapeHtml(formatWhen(ticket.created_at))}</p>
-				<p class="admin-notify-preview">${escapeHtml(preview.slice(0, 140))}${preview.length > 140 ? "…" : ""}</p>
+				<p class="admin-notify-meta">${escapeHtml(ticket.name || "")} \u00b7 ${escapeHtml(ticket.category || "")} \u00b7 ${escapeHtml(formatWhen(ticket.created_at))}</p>
+				<p class="admin-notify-preview">${escapeHtml(preview.slice(0, 140))}${preview.length > 140 ? "\u2026" : ""}</p>
 			</button>`;
 		}).join("");
 	}
@@ -710,7 +714,7 @@
 	async function generateQr(id, kind, btn) {
 		if (btn) {
 			btn.disabled = true;
-			btn.textContent = "Resending…";
+			btn.textContent = "Resending\u2026";
 		}
 		try {
 			const path = kind === "payment"
@@ -750,7 +754,7 @@
 		}
 		if (btn) {
 			btn.disabled = true;
-			btn.textContent = "Accepting…";
+			btn.textContent = "Accepting\u2026";
 		}
 		try {
 			const res = await adminFetch(`${apiBase()}/api/admin/bookings/${encodeURIComponent(id)}/accept-cancellation`, {
@@ -827,7 +831,7 @@
 
 	function hostDataRowHtml(row) {
 		const status = String(row.status || "pending").toLowerCase();
-		const org = row.org_name || "—";
+		const org = row.org_name || "\u2014";
 		const name = row.contact_full_name || row.email || "Host";
 		const key = hostAppKey(row);
 		const canApprove = Boolean(row.can_approve) || status === "pending";
@@ -905,34 +909,34 @@
 		if (title) title.textContent = row.org_name || row.contact_full_name || "Host application";
 		const panLink = row.pan_card_url
 			? `<button type="button" class="admin-btn ghost" data-host-doc="${escapeHtml(row.pan_card_url)}">View PAN card</button>`
-			: "—";
+			: "\u2014";
 		const chequeLink = row.cancelled_cheque_url
 			? `<button type="button" class="admin-btn ghost" data-host-doc="${escapeHtml(row.cancelled_cheque_url)}">View cancelled cheque</button>`
-			: "—";
+			: "\u2014";
 		const reasonText = row.review_reason || row.rejection_reason || "";
 		body.innerHTML = `
 			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(status)}">${escapeHtml(hostStatusLabel(status))}</span></dd>
 			<dt>Application ID</dt><dd>${escapeHtml(appKey)}</dd>
-			<dt>Host ID</dt><dd>${escapeHtml(row.host_id || "—")}</dd>
-			<dt>Email</dt><dd>${escapeHtml(row.email || "—")}</dd>
-			<dt>Contact</dt><dd>${escapeHtml(row.contact_full_name || "—")} · ${escapeHtml(row.contact_mobile || "—")}</dd>
-			<dt>Organisation</dt><dd>${escapeHtml(row.org_name || "—")}</dd>
-			<dt>PAN</dt><dd>${escapeHtml(row.pan_number || "—")}</dd>
-			<dt>Address</dt><dd>${escapeHtml(row.org_address || "—")}</dd>
-			<dt>State</dt><dd>${escapeHtml(row.state || "—")}</dd>
+			<dt>Host ID</dt><dd>${escapeHtml(row.host_id || "\u2014")}</dd>
+			<dt>Email</dt><dd>${escapeHtml(row.email || "\u2014")}</dd>
+			<dt>Contact</dt><dd>${escapeHtml(row.contact_full_name || "\u2014")} \u00b7 ${escapeHtml(row.contact_mobile || "\u2014")}</dd>
+			<dt>Organisation</dt><dd>${escapeHtml(row.org_name || "\u2014")}</dd>
+			<dt>PAN</dt><dd>${escapeHtml(row.pan_number || "\u2014")}</dd>
+			<dt>Address</dt><dd>${escapeHtml(row.org_address || "\u2014")}</dd>
+			<dt>State</dt><dd>${escapeHtml(row.state || "\u2014")}</dd>
 			<dt>GSTIN</dt><dd>${escapeHtml(row.has_gstin ? (row.gstin_number || "Yes") : "No")}</dd>
-			<dt>Bank</dt><dd>${escapeHtml(row.bank_name || "—")} · ${escapeHtml(row.account_type || "")}</dd>
-			<dt>Beneficiary</dt><dd>${escapeHtml(row.beneficiary_name || "—")}</dd>
-			<dt>Account</dt><dd>${escapeHtml(row.account_number || "—")} / IFSC ${escapeHtml(row.bank_ifsc || "—")}</dd>
+			<dt>Bank</dt><dd>${escapeHtml(row.bank_name || "\u2014")} \u00b7 ${escapeHtml(row.account_type || "")}</dd>
+			<dt>Beneficiary</dt><dd>${escapeHtml(row.beneficiary_name || "\u2014")}</dd>
+			<dt>Account</dt><dd>${escapeHtml(row.account_number || "\u2014")} / IFSC ${escapeHtml(row.bank_ifsc || "\u2014")}</dd>
 			<dt>Documents</dt><dd><div class="admin-host-docs">${panLink} ${chequeLink}</div><div id="hostDocPreview"></div></dd>
 			<dt>Submitted</dt><dd>${escapeHtml(formatWhen(row.submitted_at || row.created_at))}</dd>
-			${row.reviewed_at ? `<dt>Reviewed</dt><dd>${escapeHtml(formatWhen(row.reviewed_at))}${row.reviewed_by ? ` · ${escapeHtml(row.reviewed_by)}` : ""}</dd>` : ""}
+			${row.reviewed_at ? `<dt>Reviewed</dt><dd>${escapeHtml(formatWhen(row.reviewed_at))}${row.reviewed_by ? ` \u00b7 ${escapeHtml(row.reviewed_by)}` : ""}</dd>` : ""}
 			${reasonText ? `<dt>Reason</dt><dd>${escapeHtml(reasonText)}</dd>` : ""}
 		`;
 		body.querySelectorAll("[data-host-doc]").forEach((btn) => {
 			btn.addEventListener("click", async () => {
 				const preview = document.getElementById("hostDocPreview");
-				if (preview) preview.innerHTML = "Loading…";
+				if (preview) preview.innerHTML = "Loading\u2026";
 				try {
 					const res = await adminFetch(mediaUrl(btn.getAttribute("data-host-doc")));
 					if (!res.ok) throw new Error("Could not open document.");
@@ -964,8 +968,8 @@
 		if (reasonEl) {
 			reasonEl.value = "";
 			reasonEl.placeholder = canUnrestrict && !canRestrict
-				? "Optional note after reviewing the support ticket…"
-				: "e.g. PAN image unclear — please re-upload a sharper scan.";
+				? "Optional note after reviewing the support ticket\u2026"
+				: "e.g. PAN image unclear \u2014 please re-upload a sharper scan.";
 		}
 		if (approveBtn) {
 			approveBtn.dataset.key = appKey;
@@ -1013,12 +1017,12 @@
 			if (note) payload.rejection_reason = note;
 		}
 		const labels = {
-			approve: ["Approving…", "Accept host", "Host accepted."],
-			reject: ["Rejecting…", "Reject", "Host rejected."],
-			restrict: ["Restricting…", "Restrict access", "Host access restricted."],
-			unrestrict: ["Revoking…", "Revoke restriction", "Restriction revoked."],
+			approve: ["Approving\u2026", "Accept host", "Host accepted."],
+			reject: ["Rejecting\u2026", "Reject", "Host rejected."],
+			restrict: ["Restricting\u2026", "Restrict access", "Host access restricted."],
+			unrestrict: ["Revoking\u2026", "Revoke restriction", "Restriction revoked."],
 		};
-		const [busy, idle, okMsg] = labels[action] || ["Saving…", "Save", "Saved."];
+		const [busy, idle, okMsg] = labels[action] || ["Saving\u2026", "Save", "Saved."];
 		if (btn) {
 			btn.disabled = true;
 			btn.textContent = busy;
@@ -1064,9 +1068,9 @@
 			</td>
 			<td>
 				<button type="button" class="admin-event-title" data-support-view="${escapeHtml(row.ticket_code)}" title="View issue">${escapeHtml(row.subject || "Support issue")}</button>
-				<div class="admin-muted">${escapeHtml(row.category || "")} · ${escapeHtml(priority)}</div>
+				<div class="admin-muted">${escapeHtml(row.category || "")} \u00b7 ${escapeHtml(priority)}</div>
 			</td>
-			<td>${escapeHtml(preview.slice(0, 90))}${preview.length > 90 ? "…" : ""}</td>
+			<td>${escapeHtml(preview.slice(0, 90))}${preview.length > 90 ? "\u2026" : ""}</td>
 			<td class="admin-submitted">${escapeHtml(formatWhen(row.created_at))}</td>
 			<td><span class="admin-badge ${escapeHtml(status)}">${escapeHtml(supportStatusLabel(status))}</span></td>
 			<td>
@@ -1114,7 +1118,7 @@
 		body.innerHTML = `
 			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(row.status || "open")}">${escapeHtml(supportStatusLabel(row.status))}</span></dd>
 			<dt>Customer</dt><dd>${escapeHtml(row.name || "")}<br>${escapeHtml(row.email || "")}</dd>
-			<dt>Category / Priority</dt><dd>${escapeHtml(row.category || "")} · ${escapeHtml(row.priority || "normal")}</dd>
+			<dt>Category / Priority</dt><dd>${escapeHtml(row.category || "")} \u00b7 ${escapeHtml(row.priority || "normal")}</dd>
 			<dt>Subject</dt><dd>${escapeHtml(row.subject || "")}</dd>
 			<dt>Issue details</dt><dd>${escapeHtml(row.message || "")}</dd>
 			<dt>Submitted</dt><dd>${escapeHtml(formatWhen(row.created_at))}</dd>
@@ -1138,7 +1142,7 @@
 		const note = noteEl ? noteEl.value.trim() : "";
 		if (btn) {
 			btn.disabled = true;
-			btn.textContent = "Saving…";
+			btn.textContent = "Saving\u2026";
 		}
 		try {
 			const res = await adminFetch(`${apiBase()}/api/admin/support-tickets/${encodeURIComponent(code)}`, {
@@ -1191,12 +1195,14 @@
 	document.addEventListener("DOMContentLoaded", async () => {
 		if (!(await requireAdmin())) return;
 		setSection(currentSection(), { skipApply: true, keepNavOpen: true });
-		document.getElementById("adminLogout")?.addEventListener("click", async () => {
+		const doLogout = async () => {
 			if (window.JodAuth && typeof window.JodAuth.logout === "function") {
 				await window.JodAuth.logout();
 			}
 			window.location.href = "login.html";
-		});
+		};
+		document.getElementById("adminLogout")?.addEventListener("click", doLogout);
+		document.getElementById("adminLogoutMobile")?.addEventListener("click", doLogout);
 		document.getElementById("adminRefresh")?.addEventListener("click", refresh);
 		document.getElementById("adminNavToggle")?.addEventListener("click", () => {
 			const shell = document.querySelector(".admin-shell");
@@ -1206,7 +1212,12 @@
 		document.querySelectorAll(".admin-nav-item[data-section]").forEach((btn) => {
 			btn.addEventListener("click", () => setSection(btn.getAttribute("data-section")));
 		});
-		document.getElementById("adminNotifyBtn")?.addEventListener("click", showNotificationsPage);
+		const openNotifications = () => {
+			setNavOpen(false);
+			showNotificationsPage();
+		};
+		document.getElementById("adminNotifyBtn")?.addEventListener("click", openNotifications);
+		document.getElementById("adminNotifyBtnMobile")?.addEventListener("click", openNotifications);
 		document.getElementById("adminNotifyClose")?.addEventListener("click", hideNotificationsPage);
 		document.getElementById("adminNotifyList")?.addEventListener("click", (event) => {
 			const card = event.target.closest("[data-notify-ticket]");

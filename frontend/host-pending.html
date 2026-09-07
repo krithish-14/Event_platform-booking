@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="UTF-8" />
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -8,17 +9,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','GTM-PFZVZGJR');</script>
 <!-- End Google Tag Manager -->
-<meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="description" content="Your JOD Events host registration is under review." />
-<title>Thank You | Host Registration — JOD Events</title>
+<title>Thank You | Host Registration &#8212; JOD Events</title>
 <link rel="icon" type="image/png" href="/images/JOD%20Logo.png" />
 <link rel="apple-touch-icon" href="/images/JOD%20Logo.png" />
 <link rel="stylesheet" href="css/fonts.css?v=2" />
 <script src="js/theme.js?v=24"></script>
 <script src="js/api-config.js?v=4"></script>
-<style>
-	* { box-sizing: border-box; margin: 0; padding: 0; }
+<style> * { box-sizing: border-box; margin: 0; padding: 0; }
 	body {
 		font-family: 'Grift', sans-serif;
 		background: #f8fafc;
@@ -152,25 +151,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->
-	<div class="card" id="pendingCard">
-		<div class="mark" id="pendingMark" aria-hidden="true">✓</div>
-		<span class="status-pill" id="pendingBadge">Under review</span>
-		<h1 id="pendingTitle">Thank you</h1>
-		<p class="lead" id="pendingLead">Your hosting registration has been noted.</p>
-		<p id="pendingDetail">Once the JOD Events Authority has reviewed your application, within 3 working days you will get your Host Dashboard access.</p>
-		<p class="reason" id="pendingRejectBlock" hidden></p>
-		<div class="actions">
-			<a class="btn-primary" href="index.html" id="pendingHome">Back to home</a>
-			<a class="btn-secondary" href="account-setup.html" id="pendingSetupLink" hidden>Update my application</a>
-			<a class="btn-secondary" href="help.html" id="pendingHelpLink" hidden>Raise a support ticket</a>
-		</div>
-	</div>
-
-	<script src="js/health.js?v=3"></script>
-	<script src="js/auth.js?v=40"></script>
-	<script>
-	(async function () {
+<!-- End Google Tag Manager (noscript) --> <div class="card" id="pendingCard"> <div class="mark" id="pendingMark" aria-hidden="true">&#10003;</div> <span class="status-pill" id="pendingBadge">Under review</span> <h1 id="pendingTitle">Thank you</h1> <p class="lead" id="pendingLead">Your hosting registration has been noted.</p> <p id="pendingDetail">Once the JOD Events Authority has reviewed your application, within 3 working days you will get your Host Dashboard access.</p> <p class="reason" id="pendingRejectBlock" hidden></p> <div class="actions"> <a class="btn-primary" href="index.html" id="pendingHome">Back to home</a> <a class="btn-secondary" href="account-setup.html" id="pendingSetupLink" hidden>Update my application</a> <a class="btn-secondary" href="help.html" id="pendingHelpLink" hidden>Raise a support ticket</a> </div> </div> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=40"></script> <script> (async function () {
 		const mark = document.getElementById("pendingMark");
 		const badge = document.getElementById("pendingBadge");
 		const title = document.getElementById("pendingTitle");
@@ -195,7 +176,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 		function showPendingThankYou() {
 			mark.className = "mark";
-			mark.textContent = "✓";
+			mark.textContent = "&#10003;";
 			badge.className = "status-pill";
 			badge.textContent = "Under review";
 			title.textContent = "Thank you";
