@@ -736,6 +736,87 @@ def build_ticket_pdf_bytes(
 # Admin portal download only — fixed 85mm x 130mm card on A4, attendee name instead of prices.
 _ADMIN_CARD_W = 85.0 * 72.0 / 25.4  # ≈ 240.94 pt
 _ADMIN_CARD_H = 130.0 * 72.0 / 25.4  # ≈ 368.50 pt
+_ADMIN_TAGLINE = "PEOPLE | EVENTS | POSSIBILITIES"
+
+
+def _load_image_from_bytes(data: bytes, max_w: int = 360, max_h: int = 480) -> Optional[tuple[str, bytes, int, int]]:
+    if not data:
+        return None
+    if data[:2] == b"\xff\xd8":
+        width, height = _jpeg_dimensions(data)
+        return "DCTDecode", data, width, height
+    png = _decode_png_rgb(data)
+    if png:
+        rgb, width, height = png
+        rgb, width, height = _scale_rgb(rgb, width, height, max_w=max_w, max_h=max_h)
+        return "FlateDecode", zlib.compress(rgb, 9), width, height
+    return _via_pillow(data)
+
+
+def _admin_logo_candidates() -> list[str]:
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, "..", ".."))
+    names = ("JOD Events Logo.png", "jod-logo.png", "JOD Logo.png")
+    paths = []
+    for name in names:
+        paths.append(os.path.join(repo_root, "frontend", "images", name))
+        paths.append(os.path.join(here, "assets", name))
+    env_logo = (os.getenv("JOD_TICKET_LOGO_PATH") or "").strip()
+    if env_logo:
+        paths.insert(0, env_logo)
+    return paths
+
+
+def _load_jod_logo_image() -> Optional[tuple[str, bytes, int, int]]:
+    """Load JOD Events wordmark for admin tickets (local file, then CDN fallback)."""
+    for path in _admin_logo_candidates():
+        try:
+            if path and os.path.isfile(path):
+                with open(path, "rb") as fh:
+                    loaded = _load_image_from_bytes(fh.read(), max_w=420, max_h=180)
+                if loaded:
+                    return loaded
+        except Exception:
+            continue
+    for url in (
+        "https://assets.jodevents.com/images/JOD%20Events%20Logo.png",
+        "https://jodevents.com/images/JOD%20Events%20Logo.png",
+    ):
+        loaded = _load_image_from_bytes(_fetch_bytes(url), max_w=420, max_h=180)
+        if loaded:
+            return loaded
+    return None
+
+
+def _admin_footer_waves(card_x: float, card_y: float, card_w: float) -> list[str]:
+    """Soft peach waves clipped to the card bottom (matches reference accents)."""
+    left = (
+        f"{card_x:.2f} {card_y:.2f} m "
+        f"{card_x + 18:.2f} {card_y + 22:.2f} "
+        f"{card_x + 42:.2f} {card_y + 8:.2f} "
+        f"{card_x + 62:.2f} {card_y + 28:.2f} c "
+        f"{card_x + 78:.2f} {card_y + 42:.2f} "
+        f"{card_x + 52:.2f} {card_y + 2:.2f} "
+        f"{card_x:.2f} {card_y:.2f} c h"
+    )
+    right = (
+        f"{card_x + card_w:.2f} {card_y:.2f} m "
+        f"{card_x + card_w - 20:.2f} {card_y + 26:.2f} "
+        f"{card_x + card_w - 46:.2f} {card_y + 10:.2f} "
+        f"{card_x + card_w - 68:.2f} {card_y + 30:.2f} c "
+        f"{card_x + card_w - 84:.2f} {card_y + 44:.2f} "
+        f"{card_x + card_w - 54:.2f} {card_y + 2:.2f} "
+        f"{card_x + card_w:.2f} {card_y:.2f} c h"
+    )
+    clip = _round_rect_path(card_x, card_y, card_w, _ADMIN_CARD_H, 10)
+    return [
+        f"q {clip} W n",
+        "1.00 0.82 0.62 rg",
+        f"{left} f",
+        "0.98 0.70 0.42 rg",
+        f"{right} f",
+        "Q",
+    ]
 
 
 def build_admin_mticket_pdf_bytes(
@@ -753,7 +834,7 @@ def build_admin_mticket_pdf_bytes(
     seat_number: str = "General Admission",
     attendee_name: str = "",
 ) -> Optional[bytes]:
-    """Admin-only ticket PDF: 85x130mm card, no price block, attendee name at bottom."""
+    """Admin-only ticket PDF: 85x130mm card, brand footer + attendee name (no prices)."""
     try:
         title = _ascii_text(event_name, "JOD Events") or "JOD Events"
         date_label = _ascii_text(_format_event_date(event_date), "Date TBA")
@@ -769,22 +850,25 @@ def build_admin_mticket_pdf_bytes(
         guest_name = _ascii_text(attendee_name, "Guest") or "Guest"
         qr_jpeg = _fetch_qr_jpeg(qr_token) if (qr_token or "").strip() else b""
         poster = _load_poster_image(_absolute_media_url(poster_url)) if poster_url else None
+        logo = _load_jod_logo_image()
 
         card_w, card_h = _ADMIN_CARD_W, _ADMIN_CARD_H
         card_x = (595.0 - card_w) / 2.0
         card_y = max(36.0, (842.0 - card_h) / 2.0)
-        pad_x, pad_y = 14.0, 14.0
+        pad_x, pad_y = 14.0, 12.0
         inner_x = card_x + pad_x
         inner_right = card_x + card_w - pad_x
-        poster_w, poster_h = 56.0, 70.0
-        qr_size = 118.0
+        poster_w, poster_h = 54.0, 68.0
+        qr_size = 108.0
         y = card_y + card_h - pad_y
+        center_x = card_x + card_w / 2.0
 
         ops = [
             "0.97 0.97 0.98 rg 0 0 595 842 re f",
             "1 1 1 rg 0.83 0.85 0.88 RG 1 w",
             f"{_round_rect_path(card_x, card_y, card_w, card_h, 10)} B",
         ]
+        ops.extend(_admin_footer_waves(card_x, card_y, card_w))
 
         xobjects: dict[str, tuple[bytes, int, int, str]] = {}
         poster_box_x, poster_box_y = inner_x, y - poster_h
@@ -799,8 +883,9 @@ def build_admin_mticket_pdf_bytes(
             ])
 
         text_x = inner_x + poster_w + 10
-        title_lines = _wrap_text(title, 18, 2)
-        venue_lines = _wrap_text(venue_label, 22, 2)
+        title_lines = _wrap_text(title, 20, 2)
+        venue_lines = _wrap_text(venue_label, 24, 2)
+        # Header: poster + event details only (no E-Ticket badge).
         ops.extend([
             "BT",
             "/F1 11 Tf 0.07 0.09 0.15 rg",
@@ -813,12 +898,12 @@ def build_admin_mticket_pdf_bytes(
         cursor -= 12
         ops.extend([
             "/F2 7 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(format_label[:28])}) Tj",
+            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(format_label[:30])}) Tj",
         ])
         cursor -= 11
         ops.extend([
             "/F1 8 Tf 0.07 0.09 0.15 rg",
-            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(date_label[:30])}) Tj",
+            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(date_label[:32])}) Tj",
         ])
         cursor -= 10
         ops.extend([
@@ -828,17 +913,12 @@ def build_admin_mticket_pdf_bytes(
         if len(venue_lines) > 1:
             cursor -= 9
             ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[1])}) Tj")
-        ops.extend([
-            "/F1 7 Tf 0.61 0.64 0.69 rg",
-            _tj_right(inner_right, y - 12, "E-Ticket", 3.8),
-            "ET",
-        ])
+        ops.append("ET")
 
-        block_top = poster_box_y - 12
-        center_x = card_x + card_w / 2.0
+        block_top = poster_box_y - 10
         ops.extend([
             "0.89 0.91 0.94 RG 0.7 w",
-            f"{inner_x:.1f} {block_top + 6:.1f} m {inner_right:.1f} {block_top + 6:.1f} l S",
+            f"{inner_x:.1f} {block_top + 5:.1f} m {inner_right:.1f} {block_top + 5:.1f} l S",
             "BT",
             "/F2 8 Tf 0.42 0.45 0.50 rg",
             _tj_center(center_x, block_top - 4, f"{qty} Ticket(s)", 4.2),
@@ -849,7 +929,7 @@ def build_admin_mticket_pdf_bytes(
             "ET",
         ])
 
-        qr_top = block_top - 46
+        qr_top = block_top - 44
         qr_x = card_x + (card_w - qr_size) / 2.0
         qr_y = qr_top - qr_size
         if qr_jpeg:
@@ -861,32 +941,71 @@ def build_admin_mticket_pdf_bytes(
                 "0.97 0.98 0.99 rg 0.82 0.84 0.86 RG 0.8 w",
                 f"{qr_x:.1f} {qr_y:.1f} {qr_size:.1f} {qr_size:.1f} re B",
                 "BT /F2 9 Tf 0.42 0.45 0.50 rg",
-                f"1 0 0 1 {qr_x + 28:.1f} {qr_y + 55:.1f} Tm ({_pdf_escape('QR pending')}) Tj ET",
+                f"1 0 0 1 {qr_x + 24:.1f} {qr_y + 50:.1f} Tm ({_pdf_escape('QR pending')}) Tj ET",
             ])
         booking_text = f"BOOKING ID: #{booking_label}"
         booking_w = len(booking_text) * 5.2
         ops.extend([
             "BT",
             "/F1 9 Tf 0.07 0.09 0.15 rg",
-            f"1 0 0 1 {card_x + (card_w - booking_w) / 2.0:.1f} {qr_y - 16:.1f} Tm ({_pdf_escape(booking_text)}) Tj",
+            f"1 0 0 1 {card_x + (card_w - booking_w) / 2.0:.1f} {qr_y - 14:.1f} Tm ({_pdf_escape(booking_text)}) Tj",
             "ET",
         ])
 
-        divider_y = qr_y - 28
+        # Brand footer: dashed rule → logo → tagline → dashed rule → attendee name.
+        brand_top = qr_y - 24
         ops.extend([
-            "[5 4] 0 d 0.80 0.83 0.86 RG 1 w",
-            f"{inner_x:.1f} {divider_y:.1f} m {inner_right:.1f} {divider_y:.1f} l S",
+            "[4 3] 0 d 0.80 0.83 0.86 RG 0.9 w",
+            f"{inner_x:.1f} {brand_top:.1f} m {inner_right:.1f} {brand_top:.1f} l S",
             "[] 0 d",
         ])
 
-        # Title-size attendee name (replaces price block). Wrap long names and keep centered.
+        logo_draw_h = 28.0
+        logo_y = brand_top - 8 - logo_draw_h
+        if logo:
+            filt, payload, lw, lh = logo
+            xobjects["ImL"] = (payload, lw, lh, filt)
+            aspect = (lw / float(lh)) if lh else 2.6
+            logo_draw_w = min(118.0, logo_draw_h * aspect)
+            logo_x = center_x - logo_draw_w / 2.0
+            ops.append(_draw_image("ImL", logo_x, logo_y, logo_draw_w, logo_draw_h))
+            tagline_y = logo_y - 12
+        else:
+            ops.extend([
+                "BT",
+                "/F1 14 Tf 0.07 0.09 0.15 rg",
+                _tj_center(center_x, brand_top - 18, "JOD", 8.4),
+                "/F2 7 Tf 0.20 0.22 0.26 rg",
+                _tj_center(center_x, brand_top - 30, "E V E N T S", 4.0),
+                "ET",
+            ])
+            tagline_y = brand_top - 42
+
+        ops.extend([
+            "BT",
+            "/F2 6 Tf 0.35 0.38 0.42 rg",
+            _tj_center(center_x, tagline_y, _ADMIN_TAGLINE, 3.35),
+            "ET",
+        ])
+
+        name_rule_y = tagline_y - 12
+        ops.extend([
+            "[4 3] 0 d 0.80 0.83 0.86 RG 0.9 w",
+            f"{inner_x:.1f} {name_rule_y:.1f} m {inner_right:.1f} {name_rule_y:.1f} l S",
+            "[] 0 d",
+        ])
+
         name_max_chars = 18
-        name_lines = _wrap_text(guest_name, name_max_chars, 3)
-        name_font = 16 if max(len(line) for line in name_lines) <= 16 else 13
-        name_char_w = 9.2 if name_font >= 16 else 7.4
-        name_gap = 18 if name_font >= 16 else 15
+        name_lines = _wrap_text(guest_name, name_max_chars, 2)
+        name_font = 15 if max(len(line) for line in name_lines) <= 16 else 12
+        name_char_w = 8.6 if name_font >= 15 else 6.8
+        name_gap = 16 if name_font >= 15 else 14
         name_block_h = name_gap * len(name_lines)
-        name_top = divider_y - ((divider_y - card_y - pad_y) - name_block_h) / 2.0 - 4
+        name_floor = card_y + pad_y + 18
+        available = max(name_block_h, name_rule_y - 8 - name_floor)
+        name_top = name_rule_y - 8 - max(0.0, (available - name_block_h) / 2.0)
+        if name_top - name_block_h < name_floor:
+            name_top = name_floor + name_block_h
         ops.append("BT")
         ops.append(f"/F1 {name_font} Tf 0.07 0.09 0.15 rg")
         for i, line in enumerate(name_lines):
