@@ -788,33 +788,38 @@ def _load_jod_logo_image() -> Optional[tuple[str, bytes, int, int]]:
     return None
 
 
-def _admin_footer_waves(card_x: float, card_y: float, card_w: float) -> list[str]:
-    """Soft peach waves clipped to the card bottom (matches reference accents)."""
-    left = (
+def _admin_footer_shade(card_x: float, card_y: float, card_w: float, shade_h: float = 46.0) -> list[str]:
+    """Full-width soft orange shade across the card bottom (admin ticket only)."""
+    top = card_y + shade_h
+    mid = card_x + card_w / 2.0
+    # Soft filled band with a gentle wave on the top edge.
+    shade = (
         f"{card_x:.2f} {card_y:.2f} m "
-        f"{card_x + 18:.2f} {card_y + 22:.2f} "
-        f"{card_x + 42:.2f} {card_y + 8:.2f} "
-        f"{card_x + 62:.2f} {card_y + 28:.2f} c "
-        f"{card_x + 78:.2f} {card_y + 42:.2f} "
-        f"{card_x + 52:.2f} {card_y + 2:.2f} "
-        f"{card_x:.2f} {card_y:.2f} c h"
+        f"{card_x + card_w:.2f} {card_y:.2f} l "
+        f"{card_x + card_w:.2f} {top - 2:.2f} l "
+        f"{card_x + card_w * 0.72:.2f} {top + 6:.2f} "
+        f"{card_x + card_w * 0.42:.2f} {top - 5:.2f} "
+        f"{mid:.2f} {top + 1:.2f} c "
+        f"{card_x + card_w * 0.28:.2f} {top + 6:.2f} "
+        f"{card_x + card_w * 0.12:.2f} {top - 4:.2f} "
+        f"{card_x:.2f} {top:.2f} c "
+        f"h"
     )
-    right = (
-        f"{card_x + card_w:.2f} {card_y:.2f} m "
-        f"{card_x + card_w - 20:.2f} {card_y + 26:.2f} "
-        f"{card_x + card_w - 46:.2f} {card_y + 10:.2f} "
-        f"{card_x + card_w - 68:.2f} {card_y + 30:.2f} c "
-        f"{card_x + card_w - 84:.2f} {card_y + 44:.2f} "
-        f"{card_x + card_w - 54:.2f} {card_y + 2:.2f} "
-        f"{card_x + card_w:.2f} {card_y:.2f} c h"
+    deeper = (
+        f"{card_x:.2f} {card_y:.2f} m "
+        f"{card_x + card_w:.2f} {card_y:.2f} l "
+        f"{card_x + card_w:.2f} {card_y + shade_h * 0.55:.2f} l "
+        f"{card_x + card_w * 0.65:.2f} {card_y + shade_h * 0.72:.2f} "
+        f"{card_x + card_w * 0.35:.2f} {card_y + shade_h * 0.48:.2f} "
+        f"{card_x:.2f} {card_y + shade_h * 0.62:.2f} c h"
     )
     clip = _round_rect_path(card_x, card_y, card_w, _ADMIN_CARD_H, 10)
     return [
         f"q {clip} W n",
-        "1.00 0.82 0.62 rg",
-        f"{left} f",
-        "0.98 0.70 0.42 rg",
-        f"{right} f",
+        "1.00 0.88 0.72 rg",
+        f"{shade} f",
+        "1.00 0.70 0.36 rg",
+        f"{deeper} f",
         "Q",
     ]
 
@@ -868,7 +873,8 @@ def build_admin_mticket_pdf_bytes(
             "1 1 1 rg 0.83 0.85 0.88 RG 1 w",
             f"{_round_rect_path(card_x, card_y, card_w, card_h, 10)} B",
         ]
-        ops.extend(_admin_footer_waves(card_x, card_y, card_w))
+        shade_h = 36.0
+        ops.extend(_admin_footer_shade(card_x, card_y, card_w, shade_h=shade_h))
 
         xobjects: dict[str, tuple[bytes, int, int, str]] = {}
         poster_box_x, poster_box_y = inner_x, y - poster_h
@@ -952,7 +958,7 @@ def build_admin_mticket_pdf_bytes(
             "ET",
         ])
 
-        # Brand footer: dashed rule → logo → tagline → dashed rule → attendee name.
+        # Brand footer: dashed rule → logo → tagline → dashed rule → name near bottom shade.
         brand_top = qr_y - 24
         ops.extend([
             "[4 3] 0 d 0.80 0.83 0.86 RG 0.9 w",
@@ -960,16 +966,16 @@ def build_admin_mticket_pdf_bytes(
             "[] 0 d",
         ])
 
-        logo_draw_h = 28.0
-        logo_y = brand_top - 8 - logo_draw_h
+        logo_draw_h = 26.0
+        logo_y = brand_top - 7 - logo_draw_h
         if logo:
             filt, payload, lw, lh = logo
             xobjects["ImL"] = (payload, lw, lh, filt)
             aspect = (lw / float(lh)) if lh else 2.6
-            logo_draw_w = min(118.0, logo_draw_h * aspect)
+            logo_draw_w = min(112.0, logo_draw_h * aspect)
             logo_x = center_x - logo_draw_w / 2.0
             ops.append(_draw_image("ImL", logo_x, logo_y, logo_draw_w, logo_draw_h))
-            tagline_y = logo_y - 12
+            tagline_y = logo_y - 11
         else:
             ops.extend([
                 "BT",
@@ -988,24 +994,29 @@ def build_admin_mticket_pdf_bytes(
             "ET",
         ])
 
-        name_rule_y = tagline_y - 12
-        ops.extend([
-            "[4 3] 0 d 0.80 0.83 0.86 RG 0.9 w",
-            f"{inner_x:.1f} {name_rule_y:.1f} m {inner_right:.1f} {name_rule_y:.1f} l S",
-            "[] 0 d",
-        ])
-
         name_max_chars = 18
         name_lines = _wrap_text(guest_name, name_max_chars, 2)
         name_font = 15 if max(len(line) for line in name_lines) <= 16 else 12
         name_char_w = 8.6 if name_font >= 15 else 6.8
         name_gap = 16 if name_font >= 15 else 14
-        name_block_h = name_gap * len(name_lines)
-        name_floor = card_y + pad_y + 18
-        available = max(name_block_h, name_rule_y - 8 - name_floor)
-        name_top = name_rule_y - 8 - max(0.0, (available - name_block_h) / 2.0)
-        if name_top - name_block_h < name_floor:
-            name_top = name_floor + name_block_h
+        name_block_h = name_gap * (len(name_lines) - 1) + name_font * 0.85
+        # Keep the name low on white space, just above the orange bottom shade.
+        name_baseline = card_y + shade_h + 8.0
+        name_top = name_baseline + max(name_font * 0.8, name_block_h)
+        # Dashed divider sits directly above the lowered name.
+        name_rule_y = name_top + 10.0
+        # Guard: do not collide with the tagline if the footer is tight.
+        min_rule = tagline_y - 14.0
+        if name_rule_y > min_rule:
+            shift = name_rule_y - min_rule
+            name_rule_y -= shift
+            name_top -= shift
+
+        ops.extend([
+            "[4 3] 0 d 0.80 0.83 0.86 RG 0.9 w",
+            f"{inner_x:.1f} {name_rule_y:.1f} m {inner_right:.1f} {name_rule_y:.1f} l S",
+            "[] 0 d",
+        ])
         ops.append("BT")
         ops.append(f"/F1 {name_font} Tf 0.07 0.09 0.15 rg")
         for i, line in enumerate(name_lines):
