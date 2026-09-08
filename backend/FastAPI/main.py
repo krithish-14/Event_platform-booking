@@ -7,8 +7,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from dotenv import load_dotenv
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -139,6 +140,37 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=422,
         content={"detail": jsonable_encoder(exc.errors(), custom_encoder={Exception: str})},
     )
+
+
+def _wants_html_404(request: Request) -> bool:
+    """Serve branded HTML 404 for browser page navigations; keep API 404s as JSON."""
+    path = request.url.path or "/"
+    if path.startswith("/api/") or path.startswith("/health"):
+        return False
+    if path in ("/docs", "/redoc", "/openapi.json") or path.startswith("/docs/") or path.startswith("/redoc/"):
+        return False
+    accept = (request.headers.get("accept") or "").lower()
+    if "application/json" in accept and "text/html" not in accept:
+        return False
+    if "text/html" in accept:
+        return True
+    return path.endswith(".html") or path.startswith("/event/") or path.startswith("/templates/")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404 and _wants_html_404(request):
+        page_404 = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "404.html")
+        )
+        if os.path.isfile(page_404):
+            return FileResponse(page_404, status_code=404, media_type="text/html; charset=utf-8")
+    detail = exc.detail
+    if isinstance(detail, (dict, list)):
+        content = detail if isinstance(detail, dict) and "detail" in detail else {"detail": detail}
+    else:
+        content = {"detail": detail}
+    return JSONResponse(status_code=exc.status_code, content=content)
 
 
 @app.exception_handler(Exception)

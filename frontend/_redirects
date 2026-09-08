@@ -1,0 +1,7 @@
+# Cloudflare Pages routing for JOD Events
+#
+# Static assets and pretty HTML paths (e.g. /about → about.html) are served first.
+# Missing paths fall through to the branded 404 page with a real 404 status.
+# Do NOT add a /* → /index.html SPA fallback here — that would hide 404s.
+
+/404 /404.html 404

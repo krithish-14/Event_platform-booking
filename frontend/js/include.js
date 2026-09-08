@@ -8,10 +8,16 @@
 	}
 
 	function currentPageFile() {
+ if (document.body && document.body.classList.contains("error-404-page")) {
+ return "404.html";
+ }
  if (window.JodUrls && typeof window.JodUrls.currentPageFile === "function") {
  return window.JodUrls.currentPageFile();
  }
- return (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
+ const path = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
+ if (path === "/" || path === "/index" || path === "/index.html") return "index.html";
+ const leaf = path.split("/").pop() || "index.html";
+ return leaf.toLowerCase().endsWith(".html") ? leaf.toLowerCase() : `${leaf.toLowerCase()}.html`;
 	}
 
 	const pageName = currentPageFile();
@@ -22,8 +28,9 @@
 	const isLoginPage = pageName === "login.html";
 	const isSignupPage = pageName === "signup.html";
 	const isPolicyPage = ["privacy-policy.html", "terms-and-conditions.html", "return-and-refund-policy.html"].includes(pageName);
+	const isErrorPage = document.body.classList.contains("error-404-page") || pageName === "404.html";
 
-	if (isHome) {
+	if (isHome && !isErrorPage) {
  document.body.classList.add("home-page");
 	} else {
  document.body.classList.add("sub-page");
@@ -76,11 +83,19 @@
  }
 	}
 
+	function resolveSitePath(path) {
+ const raw = String(path || "").trim();
+ if (!raw) return raw;
+ if (/^(https?:)?\/\//i.test(raw) || raw.startsWith("/") || raw.startsWith("data:")) return raw;
+ return `/${raw.replace(/^\.\//, "")}`;
+	}
+
 	function loadComponent(id, path) {
  const target = document.getElementById(id);
  if (!target) return Promise.reject(new Error(`Missing component target: #${id}`));
- return fetch(path).then((response) => {
- if (!response.ok) throw new Error(`Could not load ${path}: ${response.status}`);
+ const url = resolveSitePath(path);
+ return fetch(url).then((response) => {
+ if (!response.ok) throw new Error(`Could not load ${url}: ${response.status}`);
  return response.text();
  }).then((html) => {
  if (id === "privacyPolicyBody" || id === "refundPolicyBody") {

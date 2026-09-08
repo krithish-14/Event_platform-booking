@@ -4671,3 +4671,112 @@ html[data-theme="dark"] .profile-dropdown button {
 html[data-theme="dark"] .bg-gradient-layer {
 	opacity: 0.35;
 }
+
+/* ── 404 page ───────────────────────────────────────────────── */
+.error-404 {
+	position: relative;
+	min-height: calc(100vh - 4rem);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	padding: calc(76px + 2.5rem) 0 4rem;
+}
+
+.error-404-orbs {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 0;
+}
+
+.error-404-orb {
+	position: absolute;
+	border-radius: 50%;
+	filter: blur(2px);
+	opacity: .55;
+	animation: error404Float 9s ease-in-out infinite;
+}
+
+.error-404-orb-a {
+	width: min(42vw, 28rem);
+	height: min(42vw, 28rem);
+	top: 8%;
+	right: -8%;
+	background: radial-gradient(circle, rgba(255, 117, 8, .38) 0%, transparent 68%);
+}
+
+.error-404-orb-b {
+	width: min(36vw, 22rem);
+	height: min(36vw, 22rem);
+	bottom: 6%;
+	left: -6%;
+	background: radial-gradient(circle, rgba(255, 161, 54, .28) 0%, transparent 70%);
+	animation-delay: -3.5s;
+}
+
+.error-404-inner {
+	position: relative;
+	z-index: 1;
+	max-width: 40rem;
+	text-align: center;
+}
+
+.error-404-code {
+	margin: 0 0 1.35rem;
+	font-family: var(--display);
+	font-size: clamp(5.5rem, 18vw, 9rem);
+	font-weight: 800;
+	letter-spacing: -.06em;
+	line-height: .9;
+	background: var(--brand-gradient);
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	opacity: .92;
+	animation: error404In .7s ease both;
+}
+
+.error-404-inner h1 {
+	margin: 0;
+	color: #fff;
+	font-family: var(--display);
+	font-size: clamp(1.85rem, 4.2vw, 2.85rem);
+	letter-spacing: -.03em;
+	line-height: 1.15;
+	animation: error404In .75s ease .08s both;
+}
+
+.error-404-copy {
+	margin: 1rem auto 0;
+	max-width: 32rem;
+	color: rgba(255, 255, 255, .72);
+	font-size: 1.05rem;
+	line-height: 1.6;
+	animation: error404In .75s ease .14s both;
+}
+
+@keyframes error404In {
+	from {
+		opacity: 0;
+		transform: translateY(14px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes error404Float {
+	0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+	50% { transform: translate3d(0, -18px, 0) scale(1.04); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.error-404-code,
+	.error-404-inner h1,
+	.error-404-copy,
+	.error-404-orb {
+		animation: none;
+	}
+}

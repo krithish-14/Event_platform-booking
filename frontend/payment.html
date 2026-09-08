@@ -499,9 +499,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
  function formatRupees(value) {
  const amount = roundMoney(value);
- if (amount <= 0) return "&#8377;0";
- if (Number.isInteger(amount)) return "&#8377;" + amount.toLocaleString("en-IN");
- return "&#8377;" + amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+ const symbol = "\u20B9";
+ if (amount <= 0) return symbol + "0";
+ if (Number.isInteger(amount)) return symbol + amount.toLocaleString("en-IN");
+ return symbol + amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
  }
 
  function paymentBreakdown(total) {
@@ -530,8 +531,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  const parts = paymentBreakdown(total);
  if (total <= 0) {
  if (ticketBaseEl) ticketBaseEl.textContent = "Free";
- if (platformEl) platformEl.textContent = "&#8377;0";
- if (gstEl) gstEl.textContent = "&#8377;0";
+ if (platformEl) platformEl.textContent = "\u20B90";
+ if (gstEl) gstEl.textContent = "\u20B90";
  if (amountEl) amountEl.textContent = "Free";
  return parts;
  }
@@ -559,7 +560,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  }
  const amountPaise = billAmountPaise();
  if (amountPaise < 100) {
- errEl.textContent = "This ticket is free or under &#8377;1, so Razorpay checkout is not needed.";
+ errEl.textContent = "This ticket is free or under \u20B91, so Razorpay checkout is not needed.";
  return;
  }
  if (typeof window.Razorpay !== "function") {
@@ -568,7 +569,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  }
 
  payNowBtn.disabled = true;
- payNowBtn.textContent = "Opening Razorpay&#8230;";
+ payNowBtn.textContent = "Opening Razorpay\u2026";
  try {
  const createRes = await authFetch(apiBase + "/api/create-order", {
  method: "POST",
@@ -624,7 +625,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  },
  handler: async function (response) {
  try {
- payNowBtn.textContent = "Verifying&#8230;";
+ payNowBtn.textContent = "Verifying\u2026";
  const verifyRes = await authFetch(apiBase + "/api/verify-payment", {
  method: "POST",
  headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -862,7 +863,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  body.append("transaction_id", document.getElementById("payTxn").value.trim());
  body.append("screenshot", shot.files[0]);
  submitBtn.disabled = true;
- submitBtn.textContent = "Submitting&#8230;";
+ submitBtn.textContent = "Submitting\u2026";
  try {
  const res = await authFetch(apiBase + "/api/payments/proof", {
  method: "POST",

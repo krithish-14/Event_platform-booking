@@ -5,6 +5,10 @@
 /*.html
   Content-Type: text/html; charset=UTF-8
 
+/404.html
+  Content-Type: text/html; charset=UTF-8
+  Cache-Control: public, max-age=300
+
 /*.js
   Content-Type: application/javascript; charset=UTF-8
 
