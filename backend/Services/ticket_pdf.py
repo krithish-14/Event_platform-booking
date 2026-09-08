@@ -788,38 +788,29 @@ def _load_jod_logo_image() -> Optional[tuple[str, bytes, int, int]]:
     return None
 
 
-def _admin_footer_shade(card_x: float, card_y: float, card_w: float, shade_h: float = 46.0) -> list[str]:
-    """Full-width soft orange shade across the card bottom (admin ticket only)."""
-    top = card_y + shade_h
-    mid = card_x + card_w / 2.0
-    # Soft filled band with a gentle wave on the top edge.
-    shade = (
+def _admin_footer_shapes(card_x: float, card_y: float, card_w: float, shape_h: float = 22.0) -> list[str]:
+    """Darker orange corner shapes at the card bottom only (no light shade band)."""
+    left = (
         f"{card_x:.2f} {card_y:.2f} m "
-        f"{card_x + card_w:.2f} {card_y:.2f} l "
-        f"{card_x + card_w:.2f} {top - 2:.2f} l "
-        f"{card_x + card_w * 0.72:.2f} {top + 6:.2f} "
-        f"{card_x + card_w * 0.42:.2f} {top - 5:.2f} "
-        f"{mid:.2f} {top + 1:.2f} c "
-        f"{card_x + card_w * 0.28:.2f} {top + 6:.2f} "
-        f"{card_x + card_w * 0.12:.2f} {top - 4:.2f} "
-        f"{card_x:.2f} {top:.2f} c "
-        f"h"
+        f"{card_x + 78:.2f} {card_y:.2f} l "
+        f"{card_x + 58:.2f} {card_y + shape_h * 0.55:.2f} "
+        f"{card_x + 30:.2f} {card_y + shape_h * 0.35:.2f} "
+        f"{card_x:.2f} {card_y + shape_h:.2f} c h"
     )
-    deeper = (
-        f"{card_x:.2f} {card_y:.2f} m "
-        f"{card_x + card_w:.2f} {card_y:.2f} l "
-        f"{card_x + card_w:.2f} {card_y + shade_h * 0.55:.2f} l "
-        f"{card_x + card_w * 0.65:.2f} {card_y + shade_h * 0.72:.2f} "
-        f"{card_x + card_w * 0.35:.2f} {card_y + shade_h * 0.48:.2f} "
-        f"{card_x:.2f} {card_y + shade_h * 0.62:.2f} c h"
+    right = (
+        f"{card_x + card_w:.2f} {card_y:.2f} m "
+        f"{card_x + card_w - 78:.2f} {card_y:.2f} l "
+        f"{card_x + card_w - 58:.2f} {card_y + shape_h * 0.55:.2f} "
+        f"{card_x + card_w - 30:.2f} {card_y + shape_h * 0.35:.2f} "
+        f"{card_x + card_w:.2f} {card_y + shape_h:.2f} c h"
     )
     clip = _round_rect_path(card_x, card_y, card_w, _ADMIN_CARD_H, 10)
     return [
         f"q {clip} W n",
-        "1.00 0.88 0.72 rg",
-        f"{shade} f",
-        "1.00 0.70 0.36 rg",
-        f"{deeper} f",
+        "1.00 0.62 0.20 rg",
+        f"{left} f",
+        "0.98 0.52 0.12 rg",
+        f"{right} f",
         "Q",
     ]
 
@@ -873,8 +864,9 @@ def build_admin_mticket_pdf_bytes(
             "1 1 1 rg 0.83 0.85 0.88 RG 1 w",
             f"{_round_rect_path(card_x, card_y, card_w, card_h, 10)} B",
         ]
-        shade_h = 36.0
-        ops.extend(_admin_footer_shade(card_x, card_y, card_w, shade_h=shade_h))
+        # Low orange corner shapes only — leave white space above for the name.
+        shape_h = 20.0
+        ops.extend(_admin_footer_shapes(card_x, card_y, card_w, shape_h=shape_h))
 
         xobjects: dict[str, tuple[bytes, int, int, str]] = {}
         poster_box_x, poster_box_y = inner_x, y - poster_h
@@ -958,7 +950,7 @@ def build_admin_mticket_pdf_bytes(
             "ET",
         ])
 
-        # Brand footer: dashed rule → logo → tagline → dashed rule → name near bottom shade.
+        # Brand footer: dashed rule → logo → tagline → dashed rule → name → orange shapes.
         brand_top = qr_y - 24
         ops.extend([
             "[4 3] 0 d 0.80 0.83 0.86 RG 0.9 w",
@@ -999,14 +991,15 @@ def build_admin_mticket_pdf_bytes(
         name_font = 15 if max(len(line) for line in name_lines) <= 16 else 12
         name_char_w = 8.6 if name_font >= 15 else 6.8
         name_gap = 16 if name_font >= 15 else 14
-        name_block_h = name_gap * (len(name_lines) - 1) + name_font * 0.85
-        # Keep the name low on white space, just above the orange bottom shade.
-        name_baseline = card_y + shade_h + 8.0
-        name_top = name_baseline + max(name_font * 0.8, name_block_h)
-        # Dashed divider sits directly above the lowered name.
-        name_rule_y = name_top + 10.0
-        # Guard: do not collide with the tagline if the footer is tight.
-        min_rule = tagline_y - 14.0
+        # Stack with clear gaps: dashed line → gap → name → gap → orange shapes.
+        gap_rule_to_name = 12.0
+        gap_name_to_shape = 10.0
+        name_block_h = name_gap * (len(name_lines) - 1) + name_font
+        name_bottom = card_y + shape_h + gap_name_to_shape
+        name_top = name_bottom + name_block_h - name_font * 0.2
+        name_rule_y = name_top + gap_rule_to_name
+        # Keep rule below the tagline with a little breathing room.
+        min_rule = tagline_y - 12.0
         if name_rule_y > min_rule:
             shift = name_rule_y - min_rule
             name_rule_y -= shift
