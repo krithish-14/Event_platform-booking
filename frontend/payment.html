@@ -554,10 +554,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  }
  if (subEl) {
  subEl.textContent = isFree
- ? "This ticket is free. Tap Get free ticket to confirm — no payment gateway. Your ticket is emailed and shown on the thank-you page."
+ ? "This ticket is free. Confirming your ticket now — no payment gateway. You will be taken to the thank-you page."
  : "Review your ticket details, then tap Pay now to open Razorpay checkout. Your ticket is issued after payment is verified.";
  }
- if (statusEl && isFree) statusEl.textContent = "Free ticket";
+ if (statusEl && isFree) statusEl.textContent = "Issuing free ticket";
  if (isFree && formPanel) {
  formPanel.classList.add("is-hidden");
  formPanel.classList.remove("is-open");
@@ -565,20 +565,28 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  return isFree;
  }
 
+ let freeClaimInFlight = false;
  async function claimFreeTicket() {
+ if (freeClaimInFlight) return;
+ freeClaimInFlight = true;
  errEl.textContent = "";
  if (!eventId) {
  errEl.textContent = "Missing event. Go back and book again.";
+ freeClaimInFlight = false;
  return;
  }
  const sessionUser = await ensureSession();
  if (!sessionUser) {
+ freeClaimInFlight = false;
  redirectToLogin("Please log in to claim your free ticket.");
  return;
  }
  const user = window.JodAuth && window.JodAuth.getUser ? (window.JodAuth.getUser() || {}) : {};
+ if (payNowBtn) {
  payNowBtn.disabled = true;
- payNowBtn.textContent = "Confirming\u2026";
+ payNowBtn.textContent = "Issuing free ticket\u2026";
+ }
+ if (statusEl) statusEl.textContent = "Issuing free ticket";
  try {
  const res = await authFetch(apiBase + "/api/claim-free-ticket", {
  method: "POST",
@@ -593,6 +601,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  });
  const data = await res.json().catch(() => ({}));
  if (res.status === 401) {
+ freeClaimInFlight = false;
  redirectToLogin("Your session expired. Please log in again.");
  return;
  }
@@ -603,9 +612,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
  window.location.replace(thankYouHref());
  } catch (err) {
+ freeClaimInFlight = false;
  errEl.textContent = err.message || "Could not claim free ticket.";
+ if (payNowBtn) {
  payNowBtn.disabled = false;
  payNowBtn.textContent = "Get free ticket";
+ }
+ if (statusEl) statusEl.textContent = "Free ticket";
  }
  }
 
@@ -985,8 +998,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  return;
  }
  await loadEvent();
- if (status.state === "payment_submitted") {
+ applyFreeTicketUi();
+ if (status.state === "ticket") {
+ try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
+ window.location.replace(thankYouHref());
+ return;
+ }
+ if (status.state === "payment_submitted" && billAmountRupees() > 0) {
  showHoldState();
+ return;
+ }
+ // Free tickets: skip Razorpay and issue immediately → thank-you + email + admin rows.
+ if (billAmountRupees() <= 0) {
+ await claimFreeTicket();
  }
  })();
  })();

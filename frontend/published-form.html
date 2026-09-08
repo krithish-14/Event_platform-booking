@@ -687,12 +687,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				resolvedTicketName = resolveTicketFromAnswers(answers) || canonicalTicketName(resolvedTicketName || ticketType);
 				savePendingTicketBill();
 				if (!successState) return;
+				const priceVal = Number(resolvedTicketPrice || ticketPrice || 0);
+				const isFree = Number.isFinite(priceVal) && priceVal <= 0;
+				const lead = successState.querySelector(".success-lead");
+				const nextBtn = document.getElementById("successNextBtn");
+				if (lead) {
+					lead.textContent = isFree
+						? "Continue to confirm your free ticket. No payment is required."
+						: "Move to payment to finish your full registration process.";
+				}
+				if (nextBtn) {
+					nextBtn.textContent = isFree ? "Continue to free ticket" : "Continue to Payment";
+				}
 				successState.classList.add("is-open");
 				successState.setAttribute("aria-hidden", "false");
 				successState.style.display = "flex";
 				document.body.style.overflow = "hidden";
 				successState.scrollTop = 0;
-				const nextBtn = document.getElementById("successNextBtn");
 				if (nextBtn && typeof nextBtn.focus === "function") {
 					try { nextBtn.focus({ preventScroll: true }); } catch (_) { nextBtn.focus(); }
 				}
