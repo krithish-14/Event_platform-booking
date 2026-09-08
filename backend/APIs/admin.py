@@ -291,8 +291,42 @@ def _payment_by_booking_id(db: Session, booking_id) -> Optional[PaymentProof]:
     return None
 
 
+def _form_payment_txn_ids(submission_id: int) -> tuple:
+    sid = int(submission_id)
+    return (f"FREE-FORM-{sid}", f"FORM-{sid}", f"HOST-FORM-{sid}")
+
+
+def _preferred_form_payment_txn(submission_id: int, *, is_free: bool) -> str:
+    sid = int(submission_id)
+    return f"FREE-FORM-{sid}" if is_free else f"FORM-{sid}"
+
+
+def _payment_by_form_submission_id(db: Session, submission_id: int) -> Optional[PaymentProof]:
+    """Find the Payment Data row that belongs only to this host-form submission."""
+    try:
+        sid = int(submission_id)
+    except (TypeError, ValueError):
+        return None
+    for txn in _form_payment_txn_ids(sid):
+        try:
+            row = (
+                db.query(PaymentProof)
+                .filter(PaymentProof.transaction_id == txn)
+                .order_by(PaymentProof.id.desc())
+                .first()
+            )
+        except Exception:
+            _db_safe_rollback(db)
+            row = None
+        if row is not None:
+            return row
+    return None
+
+
 def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> PaymentProof:
-    """Create or reuse a Payment Data row from this host-form submission (guest identity)."""
+    """One host-form submission => one Payment Data row (never share by login email)."""
+    if getattr(row, "id", None) is None:
+        raise HTTPException(status_code=400, detail="Form submission is missing an id.")
     answers = parse_answers_json(getattr(row, "answers_json", None))
     form_name, form_email, form_phone = _form_guest_identity(
         answers, fallback_email=row.user_email or ""
@@ -309,81 +343,119 @@ def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> Pa
         try:
             price = float(row.ticket_price)
         except (TypeError, ValueError):
-            price = 0.0
+            price = None
+    event = _lookup_event(db, row.event_id)
     if price is None:
-        event = _lookup_event(db, row.event_id)
         try:
             price = float(getattr(event, "price", 0) or 0) if event is not None else 0.0
         except (TypeError, ValueError):
             price = 0.0
     price = float(price or 0)
-    event = _lookup_event(db, row.event_id)
     event_key = str(getattr(event, "id", None) or row.event_id or "")
     if not event_key:
         raise HTTPException(status_code=400, detail="This registration is not linked to a published event.")
 
-    booking_id_text = form_submission_booking_id(db, getattr(row, "id", None))
-    proof = _payment_by_booking_id(db, booking_id_text) if booking_id_text else None
-    if proof is None and form_email:
-        # Prefer an unfinished proof already holding this guest email for the same event.
-        for candidate in (
-            db.query(PaymentProof)
-            .filter(func.lower(PaymentProof.attendee_email) == form_email.lower())
-            .order_by(PaymentProof.created_at.desc())
-            .all()
-        ):
-            if candidate.event_id and not _same_event_id(candidate.event_id, event_key):
-                continue
-            if (candidate.status or "").strip().lower() == "qr_ready" and booking_id_text:
-                continue
-            if (candidate.status or "").strip().lower() != "qr_ready":
-                proof = candidate
-                break
-
     name = (form_name or "").strip() or form_email.split("@")[0]
     phone = (form_phone or "").strip() or "N/A"
     is_free = price <= 0.009
+    booking_id_text = form_submission_booking_id(db, getattr(row, "id", None))
+    preferred_txn = _preferred_form_payment_txn(row.id, is_free=is_free)
 
-    if proof is not None:
-        proof.attendee_name = name
-        proof.attendee_email = form_email.strip().lower()
-        proof.attendee_phone = phone
-        proof.ticket_type = ticket_type
-        proof.amount = price
-        proof.customer_id = row.customer_id or proof.customer_id
-        if is_free and (proof.bank_name or "").strip().lower() not in ("razorpay", "upi / card", "upi"):
-            proof.bank_name = "Free"
+    # Only reuse the payment that is already keyed to THIS form submission.
+    proof = _payment_by_form_submission_id(db, row.id)
+
+    if proof is None:
+        proof = PaymentProof(
+            customer_id=row.customer_id,
+            event_id=event_key,
+            ticket_type=ticket_type,
+            amount=price,
+            quantity=1,
+            attendee_name=name,
+            attendee_email=form_email.strip().lower(),
+            attendee_phone=phone,
+            bank_name="Free" if is_free else "Host form",
+            transaction_id=preferred_txn,
+            screenshot_file_id=None,
+            status="qr_ready" if booking_id_text else "payment_submitted",
+            created_at=getattr(row, "submission_time", None) or utc_now(),
+        )
+        db.add(proof)
+        db.commit()
+        db.refresh(proof)
+        if booking_id_text:
+            _sql_set_booking_id(db, "payment_proofs", "id", proof.id, booking_id_text)
+            try:
+                db.execute(
+                    text("UPDATE payment_proofs SET status = :st WHERE id = :id"),
+                    {"st": "qr_ready", "id": proof.id},
+                )
+                db.commit()
+            except Exception:
+                _db_safe_rollback(db)
+        return proof
+
+    proof.attendee_name = name
+    proof.attendee_email = form_email.strip().lower()
+    proof.attendee_phone = phone
+    proof.ticket_type = ticket_type
+    proof.amount = price
+    proof.customer_id = row.customer_id or proof.customer_id
+    if (proof.transaction_id or "") not in _form_payment_txn_ids(row.id):
+        proof.transaction_id = preferred_txn
+    if is_free and (proof.bank_name or "").strip().lower() not in ("razorpay",):
+        proof.bank_name = "Free"
+    try:
+        db.commit()
+        db.refresh(proof)
+    except Exception:
+        _db_safe_rollback(db)
+
+    if booking_id_text:
+        existing_bid = _column_as_text(db, "payment_proofs", "id", proof.id, "booking_id")
+        if not existing_bid:
+            _sql_set_booking_id(db, "payment_proofs", "id", proof.id, booking_id_text)
         try:
+            db.execute(
+                text("UPDATE payment_proofs SET status = :st WHERE id = :id"),
+                {"st": "qr_ready", "id": proof.id},
+            )
             db.commit()
             db.refresh(proof)
         except Exception:
             _db_safe_rollback(db)
-        return proof
-
-    txn = (
-        f"FREE-{secrets.token_hex(8).upper()}"
-        if is_free
-        else f"FORM-{secrets.token_hex(8).upper()}"
-    )
-    proof = PaymentProof(
-        customer_id=row.customer_id,
-        event_id=event_key,
-        ticket_type=ticket_type,
-        amount=price,
-        quantity=1,
-        attendee_name=name,
-        attendee_email=form_email.strip().lower(),
-        attendee_phone=phone,
-        bank_name="Free" if is_free else "Host form",
-        transaction_id=txn,
-        screenshot_file_id=None,
-        status="payment_submitted",
-        created_at=utc_now(),
-    )
-    db.add(proof)
-    db.commit()
-    db.refresh(proof)
     return proof
+
+
+def _backfill_payment_data_from_forms(db: Session, form_rows) -> int:
+    """Create missing Payment Data rows for host-form attendees (fixes multi-guest buys)."""
+    created = 0
+    for form_row in form_rows or []:
+        try:
+            sid = getattr(form_row, "id", None)
+            if sid is None:
+                continue
+            status_val = (getattr(form_row, "status", None) or "").strip().lower()
+            bid = form_submission_booking_id(db, sid)
+            answers = parse_answers_json(getattr(form_row, "answers_json", None))
+            _ticket, price = _ticket_from_answers(answers)
+            if price is None and getattr(form_row, "ticket_price", None) is not None:
+                try:
+                    price = float(form_row.ticket_price)
+                except (TypeError, ValueError):
+                    price = None
+            is_free = float(price or 0) <= 0.009
+            # Convert any ticketed / free / paid host form into Payment Data.
+            if not (bid or status_val in ("paid", "qr_ready") or is_free):
+                continue
+            before = _payment_by_form_submission_id(db, sid)
+            proof = _ensure_payment_proof_for_submission(db, form_row)
+            if before is None and proof is not None:
+                created += 1
+        except Exception:
+            _db_safe_rollback(db)
+            continue
+    return created
 
 
 def _apply_form_identity_to_proof(
@@ -1119,6 +1191,22 @@ def list_form_submissions(
     pay_rows = []
     form_rows = []
     try:
+        form_rows = fetch_form_submissions(db)
+    except Exception:
+        _db_safe_rollback(db)
+        form_rows = []
+    try:
+        hydrate_customers(db, form_rows)
+    except Exception:
+        _db_safe_rollback(db)
+
+    # Attendees without Payment Data (multi-guest / free forms) get a payment row each.
+    try:
+        _backfill_payment_data_from_forms(db, form_rows)
+    except Exception:
+        _db_safe_rollback(db)
+
+    try:
         pay_rows = (
             db.query(PaymentProof)
             .options(defer(PaymentProof.booking_id), defer(PaymentProof.screenshot_file_id))
@@ -1132,15 +1220,6 @@ def list_form_submissions(
         except Exception:
             _db_safe_rollback(db)
             pay_rows = []
-    try:
-        form_rows = fetch_form_submissions(db)
-    except Exception:
-        _db_safe_rollback(db)
-        form_rows = []
-    try:
-        hydrate_customers(db, form_rows)
-    except Exception:
-        _db_safe_rollback(db)
 
     items = []
     for row in pay_rows:

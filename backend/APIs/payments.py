@@ -32,7 +32,7 @@ router = APIRouter()
 razorpay_router = APIRouter()
 
 
-def _auto_issue_and_deliver(db: Session, row: PaymentProof) -> dict:
+def _auto_issue_and_deliver(db: Session, row: PaymentProof, submission_id: Optional[int] = None) -> dict:
     """
     Mint unique QR tickets and deliver via email / WhatsApp / website.
     Payment is already recorded — never fail the payment response if delivery hiccups.
@@ -40,7 +40,7 @@ def _auto_issue_and_deliver(db: Session, row: PaymentProof) -> dict:
     try:
         from APIs.admin import _deliver_ticket, _issue_tickets_from_payment
 
-        booking = _issue_tickets_from_payment(db, row)
+        booking = _issue_tickets_from_payment(db, row, submission_id=submission_id)
         delivery = _deliver_ticket(booking, row.attendee_phone or "", db=db)
         primary = (booking.tickets or [None])[0]
         token = getattr(primary, "qr_token", None) or delivery.get("qr_token")
@@ -412,12 +412,12 @@ def _record_free_payment(
     attendee_name: Optional[str],
     attendee_phone: Optional[str],
 ) -> PaymentProof:
-    """Always insert a new free PaymentProof — one claim = one payment row per guest."""
+    """One free claim / host form => one PaymentProof (keyed to that form when present)."""
     event_key = sanitize_text(event_id or "", max_length=255)
     if not event_key:
         raise HTTPException(status_code=400, detail="Missing event for free ticket claim.")
     ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
-    name, delivery_email, phone, _login_email, _submission = _attendee_from_host_form(
+    name, delivery_email, phone, _login_email, submission = _attendee_from_host_form(
         db,
         current_user,
         event_id=event_key,
@@ -425,9 +425,12 @@ def _record_free_payment(
         payload_name=attendee_name,
         payload_phone=attendee_phone,
     )
+    if submission is not None and getattr(submission, "id", None) is not None:
+        from APIs.admin import _ensure_payment_proof_for_submission
+        return _ensure_payment_proof_for_submission(db, submission)
+
     qty = _clamp_purchase_quantity(db, event_key, quantity)
     free_txn = f"FREE-{secrets.token_hex(8).upper()}"
-
     row = PaymentProof(
         customer_id=current_user.customer_id,
         event_id=event_key,
@@ -471,40 +474,33 @@ async def claim_free_ticket(
             detail="This ticket is not free. Please complete payment via Razorpay.",
         )
 
-    # New unpaid host form => always mint a fresh free payment + ticket for that guest.
-    # Only short-circuit when there is nothing new to claim for this buyer + event.
     pending_form = _latest_host_form_submission(
         db, event_id, current_user, ticket_type=None, unpaid_only=True
     )
     if pending_form is None:
-        customer_id = str(getattr(current_user, "customer_id", None) or "").strip()
-        existing_ready = None
-        if customer_id:
-            ready_rows = (
-                db.query(PaymentProof)
-                .filter(
-                    PaymentProof.event_id == event_id,
-                    PaymentProof.status == "qr_ready",
-                    PaymentProof.customer_id == customer_id,
-                )
-                .order_by(PaymentProof.created_at.desc())
-                .all()
-            )
-            existing_ready = ready_rows[0] if ready_rows else None
-        if existing_ready is not None:
-            ticket = _auto_issue_and_deliver(db, existing_ready)
-            return {
-                "success": True,
-                "message": (
-                    "Your free ticket is already ready — check email, WhatsApp, and Your Orders."
-                    if ticket.get("qr_token")
-                    else "Your free ticket is being prepared; contact support if it does not appear shortly."
-                ),
-                "payment_id": existing_ready.id,
-                "status": ticket.get("status") or existing_ready.status,
-                "free": True,
-                **ticket,
-            }
+        # Re-deliver only the latest form's own payment row (not any older guest).
+        latest_form = _latest_host_form_submission(
+            db, event_id, current_user, ticket_type=None, unpaid_only=False
+        )
+        if latest_form is not None and getattr(latest_form, "id", None) is not None:
+            from APIs.admin import _ensure_payment_proof_for_submission, _payment_by_form_submission_id
+            existing_ready = _payment_by_form_submission_id(db, latest_form.id)
+            if existing_ready is None:
+                existing_ready = _ensure_payment_proof_for_submission(db, latest_form)
+            if existing_ready is not None and (existing_ready.status or "").strip().lower() == "qr_ready":
+                ticket = _auto_issue_and_deliver(db, existing_ready, submission_id=latest_form.id)
+                return {
+                    "success": True,
+                    "message": (
+                        "Your free ticket is already ready — check email, WhatsApp, and Your Orders."
+                        if ticket.get("qr_token")
+                        else "Your free ticket is being prepared; contact support if it does not appear shortly."
+                    ),
+                    "payment_id": existing_ready.id,
+                    "status": ticket.get("status") or existing_ready.status,
+                    "free": True,
+                    **ticket,
+                }
 
     row = _record_free_payment(
         db,
@@ -515,7 +511,16 @@ async def claim_free_ticket(
         attendee_name=payload.attendee_name,
         attendee_phone=payload.attendee_phone,
     )
-    ticket = _auto_issue_and_deliver(db, row)
+    submission_id = getattr(pending_form, "id", None) if pending_form is not None else None
+    if submission_id is None and row is not None:
+        # FREE-FORM-{id} txn encodes the submission id.
+        txn = (row.transaction_id or "")
+        if txn.startswith("FREE-FORM-") or txn.startswith("FORM-"):
+            try:
+                submission_id = int(txn.rsplit("-", 1)[-1])
+            except (TypeError, ValueError):
+                submission_id = None
+    ticket = _auto_issue_and_deliver(db, row, submission_id=submission_id)
     message = (
         "Free ticket confirmed. Your QR ticket is ready — check email, WhatsApp, and Your Orders."
         if ticket.get("qr_token")
