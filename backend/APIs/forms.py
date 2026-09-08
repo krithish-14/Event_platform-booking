@@ -682,8 +682,10 @@ def submit_attendee_response(
 
 		if existing:
 			status_val = (existing.status or "").lower()
-			# Paid submissions stay closed; start a fresh registration so attendees can buy again.
-			if status_val == "paid":
+			has_booking = bool(form_submission_booking_id(db, getattr(existing, "id", None)))
+			# Paid / already-ticketed submissions stay closed; start a fresh registration
+			# so one login can register multiple guests without overwriting prior rows.
+			if status_val == "paid" or has_booking:
 				existing = None
 			else:
 				_update_form_submission_row(

@@ -294,28 +294,67 @@ def _resolve_attendee_identity(
     form_name: str = "",
     form_email: str = "",
     form_phone: str = "",
+    prefer_form: bool = True,
 ):
+    """Resolve display/delivery identity.
+
+    Host-form answers win by default so one login can buy tickets for other people.
+    """
     if user is None and booking is not None:
         user = getattr(booking, "customer", None)
     if user is None and form_email:
         user = _user_by_email(db, form_email)
-    return pick_attendee_identity(
-		names=(
-			getattr(user, "full_name", None) if user is not None else None,
-			getattr(booking, "receiver_name", None) if booking is not None else None,
-			form_name,
-		),
-        emails=(
-            getattr(booking, "receiver_email", None) if booking is not None else None,
-            getattr(user, "email", None) if user is not None else None,
-            form_email,
-        ),
-        phones=(
-            getattr(user, "phone", None) if user is not None else None,
-            getattr(booking, "receiver_phone", None) if booking is not None else None,
-            form_phone,
-        ),
+    profile_name = getattr(user, "full_name", None) if user is not None else None
+    profile_email = getattr(user, "email", None) if user is not None else None
+    profile_phone = getattr(user, "phone", None) if user is not None else None
+    booking_name = getattr(booking, "receiver_name", None) if booking is not None else None
+    booking_email = getattr(booking, "receiver_email", None) if booking is not None else None
+    booking_phone = getattr(booking, "receiver_phone", None) if booking is not None else None
+    if prefer_form:
+        names = (form_name, booking_name, profile_name)
+        emails = (form_email, booking_email, profile_email)
+        phones = (form_phone, booking_phone, profile_phone)
+    else:
+        names = (profile_name, booking_name, form_name)
+        emails = (booking_email, profile_email, form_email)
+        phones = (profile_phone, booking_phone, form_phone)
+    return pick_attendee_identity(names=names, emails=emails, phones=phones)
+
+
+EMAIL_KEYS = (
+    "email",
+    "email_address",
+    "email address",
+    "e_mail",
+    "e mail",
+    "attendee_email",
+    "attendee email",
+    "your email",
+    "mail",
+    "mail id",
+    "mailid",
+)
+
+
+def _form_guest_identity(answers: Any, fallback_email: str = "") -> tuple:
+    """Name/email/phone from host-form answers (not login profile)."""
+    from APIs.forms import _pick_answer
+
+    answers = answers if isinstance(answers, dict) else {}
+    name = _answer_value(answers, NAME_KEYS) or _pick_answer(
+        answers, "full name", "attendee name", "your name", "participant name", "guest name"
     )
+    if not name:
+        maybe = _pick_answer(answers, "name")
+        if maybe and not any(tok in maybe.lower() for tok in ("pass", "ticket", "general admission")):
+            name = maybe
+    email = _answer_value(answers, EMAIL_KEYS) or _pick_answer(
+        answers, "email", "e-mail", "mail id", "mailid"
+    ) or (fallback_email or "")
+    phone = _answer_value(answers, PHONE_KEYS) or _pick_answer(
+        answers, "phone", "mobile", "whatsapp", "contact number"
+    )
+    return name, email, phone
 
 
 def _booking_status_value(booking) -> str:
@@ -423,13 +462,25 @@ def _serialize_admin_cancellation(db: Session, booking: Booking) -> dict:
     form_row = _form_submission_for_booking(db, booking)
     proof_row = _payment_proof_for_booking(db, booking)
     form_answers = form_row.answers_json if form_row and isinstance(form_row.answers_json, dict) else {}
+    if not isinstance(form_answers, dict):
+        form_answers = parse_answers_json(form_answers)
+    form_name, form_email, form_phone = _form_guest_identity(
+        form_answers,
+        fallback_email=(getattr(form_row, "user_email", None) if form_row else "")
+        or (getattr(proof_row, "attendee_email", None) or ""),
+    )
+    if not form_name and proof_row is not None:
+        form_name = getattr(proof_row, "attendee_name", None) or ""
+    if not form_phone and proof_row is not None:
+        form_phone = getattr(proof_row, "attendee_phone", None) or ""
     name, email, phone = _resolve_attendee_identity(
         db,
         booking=booking,
         user=getattr(booking, "customer", None),
-        form_name=_answer_value(form_answers, NAME_KEYS) or (getattr(proof_row, "attendee_name", None) or ""),
-        form_email=(getattr(form_row, "user_email", None) if form_row else "") or (getattr(proof_row, "attendee_email", None) or ""),
-        form_phone=_answer_value(form_answers, PHONE_KEYS) or (getattr(proof_row, "attendee_phone", None) or ""),
+        form_name=form_name,
+        form_email=form_email or (getattr(proof_row, "attendee_email", None) or ""),
+        form_phone=form_phone,
+        prefer_form=True,
     )
     attendee_answers = {
         "Name": name,
@@ -498,13 +549,15 @@ def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Opt
     status_val = (row.status or "payment_pending").lower()
     if booking and _booking_status_value(booking) in HIDDEN_ADMIN_BOOKING_STATUSES and status_val not in ("paid", "qr_ready"):
         booking = None
+    form_name, form_email, form_phone = _form_guest_identity(answers, fallback_email=row.user_email or "")
     name, email, phone = _resolve_attendee_identity(
         db,
         booking=booking,
         user=getattr(row, "customer", None),
-        form_name=_answer_value(answers, NAME_KEYS),
-        form_email=row.user_email or "",
-        form_phone=_answer_value(answers, PHONE_KEYS),
+        form_name=form_name,
+        form_email=form_email,
+        form_phone=form_phone,
+        prefer_form=True,
     )
     tickets = []
     if booking:
@@ -527,9 +580,9 @@ def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Opt
         "event_id": str(row.event_id or ""),
         "event_title": getattr(event, "title", None) or "Event",
         "event_venue": getattr(event, "venue", None) or getattr(event, "location", None),
-        "user_email": email or row.user_email,
-        "attendee_name": name,
-        "attendee_phone": phone,
+        "user_email": email or form_email or row.user_email,
+        "attendee_name": name or form_name,
+        "attendee_phone": phone or form_phone,
         "ticket_type": ticket_type,
         "ticket_price": float(price) if price is not None else float(getattr(event, "price", 0) or 0),
         "status": "qr_ready" if has_qr else status_val,
@@ -596,6 +649,7 @@ def _serialize_payment_proof(db: Session, row: PaymentProof, booking_id_text: Op
         form_name=row.attendee_name or "",
         form_email=row.attendee_email or "",
         form_phone=row.attendee_phone or "",
+        prefer_form=True,
     )
     answers = {
         "Name": name,
@@ -647,6 +701,7 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
     ticket_type = row.ticket_type or "General Admission"
     price = float(row.amount if row.amount is not None else (event.price or 0))
     qty = max(1, int(row.quantity or 1))
+    linked_submission_id = None
 
     # Prefer host-form name/email/phone for ticket PDF + delivery (one login, many guests).
     try:
@@ -657,7 +712,7 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
         if owner is None:
             owner = db.query(User).filter(func.lower(User.email) == email).first()
         if owner is not None:
-            form_name, form_email, form_phone, _login, _sub = _attendee_from_host_form(
+            form_name, form_email, form_phone, _login, form_sub = _attendee_from_host_form(
                 db,
                 owner,
                 event_id=str(row.event_id or event.id),
@@ -665,6 +720,8 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
                 payload_name=name,
                 payload_phone=phone,
             )
+            if form_sub is not None:
+                linked_submission_id = getattr(form_sub, "id", None)
             if form_name:
                 name = form_name
             if form_email:
@@ -681,7 +738,11 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
     except Exception:
         _db_safe_rollback(db)
 
-    user = _ensure_attendee_user(db, email, name, row.customer_id)
+    # Keep booking under the buyer account (customer_id on the proof), not a guest-only user.
+    buyer = None
+    if row.customer_id:
+        buyer = db.query(User).filter(User.customer_id == str(row.customer_id)).first()
+    user = buyer or _ensure_attendee_user(db, email, name, row.customer_id)
 
     booking = _reload_booking(db, _column_as_text(db, "payment_proofs", "id", row.id, "booking_id"))
     # Do not reuse an older booking for the same event — each paid proof gets its own tickets.
@@ -741,7 +802,13 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
             _db_safe_rollback(db)
     _sql_set_booking_id(db, "payment_proofs", "id", row.id, booking.booking_id)
     try:
-        _mark_form_submission_paid(db, event.id, user, booking_id=booking.booking_id)
+        _mark_form_submission_paid(
+            db,
+            event.id,
+            user,
+            booking_id=booking.booking_id,
+            submission_id=linked_submission_id,
+        )
     except Exception:
         _db_safe_rollback(db)
     issued = _reload_booking(db, booking.booking_id)

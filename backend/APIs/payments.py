@@ -264,8 +264,15 @@ def _latest_host_form_submission(
         status_val = (row.status or "").strip().lower()
         if status_val in ("cancelled", "canceled", "refunded"):
             continue
-        if unpaid_only and status_val == "paid":
-            continue
+        if unpaid_only:
+            if status_val == "paid":
+                continue
+            try:
+                from Utils.form_submission_query import form_submission_booking_id
+                if form_submission_booking_id(db, getattr(row, "id", None)):
+                    continue
+            except Exception:
+                db.rollback()
         matches.append(row)
     if not matches:
         return None
@@ -373,8 +380,14 @@ def _find_open_payment_proof(
     current_user: User,
     login_email: str,
 ) -> Optional[PaymentProof]:
-    """Latest unfinished payment proof for this buyer + event (not qr_ready)."""
+    """Latest unfinished payment proof for this buyer + event (not qr_ready).
+
+    Match by buyer customer_id only. Do not match attendee_email to login email —
+    guest tickets store the host-form email on the proof.
+    """
     customer_id = str(getattr(current_user, "customer_id", None) or "").strip()
+    if not customer_id:
+        return None
     rows = (
         db.query(PaymentProof)
         .filter(PaymentProof.event_id == event_key)
@@ -382,11 +395,9 @@ def _find_open_payment_proof(
         .all()
     )
     for row in rows:
-        if (row.status or "") == "qr_ready":
+        if (row.status or "").strip().lower() == "qr_ready":
             continue
-        same_customer = bool(customer_id and str(row.customer_id or "") == customer_id)
-        same_login = bool(login_email and (row.attendee_email or "").strip().lower() == login_email)
-        if same_customer or same_login:
+        if str(row.customer_id or "") == customer_id:
             return row
     return None
 
@@ -401,11 +412,12 @@ def _record_free_payment(
     attendee_name: Optional[str],
     attendee_phone: Optional[str],
 ) -> PaymentProof:
+    """Always insert a new free PaymentProof — one claim = one payment row per guest."""
     event_key = sanitize_text(event_id or "", max_length=255)
     if not event_key:
         raise HTTPException(status_code=400, detail="Missing event for free ticket claim.")
     ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
-    name, delivery_email, phone, login_email, _submission = _attendee_from_host_form(
+    name, delivery_email, phone, _login_email, _submission = _attendee_from_host_form(
         db,
         current_user,
         event_id=event_key,
@@ -415,28 +427,6 @@ def _record_free_payment(
     )
     qty = _clamp_purchase_quantity(db, event_key, quantity)
     free_txn = f"FREE-{secrets.token_hex(8).upper()}"
-
-    existing = _find_open_payment_proof(db, event_key, current_user, login_email)
-    if existing is not None:
-        existing.attendee_name = name
-        existing.attendee_email = delivery_email
-        existing.attendee_phone = phone
-        existing.bank_name = "Free"
-        existing.transaction_id = free_txn
-        existing.ticket_type = ticket
-        existing.amount = 0.0
-        existing.quantity = qty
-        existing.customer_id = current_user.customer_id
-        existing.status = "payment_submitted"
-        existing.created_at = utc_now()
-        db.commit()
-        db.refresh(existing)
-        try:
-            db.execute(text("UPDATE payment_proofs SET booking_id = NULL WHERE id = :id"), {"id": existing.id})
-            db.commit()
-        except Exception:
-            db.rollback()
-        return existing
 
     row = PaymentProof(
         customer_id=current_user.customer_id,
@@ -481,30 +471,26 @@ async def claim_free_ticket(
             detail="This ticket is not free. Please complete payment via Razorpay.",
         )
 
-    # If there is a new unpaid host form, always issue a fresh ticket for that attendee.
-    # Only reuse an existing ready ticket when there is no new form to claim.
+    # New unpaid host form => always mint a fresh free payment + ticket for that guest.
+    # Only short-circuit when there is nothing new to claim for this buyer + event.
     pending_form = _latest_host_form_submission(
-        db, event_id, current_user, ticket_type, unpaid_only=True
+        db, event_id, current_user, ticket_type=None, unpaid_only=True
     )
     if pending_form is None:
-        login_email = sanitize_text(current_user.email or "", max_length=255).lower()
         customer_id = str(getattr(current_user, "customer_id", None) or "").strip()
         existing_ready = None
-        ready_rows = (
-            db.query(PaymentProof)
-            .filter(
-                PaymentProof.event_id == event_id,
-                PaymentProof.status == "qr_ready",
+        if customer_id:
+            ready_rows = (
+                db.query(PaymentProof)
+                .filter(
+                    PaymentProof.event_id == event_id,
+                    PaymentProof.status == "qr_ready",
+                    PaymentProof.customer_id == customer_id,
+                )
+                .order_by(PaymentProof.created_at.desc())
+                .all()
             )
-            .order_by(PaymentProof.created_at.desc())
-            .all()
-        )
-        for row in ready_rows:
-            same_customer = bool(customer_id and str(row.customer_id or "") == customer_id)
-            same_login = bool(login_email and (row.attendee_email or "").strip().lower() == login_email)
-            if same_customer or same_login:
-                existing_ready = row
-                break
+            existing_ready = ready_rows[0] if ready_rows else None
         if existing_ready is not None:
             ticket = _auto_issue_and_deliver(db, existing_ready)
             return {
@@ -728,28 +714,30 @@ def _record_razorpay_payment(
     qty = _clamp_purchase_quantity(db, event_key or "", quantity) if event_key else max(1, int(quantity or 1))
     amount_val = float(amount_rupees or 0)
 
-    existing = _find_open_payment_proof(db, event_key, current_user, login_email) if event_key else None
-    if existing is not None:
-        existing.attendee_name = name
-        existing.attendee_email = delivery_email
-        existing.attendee_phone = phone
-        existing.bank_name = "Razorpay"
-        existing.transaction_id = payment_id
-        existing.ticket_type = ticket
-        existing.amount = amount_val
-        existing.quantity = qty
-        existing.customer_id = current_user.customer_id
-        existing.status = "payment_submitted"
-        existing.created_at = utc_now()
-        db.commit()
-        db.refresh(existing)
-        try:
-            db.execute(text("UPDATE payment_proofs SET booking_id = NULL WHERE id = :id"), {"id": existing.id})
-            db.commit()
-        except Exception:
-            db.rollback()
-        return existing
+    # Idempotent: same Razorpay payment_id must not create a second row.
+    if payment_id:
+        dup = (
+            db.query(PaymentProof)
+            .filter(PaymentProof.transaction_id == payment_id)
+            .order_by(PaymentProof.created_at.desc())
+            .first()
+        )
+        if dup is not None:
+            if (dup.status or "").strip().lower() != "qr_ready":
+                dup.attendee_name = name
+                dup.attendee_email = delivery_email
+                dup.attendee_phone = phone
+                dup.bank_name = "Razorpay"
+                dup.ticket_type = ticket
+                dup.amount = amount_val
+                dup.quantity = qty
+                dup.customer_id = current_user.customer_id
+                dup.status = "payment_submitted"
+                db.commit()
+                db.refresh(dup)
+            return dup
 
+    # Always insert a new proof per successful Razorpay payment (multi-guest buys).
     row = PaymentProof(
         customer_id=current_user.customer_id,
         event_id=event_key,

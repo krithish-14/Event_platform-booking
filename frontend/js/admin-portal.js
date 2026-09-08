@@ -125,12 +125,31 @@
 	}
 
 	function displayAttendee(row) {
-		const email = String((row && (row.user_email || row.attendee_email)) || "").trim();
-		const rawName = String((row && row.attendee_name) || "").trim();
+		const answers = (row && row.answers) || {};
+		const fromAnswers = (keys, { allowIncludes = false } = {}) => {
+			const exact = [];
+			const soft = [];
+			for (const key of Object.keys(answers)) {
+				const label = String(key || "").trim().toLowerCase();
+				const val = String(answers[key] == null ? "" : answers[key]).trim();
+				if (!val) continue;
+				if (keys.some((k) => label === k)) exact.push(val);
+				else if (allowIncludes && keys.some((k) => k.length > 4 && label.includes(k))) soft.push(val);
+			}
+			return exact[0] || soft[0] || "";
+		};
+		const formEmail = fromAnswers(["email", "e-mail", "mail id", "mailid", "email address"], { allowIncludes: true });
+		const formName = fromAnswers(["full name", "attendee name", "your name", "participant name", "guest name", "name"]);
+		const formPhone = fromAnswers(["phone", "mobile", "whatsapp", "contact number", "number"], { allowIncludes: true });
+		const email = String(
+			formEmail || (row && (row.user_email || row.attendee_email)) || ""
+		).trim();
+		const rawName = String(formName || (row && row.attendee_name) || "").trim();
 		const name = looksLikeName(rawName)
 			? rawName
 			: (email.includes("@") ? email.split("@")[0].replace(/[._+-]+/g, " ") : "Guest");
-		const phone = looksLikePhone(row && row.attendee_phone) ? String(row.attendee_phone).trim() : "";
+		const phoneRaw = formPhone || (row && row.attendee_phone) || "";
+		const phone = looksLikePhone(phoneRaw) ? String(phoneRaw).trim() : "";
 		return { name, email, phone };
 	}
 

@@ -717,39 +717,55 @@ def _sql_set_booking_id(db: Session, table: str, id_col: str, row_id, booking_id
     return False
 
 
-def _mark_form_submission_paid(db: Session, event_id, user, booking_id=None) -> None:
+def _mark_form_submission_paid(db: Session, event_id, user, booking_id=None, submission_id=None) -> None:
     if not event_id or not user:
         return
     email = (getattr(user, "email", None) or "").lower().strip()
     customer_id = str(getattr(user, "customer_id", None) or "").strip()
-    owner_filters = []
-    if email:
-        owner_filters.append(func.lower(FormSubmission.user_email) == email)
-    if customer_id:
-        owner_filters.append(FormSubmission.customer_id == customer_id)
-    if not owner_filters:
-        return
-    try:
-        rows = (
-            db.query(FormSubmission)
-            .options(defer(FormSubmission.booking_id))  # type: ignore[arg-type]
-            .filter(or_(*owner_filters))
-            .order_by(FormSubmission.submission_time.desc())
-            .all()
-        )
-    except Exception:
-        _safe_db_rollback(db)
-        return
-    # Mark only the latest unpaid form for this event (supports multi-ticket buys).
     target = None
-    for row in rows:
-        if not _stored_event_matches(db, row.event_id, event_id):
-            continue
-        status_val = (row.status or "").strip().lower()
-        if status_val in ("cancelled", "canceled", "refunded", "paid"):
-            continue
-        target = row
-        break
+    if submission_id is not None:
+        try:
+            target = (
+                db.query(FormSubmission)
+                .options(defer(FormSubmission.booking_id))  # type: ignore[arg-type]
+                .filter(FormSubmission.id == int(submission_id))
+                .first()
+            )
+        except Exception:
+            _safe_db_rollback(db)
+            target = None
+        if target is not None:
+            status_val = (target.status or "").strip().lower()
+            if status_val in ("cancelled", "canceled", "refunded"):
+                target = None
+    if target is None:
+        owner_filters = []
+        if email:
+            owner_filters.append(func.lower(FormSubmission.user_email) == email)
+        if customer_id:
+            owner_filters.append(FormSubmission.customer_id == customer_id)
+        if not owner_filters:
+            return
+        try:
+            rows = (
+                db.query(FormSubmission)
+                .options(defer(FormSubmission.booking_id))  # type: ignore[arg-type]
+                .filter(or_(*owner_filters))
+                .order_by(FormSubmission.submission_time.desc())
+                .all()
+            )
+        except Exception:
+            _safe_db_rollback(db)
+            return
+        # Mark only the latest unpaid form for this event (supports multi-ticket buys).
+        for row in rows:
+            if not _stored_event_matches(db, row.event_id, event_id):
+                continue
+            status_val = (row.status or "").strip().lower()
+            if status_val in ("cancelled", "canceled", "refunded", "paid"):
+                continue
+            target = row
+            break
     if target is None:
         return
     params = {"st": "paid", "id": target.id}

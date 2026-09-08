@@ -91,7 +91,7 @@ def name_from_email(email: Optional[str] = None) -> str:
 
 
 def pick_attendee_identity(*, names=(), emails=(), phones=()) -> Tuple[str, str, str]:
-    """Prefer account/booking identity over raw host-form answers."""
+    """Pick first usable values; callers control preference via argument order."""
     email = next((str(v).strip() for v in emails if looks_like_email(v)), "")
     name = next((str(v).strip() for v in names if looks_like_person_name(v)), "")
     if not name:
