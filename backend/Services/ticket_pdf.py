@@ -731,3 +731,266 @@ def build_ticket_pdf_bytes(
         payment_mode=payment_mode,
         include_qr=include_qr,
     )
+
+
+# Admin portal download only — fixed 85mm x 130mm card on A4, attendee name instead of prices.
+_ADMIN_CARD_W = 85.0 * 72.0 / 25.4  # ≈ 240.94 pt
+_ADMIN_CARD_H = 130.0 * 72.0 / 25.4  # ≈ 368.50 pt
+
+
+def build_admin_mticket_pdf_bytes(
+    *,
+    booking_id,
+    event_name: str,
+    event_date=None,
+    venue: str = "",
+    language: str = "English",
+    event_format: str = "Live Event",
+    ticket_type: str = "General Admission",
+    quantity: int = 1,
+    qr_token: str = "",
+    poster_url: str = "",
+    seat_number: str = "General Admission",
+    attendee_name: str = "",
+) -> Optional[bytes]:
+    """Admin-only ticket PDF: 85x130mm card, no price block, attendee name at bottom."""
+    try:
+        title = _ascii_text(event_name, "JOD Events") or "JOD Events"
+        date_label = _ascii_text(_format_event_date(event_date), "Date TBA")
+        venue_label = _ascii_text(venue, "Venue details at location")
+        format_label = _ascii_text(
+            f"{language or 'English'}, {event_format or 'Live Event'}",
+            "English, Live Event",
+        )
+        type_label = _ascii_text(ticket_type, "Standard Access")
+        seat_label = _ascii_text(seat_number, "General Admission")
+        qty = max(1, int(quantity or 1))
+        booking_label = f"JOD-{_short_booking_id(booking_id)}"
+        guest_name = _ascii_text(attendee_name, "Guest") or "Guest"
+        qr_jpeg = _fetch_qr_jpeg(qr_token) if (qr_token or "").strip() else b""
+        poster = _load_poster_image(_absolute_media_url(poster_url)) if poster_url else None
+
+        card_w, card_h = _ADMIN_CARD_W, _ADMIN_CARD_H
+        card_x = (595.0 - card_w) / 2.0
+        card_y = max(36.0, (842.0 - card_h) / 2.0)
+        pad_x, pad_y = 14.0, 14.0
+        inner_x = card_x + pad_x
+        inner_right = card_x + card_w - pad_x
+        poster_w, poster_h = 56.0, 70.0
+        qr_size = 118.0
+        y = card_y + card_h - pad_y
+
+        ops = [
+            "0.97 0.97 0.98 rg 0 0 595 842 re f",
+            "1 1 1 rg 0.83 0.85 0.88 RG 1 w",
+            f"{_round_rect_path(card_x, card_y, card_w, card_h, 10)} B",
+        ]
+
+        xobjects: dict[str, tuple[bytes, int, int, str]] = {}
+        poster_box_x, poster_box_y = inner_x, y - poster_h
+        if poster:
+            filt, payload, pw, ph = poster
+            xobjects["ImP"] = (payload, pw, ph, filt)
+            ops.append(_cover_image("ImP", poster_box_x, poster_box_y, poster_w, poster_h, pw, ph, 6))
+        else:
+            ops.extend([
+                "0.90 0.91 0.93 rg",
+                f"{_round_rect_path(poster_box_x, poster_box_y, poster_w, poster_h, 6)} f",
+            ])
+
+        text_x = inner_x + poster_w + 10
+        title_lines = _wrap_text(title, 18, 2)
+        venue_lines = _wrap_text(venue_label, 22, 2)
+        ops.extend([
+            "BT",
+            "/F1 11 Tf 0.07 0.09 0.15 rg",
+            f"1 0 0 1 {text_x:.1f} {y - 12:.1f} Tm ({_pdf_escape(title_lines[0])}) Tj",
+        ])
+        cursor = y - 12
+        if len(title_lines) > 1:
+            cursor -= 12
+            ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(title_lines[1])}) Tj")
+        cursor -= 12
+        ops.extend([
+            "/F2 7 Tf 0.42 0.45 0.50 rg",
+            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(format_label[:28])}) Tj",
+        ])
+        cursor -= 11
+        ops.extend([
+            "/F1 8 Tf 0.07 0.09 0.15 rg",
+            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(date_label[:30])}) Tj",
+        ])
+        cursor -= 10
+        ops.extend([
+            "/F2 7 Tf 0.42 0.45 0.50 rg",
+            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[0])}) Tj",
+        ])
+        if len(venue_lines) > 1:
+            cursor -= 9
+            ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[1])}) Tj")
+        ops.extend([
+            "/F1 7 Tf 0.61 0.64 0.69 rg",
+            _tj_right(inner_right, y - 12, "E-Ticket", 3.8),
+            "ET",
+        ])
+
+        block_top = poster_box_y - 12
+        center_x = card_x + card_w / 2.0
+        ops.extend([
+            "0.89 0.91 0.94 RG 0.7 w",
+            f"{inner_x:.1f} {block_top + 6:.1f} m {inner_right:.1f} {block_top + 6:.1f} l S",
+            "BT",
+            "/F2 8 Tf 0.42 0.45 0.50 rg",
+            _tj_center(center_x, block_top - 4, f"{qty} Ticket(s)", 4.2),
+            "/F1 12 Tf 0.07 0.09 0.15 rg",
+            _tj_center(center_x, block_top - 20, type_label[:26], 6.8),
+            "/F2 8 Tf 0.42 0.45 0.50 rg",
+            _tj_center(center_x, block_top - 34, seat_label[:26], 4.5),
+            "ET",
+        ])
+
+        qr_top = block_top - 46
+        qr_x = card_x + (card_w - qr_size) / 2.0
+        qr_y = qr_top - qr_size
+        if qr_jpeg:
+            qw, qh = _jpeg_dimensions(qr_jpeg)
+            xobjects["ImQ"] = (qr_jpeg, qw, qh, "DCTDecode")
+            ops.append(_draw_image("ImQ", qr_x, qr_y, qr_size, qr_size))
+        else:
+            ops.extend([
+                "0.97 0.98 0.99 rg 0.82 0.84 0.86 RG 0.8 w",
+                f"{qr_x:.1f} {qr_y:.1f} {qr_size:.1f} {qr_size:.1f} re B",
+                "BT /F2 9 Tf 0.42 0.45 0.50 rg",
+                f"1 0 0 1 {qr_x + 28:.1f} {qr_y + 55:.1f} Tm ({_pdf_escape('QR pending')}) Tj ET",
+            ])
+        booking_text = f"BOOKING ID: #{booking_label}"
+        booking_w = len(booking_text) * 5.2
+        ops.extend([
+            "BT",
+            "/F1 9 Tf 0.07 0.09 0.15 rg",
+            f"1 0 0 1 {card_x + (card_w - booking_w) / 2.0:.1f} {qr_y - 16:.1f} Tm ({_pdf_escape(booking_text)}) Tj",
+            "ET",
+        ])
+
+        divider_y = qr_y - 28
+        ops.extend([
+            "[5 4] 0 d 0.80 0.83 0.86 RG 1 w",
+            f"{inner_x:.1f} {divider_y:.1f} m {inner_right:.1f} {divider_y:.1f} l S",
+            "[] 0 d",
+        ])
+
+        # Title-size attendee name (replaces price block). Wrap long names and keep centered.
+        name_max_chars = 18
+        name_lines = _wrap_text(guest_name, name_max_chars, 3)
+        name_font = 16 if max(len(line) for line in name_lines) <= 16 else 13
+        name_char_w = 9.2 if name_font >= 16 else 7.4
+        name_gap = 18 if name_font >= 16 else 15
+        name_block_h = name_gap * len(name_lines)
+        name_top = divider_y - ((divider_y - card_y - pad_y) - name_block_h) / 2.0 - 4
+        ops.append("BT")
+        ops.append(f"/F1 {name_font} Tf 0.07 0.09 0.15 rg")
+        for i, line in enumerate(name_lines):
+            ops.append(_tj_center(center_x, name_top - i * name_gap, line, name_char_w))
+        ops.append("ET")
+
+        stream = "\n".join(ops).encode("latin-1", "replace")
+        xobject_refs = []
+        image_objects = []
+        next_obj = 7
+        for name, (payload, width, height, pdf_filter) in xobjects.items():
+            xobject_refs.append(f"/{name} {next_obj} 0 R")
+            image_objects.append(_image_xobject(payload, width, height, pdf_filter))
+            next_obj += 1
+        xobject_dict = f"/XObject << {' '.join(xobject_refs)} >>" if xobject_refs else ""
+        resources = (
+            f"<< /Font << /F1 4 0 R /F2 5 0 R >> {xobject_dict} >>".encode("ascii")
+        )
+        contents_obj = f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
+        page_obj = (
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources "
+            + resources
+            + b" /Contents 6 0 R >>"
+        )
+        objects = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            page_obj,
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            contents_obj,
+        ]
+        objects.extend(image_objects)
+        return _assemble_pdf(objects)
+    except Exception:
+        return None
+
+
+def build_admin_mticket_pdf_from_booking(
+    booking,
+    *,
+    attendee_name: str = "",
+    qr_token: str = "",
+    db=None,
+) -> Optional[bytes]:
+    """Build the admin-portal ticket PDF (name footer, 85x130mm card)."""
+    event = getattr(booking, "event", None)
+    token = (qr_token or "").strip()
+    if not token:
+        tickets = list(getattr(booking, "tickets", None) or [])
+        for ticket in tickets:
+            if (getattr(ticket, "qr_token", None) or "").strip():
+                token = ticket.qr_token.strip()
+                break
+    poster = ""
+    if event is not None:
+        poster = getattr(event, "card_image", None) or getattr(event, "image_url", None) or ""
+    qty = max(1, int(getattr(booking, "quantity", 1) or 1))
+    event_date = None
+    public_start = getattr(event, "start_date", None) if event is not None else None
+    if db is not None:
+        try:
+            from APIs.bookings import _event_schedule_display
+            start_display, _, _, _ = _event_schedule_display(
+                db,
+                getattr(booking, "event_id", None),
+                public_start,
+                getattr(event, "end_date", None) if event is not None else None,
+            )
+            event_date = start_display
+        except Exception:
+            event_date = None
+    if not event_date:
+        try:
+            from Utils.datetimes import format_utc_naive_as_ist_when
+            event_date = format_utc_naive_as_ist_when(public_start) or public_start
+        except Exception:
+            event_date = public_start
+
+    guest = (attendee_name or "").strip()
+    if not guest:
+        customer = getattr(booking, "customer", None)
+        guest = (
+            getattr(booking, "receiver_name", None)
+            or getattr(customer, "full_name", None)
+            or getattr(customer, "username", None)
+            or ""
+        )
+
+    return build_admin_mticket_pdf_bytes(
+        booking_id=getattr(booking, "booking_id", ""),
+        event_name=getattr(event, "title", None) if event is not None else "JOD Events",
+        event_date=event_date,
+        venue=(getattr(event, "venue", None) or getattr(event, "location", None) or "") if event is not None else "",
+        language=getattr(event, "language", None) if event is not None else "English",
+        event_format=getattr(event, "event_format", None) if event is not None else "Live Event",
+        ticket_type=getattr(booking, "ticket_type", None) or "General Admission",
+        quantity=qty,
+        qr_token=token,
+        poster_url=poster,
+        seat_number=getattr(booking, "seat_number", None) or "General Admission",
+        attendee_name=guest,
+    )
+
+
+def admin_ticket_pdf_filename(booking_id) -> str:
+    return f"JOD-Admin-Ticket-{_short_booking_id(booking_id)}.pdf"

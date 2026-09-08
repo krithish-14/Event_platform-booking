@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import String, cast, func, text
 from sqlalchemy.orm import Session, defer, joinedload
@@ -26,7 +27,11 @@ from Models.user import User
 from Services.auth_service import get_password_hash
 from Services.email import send_email
 from Services.whatsapp import send_whatsapp
-from Services.ticket_pdf import build_ticket_pdf_bytes
+from Services.ticket_pdf import (
+    admin_ticket_pdf_filename,
+    build_admin_mticket_pdf_from_booking,
+    build_ticket_pdf_bytes,
+)
 
 from APIs.bookings import (
     _active_booking_for_event,
@@ -1033,6 +1038,54 @@ def generate_payment_qr(
     item["delivery"] = delivery
     item["booking"] = _serialize_booking(booking, db=db)
     return item
+
+
+@router.get("/payments/{payment_id}/ticket-pdf")
+def download_admin_payment_ticket_pdf(
+    payment_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """Admin-only ticket PDF: 85x130mm card with attendee name (no price block)."""
+    row = db.query(PaymentProof).filter(PaymentProof.id == payment_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Payment form not found.")
+    booking = _reload_booking(db, getattr(row, "booking_id", None))
+    if not booking:
+        raise HTTPException(
+            status_code=400,
+            detail="No ticket booking yet for this payment. Resend QR first.",
+        )
+    tickets = list(getattr(booking, "tickets", None) or [])
+    if not tickets:
+        raise HTTPException(
+            status_code=400,
+            detail="QR ticket is not ready yet. Resend QR first, then download.",
+        )
+    name, _, _ = _resolve_attendee_identity(
+        db,
+        booking=booking,
+        form_name=row.attendee_name or "",
+        form_email=row.attendee_email or "",
+        form_phone=row.attendee_phone or "",
+    )
+    pdf = build_admin_mticket_pdf_from_booking(
+        booking,
+        attendee_name=name,
+        qr_token=(tickets[0].qr_token or ""),
+        db=db,
+    )
+    if not pdf:
+        raise HTTPException(status_code=500, detail="Could not generate the admin ticket PDF.")
+    filename = admin_ticket_pdf_filename(booking.booking_id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.get("/cancellation-requests")

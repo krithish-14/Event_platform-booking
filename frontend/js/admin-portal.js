@@ -169,6 +169,7 @@
 		const ready = Boolean(row.has_qr);
 		const showGenerate = Boolean(options && options.showGenerate);
 		const generateLabel = "Resend QR";
+		const showDownload = showGenerate && ready && kind === "payment";
 		return `<tr data-id="${recordId}" data-kind="${escapeHtml(kind)}">
 			<td>${attendeeCellHtml(row)}</td>
 			<td>
@@ -185,6 +186,7 @@
 			<td>
 				<div class="admin-actions">
 					${showGenerate ? `<button type="button" class="admin-btn" data-kind="${escapeHtml(kind)}" data-generate="${recordId}">${generateLabel}</button>` : ""}
+					${showDownload ? `<button type="button" class="admin-btn ghost" data-download-ticket="${recordId}" title="Download admin ticket PDF">Download</button>` : ""}
 					<button type="button" class="admin-btn ghost" data-kind="${escapeHtml(kind)}" data-answers="${recordId}">View form</button>
 				</div>
 			</td>
@@ -507,8 +509,8 @@
 			if (pageTitle) pageTitle.textContent = "Payment Data";
 			if (title) title.textContent = "Payment Data";
 			if (copy) copy.textContent = eventLabel
-				? `Payment records for ${eventLabel}. QR is issued automatically after payment; use Resend QR if needed.`
-				: "Payment records. QR is issued automatically after payment; use Resend QR to email/WhatsApp again.";
+				? `Payment records for ${eventLabel}. QR is issued automatically after payment; use Resend QR if needed. Download saves the admin ticket PDF (name, no prices).`
+				: "Payment records. QR is issued automatically after payment; use Resend QR to email/WhatsApp again. Download saves the admin ticket PDF (name, no prices).";
 			if (hint) hint.textContent = eventLabel
 				? `Payment data${eventNote}.`
 				: "Select an event to view that event's payment data, or keep All events.";
@@ -743,6 +745,46 @@
 				btn.disabled = false;
 				if (!btn.isConnected) return;
 				btn.textContent = "Resend QR";
+			}
+		}
+	}
+
+	async function downloadAdminTicketPdf(paymentId, btn) {
+		if (!paymentId) return;
+		const label = btn ? btn.textContent : "";
+		if (btn) {
+			btn.disabled = true;
+			btn.textContent = "Downloading\u2026";
+		}
+		try {
+			const res = await adminFetch(
+				`${apiBase()}/api/admin/payments/${encodeURIComponent(paymentId)}/ticket-pdf`
+			);
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				const detail = data && data.detail;
+				alert(typeof detail === "string" ? detail : "Could not download the ticket PDF.");
+				return;
+			}
+			const blob = await res.blob();
+			let filename = `JOD-Admin-Ticket-${paymentId}.pdf`;
+			const disposition = res.headers.get("Content-Disposition") || "";
+			const match = disposition.match(/filename="?([^";]+)"?/i);
+			if (match && match[1]) filename = match[1];
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = filename;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+		} catch (_) {
+			alert("Could not download the ticket PDF. Check that the backend is running.");
+		} finally {
+			if (btn && btn.isConnected) {
+				btn.disabled = false;
+				btn.textContent = label || "Download";
 			}
 		}
 	}
@@ -1237,6 +1279,11 @@
 			const generateBtn = event.target.closest("[data-generate]");
 			if (generateBtn) {
 				generateQr(generateBtn.getAttribute("data-generate"), generateBtn.getAttribute("data-kind") || "form", generateBtn);
+				return;
+			}
+			const downloadBtn = event.target.closest("[data-download-ticket]");
+			if (downloadBtn) {
+				downloadAdminTicketPdf(downloadBtn.getAttribute("data-download-ticket"), downloadBtn);
 				return;
 			}
 			const answersBtn = event.target.closest("[data-answers]");
