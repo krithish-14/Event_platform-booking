@@ -547,6 +547,68 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  return Math.round(billAmountRupees() * 100);
  }
 
+ function applyFreeTicketUi() {
+ const isFree = billAmountRupees() <= 0;
+ if (payNowBtn) {
+ payNowBtn.textContent = isFree ? "Get free ticket" : "Pay now";
+ }
+ if (subEl) {
+ subEl.textContent = isFree
+ ? "This ticket is free. Tap Get free ticket to confirm — no payment gateway. Your ticket is emailed and shown on the thank-you page."
+ : "Review your ticket details, then tap Pay now to open Razorpay checkout. Your ticket is issued after payment is verified.";
+ }
+ if (statusEl && isFree) statusEl.textContent = "Free ticket";
+ if (isFree && formPanel) {
+ formPanel.classList.add("is-hidden");
+ formPanel.classList.remove("is-open");
+ }
+ return isFree;
+ }
+
+ async function claimFreeTicket() {
+ errEl.textContent = "";
+ if (!eventId) {
+ errEl.textContent = "Missing event. Go back and book again.";
+ return;
+ }
+ const sessionUser = await ensureSession();
+ if (!sessionUser) {
+ redirectToLogin("Please log in to claim your free ticket.");
+ return;
+ }
+ const user = window.JodAuth && window.JodAuth.getUser ? (window.JodAuth.getUser() || {}) : {};
+ payNowBtn.disabled = true;
+ payNowBtn.textContent = "Confirming\u2026";
+ try {
+ const res = await authFetch(apiBase + "/api/claim-free-ticket", {
+ method: "POST",
+ headers: { "Content-Type": "application/json", Accept: "application/json" },
+ body: JSON.stringify({
+ event_id: eventId,
+ ticket_type: ticket,
+ quantity: qty || 1,
+ attendee_name: user.full_name || user.username || "",
+ attendee_phone: user.phone || user.mobile || ""
+ })
+ });
+ const data = await res.json().catch(() => ({}));
+ if (res.status === 401) {
+ redirectToLogin("Your session expired. Please log in again.");
+ return;
+ }
+ if (!res.ok) {
+ throw new Error(apiErrorMessage(data, "Could not claim free ticket."));
+ }
+ stashTicketReady(data);
+ try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
+ window.location.replace(thankYouHref());
+ } catch (err) {
+ errEl.textContent = err.message || "Could not claim free ticket.";
+ payNowBtn.disabled = false;
+ payNowBtn.textContent = "Get free ticket";
+ }
+ }
+
  async function startRazorpayCheckout() {
  errEl.textContent = "";
  if (!eventId) {
@@ -558,9 +620,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  redirectToLogin("Please log in to complete payment.");
  return;
  }
+ if (billAmountRupees() <= 0) {
+ await claimFreeTicket();
+ return;
+ }
  const amountPaise = billAmountPaise();
  if (amountPaise < 100) {
- errEl.textContent = "This ticket is free or under \u20B91, so Razorpay checkout is not needed.";
+ errEl.textContent = "This ticket is under \u20B91. Contact support if checkout fails.";
  return;
  }
  if (typeof window.Razorpay !== "function") {
@@ -603,7 +669,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  name: "JOD Events",
  description: (function () {
  const parts = paymentBreakdown(billAmountRupees());
- return ticket + " &middot; Ticket " + formatRupees(parts.ticketBase)
+ return ticket + " \u00b7 Ticket " + formatRupees(parts.ticketBase)
  + " + Platform " + formatRupees(parts.platform)
  + " + GST " + formatRupees(parts.gst);
  })(),
@@ -681,6 +747,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  if (qtyEl) qtyEl.textContent = String(qty);
  applyGstNote(saved.priceNote);
  renderPaymentSummary();
+ applyFreeTicketUi();
  if (eventEl && saved.eventTitle) eventEl.textContent = saved.eventTitle;
  if (saved.venue && venueEl && venueRow) {
  venueEl.textContent = saved.venue;

@@ -108,6 +108,258 @@ class VerifyPaymentRequest(BaseModel):
     attendee_phone: Optional[str] = Field(default=None, max_length=40)
 
 
+class ClaimFreeTicketRequest(BaseModel):
+    event_id: str = Field(..., min_length=1, max_length=255)
+    ticket_type: Optional[str] = Field(default="General Admission", max_length=100)
+    quantity: Optional[int] = Field(default=1, ge=1, le=20)
+    attendee_name: Optional[str] = Field(default=None, max_length=120)
+    attendee_phone: Optional[str] = Field(default=None, max_length=40)
+
+
+def _ticket_label(item: dict) -> str:
+    return str(
+        item.get("name")
+        or item.get("ticket_name")
+        or item.get("title")
+        or item.get("type")
+        or item.get("ticket_type")
+        or ""
+    ).strip()
+
+
+def _ticket_unit_price(item: dict) -> Optional[float]:
+    for key in ("price", "amount", "ticket_price", "unit_price"):
+        if key not in item or item.get(key) is None:
+            continue
+        try:
+            return float(item.get(key) or 0)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _resolve_ticket_unit_price(db: Session, event_id: str, ticket_type: str) -> float:
+    """Server-side unit price for a ticket tier. Prefer host tickets_json, then catalog."""
+    from Models.event import Event
+    from APIs.events import _host_tickets_for_event, _parse_json_field
+
+    wanted = (ticket_type or "").strip().lower()
+    tiers: list = []
+    host_tiers = _host_tickets_for_event(db, event_id)
+    if isinstance(host_tiers, list):
+        tiers.extend([t for t in host_tiers if isinstance(t, dict)])
+
+    event = None
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+    except Exception:
+        db.rollback()
+        event = None
+    if event is None:
+        try:
+            from sqlalchemy import cast, String
+            event = db.query(Event).filter(cast(Event.id, String) == str(event_id)).first()
+        except Exception:
+            db.rollback()
+            event = None
+
+    if event is not None:
+        catalog = _parse_json_field(getattr(event, "ticket_types", None))
+        if isinstance(catalog, list):
+            for item in catalog:
+                if isinstance(item, dict):
+                    tiers.append(item)
+
+    exact_prices = []
+    fuzzy_prices = []
+    for item in tiers:
+        label = _ticket_label(item).lower()
+        if not label:
+            continue
+        price = _ticket_unit_price(item)
+        if price is None:
+            continue
+        if wanted and label == wanted:
+            exact_prices.append(price)
+        elif wanted and (wanted in label or label in wanted):
+            fuzzy_prices.append(price)
+
+    if exact_prices:
+        return float(min(exact_prices))
+    if fuzzy_prices:
+        return float(min(fuzzy_prices))
+
+    # Named tiers exist but none matched — do not fall back (avoids free-claim of paid tiers).
+    named_tiers = [t for t in tiers if _ticket_label(t)]
+    if named_tiers and wanted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ticket type '{ticket_type}' was not found for this event.",
+        )
+
+    if event is not None and getattr(event, "price", None) is not None:
+        try:
+            return float(event.price or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
+
+
+def _record_free_payment(
+    db: Session,
+    current_user: User,
+    *,
+    event_id: str,
+    ticket_type: Optional[str],
+    quantity: Optional[int],
+    attendee_name: Optional[str],
+    attendee_phone: Optional[str],
+) -> PaymentProof:
+    email = sanitize_text(current_user.email or "", max_length=255).lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Your account has no email address.")
+    name = sanitize_text(
+        attendee_name or getattr(current_user, "full_name", None) or getattr(current_user, "username", None) or email,
+        max_length=120,
+    )
+    phone = sanitize_text(
+        attendee_phone or getattr(current_user, "phone", None) or getattr(current_user, "mobile", None) or "N/A",
+        max_length=40,
+    ) or "N/A"
+    event_key = sanitize_text(event_id or "", max_length=255)
+    if not event_key:
+        raise HTTPException(status_code=400, detail="Missing event for free ticket claim.")
+    ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
+    qty = _clamp_purchase_quantity(db, event_key, quantity)
+    free_txn = f"FREE-{secrets.token_hex(8).upper()}"
+
+    existing = (
+        db.query(PaymentProof)
+        .filter(
+            PaymentProof.event_id == event_key,
+            func.lower(PaymentProof.attendee_email) == email,
+        )
+        .order_by(PaymentProof.created_at.desc())
+        .first()
+    )
+    if existing and (existing.status or "") == "qr_ready":
+        return existing
+    if existing and (existing.status or "") != "qr_ready":
+        existing.attendee_name = name
+        existing.attendee_phone = phone
+        existing.bank_name = "Free"
+        existing.transaction_id = free_txn
+        existing.ticket_type = ticket
+        existing.amount = 0.0
+        existing.quantity = qty
+        existing.customer_id = current_user.customer_id
+        existing.status = "payment_submitted"
+        existing.created_at = utc_now()
+        db.commit()
+        db.refresh(existing)
+        try:
+            db.execute(text("UPDATE payment_proofs SET booking_id = NULL WHERE id = :id"), {"id": existing.id})
+            db.commit()
+        except Exception:
+            db.rollback()
+        return existing
+
+    row = PaymentProof(
+        customer_id=current_user.customer_id,
+        event_id=event_key,
+        ticket_type=ticket,
+        amount=0.0,
+        quantity=qty,
+        attendee_name=name,
+        attendee_email=email,
+        attendee_phone=phone,
+        bank_name="Free",
+        transaction_id=free_txn,
+        screenshot_file_id=None,
+        status="payment_submitted",
+        created_at=utc_now(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+async def claim_free_ticket(
+    payload: ClaimFreeTicketRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Issue and deliver a free ticket without Razorpay. Paid tickets must use checkout."""
+    limit_payment(request)
+    event_id = sanitize_text(payload.event_id or "", max_length=255)
+    if not event_id:
+        raise HTTPException(status_code=400, detail="Missing event_id.")
+    ticket_type = sanitize_text(payload.ticket_type or "General Admission", max_length=100) or "General Admission"
+    qty = _clamp_purchase_quantity(db, event_id, payload.quantity)
+
+    unit_price = _resolve_ticket_unit_price(db, event_id, ticket_type)
+    total = round(float(unit_price or 0) * qty, 2)
+    if total > 0.009:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This ticket is not free. Please complete payment via Razorpay.",
+        )
+
+    email = sanitize_text(current_user.email or "", max_length=255).lower()
+    existing_ready = None
+    if email:
+        existing_ready = (
+            db.query(PaymentProof)
+            .filter(
+                PaymentProof.event_id == event_id,
+                func.lower(PaymentProof.attendee_email) == email,
+                PaymentProof.status == "qr_ready",
+            )
+            .order_by(PaymentProof.created_at.desc())
+            .first()
+        )
+    if existing_ready is not None:
+        ticket = _auto_issue_and_deliver(db, existing_ready)
+        return {
+            "success": True,
+            "message": (
+                "Your free ticket is already ready — check email, WhatsApp, and Your Orders."
+                if ticket.get("qr_token")
+                else "Your free ticket is being prepared; contact support if it does not appear shortly."
+            ),
+            "payment_id": existing_ready.id,
+            "status": ticket.get("status") or existing_ready.status,
+            "free": True,
+            **ticket,
+        }
+
+    row = _record_free_payment(
+        db,
+        current_user,
+        event_id=event_id,
+        ticket_type=ticket_type,
+        quantity=qty,
+        attendee_name=payload.attendee_name,
+        attendee_phone=payload.attendee_phone,
+    )
+    ticket = _auto_issue_and_deliver(db, row)
+    message = (
+        "Free ticket confirmed. Your QR ticket is ready — check email, WhatsApp, and Your Orders."
+        if ticket.get("qr_token")
+        else "Free ticket recorded. Your ticket is being prepared; contact support if it does not appear shortly."
+    )
+    return {
+        "success": True,
+        "message": message,
+        "payment_id": row.id,
+        "status": ticket.get("status") or row.status,
+        "free": True,
+        **ticket,
+    }
+
+
 def _clamp_purchase_quantity(db: Session, event_id: str, requested) -> int:
     try:
         qty = int(requested or 1)
@@ -467,5 +719,7 @@ async def verify_razorpay_payment(
 # Same handlers under /api/payments/* and /api/* for the Standard Checkout guide paths.
 router.add_api_route("/create-order", create_razorpay_order, methods=["POST"], status_code=200)
 router.add_api_route("/verify-payment", verify_razorpay_payment, methods=["POST"], status_code=200)
+router.add_api_route("/claim-free-ticket", claim_free_ticket, methods=["POST"], status_code=200)
 razorpay_router.add_api_route("/create-order", create_razorpay_order, methods=["POST"], status_code=200)
 razorpay_router.add_api_route("/verify-payment", verify_razorpay_payment, methods=["POST"], status_code=200)
+razorpay_router.add_api_route("/claim-free-ticket", claim_free_ticket, methods=["POST"], status_code=200)
