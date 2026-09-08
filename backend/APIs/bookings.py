@@ -734,29 +734,39 @@ def _mark_form_submission_paid(db: Session, event_id, user, booking_id=None) -> 
             db.query(FormSubmission)
             .options(defer(FormSubmission.booking_id))  # type: ignore[arg-type]
             .filter(or_(*owner_filters))
+            .order_by(FormSubmission.submission_time.desc())
             .all()
         )
     except Exception:
         _safe_db_rollback(db)
         return
+    # Mark only the latest unpaid form for this event (supports multi-ticket buys).
+    target = None
     for row in rows:
         if not _stored_event_matches(db, row.event_id, event_id):
             continue
-        params = {"st": "paid", "id": row.id}
-        status_sql = "UPDATE form_submissions SET status = :st WHERE id = :id"
-        if customer_id:
-            status_sql = (
-                "UPDATE form_submissions SET status = :st, "
-                "customer_id = COALESCE(customer_id, :cid) WHERE id = :id"
-            )
-            params["cid"] = customer_id
-        try:
-            db.execute(text(status_sql), params)
-            db.commit()
-        except Exception:
-            _safe_db_rollback(db)
-        if booking_id is not None:
-            _sql_set_booking_id(db, "form_submissions", "id", row.id, booking_id)
+        status_val = (row.status or "").strip().lower()
+        if status_val in ("cancelled", "canceled", "refunded", "paid"):
+            continue
+        target = row
+        break
+    if target is None:
+        return
+    params = {"st": "paid", "id": target.id}
+    status_sql = "UPDATE form_submissions SET status = :st WHERE id = :id"
+    if customer_id:
+        status_sql = (
+            "UPDATE form_submissions SET status = :st, "
+            "customer_id = COALESCE(customer_id, :cid) WHERE id = :id"
+        )
+        params["cid"] = customer_id
+    try:
+        db.execute(text(status_sql), params)
+        db.commit()
+    except Exception:
+        _safe_db_rollback(db)
+    if booking_id is not None:
+        _sql_set_booking_id(db, "form_submissions", "id", target.id, booking_id)
 
 
 def _ticket_from_answers(answers: Any) -> tuple:

@@ -10,12 +10,13 @@ from typing import Optional
 import razorpay
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from Authentication.dependencies import get_current_user
 from Models.base import get_db
 from Models.event_management import EventManagement
+from Models.form_submissions import FormSubmission
 from Models.payment_proof import PaymentProof
 from Models.user import User
 from Services.file_storage import store_bytes
@@ -205,6 +206,191 @@ def _resolve_ticket_unit_price(db: Session, event_id: str, ticket_type: str) -> 
     return 0.0
 
 
+def _compact_id(value) -> str:
+    return str(value or "").replace("-", "").strip().lower()
+
+
+def _form_answers(submission) -> dict:
+    raw = getattr(submission, "answers_json", None) if submission is not None else None
+    if isinstance(raw, str):
+        try:
+            import json
+            raw = json.loads(raw)
+        except Exception:
+            raw = {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _latest_host_form_submission(
+    db: Session,
+    event_id: str,
+    user: User,
+    ticket_type: Optional[str] = None,
+    *,
+    unpaid_only: bool = True,
+) -> Optional[FormSubmission]:
+    """Latest host registration form for this account + event (prefer unpaid)."""
+    from APIs.bookings import _stored_event_matches
+
+    login_email = sanitize_text(getattr(user, "email", None) or "", max_length=255).lower()
+    customer_id = str(getattr(user, "customer_id", None) or "").strip()
+    owner_filters = []
+    if login_email:
+        owner_filters.append(func.lower(FormSubmission.user_email) == login_email)
+    if customer_id:
+        owner_filters.append(FormSubmission.customer_id == customer_id)
+    if not owner_filters:
+        return None
+    try:
+        rows = (
+            db.query(FormSubmission)
+            .filter(or_(*owner_filters))
+            .order_by(FormSubmission.submission_time.desc())
+            .all()
+        )
+    except Exception:
+        db.rollback()
+        return None
+
+    matches = []
+    for row in rows:
+        try:
+            if not _stored_event_matches(db, row.event_id, event_id):
+                continue
+        except Exception:
+            db.rollback()
+            if _compact_id(row.event_id) != _compact_id(event_id):
+                continue
+        status_val = (row.status or "").strip().lower()
+        if status_val in ("cancelled", "canceled", "refunded"):
+            continue
+        if unpaid_only and status_val == "paid":
+            continue
+        matches.append(row)
+    if not matches:
+        return None
+
+    want = (ticket_type or "").strip().lower()
+    if want:
+        typed = []
+        for row in matches:
+            answers = _form_answers(row)
+            label = str(
+                row.ticket_type
+                or answers.get("_ticket_type")
+                or answers.get("ticket_type")
+                or answers.get("Ticket Type")
+                or answers.get("Ticket")
+                or ""
+            ).strip().lower()
+            if label == want or (label and (want in label or label in want)):
+                typed.append(row)
+        if typed:
+            return typed[0]
+    return matches[0]
+
+
+def _attendee_from_host_form(
+    db: Session,
+    current_user: User,
+    *,
+    event_id: str,
+    ticket_type: Optional[str],
+    payload_name: Optional[str] = None,
+    payload_phone: Optional[str] = None,
+) -> tuple[str, str, str, str, Optional[FormSubmission]]:
+    """
+    Prefer host-form name/email/phone for ticket PDF + delivery.
+    Falls back to profile only when the form field is missing.
+    Returns (name, delivery_email, phone, login_email, submission).
+    """
+    from APIs.admin import NAME_KEYS, PHONE_KEYS, _answer_value
+    from APIs.forms import _pick_answer
+
+    login_email = sanitize_text(current_user.email or "", max_length=255).lower()
+    if not login_email:
+        raise HTTPException(status_code=400, detail="Your account has no email address.")
+
+    submission = _latest_host_form_submission(
+        db, event_id, current_user, ticket_type, unpaid_only=True
+    )
+    if submission is None:
+        submission = _latest_host_form_submission(
+            db, event_id, current_user, ticket_type, unpaid_only=False
+        )
+
+    answers = _form_answers(submission)
+    form_name = _answer_value(answers, NAME_KEYS) or _pick_answer(
+        answers, "full name", "attendee name", "your name", "participant name", "guest name"
+    )
+    if not form_name:
+        maybe = _pick_answer(answers, "name")
+        if maybe and not any(tok in maybe.lower() for tok in ("pass", "ticket", "general admission")):
+            form_name = maybe
+    form_email = _answer_value(
+        answers,
+        (
+            "email",
+            "email_address",
+            "email address",
+            "e_mail",
+            "e mail",
+            "attendee_email",
+            "attendee email",
+            "your email",
+            "mail",
+            "mail id",
+            "mailid",
+        ),
+    ) or _pick_answer(answers, "email", "e-mail", "mail id", "mailid")
+    form_phone = _answer_value(answers, PHONE_KEYS) or _pick_answer(
+        answers, "phone", "mobile", "whatsapp", "contact number"
+    )
+
+    name = sanitize_text(
+        form_name
+        or payload_name
+        or getattr(current_user, "full_name", None)
+        or getattr(current_user, "username", None)
+        or login_email,
+        max_length=120,
+    )
+    delivery_email = sanitize_text(form_email or login_email, max_length=255).lower() or login_email
+    phone = sanitize_text(
+        form_phone
+        or payload_phone
+        or getattr(current_user, "phone", None)
+        or getattr(current_user, "mobile", None)
+        or "N/A",
+        max_length=40,
+    ) or "N/A"
+    return name, delivery_email, phone, login_email, submission
+
+
+def _find_open_payment_proof(
+    db: Session,
+    event_key: str,
+    current_user: User,
+    login_email: str,
+) -> Optional[PaymentProof]:
+    """Latest unfinished payment proof for this buyer + event (not qr_ready)."""
+    customer_id = str(getattr(current_user, "customer_id", None) or "").strip()
+    rows = (
+        db.query(PaymentProof)
+        .filter(PaymentProof.event_id == event_key)
+        .order_by(PaymentProof.created_at.desc())
+        .all()
+    )
+    for row in rows:
+        if (row.status or "") == "qr_ready":
+            continue
+        same_customer = bool(customer_id and str(row.customer_id or "") == customer_id)
+        same_login = bool(login_email and (row.attendee_email or "").strip().lower() == login_email)
+        if same_customer or same_login:
+            return row
+    return None
+
+
 def _record_free_payment(
     db: Session,
     current_user: User,
@@ -215,37 +401,25 @@ def _record_free_payment(
     attendee_name: Optional[str],
     attendee_phone: Optional[str],
 ) -> PaymentProof:
-    email = sanitize_text(current_user.email or "", max_length=255).lower()
-    if not email:
-        raise HTTPException(status_code=400, detail="Your account has no email address.")
-    name = sanitize_text(
-        attendee_name or getattr(current_user, "full_name", None) or getattr(current_user, "username", None) or email,
-        max_length=120,
-    )
-    phone = sanitize_text(
-        attendee_phone or getattr(current_user, "phone", None) or getattr(current_user, "mobile", None) or "N/A",
-        max_length=40,
-    ) or "N/A"
     event_key = sanitize_text(event_id or "", max_length=255)
     if not event_key:
         raise HTTPException(status_code=400, detail="Missing event for free ticket claim.")
     ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
+    name, delivery_email, phone, login_email, _submission = _attendee_from_host_form(
+        db,
+        current_user,
+        event_id=event_key,
+        ticket_type=ticket,
+        payload_name=attendee_name,
+        payload_phone=attendee_phone,
+    )
     qty = _clamp_purchase_quantity(db, event_key, quantity)
     free_txn = f"FREE-{secrets.token_hex(8).upper()}"
 
-    existing = (
-        db.query(PaymentProof)
-        .filter(
-            PaymentProof.event_id == event_key,
-            func.lower(PaymentProof.attendee_email) == email,
-        )
-        .order_by(PaymentProof.created_at.desc())
-        .first()
-    )
-    if existing and (existing.status or "") == "qr_ready":
-        return existing
-    if existing and (existing.status or "") != "qr_ready":
+    existing = _find_open_payment_proof(db, event_key, current_user, login_email)
+    if existing is not None:
         existing.attendee_name = name
+        existing.attendee_email = delivery_email
         existing.attendee_phone = phone
         existing.bank_name = "Free"
         existing.transaction_id = free_txn
@@ -271,7 +445,7 @@ def _record_free_payment(
         amount=0.0,
         quantity=qty,
         attendee_name=name,
-        attendee_email=email,
+        attendee_email=delivery_email,
         attendee_phone=phone,
         bank_name="Free",
         transaction_id=free_txn,
@@ -307,33 +481,44 @@ async def claim_free_ticket(
             detail="This ticket is not free. Please complete payment via Razorpay.",
         )
 
-    email = sanitize_text(current_user.email or "", max_length=255).lower()
-    existing_ready = None
-    if email:
-        existing_ready = (
+    # If there is a new unpaid host form, always issue a fresh ticket for that attendee.
+    # Only reuse an existing ready ticket when there is no new form to claim.
+    pending_form = _latest_host_form_submission(
+        db, event_id, current_user, ticket_type, unpaid_only=True
+    )
+    if pending_form is None:
+        login_email = sanitize_text(current_user.email or "", max_length=255).lower()
+        customer_id = str(getattr(current_user, "customer_id", None) or "").strip()
+        existing_ready = None
+        ready_rows = (
             db.query(PaymentProof)
             .filter(
                 PaymentProof.event_id == event_id,
-                func.lower(PaymentProof.attendee_email) == email,
                 PaymentProof.status == "qr_ready",
             )
             .order_by(PaymentProof.created_at.desc())
-            .first()
+            .all()
         )
-    if existing_ready is not None:
-        ticket = _auto_issue_and_deliver(db, existing_ready)
-        return {
-            "success": True,
-            "message": (
-                "Your free ticket is already ready — check email, WhatsApp, and Your Orders."
-                if ticket.get("qr_token")
-                else "Your free ticket is being prepared; contact support if it does not appear shortly."
-            ),
-            "payment_id": existing_ready.id,
-            "status": ticket.get("status") or existing_ready.status,
-            "free": True,
-            **ticket,
-        }
+        for row in ready_rows:
+            same_customer = bool(customer_id and str(row.customer_id or "") == customer_id)
+            same_login = bool(login_email and (row.attendee_email or "").strip().lower() == login_email)
+            if same_customer or same_login:
+                existing_ready = row
+                break
+        if existing_ready is not None:
+            ticket = _auto_issue_and_deliver(db, existing_ready)
+            return {
+                "success": True,
+                "message": (
+                    "Your free ticket is already ready — check email, WhatsApp, and Your Orders."
+                    if ticket.get("qr_token")
+                    else "Your free ticket is being prepared; contact support if it does not appear shortly."
+                ),
+                "payment_id": existing_ready.id,
+                "status": ticket.get("status") or existing_ready.status,
+                "free": True,
+                **ticket,
+            }
 
     row = _record_free_payment(
         db,
@@ -509,35 +694,44 @@ def _record_razorpay_payment(
     attendee_name: Optional[str],
     attendee_phone: Optional[str],
 ) -> PaymentProof:
-    email = sanitize_text(current_user.email or "", max_length=255).lower()
-    if not email:
-        raise HTTPException(status_code=400, detail="Your account has no email address.")
-    name = sanitize_text(
-        attendee_name or getattr(current_user, "full_name", None) or getattr(current_user, "username", None) or email,
-        max_length=120,
-    )
-    phone = sanitize_text(
-        attendee_phone or getattr(current_user, "phone", None) or getattr(current_user, "mobile", None) or "N/A",
-        max_length=40,
-    ) or "N/A"
     event_key = sanitize_text(event_id or "", max_length=255) or None
     ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
+    if event_key:
+        name, delivery_email, phone, login_email, _submission = _attendee_from_host_form(
+            db,
+            current_user,
+            event_id=event_key,
+            ticket_type=ticket,
+            payload_name=attendee_name,
+            payload_phone=attendee_phone,
+        )
+    else:
+        login_email = sanitize_text(current_user.email or "", max_length=255).lower()
+        if not login_email:
+            raise HTTPException(status_code=400, detail="Your account has no email address.")
+        name = sanitize_text(
+            attendee_name
+            or getattr(current_user, "full_name", None)
+            or getattr(current_user, "username", None)
+            or login_email,
+            max_length=120,
+        )
+        delivery_email = login_email
+        phone = sanitize_text(
+            attendee_phone
+            or getattr(current_user, "phone", None)
+            or getattr(current_user, "mobile", None)
+            or "N/A",
+            max_length=40,
+        ) or "N/A"
+
     qty = _clamp_purchase_quantity(db, event_key or "", quantity) if event_key else max(1, int(quantity or 1))
     amount_val = float(amount_rupees or 0)
 
-    existing = None
-    if event_key:
-        existing = (
-            db.query(PaymentProof)
-            .filter(
-                PaymentProof.event_id == event_key,
-                func.lower(PaymentProof.attendee_email) == email,
-            )
-            .order_by(PaymentProof.created_at.desc())
-            .first()
-        )
-    if existing and (existing.status or "") != "qr_ready":
+    existing = _find_open_payment_proof(db, event_key, current_user, login_email) if event_key else None
+    if existing is not None:
         existing.attendee_name = name
+        existing.attendee_email = delivery_email
         existing.attendee_phone = phone
         existing.bank_name = "Razorpay"
         existing.transaction_id = payment_id
@@ -563,7 +757,7 @@ def _record_razorpay_payment(
         amount=amount_val,
         quantity=qty,
         attendee_name=name,
-        attendee_email=email,
+        attendee_email=delivery_email,
         attendee_phone=phone,
         bank_name="Razorpay",
         transaction_id=payment_id,

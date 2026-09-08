@@ -647,6 +647,40 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
     ticket_type = row.ticket_type or "General Admission"
     price = float(row.amount if row.amount is not None else (event.price or 0))
     qty = max(1, int(row.quantity or 1))
+
+    # Prefer host-form name/email/phone for ticket PDF + delivery (one login, many guests).
+    try:
+        from APIs.payments import _attendee_from_host_form
+        owner = None
+        if row.customer_id:
+            owner = db.query(User).filter(User.customer_id == str(row.customer_id)).first()
+        if owner is None:
+            owner = db.query(User).filter(func.lower(User.email) == email).first()
+        if owner is not None:
+            form_name, form_email, form_phone, _login, _sub = _attendee_from_host_form(
+                db,
+                owner,
+                event_id=str(row.event_id or event.id),
+                ticket_type=ticket_type,
+                payload_name=name,
+                payload_phone=phone,
+            )
+            if form_name:
+                name = form_name
+            if form_email:
+                email = form_email
+            if form_phone and form_phone != "N/A":
+                phone = form_phone
+            row.attendee_name = name
+            row.attendee_email = email
+            row.attendee_phone = phone
+            try:
+                db.commit()
+            except Exception:
+                _db_safe_rollback(db)
+    except Exception:
+        _db_safe_rollback(db)
+
     user = _ensure_attendee_user(db, email, name, row.customer_id)
 
     booking = _reload_booking(db, _column_as_text(db, "payment_proofs", "id", row.id, "booking_id"))
@@ -678,12 +712,13 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
         db.commit()
         db.refresh(booking)
     else:
-        if phone and not (booking.receiver_phone or "").strip():
-            booking.receiver_phone = phone
-        if name and not (booking.receiver_name or "").strip():
+        # Always refresh guest identity from the current proof/form for this issue.
+        if name:
             booking.receiver_name = name
-        if email and not (booking.receiver_email or "").strip():
+        if email:
             booking.receiver_email = email
+        if phone:
+            booking.receiver_phone = phone
         if qty > int(booking.quantity or 1):
             booking.quantity = qty
         if ticket_type and not (booking.ticket_type or "").strip():
