@@ -855,7 +855,7 @@ def build_admin_mticket_pdf_bytes(
         inner_x = card_x + pad_x
         inner_right = card_x + card_w - pad_x
         poster_w, poster_h = 54.0, 68.0
-        qr_size = 108.0
+        qr_size = 96.0
         y = card_y + card_h - pad_y
         center_x = card_x + card_w / 2.0
 
@@ -865,7 +865,7 @@ def build_admin_mticket_pdf_bytes(
             f"{_round_rect_path(card_x, card_y, card_w, card_h, 10)} B",
         ]
         # Low orange corner shapes only — leave white space above for the name.
-        shape_h = 20.0
+        shape_h = 16.0
         ops.extend(_admin_footer_shapes(card_x, card_y, card_w, shape_h=shape_h))
 
         xobjects: dict[str, tuple[bytes, int, int, str]] = {}
@@ -958,26 +958,26 @@ def build_admin_mticket_pdf_bytes(
             "[] 0 d",
         ])
 
-        logo_draw_h = 26.0
-        logo_y = brand_top - 7 - logo_draw_h
+        logo_draw_h = 24.0
+        logo_y = brand_top - 6 - logo_draw_h
         if logo:
             filt, payload, lw, lh = logo
             xobjects["ImL"] = (payload, lw, lh, filt)
             aspect = (lw / float(lh)) if lh else 2.6
-            logo_draw_w = min(112.0, logo_draw_h * aspect)
+            logo_draw_w = min(108.0, logo_draw_h * aspect)
             logo_x = center_x - logo_draw_w / 2.0
             ops.append(_draw_image("ImL", logo_x, logo_y, logo_draw_w, logo_draw_h))
-            tagline_y = logo_y - 11
+            tagline_y = logo_y - 10
         else:
             ops.extend([
                 "BT",
                 "/F1 14 Tf 0.07 0.09 0.15 rg",
-                _tj_center(center_x, brand_top - 18, "JOD", 8.4),
+                _tj_center(center_x, brand_top - 16, "JOD", 8.4),
                 "/F2 7 Tf 0.20 0.22 0.26 rg",
-                _tj_center(center_x, brand_top - 30, "E V E N T S", 4.0),
+                _tj_center(center_x, brand_top - 28, "E V E N T S", 4.0),
                 "ET",
             ])
-            tagline_y = brand_top - 42
+            tagline_y = brand_top - 40
 
         ops.extend([
             "BT",
@@ -991,19 +991,22 @@ def build_admin_mticket_pdf_bytes(
         name_font = 15 if max(len(line) for line in name_lines) <= 16 else 12
         name_char_w = 8.6 if name_font >= 15 else 6.8
         name_gap = 16 if name_font >= 15 else 14
-        # Stack with clear gaps: dashed line → gap → name → gap → orange shapes.
-        gap_rule_to_name = 12.0
-        gap_name_to_shape = 10.0
-        name_block_h = name_gap * (len(name_lines) - 1) + name_font
-        name_bottom = card_y + shape_h + gap_name_to_shape
-        name_top = name_bottom + name_block_h - name_font * 0.2
-        name_rule_y = name_top + gap_rule_to_name
-        # Keep rule below the tagline with a little breathing room.
-        min_rule = tagline_y - 12.0
-        if name_rule_y > min_rule:
-            shift = name_rule_y - min_rule
-            name_rule_y -= shift
-            name_top -= shift
+        # Keep dashed line close under the tagline, and pin the name low so
+        # there is a clear white gap between the rule and the name.
+        name_rule_y = tagline_y - 8.0
+        ascent = name_font * 0.78
+        gap_below_rule = 26.0
+        gap_above_shape = 6.0
+        low_baseline = card_y + shape_h + gap_above_shape
+        high_limit = name_rule_y - gap_below_rule - ascent
+        if len(name_lines) == 1:
+            name_top = min(low_baseline, high_limit)
+        else:
+            block = name_gap * (len(name_lines) - 1)
+            name_top = min(low_baseline + block, high_limit + block)
+            last_baseline = name_top - block
+            if last_baseline < low_baseline:
+                name_top = low_baseline + block
 
         ops.extend([
             "[4 3] 0 d 0.80 0.83 0.86 RG 0.9 w",
