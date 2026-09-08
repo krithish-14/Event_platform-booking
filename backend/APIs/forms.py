@@ -705,6 +705,7 @@ def submit_attendee_response(
 				existing.form_id = form_id
 				if event_id_str:
 					existing.event_id = event_id_str
+				_maybe_auto_issue_free_ticket(db, existing)
 				return _submission_payload(existing, "Registration submitted successfully!")
 
 		sub = _insert_form_submission(
@@ -722,6 +723,7 @@ def submit_attendee_response(
 				"submission_time": utc_now(),
 			},
 		)
+		_maybe_auto_issue_free_ticket(db, sub)
 		return _submission_payload(sub, "Registration submitted successfully!")
 	except HTTPException:
 		raise
@@ -740,6 +742,42 @@ INTERNAL_ANSWER_KEYS = {
 	"ticket_type",
 	"ticket_price",
 }
+
+
+def _maybe_auto_issue_free_ticket(db: Session, sub: FormSubmission) -> None:
+	"""₹0 host-form rows become Payment Data + QR using form guest name/email."""
+	answers = parse_answers_json(getattr(sub, "answers_json", None))
+	price = getattr(sub, "ticket_price", None)
+	if price is None:
+		try:
+			from APIs.bookings import _ticket_from_answers
+			_, price = _ticket_from_answers(answers)
+		except Exception:
+			price = answers.get("_ticket_price")
+	try:
+		amount = float(price if price is not None else 0)
+	except (TypeError, ValueError):
+		amount = 0.0
+	if amount > 0.009:
+		return
+	try:
+		from APIs.admin import (
+			_deliver_ticket,
+			_ensure_payment_proof_for_submission,
+			_issue_tickets_from_payment,
+		)
+		proof = _ensure_payment_proof_for_submission(db, sub)
+		booking = _issue_tickets_from_payment(db, proof, submission_id=getattr(sub, "id", None))
+		_deliver_ticket(booking, proof.attendee_phone or "", db=db)
+	except Exception:
+		logger.exception(
+			"auto_free_ticket_from_form_failed submission_id=%s",
+			getattr(sub, "id", None),
+		)
+		try:
+			db.rollback()
+		except Exception:
+			pass
 
 
 def _pretty_answer(value: Any) -> str:

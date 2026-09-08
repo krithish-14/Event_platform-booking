@@ -42,7 +42,7 @@ from APIs.bookings import (
     _sql_set_booking_id,
     _ticket_from_answers,
 )
-from Utils.datetimes import json_datetime
+from Utils.datetimes import json_datetime, utc_now
 from Utils.form_submission_query import (
     fetch_form_submissions,
     form_submission_booking_id,
@@ -273,6 +273,148 @@ def _matching_payment(db: Session, email: str, event_id) -> Optional[PaymentProo
             continue
         return row
     return None
+
+
+def _payment_by_booking_id(db: Session, booking_id) -> Optional[PaymentProof]:
+    bid = _text_or_none(booking_id)
+    if not bid:
+        return None
+    try:
+        found = db.execute(
+            text("SELECT id FROM payment_proofs WHERE CAST(booking_id AS TEXT) = :b ORDER BY id DESC LIMIT 1"),
+            {"b": bid},
+        ).first()
+        if found and found[0] is not None:
+            return db.query(PaymentProof).filter(PaymentProof.id == int(found[0])).first()
+    except Exception:
+        _db_safe_rollback(db)
+    return None
+
+
+def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> PaymentProof:
+    """Create or reuse a Payment Data row from this host-form submission (guest identity)."""
+    answers = parse_answers_json(getattr(row, "answers_json", None))
+    form_name, form_email, form_phone = _form_guest_identity(
+        answers, fallback_email=row.user_email or ""
+    )
+    if not form_email or "@" not in form_email:
+        raise HTTPException(
+            status_code=400,
+            detail="This host form has no attendee email. Add an Email field on the form and resubmit.",
+        )
+    ticket_type, price = _ticket_from_answers(answers)
+    if not ticket_type:
+        ticket_type = row.ticket_type or "General Admission"
+    if price is None and row.ticket_price is not None:
+        try:
+            price = float(row.ticket_price)
+        except (TypeError, ValueError):
+            price = 0.0
+    if price is None:
+        event = _lookup_event(db, row.event_id)
+        try:
+            price = float(getattr(event, "price", 0) or 0) if event is not None else 0.0
+        except (TypeError, ValueError):
+            price = 0.0
+    price = float(price or 0)
+    event = _lookup_event(db, row.event_id)
+    event_key = str(getattr(event, "id", None) or row.event_id or "")
+    if not event_key:
+        raise HTTPException(status_code=400, detail="This registration is not linked to a published event.")
+
+    booking_id_text = form_submission_booking_id(db, getattr(row, "id", None))
+    proof = _payment_by_booking_id(db, booking_id_text) if booking_id_text else None
+    if proof is None and form_email:
+        # Prefer an unfinished proof already holding this guest email for the same event.
+        for candidate in (
+            db.query(PaymentProof)
+            .filter(func.lower(PaymentProof.attendee_email) == form_email.lower())
+            .order_by(PaymentProof.created_at.desc())
+            .all()
+        ):
+            if candidate.event_id and not _same_event_id(candidate.event_id, event_key):
+                continue
+            if (candidate.status or "").strip().lower() == "qr_ready" and booking_id_text:
+                continue
+            if (candidate.status or "").strip().lower() != "qr_ready":
+                proof = candidate
+                break
+
+    name = (form_name or "").strip() or form_email.split("@")[0]
+    phone = (form_phone or "").strip() or "N/A"
+    is_free = price <= 0.009
+
+    if proof is not None:
+        proof.attendee_name = name
+        proof.attendee_email = form_email.strip().lower()
+        proof.attendee_phone = phone
+        proof.ticket_type = ticket_type
+        proof.amount = price
+        proof.customer_id = row.customer_id or proof.customer_id
+        if is_free and (proof.bank_name or "").strip().lower() not in ("razorpay", "upi / card", "upi"):
+            proof.bank_name = "Free"
+        try:
+            db.commit()
+            db.refresh(proof)
+        except Exception:
+            _db_safe_rollback(db)
+        return proof
+
+    txn = (
+        f"FREE-{secrets.token_hex(8).upper()}"
+        if is_free
+        else f"FORM-{secrets.token_hex(8).upper()}"
+    )
+    proof = PaymentProof(
+        customer_id=row.customer_id,
+        event_id=event_key,
+        ticket_type=ticket_type,
+        amount=price,
+        quantity=1,
+        attendee_name=name,
+        attendee_email=form_email.strip().lower(),
+        attendee_phone=phone,
+        bank_name="Free" if is_free else "Host form",
+        transaction_id=txn,
+        screenshot_file_id=None,
+        status="payment_submitted",
+        created_at=utc_now(),
+    )
+    db.add(proof)
+    db.commit()
+    db.refresh(proof)
+    return proof
+
+
+def _apply_form_identity_to_proof(
+    db: Session,
+    proof: PaymentProof,
+    *,
+    submission: Optional[FormSubmission] = None,
+    submission_id: Optional[int] = None,
+) -> Optional[int]:
+    """Overwrite proof + return submission id when host-form guest fields are available."""
+    form_row = submission
+    if form_row is None and submission_id is not None:
+        form_row = form_submission_by_id(db, submission_id)
+    if form_row is None:
+        return None
+    answers = parse_answers_json(getattr(form_row, "answers_json", None))
+    form_name, form_email, form_phone = _form_guest_identity(
+        answers, fallback_email=form_row.user_email or ""
+    )
+    if form_name:
+        proof.attendee_name = form_name
+    if form_email and "@" in form_email:
+        proof.attendee_email = form_email.strip().lower()
+    if form_phone and form_phone != "N/A":
+        proof.attendee_phone = form_phone
+    try:
+        db.commit()
+        db.refresh(proof)
+    except Exception:
+        _db_safe_rollback(db)
+    return getattr(form_row, "id", None)
 
 
 def _user_by_email(db: Session, email: str) -> Optional[User]:
@@ -600,20 +742,14 @@ def _serialize_submission(db: Session, row: FormSubmission, booking_id_text: Opt
 
 
 def _issue_tickets(db: Session, row: FormSubmission) -> Booking:
-    email = (row.user_email or "").strip().lower()
-    if not email:
+    """Turn a host-form attendee row into Payment Data + QR using form guest identity."""
+    if not (row.user_email or "").strip() and not parse_answers_json(getattr(row, "answers_json", None)):
         raise HTTPException(status_code=400, detail="This form has no attendee email.")
     event = _lookup_event(db, row.event_id)
     if not event:
         raise HTTPException(status_code=400, detail="This registration is not linked to a published event.")
-
-    proof = _matching_payment(db, email, event.id)
-    if not proof:
-        raise HTTPException(
-            status_code=400,
-            detail="This attendee has not submitted a payment form yet. Open Payment forms, verify the UPI details, then click Generate QR.",
-        )
-    return _issue_tickets_from_payment(db, proof)
+    proof = _ensure_payment_proof_for_submission(db, row)
+    return _issue_tickets_from_payment(db, proof, submission_id=getattr(row, "id", None))
 
 
 def _screenshot_url(file_id) -> Optional[str]:
@@ -689,7 +825,12 @@ def _serialize_payment_proof(db: Session, row: PaymentProof, booking_id_text: Op
     }
 
 
-def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
+def _issue_tickets_from_payment(
+    db: Session,
+    row: PaymentProof,
+    *,
+    submission_id: Optional[int] = None,
+) -> Booking:
     email = (row.attendee_email or "").strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="This payment form has no attendee email.")
@@ -701,40 +842,49 @@ def _issue_tickets_from_payment(db: Session, row: PaymentProof) -> Booking:
     ticket_type = row.ticket_type or "General Admission"
     price = float(row.amount if row.amount is not None else (event.price or 0))
     qty = max(1, int(row.quantity or 1))
-    linked_submission_id = None
+    linked_submission_id = submission_id
 
-    # Prefer host-form name/email/phone for ticket PDF + delivery (one login, many guests).
+    # Prefer the exact host-form submission when known; otherwise latest unpaid form for buyer.
     try:
-        from APIs.payments import _attendee_from_host_form
-        owner = None
-        if row.customer_id:
-            owner = db.query(User).filter(User.customer_id == str(row.customer_id)).first()
-        if owner is None:
-            owner = db.query(User).filter(func.lower(User.email) == email).first()
-        if owner is not None:
-            form_name, form_email, form_phone, _login, form_sub = _attendee_from_host_form(
-                db,
-                owner,
-                event_id=str(row.event_id or event.id),
-                ticket_type=ticket_type,
-                payload_name=name,
-                payload_phone=phone,
-            )
-            if form_sub is not None:
-                linked_submission_id = getattr(form_sub, "id", None)
-            if form_name:
-                name = form_name
-            if form_email:
-                email = form_email
-            if form_phone and form_phone != "N/A":
-                phone = form_phone
-            row.attendee_name = name
-            row.attendee_email = email
-            row.attendee_phone = phone
-            try:
-                db.commit()
-            except Exception:
-                _db_safe_rollback(db)
+        if linked_submission_id is not None:
+            applied = _apply_form_identity_to_proof(db, row, submission_id=linked_submission_id)
+            if applied is not None:
+                linked_submission_id = applied
+                name = (row.attendee_name or "").strip() or name
+                email = (row.attendee_email or "").strip().lower() or email
+                phone = (row.attendee_phone or "").strip() or phone
+        else:
+            from APIs.payments import _attendee_from_host_form
+            owner = None
+            if row.customer_id:
+                owner = db.query(User).filter(User.customer_id == str(row.customer_id)).first()
+            if owner is None:
+                owner = db.query(User).filter(func.lower(User.email) == email).first()
+            if owner is not None:
+                form_name, form_email, form_phone, _login, form_sub = _attendee_from_host_form(
+                    db,
+                    owner,
+                    event_id=str(row.event_id or event.id),
+                    ticket_type=ticket_type,
+                    payload_name=name,
+                    payload_phone=phone,
+                )
+                if form_sub is not None:
+                    linked_submission_id = getattr(form_sub, "id", None)
+                    _apply_form_identity_to_proof(db, row, submission=form_sub)
+                if form_name:
+                    name = form_name
+                if form_email:
+                    email = form_email
+                if form_phone and form_phone != "N/A":
+                    phone = form_phone
+                row.attendee_name = name
+                row.attendee_email = email
+                row.attendee_phone = phone
+                try:
+                    db.commit()
+                except Exception:
+                    _db_safe_rollback(db)
     except Exception:
         _db_safe_rollback(db)
 
@@ -1101,24 +1251,37 @@ def generate_submission_qr(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
+    """Create Payment Data from this host form (if needed), issue QR, email the form guest."""
     row = form_submission_by_id(db, submission_id)
     if not row:
         raise HTTPException(status_code=404, detail="Form submission not found.")
     hydrate_customers(db, [row])
 
-    booking = _issue_tickets(db, row)
+    proof = _ensure_payment_proof_for_submission(db, row)
+    booking = _issue_tickets_from_payment(db, proof, submission_id=row.id)
     if not booking:
         raise HTTPException(status_code=500, detail="Could not create the QR ticket.")
 
     try:
         db.refresh(row)
+        db.refresh(proof)
     except Exception:
         _db_safe_rollback(db)
-    phone = booking.receiver_phone or _answer_value(parse_answers_json(getattr(row, "answers_json", None)), PHONE_KEYS)
+    phone = (
+        proof.attendee_phone
+        or booking.receiver_phone
+        or _answer_value(parse_answers_json(getattr(row, "answers_json", None)), PHONE_KEYS)
+    )
     delivery = _deliver_ticket(booking, phone, db=db)
-    item = _serialize_submission(db, row)
+    item = _serialize_payment_proof(
+        db,
+        proof,
+        booking_id_text=_column_as_text(db, "payment_proofs", "id", proof.id, "booking_id"),
+        screenshot_id_text=_column_as_text(db, "payment_proofs", "id", proof.id, "screenshot_file_id"),
+    )
     item["delivery"] = delivery
     item["booking"] = _serialize_booking(booking, db=db)
+    item["form_submission_id"] = row.id
     return item
 
 

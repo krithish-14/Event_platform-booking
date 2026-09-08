@@ -187,7 +187,7 @@
 		}
 		const ready = Boolean(row.has_qr);
 		const showGenerate = Boolean(options && options.showGenerate);
-		const generateLabel = "Resend QR";
+		const generateLabel = ready ? "Resend QR" : "Generate QR";
 		const showDownload = showGenerate && ready && kind === "payment";
 		return `<tr data-id="${recordId}" data-kind="${escapeHtml(kind)}">
 			<td>${attendeeCellHtml(row)}</td>
@@ -546,13 +546,13 @@
 			if (pageTitle) pageTitle.textContent = "Attendees Data";
 			if (title) title.textContent = "Attendees Data";
 			if (copy) copy.textContent = eventLabel
-				? `Registered attendees for ${eventLabel}.`
-				: "Registered details from the event host form. Choose an event to see only that event's attendees.";
+				? `Registered attendees for ${eventLabel}. Generate QR creates Payment Data and emails the host-form guest (not the login profile).`
+				: "Host-form registrations. Generate QR creates a Payment Data row and sends the ticket to the name/email on the form.";
 			if (hint) hint.textContent = eventLabel
-				? `Attendee data${eventNote}.`
+				? `Attendee data${eventNote}. Use Generate QR to issue tickets from form answers.`
 				: "Select an event to view that event's attendee data, or keep All events.";
 			if (ticketCol) ticketCol.textContent = "Ticket";
-			fillTable(hostRows, eventLabel ? `No attendee data for ${eventLabel} yet.` : "No attendee data yet.", { showGenerate: false });
+			fillTable(hostRows, eventLabel ? `No attendee data for ${eventLabel} yet.` : "No attendee data yet.", { showGenerate: true });
 			window.__adminRows = hostRows;
 		}
 		window.__adminData = payload;
@@ -733,9 +733,10 @@
 	}
 
 	async function generateQr(id, kind, btn) {
+		const priorLabel = btn ? btn.textContent : "Generate QR";
 		if (btn) {
 			btn.disabled = true;
-			btn.textContent = "Resending\u2026";
+			btn.textContent = priorLabel.toLowerCase().includes("resend") ? "Resending\u2026" : "Generating\u2026";
 		}
 		try {
 			const path = kind === "payment"
@@ -749,7 +750,7 @@
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) {
 				const detail = data && data.detail;
-				alert(typeof detail === "string" ? detail : "Could not resend QR.");
+				alert(typeof detail === "string" ? detail : "Could not generate QR.");
 				return;
 			}
 			showQrResult(data);
@@ -758,12 +759,14 @@
 				window.open(data.delivery.whatsapp_url, "_blank", "noopener");
 			}
 		} catch (err) {
-			alert("Could not resend QR. Check that the backend is running.");
+			alert("Could not generate QR. Check that the backend is running.");
 		} finally {
 			if (btn) {
 				btn.disabled = false;
 				if (!btn.isConnected) return;
-				btn.textContent = "Resend QR";
+				btn.textContent = priorLabel.includes("Resend") || priorLabel.includes("Resending")
+					? "Resend QR"
+					: "Generate QR";
 			}
 		}
 	}
