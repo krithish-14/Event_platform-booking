@@ -188,7 +188,7 @@
 		const ready = Boolean(row.has_qr);
 		const showGenerate = Boolean(options && options.showGenerate);
 		const generateLabel = ready ? "Resend QR" : "Generate QR";
-		const showDownload = showGenerate && ready && kind === "payment";
+		const showDownload = showGenerate && ready;
 		return `<tr data-id="${recordId}" data-kind="${escapeHtml(kind)}">
 			<td>${attendeeCellHtml(row)}</td>
 			<td>
@@ -205,7 +205,7 @@
 			<td>
 				<div class="admin-actions">
 					${showGenerate ? `<button type="button" class="admin-btn" data-kind="${escapeHtml(kind)}" data-generate="${recordId}">${generateLabel}</button>` : ""}
-					${showDownload ? `<button type="button" class="admin-btn ghost" data-download-ticket="${recordId}" title="Download admin ticket PDF">Download</button>` : ""}
+					${showDownload ? `<button type="button" class="admin-btn ghost" data-kind="${escapeHtml(kind)}" data-download-ticket="${recordId}" title="Download staff ticket PDF (name + logo, no price)">Download</button>` : ""}
 					<button type="button" class="admin-btn ghost" data-kind="${escapeHtml(kind)}" data-answers="${recordId}">View form</button>
 				</div>
 			</td>
@@ -528,8 +528,8 @@
 			if (pageTitle) pageTitle.textContent = "Payment Data";
 			if (title) title.textContent = "Payment Data";
 			if (copy) copy.textContent = eventLabel
-				? `Payment records for ${eventLabel}. QR is issued automatically after payment; use Resend QR if needed. Download saves the admin ticket PDF (name, no prices).`
-				: "Payment records. QR is issued automatically after payment; use Resend QR to email/WhatsApp again. Download saves the admin ticket PDF (name, no prices).";
+				? `Payment records for ${eventLabel}. QR is issued automatically after payment; use Resend QR if needed. Download saves the staff ticket PDF (name + logo, no prices).`
+				: "Payment records. QR is issued automatically after payment; use Resend QR to email/WhatsApp again. Download saves the staff ticket PDF (name + logo, no prices).";
 			if (hint) hint.textContent = eventLabel
 				? `Payment data${eventNote}.`
 				: "Select an event to view that event's payment data, or keep All events.";
@@ -771,17 +771,18 @@
 		}
 	}
 
-	async function downloadAdminTicketPdf(paymentId, btn) {
-		if (!paymentId) return;
+	async function downloadAdminTicketPdf(recordId, btn, kind) {
+		if (!recordId) return;
 		const label = btn ? btn.textContent : "";
 		if (btn) {
 			btn.disabled = true;
 			btn.textContent = "Downloading\u2026";
 		}
 		try {
-			const res = await adminFetch(
-				`${apiBase()}/api/admin/payments/${encodeURIComponent(paymentId)}/ticket-pdf`
-			);
+			const path = (kind || "payment") === "payment"
+				? `/api/admin/payments/${encodeURIComponent(recordId)}/ticket-pdf`
+				: `/api/admin/submissions/${encodeURIComponent(recordId)}/ticket-pdf`;
+			const res = await adminFetch(`${apiBase()}${path}`);
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				const detail = data && data.detail;
@@ -789,7 +790,7 @@
 				return;
 			}
 			const blob = await res.blob();
-			let filename = `JOD-Admin-Ticket-${paymentId}.pdf`;
+			let filename = `JOD-Admin-Ticket-${recordId}.pdf`;
 			const disposition = res.headers.get("Content-Disposition") || "";
 			const match = disposition.match(/filename="?([^";]+)"?/i);
 			if (match && match[1]) filename = match[1];
@@ -1305,7 +1306,10 @@
 			}
 			const downloadBtn = event.target.closest("[data-download-ticket]");
 			if (downloadBtn) {
-				downloadAdminTicketPdf(downloadBtn.getAttribute("data-download-ticket"), downloadBtn);
+				const kind = downloadBtn.getAttribute("data-kind")
+					|| (downloadBtn.closest("tr") && downloadBtn.closest("tr").getAttribute("data-kind"))
+					|| "payment";
+				downloadAdminTicketPdf(downloadBtn.getAttribute("data-download-ticket"), downloadBtn, kind);
 				return;
 			}
 			const answersBtn = event.target.closest("[data-answers]");

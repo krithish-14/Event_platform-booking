@@ -1114,4 +1114,15 @@ def build_admin_mticket_pdf_from_booking(
 
 
 def admin_ticket_pdf_filename(booking_id) -> str:
-    return f"JOD-Admin-Ticket-{_short_booking_id(booking_id)}.pdf"
+    short = _short_booking_id(booking_id)
+    return f"JOD-Admin-Ticket-{short}.pdf"
+
+
+def host_ticket_pdf_filename(booking_id) -> str:
+    short = _short_booking_id(booking_id)
+    return f"JOD-Host-Ticket-{short}.pdf"
+
+
+# Shared staff layout alias (admin + host): name + logo, no prices.
+build_staff_mticket_pdf_from_booking = build_admin_mticket_pdf_from_booking
+build_staff_mticket_pdf_bytes = build_admin_mticket_pdf_bytes

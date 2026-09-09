@@ -1180,6 +1180,28 @@ def _serialize_submission(
 			_pick_answer(answers, "phone", "mobile", "whatsapp", "contact number", "number"),
 		),
 	)
+	booking_id = None
+	qr_token = None
+	has_qr = False
+	if db is not None:
+		try:
+			booking_id = form_submission_booking_id(db, getattr(row, "id", None))
+		except Exception:
+			booking_id = None
+		if booking_id:
+			try:
+				from APIs.bookings import _lookup_booking_row
+				booking = _lookup_booking_row(db, booking_id)
+			except Exception:
+				booking = None
+			if booking is not None:
+				for ticket in list(getattr(booking, "tickets", None) or []):
+					token = (getattr(ticket, "qr_token", None) or "").strip()
+					if token:
+						qr_token = token
+						has_qr = True
+						break
+				booking_id = str(getattr(booking, "booking_id", None) or booking_id)
 	return {
 		"id": row.id,
 		"user_email": email or row.user_email or "",
@@ -1189,6 +1211,9 @@ def _serialize_submission(
 		"submitted_at": ist_display(submitted),
 		"submitted_at_iso": json_datetime(submitted),
 		"status": row.status or "submitted",
+		"booking_id": booking_id,
+		"has_qr": has_qr,
+		"qr_token": qr_token,
 		"answers": {k: v for k, v in answers.items() if not str(k).startswith("_")},
 		"answer_values": answer_values,
 	}
@@ -1263,6 +1288,89 @@ def get_form_submissions(
 		},
 		"submissions": items
 	}
+
+
+@router.get("/submissions/{submission_id}/ticket-pdf")
+def download_host_submission_ticket_pdf(
+	submission_id: int,
+	db: Session = Depends(get_db),
+	current_user: User = Depends(get_current_user),
+):
+	"""Host ticket PDF — same staff layout as admin (name + logo, no prices)."""
+	from APIs.bookings import _lookup_booking_row
+	from APIs.host_events_api import (
+		_bound_email,
+		_event_owned,
+		_form_submissions_for_event,
+		_lookup_event_by_id,
+		resolve_host_identifiers,
+		resolve_registrations_display_event,
+	)
+	from Services.ticket_pdf import build_staff_mticket_pdf_from_booking, host_ticket_pdf_filename
+
+	row = form_submission_by_id(db, submission_id)
+	if not row:
+		raise HTTPException(status_code=404, detail="Registration not found.")
+
+	email_clean = _bound_email(current_user.email, current_user)
+	customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
+	event = _lookup_event_by_id(db, getattr(row, "event_id", None))
+	if event is None:
+		event = resolve_registrations_display_event(db, email_clean, None, current_user)
+	if not event or not _event_owned(event, email_clean, customer_id, host_id, current_user):
+		raise HTTPException(status_code=403, detail="You do not own this registration.")
+
+	# Ensure the submission belongs to the host's display/working event family.
+	owned_rows = {getattr(r, "id", None) for r in _form_submissions_for_event(db, event)}
+	if submission_id not in owned_rows:
+		# Also allow if the row's event_id is another owned event for this host.
+		row_event = _lookup_event_by_id(db, getattr(row, "event_id", None))
+		if not row_event or not _event_owned(row_event, email_clean, customer_id, host_id, current_user):
+			raise HTTPException(status_code=403, detail="You do not own this registration.")
+
+	booking_id = form_submission_booking_id(db, submission_id)
+	booking = _lookup_booking_row(db, booking_id) if booking_id else None
+	if not booking:
+		raise HTTPException(
+			status_code=400,
+			detail="No ticket has been issued for this registration yet.",
+		)
+	tickets = [t for t in (booking.tickets or []) if (getattr(t, "qr_token", None) or "").strip()]
+	if not tickets:
+		raise HTTPException(
+			status_code=400,
+			detail="QR ticket is not ready yet for this registration.",
+		)
+
+	answers = parse_answers_json(getattr(row, "answers_json", None))
+	name, _, _ = pick_attendee_identity(
+		names=(
+			_pick_answer(answers, "full name", "attendee name", "your name", "participant name", "guest name", "name"),
+			getattr(booking, "receiver_name", None),
+		),
+		emails=(
+			_pick_answer(answers, "email", "email address", "e-mail", "mail id"),
+			row.user_email,
+		),
+		phones=(),
+	)
+	pdf = build_staff_mticket_pdf_from_booking(
+		booking,
+		attendee_name=name,
+		qr_token=tickets[0].qr_token,
+		db=db,
+	)
+	if not pdf:
+		raise HTTPException(status_code=500, detail="Could not generate the host ticket PDF.")
+	filename = host_ticket_pdf_filename(booking.booking_id)
+	return Response(
+		content=pdf,
+		media_type="application/pdf",
+		headers={
+			"Content-Disposition": f'attachment; filename="{filename}"',
+			"Cache-Control": "private, no-store",
+		},
+	)
 
 
 @router.get("/export-csv")

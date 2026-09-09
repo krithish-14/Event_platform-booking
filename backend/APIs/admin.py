@@ -1646,7 +1646,7 @@ def download_admin_payment_ticket_pdf(
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
-    """Admin-only ticket PDF: 85x130mm card with attendee name (no price block)."""
+    """Staff ticket PDF for admin: 85x130mm card with attendee name + logo (no price)."""
     row = db.query(PaymentProof).filter(PaymentProof.id == payment_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Payment form not found.")
@@ -1669,10 +1669,64 @@ def download_admin_payment_ticket_pdf(
         form_email=row.attendee_email or "",
         form_phone=row.attendee_phone or "",
     )
-    pdf = build_admin_mticket_pdf_from_booking(
+    from Services.ticket_pdf import build_staff_mticket_pdf_from_booking
+    pdf = build_staff_mticket_pdf_from_booking(
         booking,
         attendee_name=name,
         qr_token=(tickets[0].qr_token or ""),
+        db=db,
+    )
+    if not pdf:
+        raise HTTPException(status_code=500, detail="Could not generate the admin ticket PDF.")
+    filename = admin_ticket_pdf_filename(booking.booking_id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@router.get("/submissions/{submission_id}/ticket-pdf")
+def download_admin_submission_ticket_pdf(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """Staff ticket PDF from an Attendees form row (same layout as Payment Data download)."""
+    row = form_submission_by_id(db, submission_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Form submission not found.")
+    booking_id = form_submission_booking_id(db, submission_id)
+    booking = _reload_booking(db, booking_id)
+    if not booking:
+        raise HTTPException(
+            status_code=400,
+            detail="No ticket booking yet for this attendee. Generate QR first.",
+        )
+    tickets = [t for t in (booking.tickets or []) if (getattr(t, "qr_token", None) or "").strip()]
+    if not tickets:
+        raise HTTPException(
+            status_code=400,
+            detail="QR ticket is not ready yet. Generate QR first, then download.",
+        )
+    answers = parse_answers_json(getattr(row, "answers_json", None))
+    form_name, form_email, form_phone = _form_guest_identity(answers, fallback_email=row.user_email or "")
+    name, _, _ = _resolve_attendee_identity(
+        db,
+        booking=booking,
+        form_name=form_name,
+        form_email=form_email,
+        form_phone=form_phone,
+        prefer_form=True,
+    )
+    from Services.ticket_pdf import build_staff_mticket_pdf_from_booking
+    pdf = build_staff_mticket_pdf_from_booking(
+        booking,
+        attendee_name=name,
+        qr_token=tickets[0].qr_token,
         db=db,
     )
     if not pdf:

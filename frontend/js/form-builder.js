@@ -1397,6 +1397,10 @@ function initFormBuilder() {
 				const val = (sub.answer_values && sub.answer_values[title]) || "";
 				return `<td style="padding:0.85rem 1rem; color:#334155; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
 			}).join("");
+			const canDownload = Boolean(sub && sub.has_qr);
+			const downloadBtn = canDownload
+				? `<button type="button" class="btn-download-ticket" style="background:#fff7ed; border:1px solid #fdba74; color:#c2410c; font-weight:700; font-size:0.8rem; padding:0.3rem 0.7rem; border-radius:6px; cursor:pointer;">Download</button>`
+				: `<button type="button" class="btn-download-ticket" disabled title="Ticket not issued yet" style="background:#f8fafc; border:1px solid #e2e8f0; color:#94a3b8; font-weight:700; font-size:0.8rem; padding:0.3rem 0.7rem; border-radius:6px; cursor:not-allowed;">Download</button>`;
 			const tr = document.createElement("tr");
 			tr.style.borderBottom = "1px solid #e2e8f0";
 			tr.innerHTML = `
@@ -1407,8 +1411,9 @@ function initFormBuilder() {
 				<td style="padding:0.85rem 1.2rem; color:#64748b; white-space:nowrap;">${escapeHtml(sub.submitted_at || "")}</td>
 				<td style="padding:0.85rem 1.2rem;"><span style="background:#f0fdf4; color:#166534; padding:0.15rem 0.6rem; border-radius:12px; font-weight:700; font-size:0.78rem;">${escapeHtml(sub.status || "submitted")}</span></td>
 				${extra}
-				<td style="padding:0.85rem 1.2rem; text-align:right;">
-					<button type="button" class="btn-view-answers" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; font-weight:700; font-size:0.8rem; padding:0.3rem 0.7rem; border-radius:6px; cursor:pointer;">
+				<td style="padding:0.85rem 1.2rem; text-align:right; white-space:nowrap;">
+					${downloadBtn}
+					<button type="button" class="btn-view-answers" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; font-weight:700; font-size:0.8rem; padding:0.3rem 0.7rem; border-radius:6px; cursor:pointer; margin-left:0.35rem;">
 						View Answers
 					</button>
 				</td>
@@ -1416,8 +1421,52 @@ function initFormBuilder() {
 			tr.querySelector(".btn-view-answers").addEventListener("click", () => {
 				openAnswersModal(sub);
 			});
+			const dl = tr.querySelector(".btn-download-ticket");
+			if (dl && canDownload) {
+				dl.addEventListener("click", () => downloadHostTicketPdf(sub, dl));
+			}
 			submissionsTableBody.appendChild(tr);
 		});
+	}
+
+	async function downloadHostTicketPdf(sub, btn) {
+		if (!sub || !sub.id) return;
+		const label = btn ? btn.textContent : "Download";
+		if (btn) {
+			btn.disabled = true;
+			btn.textContent = "Downloading\u2026";
+		}
+		try {
+			const res = await authFetch(`${API_BASE}/submissions/${encodeURIComponent(sub.id)}/ticket-pdf`, {
+				headers: { Accept: "application/pdf" }
+			});
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				const detail = data && data.detail;
+				alert(typeof detail === "string" ? detail : "Could not download the ticket PDF.");
+				return;
+			}
+			const blob = await res.blob();
+			let filename = `JOD-Host-Ticket-${sub.id}.pdf`;
+			const disposition = res.headers.get("Content-Disposition") || "";
+			const match = disposition.match(/filename="?([^";]+)"?/i);
+			if (match && match[1]) filename = match[1];
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = filename;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+		} catch (_) {
+			alert("Could not download the ticket PDF. Check that the backend is running.");
+		} finally {
+			if (btn && btn.isConnected) {
+				btn.disabled = false;
+				btn.textContent = label || "Download";
+			}
+		}
 	}
 
 	const cancellationRequestsBody = document.getElementById("cancellationRequestsBody");
