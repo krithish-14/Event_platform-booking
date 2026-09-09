@@ -155,15 +155,29 @@ def normalize_ticket_layout(
 
     elements = raw.get("canvas_elements")
     cleaned_elements = []
+    shape_types = {"line", "dashed_line", "rectangle", "circle"}
     if isinstance(elements, list):
-        seen = set()
+        seen_data = set()
+        seen_ids = set()
         for item in elements:
             if not isinstance(item, dict):
                 continue
             etype = str(item.get("type") or "").strip().lower()
-            if not etype or etype in seen:
+            if not etype:
                 continue
-            seen.add(etype)
+            is_shape = etype in shape_types
+            eid = str(item.get("id") or "").strip()
+            if not is_shape:
+                eid = etype
+                if etype in seen_data:
+                    continue
+                seen_data.add(etype)
+            else:
+                if not eid:
+                    eid = f"{etype}_{len(cleaned_elements)+1}"
+                if eid in seen_ids:
+                    continue
+                seen_ids.add(eid)
             try:
                 x = float(item.get("x", 4))
                 y = float(item.get("y", 4))
@@ -171,13 +185,20 @@ def normalize_ticket_layout(
                 h = float(item.get("h", 6))
             except (TypeError, ValueError):
                 continue
-            cleaned_elements.append({
+            entry = {
+                "id": eid[:80],
                 "type": etype,
                 "x": max(0.0, min(92.0, x)),
                 "y": max(0.0, min(94.0, y)),
-                "w": max(10.0, min(96.0, w)),
-                "h": max(3.0, min(40.0, h)),
-            })
+                "w": max(8.0 if is_shape else 10.0, min(96.0, w)),
+                "h": max(1.0 if etype in {"line", "dashed_line"} else 3.0, min(40.0, h)),
+            }
+            if is_shape:
+                color = str(item.get("color") or "#38bdf8").strip()
+                if not (color.startswith("#") and len(color) in (4, 7)):
+                    color = "#38bdf8"
+                entry["color"] = color
+            cleaned_elements.append(entry)
     if cleaned_elements:
         base["canvas_elements"] = cleaned_elements
 

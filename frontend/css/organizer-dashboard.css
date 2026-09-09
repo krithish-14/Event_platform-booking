@@ -2528,6 +2528,64 @@ html[data-theme="dark"] .dash-toast {
 }
 .tc-el-row span { color: var(--ticket-muted, #6b7280); font-weight: 600; }
 .tc-el-row strong { font-weight: 700; word-break: break-word; }
+.tc-el-price {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	width: 100%;
+	white-space: nowrap;
+}
+.tc-price-label {
+	flex: 0 0 auto;
+	color: var(--ticket-muted, #6b7280);
+	font-weight: 600;
+	font-size: 0.78rem;
+	white-space: nowrap;
+}
+.tc-price-value {
+	flex: 0 0 auto;
+	margin-left: auto;
+	font-weight: 800;
+	font-size: 0.9rem;
+	white-space: nowrap;
+	text-align: right;
+}
+.tc-shape-line {
+	width: 100%;
+	height: 3px;
+	border-radius: 99px;
+	align-self: center;
+}
+.tc-shape-line.is-dashed {
+	height: 0;
+	background: transparent !important;
+	border-top: 3px dashed currentColor;
+}
+.tc-shape-rect {
+	width: 100%;
+	height: 100%;
+	border: 2px solid;
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+.tc-shape-circle {
+	width: 100%;
+	height: 100%;
+	border: 2px solid;
+	border-radius: 50%;
+	box-sizing: border-box;
+}
+.tc-node.is-shape .tc-node-body {
+	padding: 0;
+}
+.ticket-shape-chip {
+	border-style: dashed;
+}
+.ticket-shape-color-wrap[hidden] {
+	display: none !important;
+}
+
 .tc-el-qr {
 	width: 100%;
 	height: 100%;
