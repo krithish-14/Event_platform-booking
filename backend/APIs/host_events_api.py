@@ -1038,7 +1038,21 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
     sold = sum(max(1, int(b.quantity or 1)) for b in active_bookings)
     if sold == 0:
         sold = len(active_tickets)
-    paid_subs = [s for s in submissions if (s.status or "").lower() in ("paid", "completed", "confirmed")]
+    paid_statuses = {"paid", "completed", "confirmed", "qr_ready"}
+    hidden_form_statuses = {"abandoned", "draft", "cancelled", "canceled", "refunded"}
+    paid_subs = [
+        s for s in submissions
+        if (s.status or "").lower().strip() in paid_statuses
+    ]
+    pending_subs = []
+    for s in submissions:
+        st = (s.status or "").lower().strip()
+        if st in hidden_form_statuses:
+            continue
+        if st in paid_statuses:
+            continue
+        # Unpaid form rows (payment_pending / submitted / etc.) match Submissions list.
+        pending_subs.append(s)
     if sold == 0 and paid_subs:
         sold = len(paid_subs)
 
@@ -1050,14 +1064,23 @@ def compute_live_event_stats(db: Session, event_mgt: EventManagement) -> Dict[st
         if email:
             unique_emails.add(email)
 
-    total_registrations = len(active_bookings) if active_bookings else 0
+    # Pending = unpaid host-form registrations (matches Submissions & Analytics).
+    pending_registrations = len(pending_subs)
+    paid_subs_count = len(paid_subs)
+    form_total = paid_subs_count + pending_registrations
+
+    # Total registrations = all live form rows when available; otherwise bookings/tickets.
+    total_registrations = form_total
+    if total_registrations == 0:
+        total_registrations = len(active_bookings) if active_bookings else 0
     if total_registrations == 0:
         total_registrations = len(active_tickets)
-    paid_subs_count = len(paid_subs)
-    if total_registrations == 0:
-        total_registrations = paid_subs_count
-
-    pending_registrations = max(0, int(total_registrations or 0) - int(sold or 0))
+    # Never show fewer registrations than sold + pending.
+    total_registrations = max(
+        int(total_registrations or 0),
+        int(sold or 0) + int(pending_registrations or 0),
+        form_total,
+    )
 
     used_emails = set()
     attendees = []
