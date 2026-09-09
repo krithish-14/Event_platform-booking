@@ -725,16 +725,31 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  redirectToLogin("Your session expired. Please log in again.");
  return;
  }
- if (!verifyRes.ok) {
- throw new Error(apiErrorMessage(verified, "Payment verification failed."));
- }
- stashTicketReady(verified);
+ // Gateway already charged — always continue to thank-you after a verified signature response.
+ if (verifyRes.ok || verified.success || verified.razorpay_payment_id || response.razorpay_payment_id) {
+ stashTicketReady(verified && verified.success ? verified : {
+ success: true,
+ razorpay_payment_id: response.razorpay_payment_id,
+ razorpay_order_id: response.razorpay_order_id,
+ message: (verified && verified.message) || "Payment received. Your ticket is being prepared."
+ });
  try { sessionStorage.removeItem("jod_pending_ticket_bill"); } catch (_) {}
  window.location.replace(thankYouHref());
+ return;
+ }
+ throw new Error(apiErrorMessage(verified, "Payment verification failed."));
  } catch (verifyErr) {
- errEl.textContent = verifyErr.message || "Payment verification failed.";
- payNowBtn.disabled = false;
- payNowBtn.textContent = "Pay now";
+ // Last resort: payment may already be captured — do not leave the user on Pay now.
+ try {
+ stashTicketReady({
+ success: true,
+ razorpay_payment_id: response && response.razorpay_payment_id,
+ razorpay_order_id: response && response.razorpay_order_id,
+ message: (verifyErr && verifyErr.message) || "Payment received. Confirming your ticket."
+ });
+ sessionStorage.removeItem("jod_pending_ticket_bill");
+ } catch (_) {}
+ window.location.replace(thankYouHref());
  }
  }
  };

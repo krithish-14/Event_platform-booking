@@ -297,6 +297,28 @@ def _latest_host_form_submission(
     return matches[0]
 
 
+def _resolve_host_form_for_checkout(
+    db: Session,
+    current_user: User,
+    *,
+    event_id: str,
+    ticket_type: Optional[str] = None,
+) -> Optional[FormSubmission]:
+    """Unpaid form for this event first; otherwise latest form (re-buy / race safe)."""
+    form = _latest_host_form_submission(
+        db, event_id, current_user, ticket_type=None, unpaid_only=True
+    )
+    if form is None and ticket_type:
+        form = _latest_host_form_submission(
+            db, event_id, current_user, ticket_type, unpaid_only=True
+        )
+    if form is None:
+        form = _latest_host_form_submission(
+            db, event_id, current_user, ticket_type=None, unpaid_only=False
+        )
+    return form
+
+
 def _attendee_from_host_form(
     db: Session,
     current_user: User,
@@ -321,10 +343,12 @@ def _attendee_from_host_form(
     if not login_email:
         raise HTTPException(status_code=400, detail="Your account has no email address.")
 
-    submission = _latest_host_form_submission(
-        db, event_id, current_user, ticket_type, unpaid_only=unpaid_only
-    )
-    if submission is None and not unpaid_only:
+    if unpaid_only:
+        submission = _resolve_host_form_for_checkout(
+            db, current_user, event_id=event_id, ticket_type=ticket_type
+        )
+        # Prefer unpaid; _resolve already falls back to latest when unpaid missing.
+    else:
         submission = _latest_host_form_submission(
             db, event_id, current_user, ticket_type, unpaid_only=False
         )
@@ -363,12 +387,114 @@ def _attendee_from_host_form(
                 detail="Host form must include the attendee email. Profile email is not used for tickets.",
             )
     else:
-        # Display-only fallbacks — still never profile.
         name = name or sanitize_text(payload_name or "", max_length=120) or "Guest"
         delivery_email = delivery_email or ""
 
     phone = sanitize_text(form_phone or payload_phone or "N/A", max_length=40) or "N/A"
     return name, delivery_email, phone, login_email, submission
+
+
+def _record_razorpay_payment(
+    db: Session,
+    current_user: User,
+    *,
+    event_id: Optional[str],
+    ticket_type: Optional[str],
+    quantity: Optional[int],
+    amount_rupees: Optional[float],
+    payment_id: str,
+    attendee_name: Optional[str],
+    attendee_phone: Optional[str],
+) -> tuple[PaymentProof, Optional[int]]:
+    """Record Razorpay payment. Returns (proof, host_form_submission_id)."""
+    event_key = sanitize_text(event_id or "", max_length=255) or None
+    if not event_key:
+        raise HTTPException(status_code=400, detail="Missing event_id. Tickets require a host-form submission for that event.")
+    ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
+
+    submission = _resolve_host_form_for_checkout(
+        db, current_user, event_id=event_key, ticket_type=ticket
+    )
+    submission_id = getattr(submission, "id", None) if submission is not None else None
+
+    if submission is not None:
+        from APIs.admin import _ensure_payment_proof_for_submission
+        try:
+            row = _ensure_payment_proof_for_submission(db, submission)
+            qty = _clamp_purchase_quantity(db, event_key, quantity)
+            amount_val = float(amount_rupees or 0)
+            # Prefer Razorpay payment id as txn when this form row is still open.
+            if (row.status or "").strip().lower() != "qr_ready":
+                row.bank_name = "Razorpay"
+                row.transaction_id = payment_id
+                row.amount = amount_val
+                row.quantity = qty
+                row.ticket_type = ticket
+                row.customer_id = current_user.customer_id
+                row.status = "payment_submitted"
+                db.commit()
+                db.refresh(row)
+            return row, submission_id
+        except HTTPException:
+            # Form incomplete — still record gateway payment below with form-extracted fields.
+            pass
+
+    # Fallback: extract form identity (required) then insert/update by payment_id.
+    name, delivery_email, phone, _login, submission = _attendee_from_host_form(
+        db,
+        current_user,
+        event_id=event_key,
+        ticket_type=ticket,
+        payload_name=attendee_name,
+        payload_phone=attendee_phone,
+        unpaid_only=True,
+        require_form=True,
+    )
+    submission_id = getattr(submission, "id", None) if submission is not None else submission_id
+    qty = _clamp_purchase_quantity(db, event_key, quantity)
+    amount_val = float(amount_rupees or 0)
+
+    if payment_id:
+        dup = (
+            db.query(PaymentProof)
+            .filter(PaymentProof.transaction_id == payment_id)
+            .order_by(PaymentProof.created_at.desc())
+            .first()
+        )
+        if dup is not None:
+            if (dup.status or "").strip().lower() != "qr_ready":
+                dup.attendee_name = name
+                dup.attendee_email = delivery_email
+                dup.attendee_phone = phone
+                dup.bank_name = "Razorpay"
+                dup.ticket_type = ticket
+                dup.amount = amount_val
+                dup.quantity = qty
+                dup.customer_id = current_user.customer_id
+                dup.status = "payment_submitted"
+                db.commit()
+                db.refresh(dup)
+            return dup, submission_id
+
+    row = PaymentProof(
+        customer_id=current_user.customer_id,
+        event_id=event_key,
+        ticket_type=ticket,
+        amount=amount_val,
+        quantity=qty,
+        attendee_name=name,
+        attendee_email=delivery_email,
+        attendee_phone=phone,
+        bank_name="Razorpay",
+        transaction_id=payment_id,
+        screenshot_file_id=None,
+        status="payment_submitted",
+        created_at=utc_now(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row, submission_id
 
 
 def _find_open_payment_proof(
@@ -709,81 +835,6 @@ async def submit_payment_proof(
     }
 
 
-def _record_razorpay_payment(
-    db: Session,
-    current_user: User,
-    *,
-    event_id: Optional[str],
-    ticket_type: Optional[str],
-    quantity: Optional[int],
-    amount_rupees: Optional[float],
-    payment_id: str,
-    attendee_name: Optional[str],
-    attendee_phone: Optional[str],
-) -> PaymentProof:
-    event_key = sanitize_text(event_id or "", max_length=255) or None
-    if not event_key:
-        raise HTTPException(status_code=400, detail="Missing event_id. Tickets require a host-form submission for that event.")
-    ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
-    name, delivery_email, phone, login_email, _submission = _attendee_from_host_form(
-        db,
-        current_user,
-        event_id=event_key,
-        ticket_type=ticket,
-        payload_name=attendee_name,
-        payload_phone=attendee_phone,
-        unpaid_only=True,
-        require_form=True,
-    )
-
-    qty = _clamp_purchase_quantity(db, event_key or "", quantity) if event_key else max(1, int(quantity or 1))
-    amount_val = float(amount_rupees or 0)
-
-    # Idempotent: same Razorpay payment_id must not create a second row.
-    if payment_id:
-        dup = (
-            db.query(PaymentProof)
-            .filter(PaymentProof.transaction_id == payment_id)
-            .order_by(PaymentProof.created_at.desc())
-            .first()
-        )
-        if dup is not None:
-            if (dup.status or "").strip().lower() != "qr_ready":
-                dup.attendee_name = name
-                dup.attendee_email = delivery_email
-                dup.attendee_phone = phone
-                dup.bank_name = "Razorpay"
-                dup.ticket_type = ticket
-                dup.amount = amount_val
-                dup.quantity = qty
-                dup.customer_id = current_user.customer_id
-                dup.status = "payment_submitted"
-                db.commit()
-                db.refresh(dup)
-            return dup
-
-    # Always insert a new proof per successful Razorpay payment (multi-guest buys).
-    row = PaymentProof(
-        customer_id=current_user.customer_id,
-        event_id=event_key,
-        ticket_type=ticket,
-        amount=amount_val,
-        quantity=qty,
-        attendee_name=name,
-        attendee_email=delivery_email,
-        attendee_phone=phone,
-        bank_name="Razorpay",
-        transaction_id=payment_id,
-        screenshot_file_id=None,
-        status="payment_submitted",
-        created_at=utc_now(),
-    )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return row
-
-
 async def create_razorpay_order(
     payload: CreateOrderRequest,
     request: Request,
@@ -894,29 +945,117 @@ async def verify_razorpay_payment(
     if amount_rupees is None:
         amount_rupees = 0.0
 
-    row = _record_razorpay_payment(
-        db,
-        current_user,
-        event_id=payload.event_id,
-        ticket_type=payload.ticket_type,
-        quantity=payload.quantity,
-        amount_rupees=amount_rupees,
-        payment_id=payment_id,
-        attendee_name=payload.attendee_name,
-        attendee_phone=payload.attendee_phone,
-    )
+    # Signature OK — money was taken. Always return success so the client reaches thank-you.
+    row = None
+    submission_id = None
+    ticket: dict = {
+        "booking_id": None,
+        "qr_token": None,
+        "ticket_url": None,
+        "qr_image_url": None,
+        "email_sent": False,
+        "whatsapp_sent": False,
+        "status": "payment_submitted",
+        "delivery": None,
+    }
+    try:
+        row, submission_id = _record_razorpay_payment(
+            db,
+            current_user,
+            event_id=payload.event_id,
+            ticket_type=payload.ticket_type,
+            quantity=payload.quantity,
+            amount_rupees=amount_rupees,
+            payment_id=payment_id,
+            attendee_name=payload.attendee_name,
+            attendee_phone=payload.attendee_phone,
+        )
+        ticket = _auto_issue_and_deliver(db, row, submission_id=submission_id)
+    except HTTPException as exc:
+        logger.warning(
+            "Razorpay payment %s verified but ticket pipeline failed: %s",
+            payment_id,
+            getattr(exc, "detail", exc),
+        )
+        try:
+            existing = (
+                db.query(PaymentProof)
+                .filter(PaymentProof.transaction_id == payment_id)
+                .order_by(PaymentProof.created_at.desc())
+                .first()
+            )
+            if existing is not None:
+                row = existing
+                ticket = _auto_issue_and_deliver(db, row, submission_id=submission_id)
+            else:
+                event_key = sanitize_text(payload.event_id or "", max_length=255) or "unknown"
+                form = _resolve_host_form_for_checkout(
+                    db,
+                    current_user,
+                    event_id=event_key,
+                    ticket_type=payload.ticket_type,
+                )
+                answers = _form_answers(form)
+                from APIs.admin import NAME_KEYS, PHONE_KEYS, EMAIL_KEYS, _answer_value
+                from APIs.forms import _pick_answer
+                form_name = _answer_value(answers, NAME_KEYS) or _pick_answer(
+                    answers, "full name", "attendee name", "your name", "name"
+                )
+                form_email = _answer_value(answers, EMAIL_KEYS) or _pick_answer(
+                    answers, "email", "e-mail", "mail id"
+                )
+                form_phone = _answer_value(answers, PHONE_KEYS) or _pick_answer(
+                    answers, "phone", "mobile", "whatsapp"
+                )
+                if form_name and form_email and "@" in str(form_email):
+                    row = PaymentProof(
+                        customer_id=current_user.customer_id,
+                        event_id=event_key,
+                        ticket_type=sanitize_text(
+                            payload.ticket_type or "General Admission", max_length=100
+                        ),
+                        amount=float(amount_rupees or 0),
+                        quantity=_clamp_purchase_quantity(db, event_key, payload.quantity),
+                        attendee_name=sanitize_text(form_name, max_length=120),
+                        attendee_email=sanitize_text(form_email, max_length=255).lower(),
+                        attendee_phone=sanitize_text(form_phone or "N/A", max_length=40) or "N/A",
+                        bank_name="Razorpay",
+                        transaction_id=payment_id,
+                        status="payment_submitted",
+                        created_at=utc_now(),
+                    )
+                    db.add(row)
+                    db.commit()
+                    db.refresh(row)
+                    submission_id = getattr(form, "id", None) if form is not None else None
+                    ticket = _auto_issue_and_deliver(db, row, submission_id=submission_id)
+        except Exception:
+            logger.exception("Razorpay fallback record/issue failed for %s", payment_id)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+    except Exception:
+        logger.exception("Razorpay post-verify pipeline failed for %s", payment_id)
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
-    ticket = _auto_issue_and_deliver(db, row)
+    has_qr = bool(ticket.get("qr_token"))
     message = (
         "Payment verified. Your QR ticket is ready — check email, WhatsApp, and Your Orders."
-        if ticket.get("qr_token")
-        else "Payment verified. Your ticket is being prepared; contact support if it does not appear shortly."
+        if has_qr
+        else (
+            "Payment verified. Your ticket is being prepared — open Your Orders shortly, "
+            f"or contact support with payment ID {payment_id}."
+        )
     )
     return {
         "success": True,
         "message": message,
-        "payment_id": row.id,
-        "status": ticket.get("status") or row.status,
+        "payment_id": getattr(row, "id", None),
+        "status": ticket.get("status") or getattr(row, "status", None) or "payment_submitted",
         "razorpay_payment_id": payment_id,
         "razorpay_order_id": order_id,
         **ticket,
