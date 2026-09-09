@@ -58,7 +58,7 @@
  return;
  }
  try { sessionStorage.setItem("jod_redirect_after_login", target); } catch (_) {}
- global.location.href = "login.html?redirect=" + encodeURIComponent(target);
+ global.location.replace("login.html?redirect=" + encodeURIComponent(target));
 	}
 
 	function paintButton(btn) {

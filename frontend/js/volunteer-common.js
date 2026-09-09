@@ -104,7 +104,7 @@ window.JodVolunteer = (() => {
 
 	function requireAuth(next) {
  if (isLoggedIn()) return true;
- window.location.href = loginUrl(next);
+ window.location.replace(loginUrl(next));
  return false;
 	}
 
@@ -165,7 +165,7 @@ window.JodVolunteer = (() => {
  window.JodAuth.clearAuth();
  }
  if (!opts.allowUnauthorized) {
- window.location.href = loginUrl();
+ window.location.replace(loginUrl());
  }
  }
 
@@ -221,7 +221,7 @@ window.JodVolunteer = (() => {
  sessionStorage.removeItem("jod_user");
  }
  } catch (_) {}
- window.location.href = prettyPage("login.html");
+ window.location.replace(prettyPage("login.html"));
 	}
 
 	return {

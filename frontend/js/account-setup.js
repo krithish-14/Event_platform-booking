@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 	const urlParams = new URLSearchParams(window.location.search);
 
 	if (!(window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn())) {
- window.location.href = "login.html?redirect=" + encodeURIComponent("account-setup.html");
+ window.location.replace("login.html?redirect=" + encodeURIComponent("account-setup.html"));
  return;
 	}
 

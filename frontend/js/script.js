@@ -551,7 +551,7 @@
 			if (next) {
 				sessionStorage.removeItem("jod_after_featured_redirect");
 				window.setTimeout(() => {
-					try { window.location.assign(next); } catch (_) {}
+					try { window.location.replace(next); } catch (_) {}
 				}, 120);
 			}
 		} catch (error) { void error; }

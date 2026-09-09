@@ -655,14 +655,14 @@ async function initOrganizerDashboard() {
 	} catch (_) {}
 
 	if (!email) {
-		window.location.href = "login.html?redirect=" + encodeURIComponent("organizer-dashboard.html");
+		window.location.replace("login.html?redirect=" + encodeURIComponent("organizer-dashboard.html"));
 		return;
 	}
 
 	// Require authenticated session \u2014 do not fabricate tokens
 	const isLoggedIn = window.JodAuth && typeof window.JodAuth.isLoggedIn === "function" && window.JodAuth.isLoggedIn();
 	if (!isLoggedIn) {
-		window.location.href = "login.html?redirect=" + encodeURIComponent(`organizer-dashboard.html?email=${encodeURIComponent(email)}`);
+		window.location.replace("login.html?redirect=" + encodeURIComponent(`organizer-dashboard.html?email=${encodeURIComponent(email)}`));
 		return;
 	}
 
@@ -679,7 +679,7 @@ async function initOrganizerDashboard() {
 			headers: getAuthHeaders()
 		});
 		if (bankRes.status === 404) {
-			window.location.href = "account-setup.html";
+			window.location.replace("account-setup.html");
 			return;
 		}
 		if (bankRes.ok) {
@@ -689,14 +689,14 @@ async function initOrganizerDashboard() {
 				? window.JodAuth.isHostSetupComplete(acc, bankData)
 				: Boolean(bankData.setup_complete);
 			if (!setupComplete) {
-				window.location.href = "account-setup.html";
+				window.location.replace("account-setup.html");
 				return;
 			}
 			const access = window.JodAuth && typeof window.JodAuth.canAccessHostDashboard === "function"
 				? window.JodAuth.canAccessHostDashboard(bankData)
 				: Boolean(bankData.dashboard_access);
 			if (!access) {
-				window.location.href = "host-pending.html";
+				window.location.replace("host-pending.html");
 				return;
 			}
 		}

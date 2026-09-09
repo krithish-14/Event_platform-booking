@@ -1859,7 +1859,7 @@ window.JodAuth = (() => {
 		try {
 			window.location.replace(await resolvePostAuthDestination("organizer-dashboard.html"));
 		} catch (_) {
-			window.location.href = "account-setup.html";
+			window.location.replace("account-setup.html");
 		}
 	}
 

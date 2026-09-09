@@ -431,89 +431,116 @@
 	if (global.__jodHeaderBackBound) return;
 	global.__jodHeaderBackBound = true;
 
+	var SITE_NAV_KEY = "jod_site_nav";
+
 	function pageFile() {
- if (global.JodUrls && typeof global.JodUrls.currentPageFile === "function") {
- return global.JodUrls.currentPageFile();
- }
- return (global.location.pathname.split("/").pop() || "index.html").toLowerCase();
+		if (global.JodUrls && typeof global.JodUrls.currentPageFile === "function") {
+			return global.JodUrls.currentPageFile();
+		}
+		return (global.location.pathname.split("/").pop() || "index.html").toLowerCase();
 	}
 
 	function pretty(href) {
- return (global.JodUrls && typeof global.JodUrls.prettyHref === "function")
- ? global.JodUrls.prettyHref(href)
- : href;
+		return (global.JodUrls && typeof global.JodUrls.prettyHref === "function")
+			? global.JodUrls.prettyHref(href)
+			: href;
 	}
 
 	function sameOriginReferrer() {
- try {
- if (!document.referrer) return false;
- return new URL(document.referrer).origin === global.location.origin;
- } catch (_) {
- return false;
- }
+		try {
+			if (!document.referrer) return false;
+			return new URL(document.referrer).origin === global.location.origin;
+		} catch (_) {
+			return false;
+		}
+	}
+
+	function markInternalNavigation() {
+		try {
+			if (sameOriginReferrer()) {
+				sessionStorage.setItem(SITE_NAV_KEY, "1");
+			}
+		} catch (_) {}
+	}
+
+	function hasUsableHistory() {
+		try {
+			if (global.history.length <= 1) return false;
+			// Prefer real previous page whenever we arrived from this site,
+			// or after any earlier same-origin hop in this tab.
+			if (sameOriginReferrer()) return true;
+			if (sessionStorage.getItem(SITE_NAV_KEY) === "1") return true;
+			// Navigation API when available (Chromium).
+			if (global.navigation && typeof global.navigation.canGoBack === "boolean") {
+				return global.navigation.canGoBack;
+			}
+		} catch (_) {}
+		return false;
 	}
 
 	function fallbackHref(btn) {
- var custom = btn && btn.getAttribute("data-back-fallback");
- if (custom) return custom;
- if (btn && btn.tagName === "A") {
- var href = btn.getAttribute("href");
- if (href && href !== "#") return href;
- }
- var page = pageFile();
- var params = new URLSearchParams(global.location.search);
- var eventId = params.get("id") || params.get("eventId") || params.get("event_id") || "";
- if (page === "forgot-password.html") return pretty("login.html");
- if (page === "signup.html") return pretty("login.html");
- if (page === "ticket-details.html") return pretty("orders.html");
- if (page === "agenda.html") {
- return pretty(eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "orders.html");
- }
- if (page === "payment.html" || page === "published-form.html") {
- return pretty(eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "index.html");
- }
- if (page === "verify-email.html" || page === "account-setup.html" || page === "host-pending.html") return pretty("host-your-event.html");
- if (page === "orders.html" || page === "settings.html" || page === "notifications.html") return pretty("dashboard.html");
- if (page === "volunteer-scanner.html") return pretty("volunteer-portal.html");
- return pretty("index.html");
+		var custom = btn && btn.getAttribute("data-back-fallback");
+		if (custom) return custom;
+		if (btn && btn.tagName === "A") {
+			var href = btn.getAttribute("href");
+			if (href && href !== "#") return href;
+		}
+		var page = pageFile();
+		var params = new URLSearchParams(global.location.search);
+		var eventId = params.get("id") || params.get("eventId") || params.get("event_id") || "";
+		if (page === "forgot-password.html") return pretty("login.html");
+		if (page === "signup.html") return pretty("login.html");
+		if (page === "ticket-details.html") return pretty("orders.html");
+		if (page === "agenda.html") {
+			return pretty(eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "orders.html");
+		}
+		if (page === "payment.html" || page === "published-form.html") {
+			return pretty(eventId ? "event-details.html?id=" + encodeURIComponent(eventId) : "index.html");
+		}
+		if (page === "verify-email.html" || page === "account-setup.html" || page === "host-pending.html") {
+			return pretty("host-your-event.html");
+		}
+		if (page === "orders.html" || page === "settings.html" || page === "notifications.html") {
+			return pretty("dashboard.html");
+		}
+		if (page === "volunteer-scanner.html") return pretty("volunteer-portal.html");
+		return pretty("index.html");
 	}
 
 	function isVolunteerLeavePage(page) {
- return page === "volunteer-portal.html" || page === "volunteer-invite.html";
+		return page === "volunteer-portal.html" || page === "volunteer-invite.html";
 	}
 
 	function goBack(btn) {
- var page = pageFile();
- var leaveSite = (btn && btn.getAttribute("data-back-leave-site") === "true") || isVolunteerLeavePage(page);
- if (leaveSite) {
- if (global.history.length > 1) {
- global.history.back();
- return;
- }
- try {
- global.close();
- } catch (_) {}
- return;
- }
- if (sameOriginReferrer() && global.history.length > 1) {
- try {
- var refFile = global.JodUrls && typeof global.JodUrls.pageFileFromHref === "function"
- ? global.JodUrls.pageFileFromHref(document.referrer)
- : (new URL(document.referrer).pathname.split("/").pop() || "").toLowerCase();
- if (refFile !== "login.html" && refFile !== "signup.html" && refFile !== "forgot-password.html") {
- global.history.back();
- return;
- }
- } catch (_) {}
- }
- global.location.href = pretty(fallbackHref(btn));
+		var page = pageFile();
+		var leaveSite = (btn && btn.getAttribute("data-back-leave-site") === "true") || isVolunteerLeavePage(page);
+		if (leaveSite) {
+			if (hasUsableHistory() || global.history.length > 1) {
+				global.history.back();
+				return;
+			}
+			try {
+				global.close();
+			} catch (_) {}
+			return;
+		}
+		// Always prefer the real previous history entry. Do not jump to a hardcoded
+		// "parent" page while history exists — that polluted Chrome Back.
+		if (hasUsableHistory()) {
+			global.history.back();
+			return;
+		}
+		// Empty / external-only history: logical parent without adding a stack entry.
+		global.location.replace(pretty(fallbackHref(btn)));
 	}
 
+	markInternalNavigation();
+
 	document.addEventListener("click", function (event) {
- var btn = event.target && event.target.closest ? event.target.closest("[data-header-back]") : null;
- if (!btn) return;
- event.preventDefault();
- goBack(btn);
+		var btn = event.target && event.target.closest ? event.target.closest("[data-header-back]") : null;
+		if (!btn) return;
+		event.preventDefault();
+		goBack(btn);
 	});
 
 	global.JodGoBack = goBack;

@@ -39,7 +39,7 @@
  : null;
  if (!authToken || authToken === "null" || authToken === "undefined") {
  alert("Please sign in to use the ticket scanner.");
- window.location.href = "login.html?redirect=" + encodeURIComponent("scanner.html");
+ window.location.replace("login.html?redirect=" + encodeURIComponent("scanner.html"));
  return false;
  }
  return true;

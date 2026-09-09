@@ -28,7 +28,7 @@ CRITICAL_NEW = """<style id="jod-header-logo-critical">
 reps = [
 	("css/style.css?v=70", "css/style.css?v=71"),
 	("css/responsive.css?v=62", "css/responsive.css?v=63"),
-	("js/theme.js?v=23", "js/theme.js?v=24"),
+	("js/theme.js?v=24", "js/theme.js?v=26"),
 	("js/include.js?v=50", "js/include.js?v=51"),
 	("components/header.html?v=34", "components/header.html?v=35"),
 ]

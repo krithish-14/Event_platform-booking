@@ -38,7 +38,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 </style>
 <link rel="preload" as="image" href="/images/JOD%20Events%20Logo.png" fetchpriority="high" />
 <link rel="stylesheet" href="css/fonts.css?v=2" />
-<script src="js/theme.js?v=24"></script> <script src="js/api-config.js?v=4"></script>
+<script src="js/theme.js?v=26"></script> <script src="js/api-config.js?v=4"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" /> <meta name="description" content="Your saved events and wishlist on JOD Events." /> <title>Your Wishlist | JOD Events</title> <link rel="icon" type="image/png" href="/images/JOD%20Logo.png" /> <link rel="apple-touch-icon" href="/images/JOD%20Logo.png" /> <link rel="stylesheet" href="css/style.css?v=72" /> <link rel="stylesheet" href="css/responsive.css?v=63" /> <style> .page-hero {
 			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
 			padding: calc(var(--site-header-height, 6.25rem) + 1.75rem) 0 2.5rem;
@@ -172,7 +172,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) --> <canvas class="bg-canvas" id="bgCanvas"></canvas> <div class="bg-gradient-layer"></div> <div class="site-shell" id="top"> <div id="header"></div> <main> <section class="page-hero"> <div class="container"> <div class="hero-content"> <h1>Your Wishlist</h1> <p>Events you've saved to attend later. Book your tickets before seats sell out!</p> </div> </div> </section> <section class="wishlist-section"> <div class="container"> <div class="wishlist-grid" id="wishlistGrid"> <div class="empty-wishlist" id="wishlistLoading"> <h3>Loading your wishlist&#8230;</h3> </div> </div> </div> </section> </main> <div id="footer"></div> </div> <script src="js/include.js?v=51"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=33"></script> <script src="js/profile.js?v=12"></script> <script src="js/location.js?v=14"></script> <script src="js/script.js?v=35"></script> <script src="js/events-public.js?v=20260905_v25"></script> <script src="js/wishlist.js?v=1"></script> <script> (async function loadWishlistPage() {
+<!-- End Google Tag Manager (noscript) --> <canvas class="bg-canvas" id="bgCanvas"></canvas> <div class="bg-gradient-layer"></div> <div class="site-shell" id="top"> <div id="header"></div> <main> <section class="page-hero"> <div class="container"> <div class="hero-content"> <h1>Your Wishlist</h1> <p>Events you've saved to attend later. Book your tickets before seats sell out!</p> </div> </div> </section> <section class="wishlist-section"> <div class="container"> <div class="wishlist-grid" id="wishlistGrid"> <div class="empty-wishlist" id="wishlistLoading"> <h3>Loading your wishlist&#8230;</h3> </div> </div> </div> </section> </main> <div id="footer"></div> </div> <script src="js/include.js?v=51"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=43"></script> <script src="js/profile.js?v=12"></script> <script src="js/location.js?v=14"></script> <script src="js/script.js?v=36"></script> <script src="js/events-public.js?v=20260905_v25"></script> <script src="js/wishlist.js?v=1"></script> <script> (async function loadWishlistPage() {
 			const grid = document.getElementById("wishlistGrid");
 			const EP = window.JodEventsPublic;
 			const WL = window.JodWishlist;
@@ -185,7 +185,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			if (!window.JodAuth || !window.JodAuth.isLoggedIn()) {
 				const currentTarget = window.location.pathname + window.location.search + window.location.hash;
 				try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
-				window.location.href = `login.html?redirect=${encodeURIComponent(currentTarget)}`;
+				window.location.replace(`login.html?redirect=${encodeURIComponent(currentTarget)}`);
 				return;
 			}
 

@@ -73,13 +73,13 @@
 	async function requireAdmin() {
 		const current = user();
 		if (!token() && !(window.JodAuth && window.JodAuth.isLoggedIn && window.JodAuth.isLoggedIn()) && !current) {
-			window.location.href = "login.html";
+			window.location.replace("login.html");
 			return null;
 		}
 		try {
 			const res = await adminFetch(`${apiBase()}/api/admin/me`);
 			if (!res.ok) {
-				window.location.href = "login.html";
+				window.location.replace("login.html");
 				return null;
 			}
 			const me = await res.json();
@@ -90,7 +90,7 @@
 			if (labelMobile) labelMobile.textContent = email;
 			return me;
 		} catch (_) {
-			window.location.href = "login.html";
+			window.location.replace("login.html");
 			return null;
 		}
 	}
@@ -99,7 +99,7 @@
 		const qs = query ? `?q=${encodeURIComponent(query)}` : "";
 		const res = await adminFetch(`${apiBase()}/api/admin/submissions${qs}`);
 		if (res.status === 401 || res.status === 403) {
-			window.location.href = "login.html";
+			window.location.replace("login.html");
 			return null;
 		}
 		if (!res.ok) {
@@ -853,7 +853,7 @@
 		const qs = query ? `?q=${encodeURIComponent(query)}` : "";
 		const res = await adminFetch(`${apiBase()}/api/admin/support-tickets${qs}`);
 		if (res.status === 401 || res.status === 403) {
-			window.location.href = "login.html";
+			window.location.replace("login.html");
 			return null;
 		}
 		if (!res.ok) {
@@ -868,7 +868,7 @@
 		const qs = query ? `?q=${encodeURIComponent(query)}` : "";
 		const res = await adminFetch(`${apiBase()}/api/admin/hosts${qs}`);
 		if (res.status === 401 || res.status === 403) {
-			window.location.href = "login.html";
+			window.location.replace("login.html");
 			return null;
 		}
 		if (!res.ok) {
@@ -1263,7 +1263,7 @@
 			if (window.JodAuth && typeof window.JodAuth.logout === "function") {
 				await window.JodAuth.logout();
 			}
-			window.location.href = "login.html";
+			window.location.replace("login.html");
 		};
 		document.getElementById("adminLogout")?.addEventListener("click", doLogout);
 		document.getElementById("adminLogoutMobile")?.addEventListener("click", doLogout);
