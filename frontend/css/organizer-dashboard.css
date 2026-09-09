@@ -2625,6 +2625,58 @@ html[data-theme="dark"] .dash-toast {
 	line-height: 1.4;
 	color: #64748b;
 }
+.ticket-form-fields-block {
+	border-top: 1px solid #e2e8f0;
+	padding-top: 0.75rem;
+	margin-top: 0.15rem;
+}
+.ticket-form-fields-title {
+	font-size: 0.78rem;
+	font-weight: 800;
+	color: #0f172a;
+	margin-bottom: 0.45rem;
+	letter-spacing: 0.02em;
+}
+.ticket-form-fields-hint {
+	margin: 0.45rem 0 0;
+	font-size: 0.72rem;
+	line-height: 1.4;
+	color: #64748b;
+}
+.tlc-attendee {
+	border-top: 1px solid color-mix(in srgb, var(--ticket-muted) 35%, transparent);
+	padding: 0.55rem 0 0.2rem;
+	margin-top: 0.15rem;
+}
+.tlc-attendee-label {
+	font-size: 0.65rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ticket-muted, #6b7280);
+	margin-bottom: 0.3rem;
+	text-align: center;
+}
+.tlc-attendee-row {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.5rem;
+	font-size: 0.76rem;
+	margin-bottom: 0.2rem;
+}
+.tlc-attendee-row span {
+	color: var(--ticket-muted, #6b7280);
+	font-weight: 600;
+}
+.tlc-attendee-row strong {
+	font-weight: 700;
+	text-align: right;
+	word-break: break-word;
+}
+html[data-theme="dark"] .ticket-form-fields-title {
+	color: #e2e8f0;
+}
+
 @media (max-width: 860px) {
 	.ticket-canvas-workspace {
 		grid-template-columns: 1fr;

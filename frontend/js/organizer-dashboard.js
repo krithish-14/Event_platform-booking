@@ -3200,17 +3200,52 @@ async function initOrganizerDashboard() {
 		return ticketLayoutState || { template_id: "classic", show_jod_logo: true };
 	}
 
+	function detectHostFormIdentityFields() {
+		const found = { name: false, email: false, phone: false };
+		let questions = [];
+		try {
+			if (window.JodFormBuilder && typeof window.JodFormBuilder.getSchema === "function") {
+				questions = window.JodFormBuilder.getSchema() || [];
+			}
+		} catch (_) {}
+		if ((!Array.isArray(questions) || !questions.length) && pendingRegistrationForm) {
+			const raw = pendingRegistrationForm.questions_json || pendingRegistrationForm.form_json;
+			if (Array.isArray(raw)) questions = raw;
+			else if (raw && Array.isArray(raw.questions)) questions = raw.questions;
+			else if (raw && Array.isArray(raw.fields)) questions = raw.fields;
+		}
+		(questions || []).forEach(function (q) {
+			if (!q) return;
+			const type = String(q.type || "").toLowerCase();
+			const id = String(q.id || "").toLowerCase();
+			const label = String(q.label || q.title || q.name || "").toLowerCase();
+			const blob = id + " " + label;
+			if (type === "email" || blob.includes("email")) found.email = true;
+			if (type === "phone" || blob.includes("phone") || blob.includes("mobile") || blob.includes("whatsapp")) found.phone = true;
+			if (
+				type === "name"
+				|| id === "q_name"
+				|| ((type === "text" || type === "short_text" || !type) && (blob.includes("full name") || blob.includes("your name") || /(^|\s)name(\s|$)/.test(blob)))
+			) {
+				found.name = true;
+			}
+		});
+		return found;
+	}
+
 	function ensureTicketCanvas() {
 		const host = document.getElementById("ticketDesignStudioHost");
 		if (!host || !window.JodTicketCanvas) return;
 		const sampleTitle = (eventTitleInput && eventTitleInput.value.trim()) || "Your Event Title";
 		const sampleVenue = (document.getElementById("eventLocationInput") && document.getElementById("eventLocationInput").value.trim()) || "Venue TBA";
+		const formFields = detectHostFormIdentityFields();
 		if (!ticketCanvasCtrl) {
 			ticketCanvasCtrl = window.JodTicketCanvas.create({
 				root: host,
 				isPremium: hostIsPremium,
 				templates: ticketTemplatesCatalog,
 				layout: ticketLayoutState,
+				formFields: formFields,
 				sample: { title: sampleTitle, venue: sampleVenue },
 				onChange: function (layout) {
 					ticketLayoutState = layout;
@@ -3223,6 +3258,7 @@ async function initOrganizerDashboard() {
 		} else {
 			ticketCanvasCtrl.setPremium(hostIsPremium);
 			ticketCanvasCtrl.setTemplates(ticketTemplatesCatalog);
+			ticketCanvasCtrl.setFormFields(formFields);
 			if (ticketLayoutState) ticketCanvasCtrl.setLayout(ticketLayoutState);
 			ticketCanvasCtrl.setSample({ title: sampleTitle, venue: sampleVenue });
 		}

@@ -1106,7 +1106,10 @@ function initFormBuilder() {
 		saveDraft: saveDraftForm,
 		saveAndPublishForEvent,
 		loadFromHost,
-		loadSubmissionsData
+		loadSubmissionsData,
+		getSchema: function () {
+			return Array.isArray(questions) ? questions.slice() : [];
+		}
 	};
 
 	const btnViewFormHost = document.getElementById("btnViewFormHost");

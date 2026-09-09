@@ -26,6 +26,9 @@
 		show_seat: true,
 		show_qr: true,
 		show_ticket_type: true,
+		show_attendee_name: true,
+		show_attendee_email: true,
+		show_attendee_phone: true,
 		custom_footer: "",
 		headline_override: "",
 	};
@@ -39,6 +42,7 @@
 		this.isPremium = !!opts.isPremium;
 		this.templates = Array.isArray(opts.templates) && opts.templates.length ? opts.templates : FALLBACK_TEMPLATES;
 		this.layout = cloneLayout(opts.layout);
+		this.formFields = Object.assign({ name: false, email: false, phone: false }, opts.formFields || {});
 		this.sample = Object.assign({
 			title: "Your Event Title",
 			date: "Sat, Apr 18, 2026, 06:30 PM",
@@ -47,6 +51,9 @@
 			seat: "General Admission",
 			price: "Rs. 999",
 			bookingId: "JOD-A1B2C3D4",
+			attendeeName: "Priya Sharma",
+			attendeeEmail: "priya@email.com",
+			attendeePhone: "+91 98765 43210",
 		}, opts.sample || {});
 		this.onChange = typeof opts.onChange === "function" ? opts.onChange : function () {};
 		this._bound = false;
@@ -57,6 +64,12 @@
 		this.isPremium = !!premium;
 		if (!this.isPremium) this.layout.show_jod_logo = true;
 		this.syncControls();
+		this.renderPreview();
+	};
+
+	TicketCanvasController.prototype.setFormFields = function (fields) {
+		this.formFields = Object.assign({ name: false, email: false, phone: false }, fields || {});
+		this.syncFormFieldToggles();
 		this.renderPreview();
 	};
 
@@ -107,6 +120,15 @@
 			'        <label class="ticket-toggle"><input type="checkbox" id="ticketShowQr" checked /> QR code</label>',
 			'        <label class="ticket-toggle ticket-toggle-premium" id="ticketLogoToggleWrap"><input type="checkbox" id="ticketShowJodLogo" checked /> JOD Events logo</label>',
 			'      </div>',
+			'      <div class="ticket-form-fields-block" id="ticketFormFieldsBlock">',
+			'        <div class="ticket-form-fields-title">Host form details (check-in)</div>',
+			'        <div class="ticket-toggle-grid" id="ticketFormToggleGrid">',
+			'          <label class="ticket-toggle" id="ticketShowNameWrap" hidden><input type="checkbox" id="ticketShowAttendeeName" checked /> Name</label>',
+			'          <label class="ticket-toggle" id="ticketShowEmailWrap" hidden><input type="checkbox" id="ticketShowAttendeeEmail" checked /> Email</label>',
+			'          <label class="ticket-toggle" id="ticketShowPhoneWrap" hidden><input type="checkbox" id="ticketShowAttendeePhone" checked /> Phone</label>',
+			'        </div>',
+			'        <p class="ticket-form-fields-hint" id="ticketFormFieldsHint">Add Name, Email, or Phone fields in your Registration Form to show them on tickets for secure check-in.</p>',
+			'      </div>',
 			'      <p class="ticket-premium-hint" id="ticketPremiumHint">JOD Events logo stays on free plans. Upgrade to Premium to remove it.</p>',
 			'    </div>',
 			'  </div>',
@@ -114,6 +136,7 @@
 		].join("");
 		this.bindEvents();
 		this.syncControls();
+		this.syncFormFieldToggles();
 		this.renderTemplatePicker();
 		this.renderPreview();
 	};
@@ -133,6 +156,9 @@
 			["ticketShowPrice", "show_price", "checked"],
 			["ticketShowQr", "show_qr", "checked"],
 			["ticketShowJodLogo", "show_jod_logo", "checked"],
+			["ticketShowAttendeeName", "show_attendee_name", "checked"],
+			["ticketShowAttendeeEmail", "show_attendee_email", "checked"],
+			["ticketShowAttendeePhone", "show_attendee_phone", "checked"],
 		];
 		map.forEach(function (row) {
 			const el = self.root.querySelector("#" + row[0]);
@@ -175,6 +201,9 @@
 		setChk("ticketShowPrice", L.show_price !== false);
 		setChk("ticketShowQr", L.show_qr !== false);
 		setChk("ticketShowJodLogo", L.show_jod_logo !== false);
+		setChk("ticketShowAttendeeName", L.show_attendee_name !== false);
+		setChk("ticketShowAttendeeEmail", L.show_attendee_email !== false);
+		setChk("ticketShowAttendeePhone", L.show_attendee_phone !== false);
 
 		const logoEl = this.root.querySelector("#ticketShowJodLogo");
 		const wrap = this.root.querySelector("#ticketLogoToggleWrap");
@@ -186,9 +215,36 @@
 		if (wrap) wrap.classList.toggle("is-locked", !this.isPremium);
 		if (hint) {
 			hint.textContent = this.isPremium
-				? "Premium active — you can hide the JOD Events logo on attendee tickets."
+				? "Premium active - you can hide the JOD Events logo on attendee tickets."
 				: "JOD Events logo stays on free plans. Upgrade to Premium to remove it.";
 		}
+		this.syncFormFieldToggles();
+	};
+
+	TicketCanvasController.prototype.syncFormFieldToggles = function () {
+		if (!this.root) return;
+		const ff = this.formFields || {};
+		const pairs = [
+			["ticketShowNameWrap", !!ff.name],
+			["ticketShowEmailWrap", !!ff.email],
+			["ticketShowPhoneWrap", !!ff.phone],
+		];
+		let any = false;
+		pairs.forEach(function (row) {
+			const el = this.root.querySelector("#" + row[0]);
+			if (!el) return;
+			el.hidden = !row[1];
+			if (row[1]) any = true;
+		}.bind(this));
+		const hint = this.root.querySelector("#ticketFormFieldsHint");
+		if (hint) {
+			hint.hidden = any;
+			hint.textContent = any
+				? ""
+				: "Add Name, Email, or Phone fields in your Registration Form to show them on tickets for secure check-in.";
+		}
+		const block = this.root.querySelector("#ticketFormFieldsBlock");
+		if (block) block.classList.toggle("has-fields", any);
 	};
 
 	TicketCanvasController.prototype.renderTemplatePicker = function () {
@@ -265,6 +321,18 @@
 			rows.push('  <div class="tlc-qty">1 Ticket</div>');
 			if (L.show_ticket_type !== false) rows.push('  <div class="tlc-type">' + escapeHtml(s.ticketType) + "</div>");
 			if (L.show_seat !== false) rows.push('  <div class="tlc-seat muted">' + escapeHtml(s.seat) + "</div>");
+			rows.push("</div>");
+		}
+
+		const showName = !!this.formFields.name && L.show_attendee_name !== false;
+		const showEmail = !!this.formFields.email && L.show_attendee_email !== false;
+		const showPhone = !!this.formFields.phone && L.show_attendee_phone !== false;
+		if (showName || showEmail || showPhone) {
+			rows.push('<div class="tlc-attendee">');
+			rows.push('  <div class="tlc-attendee-label">Attendee</div>');
+			if (showName) rows.push('  <div class="tlc-attendee-row"><span>Name</span><strong>' + escapeHtml(s.attendeeName) + "</strong></div>");
+			if (showEmail) rows.push('  <div class="tlc-attendee-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>");
+			if (showPhone) rows.push('  <div class="tlc-attendee-row"><span>Phone</span><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>");
 			rows.push("</div>");
 		}
 

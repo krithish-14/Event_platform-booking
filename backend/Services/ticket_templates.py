@@ -82,6 +82,9 @@ DEFAULT_LAYOUT: Dict[str, Any] = {
     "show_seat": True,
     "show_qr": True,
     "show_ticket_type": True,
+    "show_attendee_name": True,
+    "show_attendee_email": True,
+    "show_attendee_phone": True,
     "custom_footer": "",
     "headline_override": "",
 }
@@ -138,6 +141,9 @@ def normalize_ticket_layout(
         "show_seat",
         "show_qr",
         "show_ticket_type",
+        "show_attendee_name",
+        "show_attendee_email",
+        "show_attendee_phone",
     ):
         if key in raw:
             base[key] = bool(raw.get(key))

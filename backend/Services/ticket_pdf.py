@@ -450,6 +450,9 @@ def build_mticket_pdf_bytes(
     payment_mode: str = "",
     include_qr: bool = True,
     ticket_layout: Optional[dict] = None,
+    attendee_name: str = "",
+    attendee_email: str = "",
+    attendee_phone: str = "",
 ) -> Optional[bytes]:
     """One-page M-ticket PDF. Returns None if assembly fails."""
     try:
@@ -479,8 +482,16 @@ def build_mticket_pdf_bytes(
         show_seat = bool(layout.get("show_seat", True))
         show_ticket_type = bool(layout.get("show_ticket_type", True))
         show_jod_logo = bool(layout.get("show_jod_logo", True))
+        show_attendee_name = bool(layout.get("show_attendee_name", True)) and bool(str(attendee_name or "").strip())
+        show_attendee_email = bool(layout.get("show_attendee_email", True)) and bool(str(attendee_email or "").strip())
+        show_attendee_phone = bool(layout.get("show_attendee_phone", True)) and bool(str(attendee_phone or "").strip())
         custom_footer = _ascii_text(layout.get("custom_footer") or "", "")
         headline_override = _ascii_text(layout.get("headline_override") or "", "")
+        guest_name = _ascii_text(attendee_name, "") if show_attendee_name else ""
+        guest_email = _ascii_text(attendee_email, "") if show_attendee_email else ""
+        guest_phone = _ascii_text(attendee_phone, "") if show_attendee_phone else ""
+        attendee_lines = sum(1 for x in (guest_name, guest_email, guest_phone) if x)
+        attendee_h = (18.0 + attendee_lines * 14.0) if attendee_lines else 0.0
 
         title = _ascii_text(headline_override or event_name, "JOD Events") or "JOD Events"
         date_label = _ascii_text(_format_event_date(event_date), "Date TBA") if show_date else ""
@@ -520,6 +531,7 @@ def build_mticket_pdf_bytes(
             + header_h
             + 18
             + seating_h
+            + attendee_h
             + (16 if show_qr else 8)
             + qr_block_h
             + 18
@@ -634,8 +646,38 @@ def build_mticket_pdf_bytes(
             ])
         ops.append("ET")
 
+        attendee_top = block_top - (58.0 if (show_ticket_type or show_seat) else 20.0)
+        if attendee_lines:
+            ops.extend([
+                "BT",
+                f"/F2 8 Tf {_rgb(muted_rgb)} rg",
+                _tj_center(center_x, attendee_top, "ATTENDEE", 4.4),
+            ])
+            cursor_a = attendee_top - 14
+            if guest_name:
+                ops.extend([
+                    f"/F1 10 Tf {_rgb(text_rgb)} rg",
+                    _tj_center(center_x, cursor_a, guest_name[:40], 5.6),
+                ])
+                cursor_a -= 13
+            if guest_email:
+                ops.extend([
+                    f"/F2 9 Tf {_rgb(muted_rgb)} rg",
+                    _tj_center(center_x, cursor_a, guest_email[:42], 4.8),
+                ])
+                cursor_a -= 12
+            if guest_phone:
+                ops.extend([
+                    f"/F2 9 Tf {_rgb(muted_rgb)} rg",
+                    _tj_center(center_x, cursor_a, guest_phone[:28], 4.8),
+                ])
+            ops.append("ET")
+            qr_anchor = cursor_a - 16
+        else:
+            qr_anchor = block_top - 58
+
         if show_qr:
-            qr_top = block_top - 58
+            qr_top = qr_anchor
             qr_x = card_x + (card_w - qr_size) / 2.0
             qr_y = qr_top - qr_size
             if qr_jpeg:
@@ -659,7 +701,7 @@ def build_mticket_pdf_bytes(
             ])
             policy_y = qr_y - 38
         else:
-            policy_y = block_top - 56
+            policy_y = qr_anchor - 8
 
         divider_y = policy_y
         if show_price:
@@ -850,6 +892,9 @@ def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None, include
         payment_mode=getattr(booking, "payment_mode", None) or "",
         include_qr=include_qr,
         ticket_layout=ticket_layout,
+        attendee_name=getattr(booking, "receiver_name", None) or "",
+        attendee_email=getattr(booking, "receiver_email", None) or "",
+        attendee_phone=getattr(booking, "receiver_phone", None) or "",
     )
 
 
