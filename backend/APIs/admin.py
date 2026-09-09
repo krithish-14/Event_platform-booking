@@ -328,14 +328,7 @@ def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> Pa
     if getattr(row, "id", None) is None:
         raise HTTPException(status_code=400, detail="Form submission is missing an id.")
     answers = parse_answers_json(getattr(row, "answers_json", None))
-    form_name, form_email, form_phone = _form_guest_identity(
-        answers, fallback_email=row.user_email or ""
-    )
-    if not form_email or "@" not in form_email:
-        raise HTTPException(
-            status_code=400,
-            detail="This host form has no attendee email. Add an Email field on the form and resubmit.",
-        )
+    form_name, form_email, form_phone = _require_host_form_guest(answers)
     ticket_type, price = _ticket_from_answers(answers)
     if not ticket_type:
         ticket_type = row.ticket_type or "General Admission"
@@ -355,8 +348,8 @@ def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> Pa
     if not event_key:
         raise HTTPException(status_code=400, detail="This registration is not linked to a published event.")
 
-    name = (form_name or "").strip() or form_email.split("@")[0]
-    phone = (form_phone or "").strip() or "N/A"
+    name = form_name
+    phone = form_phone
     is_free = price <= 0.009
     booking_id_text = form_submission_booking_id(db, getattr(row, "id", None))
     preferred_txn = _preferred_form_payment_txn(row.id, is_free=is_free)
@@ -372,7 +365,7 @@ def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> Pa
             amount=price,
             quantity=1,
             attendee_name=name,
-            attendee_email=form_email.strip().lower(),
+            attendee_email=form_email,
             attendee_phone=phone,
             bank_name="Free" if is_free else "Host form",
             transaction_id=preferred_txn,
@@ -396,7 +389,7 @@ def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> Pa
         return proof
 
     proof.attendee_name = name
-    proof.attendee_email = form_email.strip().lower()
+    proof.attendee_email = form_email
     proof.attendee_phone = phone
     proof.ticket_type = ticket_type
     proof.amount = price
@@ -465,22 +458,17 @@ def _apply_form_identity_to_proof(
     submission: Optional[FormSubmission] = None,
     submission_id: Optional[int] = None,
 ) -> Optional[int]:
-    """Overwrite proof + return submission id when host-form guest fields are available."""
+    """Overwrite proof from host-form guest fields only (never profile)."""
     form_row = submission
     if form_row is None and submission_id is not None:
         form_row = form_submission_by_id(db, submission_id)
     if form_row is None:
         return None
     answers = parse_answers_json(getattr(form_row, "answers_json", None))
-    form_name, form_email, form_phone = _form_guest_identity(
-        answers, fallback_email=form_row.user_email or ""
-    )
-    if form_name:
-        proof.attendee_name = form_name
-    if form_email and "@" in form_email:
-        proof.attendee_email = form_email.strip().lower()
-    if form_phone and form_phone != "N/A":
-        proof.attendee_phone = form_phone
+    form_name, form_email, form_phone = _require_host_form_guest(answers)
+    proof.attendee_name = form_name
+    proof.attendee_email = form_email
+    proof.attendee_phone = form_phone
     try:
         db.commit()
         db.refresh(proof)
@@ -510,28 +498,20 @@ def _resolve_attendee_identity(
     form_phone: str = "",
     prefer_form: bool = True,
 ):
-    """Resolve display/delivery identity.
-
-    Host-form answers win by default so one login can buy tickets for other people.
-    """
-    if user is None and booking is not None:
-        user = getattr(booking, "customer", None)
-    if user is None and form_email:
-        user = _user_by_email(db, form_email)
-    profile_name = getattr(user, "full_name", None) if user is not None else None
-    profile_email = getattr(user, "email", None) if user is not None else None
-    profile_phone = getattr(user, "phone", None) if user is not None else None
+    """Resolve display identity. Name/email never come from the login profile."""
     booking_name = getattr(booking, "receiver_name", None) if booking is not None else None
     booking_email = getattr(booking, "receiver_email", None) if booking is not None else None
     booking_phone = getattr(booking, "receiver_phone", None) if booking is not None else None
+    profile_phone = getattr(user, "phone", None) if user is not None else None
+    # Profile name/email are intentionally excluded — tickets track host-form data only.
     if prefer_form:
-        names = (form_name, booking_name, profile_name)
-        emails = (form_email, booking_email, profile_email)
+        names = (form_name, booking_name)
+        emails = (form_email, booking_email)
         phones = (form_phone, booking_phone, profile_phone)
     else:
-        names = (profile_name, booking_name, form_name)
-        emails = (booking_email, profile_email, form_email)
-        phones = (profile_phone, booking_phone, form_phone)
+        names = (booking_name, form_name)
+        emails = (booking_email, form_email)
+        phones = (booking_phone, form_phone, profile_phone)
     return pick_attendee_identity(names=names, emails=emails, phones=phones)
 
 
@@ -551,7 +531,7 @@ EMAIL_KEYS = (
 
 
 def _form_guest_identity(answers: Any, fallback_email: str = "") -> tuple:
-    """Name/email/phone from host-form answers (not login profile)."""
+    """Name/email/phone from host-form answers only (never login profile)."""
     from APIs.forms import _pick_answer
 
     answers = answers if isinstance(answers, dict) else {}
@@ -564,11 +544,33 @@ def _form_guest_identity(answers: Any, fallback_email: str = "") -> tuple:
             name = maybe
     email = _answer_value(answers, EMAIL_KEYS) or _pick_answer(
         answers, "email", "e-mail", "mail id", "mailid"
-    ) or (fallback_email or "")
+    )
+    # fallback_email is ignored on purpose — tickets must not use profile/login email.
+    _ = fallback_email
     phone = _answer_value(answers, PHONE_KEYS) or _pick_answer(
         answers, "phone", "mobile", "whatsapp", "contact number"
     )
     return name, email, phone
+
+
+def _require_host_form_guest(answers: Any) -> tuple:
+    """Strict host-form name + email for ticket PDF / email delivery."""
+    from Utils.text_sanitize import looks_like_email, looks_like_person_name
+
+    name, email, phone = _form_guest_identity(answers, fallback_email="")
+    name = (name or "").strip()
+    email = (email or "").strip().lower()
+    if not name or not looks_like_person_name(name):
+        raise HTTPException(
+            status_code=400,
+            detail="Host form must include the attendee name. Profile name is not used for tickets.",
+        )
+    if not email or not looks_like_email(email):
+        raise HTTPException(
+            status_code=400,
+            detail="Host form must include the attendee email. Profile email is not used for tickets.",
+        )
+    return name, email, (phone or "").strip() or "N/A"
 
 
 def _booking_status_value(booking) -> str:
@@ -903,71 +905,77 @@ def _issue_tickets_from_payment(
     *,
     submission_id: Optional[int] = None,
 ) -> Booking:
-    email = (row.attendee_email or "").strip().lower()
-    if not email:
-        raise HTTPException(status_code=400, detail="This payment form has no attendee email.")
     event = _lookup_event(db, row.event_id)
     if not event:
         raise HTTPException(status_code=400, detail="This payment is not linked to a published event.")
-    name = (row.attendee_name or "").strip() or email.split("@")[0]
-    phone = (row.attendee_phone or "").strip()
     ticket_type = row.ticket_type or "General Admission"
     price = float(row.amount if row.amount is not None else (event.price or 0))
     qty = max(1, int(row.quantity or 1))
     linked_submission_id = submission_id
 
-    # Prefer the exact host-form submission when known; otherwise latest unpaid form for buyer.
+    # Ticket name + email: host-form answers only (never profile / login).
+    name = ""
+    email = ""
+    phone = "N/A"
     try:
+        form_row = None
         if linked_submission_id is not None:
-            applied = _apply_form_identity_to_proof(db, row, submission_id=linked_submission_id)
-            if applied is not None:
-                linked_submission_id = applied
-                name = (row.attendee_name or "").strip() or name
-                email = (row.attendee_email or "").strip().lower() or email
-                phone = (row.attendee_phone or "").strip() or phone
-        else:
+            form_row = form_submission_by_id(db, linked_submission_id)
+        if form_row is None and row.customer_id:
             from APIs.payments import _attendee_from_host_form
-            owner = None
-            if row.customer_id:
-                owner = db.query(User).filter(User.customer_id == str(row.customer_id)).first()
-            if owner is None:
-                owner = db.query(User).filter(func.lower(User.email) == email).first()
+            owner = db.query(User).filter(User.customer_id == str(row.customer_id)).first()
             if owner is not None:
                 form_name, form_email, form_phone, _login, form_sub = _attendee_from_host_form(
                     db,
                     owner,
                     event_id=str(row.event_id or event.id),
                     ticket_type=ticket_type,
-                    payload_name=name,
-                    payload_phone=phone,
+                    unpaid_only=True,
+                    require_form=True,
                 )
-                if form_sub is not None:
-                    linked_submission_id = getattr(form_sub, "id", None)
-                    _apply_form_identity_to_proof(db, row, submission=form_sub)
-                if form_name:
-                    name = form_name
-                if form_email:
-                    email = form_email
-                if form_phone and form_phone != "N/A":
-                    phone = form_phone
-                row.attendee_name = name
-                row.attendee_email = email
-                row.attendee_phone = phone
-                try:
-                    db.commit()
-                except Exception:
-                    _db_safe_rollback(db)
+                form_row = form_sub
+                name, email, phone = form_name, form_email, form_phone
+        if form_row is not None:
+            linked_submission_id = getattr(form_row, "id", None)
+            answers = parse_answers_json(getattr(form_row, "answers_json", None))
+            name, email, phone = _require_host_form_guest(answers)
+            row.attendee_name = name
+            row.attendee_email = email
+            row.attendee_phone = phone
+            try:
+                db.commit()
+            except Exception:
+                _db_safe_rollback(db)
+    except HTTPException:
+        raise
     except Exception:
         _db_safe_rollback(db)
 
-    # Keep booking under the buyer account (customer_id on the proof), not a guest-only user.
+    # Payment proof must already carry host-form identity if no live form was found.
+    if not name or not email:
+        from Utils.text_sanitize import looks_like_email, looks_like_person_name
+        name = (row.attendee_name or "").strip()
+        email = (row.attendee_email or "").strip().lower()
+        phone = (row.attendee_phone or "").strip() or "N/A"
+        if not name or not looks_like_person_name(name) or not email or not looks_like_email(email):
+            raise HTTPException(
+                status_code=400,
+                detail="Host form name and email are required for tickets. Profile data is not used.",
+            )
+
+    # Keep booking under the buyer account; receiver_* stay host-form guest fields.
     buyer = None
     if row.customer_id:
         buyer = db.query(User).filter(User.customer_id == str(row.customer_id)).first()
-    user = buyer or _ensure_attendee_user(db, email, name, row.customer_id)
+    if buyer is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Payment is not linked to a buyer account. Cannot issue ticket.",
+        )
+    user = buyer
 
+    # Never reuse another purchase's booking — only the booking already on this proof.
     booking = _reload_booking(db, _column_as_text(db, "payment_proofs", "id", row.id, "booking_id"))
-    # Do not reuse an older booking for the same event — each paid proof gets its own tickets.
     if not booking:
         booking = Booking(
             customer_id=user.customer_id,
@@ -995,13 +1003,9 @@ def _issue_tickets_from_payment(
         db.commit()
         db.refresh(booking)
     else:
-        # Always refresh guest identity from the current proof/form for this issue.
-        if name:
-            booking.receiver_name = name
-        if email:
-            booking.receiver_email = email
-        if phone:
-            booking.receiver_phone = phone
+        booking.receiver_name = name
+        booking.receiver_email = email
+        booking.receiver_phone = phone or None
         if qty > int(booking.quantity or 1):
             booking.quantity = qty
         if ticket_type and not (booking.ticket_type or "").strip():

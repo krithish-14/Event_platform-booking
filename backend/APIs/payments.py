@@ -305,25 +305,33 @@ def _attendee_from_host_form(
     ticket_type: Optional[str],
     payload_name: Optional[str] = None,
     payload_phone: Optional[str] = None,
+    unpaid_only: bool = True,
+    require_form: bool = True,
 ) -> tuple[str, str, str, str, Optional[FormSubmission]]:
     """
-    Prefer host-form name/email/phone for ticket PDF + delivery.
-    Falls back to profile only when the form field is missing.
+    Ticket name + delivery email come ONLY from the host form answers.
+    Never use profile full_name / login email for the ticket.
     Returns (name, delivery_email, phone, login_email, submission).
     """
-    from APIs.admin import NAME_KEYS, PHONE_KEYS, _answer_value
+    from APIs.admin import NAME_KEYS, PHONE_KEYS, EMAIL_KEYS, _answer_value
     from APIs.forms import _pick_answer
+    from Utils.text_sanitize import looks_like_email, looks_like_person_name
 
     login_email = sanitize_text(current_user.email or "", max_length=255).lower()
     if not login_email:
         raise HTTPException(status_code=400, detail="Your account has no email address.")
 
     submission = _latest_host_form_submission(
-        db, event_id, current_user, ticket_type, unpaid_only=True
+        db, event_id, current_user, ticket_type, unpaid_only=unpaid_only
     )
-    if submission is None:
+    if submission is None and not unpaid_only:
         submission = _latest_host_form_submission(
             db, event_id, current_user, ticket_type, unpaid_only=False
+        )
+    if submission is None and require_form:
+        raise HTTPException(
+            status_code=400,
+            detail="Submit the host registration form with attendee name and email before booking.",
         )
 
     answers = _form_answers(submission)
@@ -334,43 +342,32 @@ def _attendee_from_host_form(
         maybe = _pick_answer(answers, "name")
         if maybe and not any(tok in maybe.lower() for tok in ("pass", "ticket", "general admission")):
             form_name = maybe
-    form_email = _answer_value(
-        answers,
-        (
-            "email",
-            "email_address",
-            "email address",
-            "e_mail",
-            "e mail",
-            "attendee_email",
-            "attendee email",
-            "your email",
-            "mail",
-            "mail id",
-            "mailid",
-        ),
-    ) or _pick_answer(answers, "email", "e-mail", "mail id", "mailid")
+    form_email = _answer_value(answers, EMAIL_KEYS) or _pick_answer(
+        answers, "email", "e-mail", "mail id", "mailid"
+    )
     form_phone = _answer_value(answers, PHONE_KEYS) or _pick_answer(
         answers, "phone", "mobile", "whatsapp", "contact number"
     )
 
-    name = sanitize_text(
-        form_name
-        or payload_name
-        or getattr(current_user, "full_name", None)
-        or getattr(current_user, "username", None)
-        or login_email,
-        max_length=120,
-    )
-    delivery_email = sanitize_text(form_email or login_email, max_length=255).lower() or login_email
-    phone = sanitize_text(
-        form_phone
-        or payload_phone
-        or getattr(current_user, "phone", None)
-        or getattr(current_user, "mobile", None)
-        or "N/A",
-        max_length=40,
-    ) or "N/A"
+    name = sanitize_text(form_name or "", max_length=120)
+    delivery_email = sanitize_text(form_email or "", max_length=255).lower()
+    if require_form:
+        if not name or not looks_like_person_name(name):
+            raise HTTPException(
+                status_code=400,
+                detail="Host form must include the attendee name. Profile name is not used for tickets.",
+            )
+        if not delivery_email or not looks_like_email(delivery_email):
+            raise HTTPException(
+                status_code=400,
+                detail="Host form must include the attendee email. Profile email is not used for tickets.",
+            )
+    else:
+        # Display-only fallbacks — still never profile.
+        name = name or sanitize_text(payload_name or "", max_length=120) or "Guest"
+        delivery_email = delivery_email or ""
+
+    phone = sanitize_text(form_phone or payload_phone or "N/A", max_length=40) or "N/A"
     return name, delivery_email, phone, login_email, submission
 
 
@@ -581,9 +578,21 @@ async def submit_payment_proof(
     current_user: User = Depends(get_current_user),
 ):
     limit_payment(request)
-    name = sanitize_text(attendee_name, max_length=120)
-    email = sanitize_text(attendee_email or current_user.email or "", max_length=255).lower()
-    phone = sanitize_text(attendee_phone, max_length=40)
+    event_key = sanitize_text(event_id or "", max_length=255)
+    if not event_key:
+        raise HTTPException(status_code=400, detail="Missing event_id.")
+    ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
+    # Always take name/email from host form — never profile / form-posted profile copy alone.
+    name, email, phone, _login, submission = _attendee_from_host_form(
+        db,
+        current_user,
+        event_id=event_key,
+        ticket_type=ticket,
+        payload_name=attendee_name,
+        payload_phone=attendee_phone,
+        unpaid_only=True,
+        require_form=True,
+    )
     bank = sanitize_text(bank_name, max_length=120)
     txn = sanitize_text(transaction_id, max_length=80)
     if not name or not email or not phone or not txn:
@@ -610,10 +619,37 @@ async def submit_payment_proof(
         owner_email=email,
     )
 
+    if submission is not None and getattr(submission, "id", None) is not None:
+        from APIs.admin import _ensure_payment_proof_for_submission
+        row = _ensure_payment_proof_for_submission(db, submission)
+        row.bank_name = bank or row.bank_name
+        row.transaction_id = txn
+        row.amount = float(amount or 0)
+        row.quantity = _clamp_purchase_quantity(db, event_key, quantity)
+        row.screenshot_file_id = stored.id
+        row.attendee_name = name
+        row.attendee_email = email
+        row.attendee_phone = phone
+        row.status = "payment_submitted"
+        db.commit()
+        db.refresh(row)
+        ticket_info = _auto_issue_and_deliver(db, row, submission_id=submission.id)
+        message = (
+            "Payment received. Your QR ticket is ready — check email, WhatsApp, and Your Orders."
+            if ticket_info.get("qr_token")
+            else "Payment received. Your ticket is being prepared; contact support if it does not appear shortly."
+        )
+        return {
+            "message": message,
+            "payment_id": row.id,
+            "status": ticket_info.get("status") or row.status,
+            **ticket_info,
+        }
+
     existing = (
         db.query(PaymentProof)
         .filter(
-            PaymentProof.event_id == str(event_id),
+            PaymentProof.event_id == str(event_key),
             func.lower(PaymentProof.attendee_email) == email,
         )
         .order_by(PaymentProof.created_at.desc())
@@ -624,9 +660,9 @@ async def submit_payment_proof(
         existing.attendee_phone = phone
         existing.bank_name = bank
         existing.transaction_id = txn
-        existing.ticket_type = (ticket_type or "").strip() or existing.ticket_type
+        existing.ticket_type = ticket
         existing.amount = float(amount or 0)
-        existing.quantity = _clamp_purchase_quantity(db, str(event_id), quantity)
+        existing.quantity = _clamp_purchase_quantity(db, event_key, quantity)
         existing.screenshot_file_id = stored.id
         existing.customer_id = current_user.customer_id
         existing.status = "payment_submitted"
@@ -642,10 +678,10 @@ async def submit_payment_proof(
     else:
         row = PaymentProof(
             customer_id=current_user.customer_id,
-            event_id=str(event_id),
-            ticket_type=(ticket_type or "").strip() or "General Admission",
+            event_id=str(event_key),
+            ticket_type=ticket,
             amount=float(amount or 0),
-            quantity=_clamp_purchase_quantity(db, str(event_id), quantity),
+            quantity=_clamp_purchase_quantity(db, event_key, quantity),
             attendee_name=name,
             attendee_email=email,
             attendee_phone=phone,
@@ -659,17 +695,17 @@ async def submit_payment_proof(
         db.commit()
         db.refresh(row)
 
-    ticket = _auto_issue_and_deliver(db, row)
+    ticket_info = _auto_issue_and_deliver(db, row, submission_id=getattr(submission, "id", None) if submission else None)
     message = (
         "Payment received. Your QR ticket is ready — check email, WhatsApp, and Your Orders."
-        if ticket.get("qr_token")
+        if ticket_info.get("qr_token")
         else "Payment received. Your ticket is being prepared; contact support if it does not appear shortly."
     )
     return {
         "message": message,
         "payment_id": row.id,
-        "status": ticket.get("status") or row.status,
-        **ticket,
+        "status": ticket_info.get("status") or row.status,
+        **ticket_info,
     }
 
 
@@ -686,35 +722,19 @@ def _record_razorpay_payment(
     attendee_phone: Optional[str],
 ) -> PaymentProof:
     event_key = sanitize_text(event_id or "", max_length=255) or None
+    if not event_key:
+        raise HTTPException(status_code=400, detail="Missing event_id. Tickets require a host-form submission for that event.")
     ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
-    if event_key:
-        name, delivery_email, phone, login_email, _submission = _attendee_from_host_form(
-            db,
-            current_user,
-            event_id=event_key,
-            ticket_type=ticket,
-            payload_name=attendee_name,
-            payload_phone=attendee_phone,
-        )
-    else:
-        login_email = sanitize_text(current_user.email or "", max_length=255).lower()
-        if not login_email:
-            raise HTTPException(status_code=400, detail="Your account has no email address.")
-        name = sanitize_text(
-            attendee_name
-            or getattr(current_user, "full_name", None)
-            or getattr(current_user, "username", None)
-            or login_email,
-            max_length=120,
-        )
-        delivery_email = login_email
-        phone = sanitize_text(
-            attendee_phone
-            or getattr(current_user, "phone", None)
-            or getattr(current_user, "mobile", None)
-            or "N/A",
-            max_length=40,
-        ) or "N/A"
+    name, delivery_email, phone, login_email, _submission = _attendee_from_host_form(
+        db,
+        current_user,
+        event_id=event_key,
+        ticket_type=ticket,
+        payload_name=attendee_name,
+        payload_phone=attendee_phone,
+        unpaid_only=True,
+        require_form=True,
+    )
 
     qty = _clamp_purchase_quantity(db, event_key or "", quantity) if event_key else max(1, int(quantity or 1))
     amount_val = float(amount_rupees or 0)

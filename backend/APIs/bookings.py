@@ -843,13 +843,6 @@ def get_registration_status(
         "has_ticket": False,
     }
     if ticket_booking and _booking_tickets(ticket_booking, db=db):
-        try:
-            _mark_form_submission_paid(db, event_id, current_user, booking_id=ticket_booking.booking_id)
-        except Exception:
-            try:
-                db.rollback()
-            except Exception:
-                pass
         event = getattr(ticket_booking, "event", None)
         tickets = _booking_tickets(ticket_booking, db=db)
         qr_token = getattr(tickets[0], "qr_token", None) if tickets else None

@@ -1094,13 +1094,8 @@ def build_admin_mticket_pdf_from_booking(
 
     guest = (attendee_name or "").strip()
     if not guest:
-        customer = getattr(booking, "customer", None)
-        guest = (
-            getattr(booking, "receiver_name", None)
-            or getattr(customer, "full_name", None)
-            or getattr(customer, "username", None)
-            or ""
-        )
+        # Host-form / booking receiver only — never profile full_name.
+        guest = (getattr(booking, "receiver_name", None) or "").strip() or "Guest"
 
     return build_admin_mticket_pdf_bytes(
         booking_id=getattr(booking, "booking_id", ""),
