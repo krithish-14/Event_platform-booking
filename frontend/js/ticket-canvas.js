@@ -118,16 +118,10 @@
 			'        <label class="ticket-toggle"><input type="checkbox" id="ticketShowSeat" checked /> Seat</label>',
 			'        <label class="ticket-toggle"><input type="checkbox" id="ticketShowPrice" checked /> Price</label>',
 			'        <label class="ticket-toggle"><input type="checkbox" id="ticketShowQr" checked /> QR code</label>',
+			'        <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeeName" checked /> Name</label>',
+			'        <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeePhone" checked /> Phone number</label>',
+			'        <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeeEmail" checked /> Email</label>',
 			'        <label class="ticket-toggle ticket-toggle-premium" id="ticketLogoToggleWrap"><input type="checkbox" id="ticketShowJodLogo" checked /> JOD Events logo</label>',
-			'      </div>',
-			'      <div class="ticket-form-fields-block" id="ticketFormFieldsBlock">',
-			'        <div class="ticket-form-fields-title">Host form details (check-in)</div>',
-			'        <div class="ticket-toggle-grid" id="ticketFormToggleGrid">',
-			'          <label class="ticket-toggle" id="ticketShowNameWrap" hidden><input type="checkbox" id="ticketShowAttendeeName" checked /> Name</label>',
-			'          <label class="ticket-toggle" id="ticketShowEmailWrap" hidden><input type="checkbox" id="ticketShowAttendeeEmail" checked /> Email</label>',
-			'          <label class="ticket-toggle" id="ticketShowPhoneWrap" hidden><input type="checkbox" id="ticketShowAttendeePhone" checked /> Phone</label>',
-			'        </div>',
-			'        <p class="ticket-form-fields-hint" id="ticketFormFieldsHint">Add Name, Email, or Phone fields in your Registration Form to show them on tickets for secure check-in.</p>',
 			'      </div>',
 			'      <p class="ticket-premium-hint" id="ticketPremiumHint">JOD Events logo stays on free plans. Upgrade to Premium to remove it.</p>',
 			'    </div>',
@@ -136,7 +130,6 @@
 		].join("");
 		this.bindEvents();
 		this.syncControls();
-		this.syncFormFieldToggles();
 		this.renderTemplatePicker();
 		this.renderPreview();
 	};
@@ -218,33 +211,10 @@
 				? "Premium active - you can hide the JOD Events logo on attendee tickets."
 				: "JOD Events logo stays on free plans. Upgrade to Premium to remove it.";
 		}
-		this.syncFormFieldToggles();
 	};
 
 	TicketCanvasController.prototype.syncFormFieldToggles = function () {
-		if (!this.root) return;
-		const ff = this.formFields || {};
-		const pairs = [
-			["ticketShowNameWrap", !!ff.name],
-			["ticketShowEmailWrap", !!ff.email],
-			["ticketShowPhoneWrap", !!ff.phone],
-		];
-		let any = false;
-		pairs.forEach(function (row) {
-			const el = this.root.querySelector("#" + row[0]);
-			if (!el) return;
-			el.hidden = !row[1];
-			if (row[1]) any = true;
-		}.bind(this));
-		const hint = this.root.querySelector("#ticketFormFieldsHint");
-		if (hint) {
-			hint.hidden = any;
-			hint.textContent = any
-				? ""
-				: "Add Name, Email, or Phone fields in your Registration Form to show them on tickets for secure check-in.";
-		}
-		const block = this.root.querySelector("#ticketFormFieldsBlock");
-		if (block) block.classList.toggle("has-fields", any);
+		/* Name / Email / Phone stay always visible in the main toggle grid. */
 	};
 
 	TicketCanvasController.prototype.renderTemplatePicker = function () {
@@ -324,15 +294,15 @@
 			rows.push("</div>");
 		}
 
-		const showName = !!this.formFields.name && L.show_attendee_name !== false;
-		const showEmail = !!this.formFields.email && L.show_attendee_email !== false;
-		const showPhone = !!this.formFields.phone && L.show_attendee_phone !== false;
+		const showName = L.show_attendee_name !== false;
+		const showEmail = L.show_attendee_email !== false;
+		const showPhone = L.show_attendee_phone !== false;
 		if (showName || showEmail || showPhone) {
 			rows.push('<div class="tlc-attendee">');
 			rows.push('  <div class="tlc-attendee-label">Attendee</div>');
 			if (showName) rows.push('  <div class="tlc-attendee-row"><span>Name</span><strong>' + escapeHtml(s.attendeeName) + "</strong></div>");
-			if (showEmail) rows.push('  <div class="tlc-attendee-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>");
 			if (showPhone) rows.push('  <div class="tlc-attendee-row"><span>Phone</span><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>");
+			if (showEmail) rows.push('  <div class="tlc-attendee-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>");
 			rows.push("</div>");
 		}
 

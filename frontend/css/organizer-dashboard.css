@@ -2658,11 +2658,13 @@ html[data-theme="dark"] .dash-toast {
 	text-align: center;
 }
 .tlc-attendee-row {
-	display: flex;
-	justify-content: space-between;
-	gap: 0.5rem;
+	display: grid;
+	grid-template-columns: 72px 1fr;
+	align-items: baseline;
+	gap: 0.45rem;
 	font-size: 0.76rem;
-	margin-bottom: 0.2rem;
+	margin-bottom: 0.28rem;
+	text-align: left;
 }
 .tlc-attendee-row span {
 	color: var(--ticket-muted, #6b7280);
@@ -2670,7 +2672,7 @@ html[data-theme="dark"] .dash-toast {
 }
 .tlc-attendee-row strong {
 	font-weight: 700;
-	text-align: right;
+	text-align: left;
 	word-break: break-word;
 }
 html[data-theme="dark"] .ticket-form-fields-title {
