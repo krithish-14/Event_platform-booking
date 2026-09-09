@@ -153,6 +153,34 @@ def normalize_ticket_layout(
     base["custom_footer"] = footer
     base["headline_override"] = headline
 
+    elements = raw.get("canvas_elements")
+    cleaned_elements = []
+    if isinstance(elements, list):
+        seen = set()
+        for item in elements:
+            if not isinstance(item, dict):
+                continue
+            etype = str(item.get("type") or "").strip().lower()
+            if not etype or etype in seen:
+                continue
+            seen.add(etype)
+            try:
+                x = float(item.get("x", 4))
+                y = float(item.get("y", 4))
+                w = float(item.get("w", 40))
+                h = float(item.get("h", 6))
+            except (TypeError, ValueError):
+                continue
+            cleaned_elements.append({
+                "type": etype,
+                "x": max(0.0, min(92.0, x)),
+                "y": max(0.0, min(94.0, y)),
+                "w": max(10.0, min(96.0, w)),
+                "h": max(3.0, min(40.0, h)),
+            })
+    if cleaned_elements:
+        base["canvas_elements"] = cleaned_elements
+
     if not is_premium:
         base["show_jod_logo"] = True
 
