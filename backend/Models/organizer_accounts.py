@@ -45,6 +45,8 @@ class OrganizerAccount(Base):
     accepted_agreement    = Column(Boolean, nullable=True)
     customer_id           = Column(String(50), ForeignKey("users.customer_id"), nullable=True, index=True)
     host_id               = Column(String(50), nullable=True)
+    # free | premium — premium can hide the default JOD logo on host ticket designs
+    subscription_tier     = Column(String(40), nullable=True, default="free")
 
     # Relationships
     user = relationship("User", back_populates="organizer_accounts")

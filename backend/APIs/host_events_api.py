@@ -48,6 +48,7 @@ from Utils.categories import (
     normalize_category,
 )
 from Utils.text_sanitize import sanitize_text, sanitize_rich_text
+from Services.ticket_templates import list_templates_public
 
 try:
     from Utils.text_sanitize import pick_attendee_identity
@@ -107,6 +108,34 @@ def resolve_host_identifiers(db: Session, email: str, current_user: Optional[Use
 
     db.commit()
     return customer_id, host_id
+
+
+def _organizer_is_premium(db: Session, email_clean: str, customer_id: Optional[str] = None, host_id: Optional[str] = None) -> bool:
+    from Services.ticket_templates import is_premium_tier
+    org = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()
+    if not org and (customer_id or host_id):
+        clauses = []
+        if customer_id:
+            clauses.append(OrganizerAccount.customer_id == customer_id)
+        if host_id:
+            clauses.append(OrganizerAccount.host_id == host_id)
+        if clauses:
+            org = db.query(OrganizerAccount).filter(or_(*clauses)).first()
+    return is_premium_tier(getattr(org, "subscription_tier", None) if org else None)
+
+
+def _organizer_subscription_tier(db: Session, email_clean: str, customer_id: Optional[str] = None, host_id: Optional[str] = None) -> str:
+    org = db.query(OrganizerAccount).filter(OrganizerAccount.email == email_clean).first()
+    if not org and (customer_id or host_id):
+        clauses = []
+        if customer_id:
+            clauses.append(OrganizerAccount.customer_id == customer_id)
+        if host_id:
+            clauses.append(OrganizerAccount.host_id == host_id)
+        if clauses:
+            org = db.query(OrganizerAccount).filter(or_(*clauses)).first()
+    tier = str(getattr(org, "subscription_tier", None) or "free").strip().lower() or "free"
+    return tier
 
 
 def _host_events_query(db: Session, email_clean: str, customer_id: Optional[str], host_id: Optional[str]):
@@ -1580,6 +1609,8 @@ class SaveEventDesignRequest(BaseModel):
     social_links: Optional[Dict[str, Any]] = None
     custom_sections: Optional[List[Dict[str, Any]]] = None
     performers_title: Optional[str] = None
+    ticket_template_id: Optional[str] = None
+    ticket_layout_json: Optional[Dict[str, Any]] = None
 
 
 class SaveRegistrationFormRequest(BaseModel):
@@ -1993,6 +2024,26 @@ def save_event_design(
     if payload.performers_title is not None:
         cleaned_title = str(payload.performers_title).strip()
         design.performers_title = cleaned_title or None
+    if payload.ticket_template_id is not None or payload.ticket_layout_json is not None:
+        from Services.ticket_templates import normalize_ticket_layout
+        premium = _organizer_is_premium(db, email_clean, customer_id, host_id)
+        layout_src = (
+            payload.ticket_layout_json
+            if isinstance(payload.ticket_layout_json, dict)
+            else (design.ticket_layout_json if isinstance(design.ticket_layout_json, dict) else {})
+        )
+        tid = payload.ticket_template_id
+        if not tid and isinstance(layout_src, dict):
+            tid = layout_src.get("template_id")
+        if not tid:
+            tid = design.ticket_template_id
+        layout = normalize_ticket_layout(
+            layout_src,
+            template_id=tid,
+            is_premium=premium,
+        )
+        design.ticket_template_id = layout["template_id"]
+        design.ticket_layout_json = layout
     design.updated_at = datetime.utcnow()
 
     db.commit()
@@ -2004,6 +2055,7 @@ def save_event_design(
         except Exception as exc:
             print(f"[EVENT DESIGN] catalog resync failed event_id={event.event_id}: {exc}", flush=True)
 
+    premium = _organizer_is_premium(db, email_clean, customer_id, host_id)
     return {
         "status": "success",
         "message": "Event design details saved (UPSERT)",
@@ -2011,6 +2063,7 @@ def save_event_design(
         "event_id": str(event.event_id),
         "customer_id": design.customer_id,
         "host_id": design.host_id,
+        "is_premium": premium,
         "design": {
             "design_id": str(design.design_id),
             "theme_color": design.theme_color,
@@ -2020,6 +2073,8 @@ def save_event_design(
             "sponsor_details": design.sponsor_details,
             "gallery_images": design.gallery_images,
             "performers_title": design.performers_title,
+            "ticket_template_id": design.ticket_template_id or "classic",
+            "ticket_layout_json": design.ticket_layout_json,
             "updated_at": design.updated_at.isoformat() if design.updated_at else None
         }
     }
@@ -2175,6 +2230,9 @@ def get_current_host_event(
             "event": None,
             "design": None,
             "registration_form": None,
+            "subscription_tier": _organizer_subscription_tier(db, email_clean, customer_id, host_id),
+            "is_premium": _organizer_is_premium(db, email_clean, customer_id, host_id),
+            "ticket_templates": list_templates_public(),
         }
 
     design = db.query(EventDesign).filter(EventDesign.event_id == event.event_id).first()
@@ -2226,7 +2284,12 @@ def get_current_host_event(
             "sponsor_details": design.sponsor_details if design else [],
             "gallery_images": design.gallery_images if design else [],
             "performers_title": design.performers_title if design else None,
+            "ticket_template_id": (design.ticket_template_id if design else None) or "classic",
+            "ticket_layout_json": design.ticket_layout_json if design else None,
         } if design else None,
+        "subscription_tier": _organizer_subscription_tier(db, email_clean, customer_id, host_id),
+        "is_premium": _organizer_is_premium(db, email_clean, customer_id, host_id),
+        "ticket_templates": list_templates_public(),
         "registration_form": {
             "form_id": str(reg_form.form_id) if reg_form else None,
             "form_json": reg_form.form_json if reg_form else {},

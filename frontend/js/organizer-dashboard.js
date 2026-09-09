@@ -252,6 +252,10 @@ async function initOrganizerDashboard() {
 	let pendingHostDesignData = null;
 	let pendingManageEvent = null;
 	let pendingRegistrationForm = null;
+	let hostIsPremium = false;
+	let ticketTemplatesCatalog = [];
+	let ticketLayoutState = null;
+	let ticketCanvasCtrl = null;
 	let currentLifecycle = "draft";
 	let canPublishNew = true;
 	let canCreateNew = true;
@@ -1334,6 +1338,9 @@ async function initOrganizerDashboard() {
 		});
 
 		loadTabModuleData(tabName);
+		if (tabName === "design") {
+			ensureTicketCanvas();
+		}
 		if (tabName === "manage") {
 			setTimeout(() => {
 				initVenueMapPicker();
@@ -1438,9 +1445,13 @@ async function initOrganizerDashboard() {
 		pendingManageEvent = null;
 		pendingHostDesignData = null;
 		pendingRegistrationForm = null;
+		ticketLayoutState = null;
+		ticketCanvasCtrl = null;
 		bannerImageUrl = null;
 		cardImageUrl = null;
 		galleryImageUrls = [];
+		const ticketStudio = document.getElementById("ticketDesignStudioHost");
+		if (ticketStudio) ticketStudio.innerHTML = "";
 		if (createEventForm) createEventForm.reset();
 		if (eventTitleInput) eventTitleInput.value = "";
 		const catSel = document.getElementById("eventCategorySelect");
@@ -3064,9 +3075,21 @@ async function initOrganizerDashboard() {
 				sessionStorage.removeItem(`active_event_id_${email}`);
 				paintEmptyHostDashboard();
 			}
+			hostIsPremium = !!(hostData.is_premium);
+			if (Array.isArray(hostData.ticket_templates) && hostData.ticket_templates.length) {
+				ticketTemplatesCatalog = hostData.ticket_templates;
+			}
 			if (hostData.has_event && currentLifecycle !== "cancelled" && currentLifecycle !== "unpublished") {
 			if (hostData.design) {
 				pendingHostDesignData = hostData.design;
+				if (hostData.design.ticket_layout_json || hostData.design.ticket_template_id) {
+					ticketLayoutState = Object.assign(
+						{},
+						(window.JodTicketCanvas && window.JodTicketCanvas.DEFAULT_LAYOUT) || {},
+						hostData.design.ticket_layout_json || {},
+						{ template_id: hostData.design.ticket_template_id || (hostData.design.ticket_layout_json && hostData.design.ticket_layout_json.template_id) || "classic" }
+					);
+				}
 				if (hostData.design.about_event) {
 					writeAboutEventHtml(hostData.design.about_event);
 				}
@@ -3166,6 +3189,45 @@ async function initOrganizerDashboard() {
 		return false;
 	}
 
+
+	function collectTicketLayoutPayload() {
+		if (ticketCanvasCtrl && typeof ticketCanvasCtrl.getLayout === "function") {
+			ticketLayoutState = ticketCanvasCtrl.getLayout();
+		}
+		if (!ticketLayoutState && window.JodTicketCanvas) {
+			ticketLayoutState = Object.assign({}, window.JodTicketCanvas.DEFAULT_LAYOUT);
+		}
+		return ticketLayoutState || { template_id: "classic", show_jod_logo: true };
+	}
+
+	function ensureTicketCanvas() {
+		const host = document.getElementById("ticketDesignStudioHost");
+		if (!host || !window.JodTicketCanvas) return;
+		const sampleTitle = (eventTitleInput && eventTitleInput.value.trim()) || "Your Event Title";
+		const sampleVenue = (document.getElementById("eventLocationInput") && document.getElementById("eventLocationInput").value.trim()) || "Venue TBA";
+		if (!ticketCanvasCtrl) {
+			ticketCanvasCtrl = window.JodTicketCanvas.create({
+				root: host,
+				isPremium: hostIsPremium,
+				templates: ticketTemplatesCatalog,
+				layout: ticketLayoutState,
+				sample: { title: sampleTitle, venue: sampleVenue },
+				onChange: function (layout) {
+					ticketLayoutState = layout;
+					try {
+						if (autoSaveTimer) clearTimeout(autoSaveTimer);
+						autoSaveTimer = setTimeout(function () { autoSaveEventDesign(false); }, 900);
+					} catch (_) {}
+				}
+			});
+		} else {
+			ticketCanvasCtrl.setPremium(hostIsPremium);
+			ticketCanvasCtrl.setTemplates(ticketTemplatesCatalog);
+			if (ticketLayoutState) ticketCanvasCtrl.setLayout(ticketLayoutState);
+			ticketCanvasCtrl.setSample({ title: sampleTitle, venue: sampleVenue });
+		}
+	}
+
 	async function autoSaveEventDesign(notifyError = false) {
 		if (!email) return false;
 		if (hostEventCancelled && !notifyError) return false;
@@ -3173,6 +3235,7 @@ async function initOrganizerDashboard() {
 			const manageSaved = await autoSaveManageEvent(notifyError);
 			if (!manageSaved || !activeEventId) return false;
 		}
+		const ticketLayout = collectTicketLayoutPayload();
 		const payload = {
 			event_id: activeEventId,
 			organizer_email: email,
@@ -3184,7 +3247,9 @@ async function initOrganizerDashboard() {
 			sponsor_details: collectSponsorDetails(),
 			speaker_details: collectSpeakerDetails(),
 			performers_title: collectPerformersTitle(),
-			about_event: readAboutEventHtml() || undefined
+			about_event: readAboutEventHtml() || undefined,
+			ticket_template_id: (ticketLayout && ticketLayout.template_id) || "classic",
+			ticket_layout_json: ticketLayout || undefined
 		};
 
 		try {
@@ -4959,9 +5024,18 @@ async function initOrganizerDashboard() {
 			}
 			populateDesignRows(d.sponsor_details || [], d.speaker_details || []);
 			applyPerformersTitle(d.performers_title || "");
+			if (d.ticket_layout_json || d.ticket_template_id) {
+				ticketLayoutState = Object.assign(
+					{},
+					(window.JodTicketCanvas && window.JodTicketCanvas.DEFAULT_LAYOUT) || {},
+					d.ticket_layout_json || {},
+					{ template_id: d.ticket_template_id || (d.ticket_layout_json && d.ticket_layout_json.template_id) || "classic" }
+				);
+			}
 			pendingHostDesignData = null;
 		}
 		applyPendingHostDesign();
+		ensureTicketCanvas();
 	} else if (pendingHostDesignData) {
 		applyPerformersTitle(pendingHostDesignData.performers_title || "");
 		populateDesignRows(
@@ -4969,6 +5043,9 @@ async function initOrganizerDashboard() {
 			pendingHostDesignData.speaker_details || []
 		);
 		pendingHostDesignData = null;
+		ensureTicketCanvas();
+	} else {
+		ensureTicketCanvas();
 	}
 
 

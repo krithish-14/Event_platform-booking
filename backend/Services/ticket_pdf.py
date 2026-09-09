@@ -449,18 +449,48 @@ def build_mticket_pdf_bytes(
     seat_number: str = "General Admission",
     payment_mode: str = "",
     include_qr: bool = True,
+    ticket_layout: Optional[dict] = None,
 ) -> Optional[bytes]:
     """One-page M-ticket PDF. Returns None if assembly fails."""
     try:
-        title = _ascii_text(event_name, "JOD Events") or "JOD Events"
-        date_label = _ascii_text(_format_event_date(event_date), "Date TBA")
-        venue_label = _ascii_text(venue, "Venue details at location")
+        from Services.ticket_templates import (
+            DEFAULT_LAYOUT,
+            get_template,
+            hex_to_rgb01,
+            normalize_ticket_layout,
+        )
+
+        layout = normalize_ticket_layout(
+            ticket_layout if isinstance(ticket_layout, dict) else DEFAULT_LAYOUT,
+            is_premium=True,
+        )
+        tmpl = get_template(layout.get("template_id"))
+        pdf_theme = tmpl.get("pdf") or {}
+        page_rgb = pdf_theme.get("page_rgb", (0.97, 0.97, 0.98))
+        card_rgb = pdf_theme.get("card_rgb", (1, 1, 1))
+        accent_rgb = hex_to_rgb01(layout.get("accent_color") or tmpl["preview"]["accent"])
+        text_rgb = pdf_theme.get("text_rgb", (0.07, 0.09, 0.15))
+        muted_rgb = pdf_theme.get("muted_rgb", (0.42, 0.45, 0.50))
+        style = str(pdf_theme.get("style") or "classic")
+
+        show_venue = bool(layout.get("show_venue", True))
+        show_date = bool(layout.get("show_date", True))
+        show_price = bool(layout.get("show_price", True))
+        show_seat = bool(layout.get("show_seat", True))
+        show_ticket_type = bool(layout.get("show_ticket_type", True))
+        show_jod_logo = bool(layout.get("show_jod_logo", True))
+        custom_footer = _ascii_text(layout.get("custom_footer") or "", "")
+        headline_override = _ascii_text(layout.get("headline_override") or "", "")
+
+        title = _ascii_text(headline_override or event_name, "JOD Events") or "JOD Events"
+        date_label = _ascii_text(_format_event_date(event_date), "Date TBA") if show_date else ""
+        venue_label = _ascii_text(venue, "Venue details at location") if show_venue else ""
         format_label = _ascii_text(
             f"{language or 'English'}, {event_format or 'Live Event'}",
             "English, Live Event",
         )
-        type_label = _ascii_text(ticket_type, "Standard Access")
-        seat_label = _ascii_text(seat_number, "General Admission")
+        type_label = _ascii_text(ticket_type, "Standard Access") if show_ticket_type else ""
+        seat_label = _ascii_text(seat_number, "General Admission") if show_seat else ""
         qty = max(1, int(quantity or 1))
         total = float(total_price or 0)
         gst = float(gst_amount or 0)
@@ -468,31 +498,69 @@ def build_mticket_pdf_bytes(
             gst = round(total * 0.18, 2)
         subtotal = max(0.0, total - gst)
         booking_label = f"JOD-{_short_booking_id(booking_id)}"
-        show_qr = bool(include_qr)
+        show_qr = bool(include_qr and layout.get("show_qr", True))
         qr_jpeg = _fetch_qr_jpeg(qr_token) if show_qr else b""
         poster = _load_poster_image(_absolute_media_url(poster_url)) if poster_url else None
         badge_label = "Invoice" if not show_qr else "E-Ticket"
+        logo = _load_jod_logo_image() if show_jod_logo else None
 
         poster_w, poster_h = 88.0, 110.0
         qr_size = 180.0
         header_h = poster_h
-        seating_h = 58.0
+        seating_h = 58.0 if (show_ticket_type or show_seat) else 18.0
         qr_block_h = (qr_size + 44.0) if show_qr else 0.0
-        totals_h = 86.0 if payment_mode else 70.0
+        totals_h = 0.0
+        if show_price:
+            totals_h = 86.0 if payment_mode else 70.0
+        brand_h = 42.0 if show_jod_logo else (22.0 if custom_footer else 8.0)
         pad_x, pad_y = 22.0, 20.0
         card_w = 451.0
-        card_h = pad_y * 2 + header_h + 18 + seating_h + (16 if show_qr else 8) + qr_block_h + 18 + totals_h
+        card_h = (
+            pad_y * 2
+            + header_h
+            + 18
+            + seating_h
+            + (16 if show_qr else 8)
+            + qr_block_h
+            + 18
+            + totals_h
+            + brand_h
+        )
         card_x = (595.0 - card_w) / 2.0
         card_y = max(36.0, (842.0 - card_h) / 2.0)
         inner_x = card_x + pad_x
         inner_right = card_x + card_w - pad_x
         y = card_y + card_h - pad_y
 
+        def _rgb(rgb):
+            return f"{rgb[0]:.3f} {rgb[1]:.3f} {rgb[2]:.3f}"
+
         ops = [
-            "0.97 0.97 0.98 rg 0 0 595 842 re f",
-            "1 1 1 rg 0.83 0.85 0.88 RG 1 w",
+            f"{_rgb(page_rgb)} rg 0 0 595 842 re f",
+            f"{_rgb(card_rgb)} rg 0.83 0.85 0.88 RG 1 w",
             f"{_round_rect_path(card_x, card_y, card_w, card_h, 12)} B",
         ]
+
+        if style in ("concert", "festival", "neon_night"):
+            ops.extend([
+                f"{_rgb(accent_rgb)} rg",
+                f"{card_x:.1f} {card_y:.1f} 10 {card_h:.1f} re f",
+            ])
+        elif style in ("sunset", "vip_gold", "midnight"):
+            ops.extend([
+                f"{_rgb(accent_rgb)} rg",
+                f"{card_x:.1f} {card_y + card_h - 8:.1f} {card_w:.1f} 8 re f",
+            ])
+        elif style == "minimal":
+            ops.extend([
+                f"{_rgb(accent_rgb)} rg",
+                f"{inner_x:.1f} {card_y + card_h - pad_y - 2:.1f} 48 2.5 re f",
+            ])
+        else:
+            ops.extend([
+                f"{_rgb(accent_rgb)} rg",
+                f"{card_x:.1f} {card_y:.1f} {card_w:.1f} 4 re f",
+            ])
 
         xobjects: dict[str, tuple[bytes, int, int, str]] = {}
         poster_box_x, poster_box_y = inner_x, y - poster_h
@@ -501,17 +569,18 @@ def build_mticket_pdf_bytes(
             xobjects["ImP"] = (payload, pw, ph, filt)
             ops.append(_cover_image("ImP", poster_box_x, poster_box_y, poster_w, poster_h, pw, ph, 8))
         else:
+            muted_soft = tuple(min(1.0, c + 0.35) for c in muted_rgb)
             ops.extend([
-                "0.90 0.91 0.93 rg",
+                f"{_rgb(muted_soft)} rg",
                 f"{_round_rect_path(poster_box_x, poster_box_y, poster_w, poster_h, 8)} f",
             ])
 
         text_x = inner_x + poster_w + 12
         title_lines = _wrap_text(title, 30, 2)
-        venue_lines = _wrap_text(venue_label, 38, 2)
+        venue_lines = _wrap_text(venue_label, 38, 2) if venue_label else []
         ops.extend([
             "BT",
-            "/F1 15 Tf 0.07 0.09 0.15 rg",
+            f"/F1 15 Tf {_rgb(text_rgb)} rg",
             f"1 0 0 1 {text_x:.1f} {y - 16:.1f} Tm ({_pdf_escape(title_lines[0])}) Tj",
         ])
         cursor = y - 16
@@ -520,24 +589,26 @@ def build_mticket_pdf_bytes(
             ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(title_lines[1])}) Tj")
         cursor -= 15
         ops.extend([
-            "/F2 9 Tf 0.42 0.45 0.50 rg",
+            f"/F2 9 Tf {_rgb(muted_rgb)} rg",
             f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(format_label[:42])}) Tj",
         ])
-        cursor -= 14
+        if date_label:
+            cursor -= 14
+            ops.extend([
+                f"/F1 10 Tf {_rgb(text_rgb)} rg",
+                f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(date_label[:44])}) Tj",
+            ])
+        if venue_lines:
+            cursor -= 13
+            ops.extend([
+                f"/F2 9 Tf {_rgb(muted_rgb)} rg",
+                f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[0])}) Tj",
+            ])
+            if len(venue_lines) > 1:
+                cursor -= 12
+                ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[1])}) Tj")
         ops.extend([
-            "/F1 10 Tf 0.07 0.09 0.15 rg",
-            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(date_label[:44])}) Tj",
-        ])
-        cursor -= 13
-        ops.extend([
-            "/F2 9 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[0])}) Tj",
-        ])
-        if len(venue_lines) > 1:
-            cursor -= 12
-            ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[1])}) Tj")
-        ops.extend([
-            "/F1 8 Tf 0.61 0.64 0.69 rg",
+            f"/F1 8 Tf {_rgb(muted_rgb)} rg",
             _tj_right(inner_right, y - 16, badge_label, 5.1),
             "ET",
         ])
@@ -545,17 +616,23 @@ def build_mticket_pdf_bytes(
         block_top = poster_box_y - 16
         center_x = card_x + card_w / 2.0
         ops.extend([
-            "0.89 0.91 0.94 RG 0.7 w",
+            f"{_rgb(muted_rgb)} RG 0.7 w",
             f"{inner_x:.1f} {block_top + 8:.1f} m {inner_right:.1f} {block_top + 8:.1f} l S",
             "BT",
-            "/F2 9 Tf 0.42 0.45 0.50 rg",
+            f"/F2 9 Tf {_rgb(muted_rgb)} rg",
             _tj_center(center_x, block_top - 6, f"{qty} Ticket(s)", 4.8),
-            "/F1 14 Tf 0.07 0.09 0.15 rg",
-            _tj_center(center_x, block_top - 26, type_label[:34], 8.0),
-            "/F2 10 Tf 0.42 0.45 0.50 rg",
-            _tj_center(center_x, block_top - 42, seat_label[:34], 5.5),
-            "ET",
         ])
+        if type_label:
+            ops.extend([
+                f"/F1 14 Tf {_rgb(text_rgb)} rg",
+                _tj_center(center_x, block_top - 26, type_label[:34], 8.0),
+            ])
+        if seat_label:
+            ops.extend([
+                f"/F2 10 Tf {_rgb(muted_rgb)} rg",
+                _tj_center(center_x, block_top - 42, seat_label[:34], 5.5),
+            ])
+        ops.append("ET")
 
         if show_qr:
             qr_top = block_top - 58
@@ -567,16 +644,16 @@ def build_mticket_pdf_bytes(
                 ops.append(_draw_image("ImQ", qr_x, qr_y, qr_size, qr_size))
             else:
                 ops.extend([
-                    "0.97 0.98 0.99 rg 0.82 0.84 0.86 RG 0.8 w",
+                    f"0.97 0.98 0.99 rg {_rgb(muted_rgb)} RG 0.8 w",
                     f"{qr_x:.1f} {qr_y:.1f} {qr_size:.1f} {qr_size:.1f} re B",
-                    "BT /F2 11 Tf 0.42 0.45 0.50 rg",
+                    f"BT /F2 11 Tf {_rgb(muted_rgb)} rg",
                     f"1 0 0 1 {qr_x + 48:.1f} {qr_y + 90:.1f} Tm ({_pdf_escape('QR pending')}) Tj ET",
                 ])
             booking_text = f"BOOKING ID: #{booking_label}"
             booking_w = len(booking_text) * 6.35
             ops.extend([
                 "BT",
-                "/F1 11 Tf 0.07 0.09 0.15 rg",
+                f"/F1 11 Tf {_rgb(text_rgb)} rg",
                 f"1 0 0 1 {card_x + (card_w - booking_w) / 2.0:.1f} {qr_y - 22:.1f} Tm ({_pdf_escape(booking_text)}) Tj",
                 "ET",
             ])
@@ -585,28 +662,68 @@ def build_mticket_pdf_bytes(
             policy_y = block_top - 56
 
         divider_y = policy_y
-        ops.extend([
-            "[5 4] 0 d 0.80 0.83 0.86 RG 1 w",
-            f"{inner_x:.1f} {divider_y:.1f} m {inner_right:.1f} {divider_y:.1f} l S",
-            "[] 0 d",
-        ])
-        ops.extend([
-            "BT",
-            "/F1 11 Tf 0.07 0.09 0.15 rg",
-            f"1 0 0 1 {inner_x:.1f} {divider_y - 22:.1f} Tm ({_pdf_escape('Total Amount')}) Tj",
-            _tj_right(inner_right, divider_y - 22, _money(total), 6.4),
-            "/F2 9 Tf 0.42 0.45 0.50 rg",
-            f"1 0 0 1 {inner_x:.1f} {divider_y - 40:.1f} Tm ({_pdf_escape(f'Ticket price (x{qty})')}) Tj",
-            _tj_right(inner_right, divider_y - 40, _money(subtotal), 5.2),
-            f"1 0 0 1 {inner_x:.1f} {divider_y - 54:.1f} Tm ({_pdf_escape('Convenience fee & GST (18%)')}) Tj",
-            _tj_right(inner_right, divider_y - 54, _money(gst), 5.2),
-        ])
-        if payment_mode:
+        if show_price:
             ops.extend([
-                f"1 0 0 1 {inner_x:.1f} {divider_y - 70:.1f} Tm ({_pdf_escape('Payment Mode')}) Tj",
-                _tj_right(inner_right, divider_y - 70, _ascii_text(payment_mode)[:28], 5.2),
+                "[5 4] 0 d 0.80 0.83 0.86 RG 1 w",
+                f"{inner_x:.1f} {divider_y:.1f} m {inner_right:.1f} {divider_y:.1f} l S",
+                "[] 0 d",
             ])
-        ops.append("ET")
+            ops.extend([
+                "BT",
+                f"/F1 11 Tf {_rgb(text_rgb)} rg",
+                f"1 0 0 1 {inner_x:.1f} {divider_y - 22:.1f} Tm ({_pdf_escape('Total Amount')}) Tj",
+                _tj_right(inner_right, divider_y - 22, _money(total), 6.4),
+                f"/F2 9 Tf {_rgb(muted_rgb)} rg",
+                f"1 0 0 1 {inner_x:.1f} {divider_y - 40:.1f} Tm ({_pdf_escape(f'Ticket price (x{qty})')}) Tj",
+                _tj_right(inner_right, divider_y - 40, _money(subtotal), 5.2),
+                f"1 0 0 1 {inner_x:.1f} {divider_y - 54:.1f} Tm ({_pdf_escape('Convenience fee & GST (18%)')}) Tj",
+                _tj_right(inner_right, divider_y - 54, _money(gst), 5.2),
+            ])
+            if payment_mode:
+                ops.extend([
+                    f"1 0 0 1 {inner_x:.1f} {divider_y - 70:.1f} Tm ({_pdf_escape('Payment Mode')}) Tj",
+                    _tj_right(inner_right, divider_y - 70, _ascii_text(payment_mode)[:28], 5.2),
+                ])
+            ops.append("ET")
+            brand_top = divider_y - (88.0 if payment_mode else 72.0)
+        else:
+            brand_top = divider_y
+
+        if show_jod_logo or custom_footer:
+            ops.extend([
+                f"{_rgb(muted_rgb)} RG 0.6 w",
+                f"{inner_x:.1f} {brand_top:.1f} m {inner_right:.1f} {brand_top:.1f} l S",
+            ])
+            if show_jod_logo and logo:
+                filt, payload, lw, lh = logo
+                xobjects["ImL"] = (payload, lw, lh, filt)
+                logo_h = 18.0
+                aspect = (lw / float(lh)) if lh else 3.0
+                logo_w = min(96.0, logo_h * aspect)
+                logo_x = center_x - logo_w / 2.0
+                logo_y = brand_top - 8 - logo_h
+                ops.append(_draw_image("ImL", logo_x, logo_y, logo_w, logo_h))
+                if custom_footer:
+                    ops.extend([
+                        "BT",
+                        f"/F2 8 Tf {_rgb(muted_rgb)} rg",
+                        _tj_center(center_x, logo_y - 12, custom_footer[:48], 4.2),
+                        "ET",
+                    ])
+            elif show_jod_logo:
+                ops.extend([
+                    "BT",
+                    f"/F1 10 Tf {_rgb(accent_rgb)} rg",
+                    _tj_center(center_x, brand_top - 16, "JOD Events", 5.8),
+                    "ET",
+                ])
+            elif custom_footer:
+                ops.extend([
+                    "BT",
+                    f"/F2 8 Tf {_rgb(muted_rgb)} rg",
+                    _tj_center(center_x, brand_top - 14, custom_footer[:48], 4.2),
+                    "ET",
+                ])
 
         stream = "\n".join(ops).encode("latin-1", "replace")
         xobject_refs = []
@@ -676,6 +793,46 @@ def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None, include
             event_date = format_utc_naive_as_ist_when(public_start) or public_start
         except Exception:
             event_date = public_start
+
+    ticket_layout = None
+    if db is not None:
+        try:
+            from Models.event_design import EventDesign
+            from Models.event_management import EventManagement
+            from Models.organizer_accounts import OrganizerAccount
+            from Services.ticket_templates import is_premium_tier, normalize_ticket_layout
+            from sqlalchemy import or_
+
+            event_id = getattr(booking, "event_id", None)
+            design = None
+            if event_id:
+                design = db.query(EventDesign).filter(EventDesign.event_id == event_id).first()
+            if design and (design.ticket_layout_json or design.ticket_template_id):
+                premium = False
+                try:
+                    em = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
+                    email = (getattr(em, "organizer_email", None) or "").strip().lower()
+                    org = None
+                    if email:
+                        org = db.query(OrganizerAccount).filter(OrganizerAccount.email == email).first()
+                    if not org and em is not None:
+                        org = db.query(OrganizerAccount).filter(
+                            or_(
+                                OrganizerAccount.customer_id == getattr(em, "customer_id", None),
+                                OrganizerAccount.host_id == getattr(em, "host_id", None),
+                            )
+                        ).first()
+                    premium = is_premium_tier(getattr(org, "subscription_tier", None) if org else None)
+                except Exception:
+                    premium = False
+                ticket_layout = normalize_ticket_layout(
+                    design.ticket_layout_json if isinstance(design.ticket_layout_json, dict) else {},
+                    template_id=design.ticket_template_id,
+                    is_premium=premium,
+                )
+        except Exception:
+            ticket_layout = None
+
     return build_mticket_pdf_bytes(
         booking_id=getattr(booking, "booking_id", ""),
         event_name=getattr(event, "title", None) if event is not None else "JOD Events",
@@ -692,6 +849,7 @@ def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None, include
         seat_number=getattr(booking, "seat_number", None) or "General Admission",
         payment_mode=getattr(booking, "payment_mode", None) or "",
         include_qr=include_qr,
+        ticket_layout=ticket_layout,
     )
 
 

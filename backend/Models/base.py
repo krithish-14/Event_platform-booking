@@ -370,6 +370,7 @@ def _migrate_tables(engine=None):
                 ("customer_id", "VARCHAR(50)"),
                 ("status", "VARCHAR(50)"),
                 ("accepted_agreement", "BOOLEAN"),
+                ("subscription_tier", "VARCHAR(40)"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in org_migrations:
@@ -427,6 +428,8 @@ def _migrate_tables(engine=None):
             design_migrations = [
                 ("card_image", "VARCHAR(500)"),
                 ("performers_title", "VARCHAR(200)"),
+                ("ticket_template_id", "VARCHAR(64)"),
+                ("ticket_layout_json", "TEXT" if not is_pg else "JSONB"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in design_migrations:
