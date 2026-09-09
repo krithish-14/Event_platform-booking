@@ -337,12 +337,58 @@ def _preferred_form_payment_txn(submission_id: int, *, is_free: bool) -> str:
     return f"FREE-FORM-{sid}" if is_free else f"FORM-{sid}"
 
 
+def _is_form_placeholder_txn(txn: Optional[str]) -> bool:
+    text = (txn or "").strip().upper()
+    return text.startswith("FORM-") or text.startswith("FREE-FORM-") or text.startswith("HOST-FORM-")
+
+
+def _is_gateway_txn(txn: Optional[str]) -> bool:
+    text = (txn or "").strip().lower()
+    return text.startswith("pay_") or text.startswith("order_")
+
+
+def _payment_by_booking_id(db: Session, booking_id) -> Optional[PaymentProof]:
+    """Prefer the real gateway payment over a FORM-* placeholder for the same booking."""
+    bid = _text_or_none(booking_id)
+    if not bid:
+        return None
+    try:
+        rows = (
+            db.query(PaymentProof)
+            .order_by(PaymentProof.created_at.desc())
+            .all()
+        )
+    except Exception:
+        _db_safe_rollback(db)
+        return None
+    matched = []
+    for row in rows:
+        proof_bid = _column_as_text(db, "payment_proofs", "id", row.id, "booking_id")
+        if proof_bid and str(proof_bid) == str(bid):
+            matched.append(row)
+    if not matched:
+        return None
+    for row in matched:
+        if _is_gateway_txn(row.transaction_id):
+            return row
+    for row in matched:
+        if not _is_form_placeholder_txn(row.transaction_id):
+            return row
+    return matched[0]
+
+
 def _payment_by_form_submission_id(db: Session, submission_id: int) -> Optional[PaymentProof]:
-    """Find the Payment Data row that belongs only to this host-form submission."""
+    """Find the Payment Data row for this host-form submission.
+
+    After Razorpay verify, the FORM-{id} txn is rewritten to pay_*, so also resolve
+    via the form's booking_id. Prefer the gateway row when a FORM-* stub also exists.
+    """
     try:
         sid = int(submission_id)
     except (TypeError, ValueError):
         return None
+
+    form_txn_row = None
     for txn in _form_payment_txn_ids(sid):
         try:
             row = (
@@ -355,8 +401,66 @@ def _payment_by_form_submission_id(db: Session, submission_id: int) -> Optional[
             _db_safe_rollback(db)
             row = None
         if row is not None:
-            return row
-    return None
+            form_txn_row = row
+            break
+
+    bid = form_submission_booking_id(db, sid)
+    by_booking = _payment_by_booking_id(db, bid)
+    if by_booking is not None and _is_gateway_txn(by_booking.transaction_id):
+        return by_booking
+    if form_txn_row is not None:
+        return form_txn_row
+    return by_booking
+
+
+def _collapse_duplicate_form_payments(db: Session, keep: PaymentProof, submission_id: Optional[int] = None) -> None:
+    """Remove FORM-* placeholders once a real Razorpay/free payment exists for the same form/booking."""
+    if keep is None or getattr(keep, "id", None) is None:
+        return
+    victims = []
+    if submission_id is not None:
+        for txn in _form_payment_txn_ids(submission_id):
+            try:
+                rows = (
+                    db.query(PaymentProof)
+                    .filter(PaymentProof.transaction_id == txn)
+                    .all()
+                )
+            except Exception:
+                _db_safe_rollback(db)
+                rows = []
+            for row in rows:
+                if row.id != keep.id:
+                    victims.append(row)
+    keep_bid = _column_as_text(db, "payment_proofs", "id", keep.id, "booking_id")
+    if keep_bid:
+        try:
+            all_rows = db.query(PaymentProof).all()
+        except Exception:
+            _db_safe_rollback(db)
+            all_rows = []
+        for row in all_rows:
+            if row.id == keep.id:
+                continue
+            if not _is_form_placeholder_txn(row.transaction_id):
+                continue
+            bid = _column_as_text(db, "payment_proofs", "id", row.id, "booking_id")
+            if bid and str(bid) == str(keep_bid):
+                victims.append(row)
+    seen = set()
+    for row in victims:
+        if row.id in seen:
+            continue
+        seen.add(row.id)
+        try:
+            db.delete(row)
+        except Exception:
+            _db_safe_rollback(db)
+    if seen:
+        try:
+            db.commit()
+        except Exception:
+            _db_safe_rollback(db)
 
 
 def _ensure_payment_proof_for_submission(
@@ -396,7 +500,7 @@ def _ensure_payment_proof_for_submission(
     preferred_txn = _preferred_form_payment_txn(row.id, is_free=is_free)
     owner_cid = (buyer_customer_id or row.customer_id or "").strip() or None
 
-    # Only reuse the payment that is already keyed to THIS form submission.
+    # Only reuse the payment that already belongs to THIS form (FORM-* or booking link).
     proof = _payment_by_form_submission_id(db, row.id)
 
     if proof is None:
@@ -428,6 +532,7 @@ def _ensure_payment_proof_for_submission(
                 db.commit()
             except Exception:
                 _db_safe_rollback(db)
+        _collapse_duplicate_form_payments(db, proof, submission_id=row.id)
         return proof
 
     proof.attendee_name = name
@@ -437,17 +542,19 @@ def _ensure_payment_proof_for_submission(
     proof.amount = price
     proof.customer_id = owner_cid or proof.customer_id
     proof.event_id = event_key or proof.event_id
-    if (proof.transaction_id or "") not in _form_payment_txn_ids(row.id):
-        # Keep Razorpay / gateway txn ids; only force FORM key when still a placeholder.
-        if not str(proof.transaction_id or "").startswith(("pay_", "order_")):
-            proof.transaction_id = preferred_txn
-    if is_free and (proof.bank_name or "").strip().lower() not in ("razorpay",):
+    # Never rewrite a real Razorpay/order txn back to FORM-*.
+    if _is_form_placeholder_txn(proof.transaction_id) or not (proof.transaction_id or "").strip():
+        proof.transaction_id = preferred_txn
+    if _is_gateway_txn(proof.transaction_id):
+        proof.bank_name = "Razorpay"
+    elif is_free and (proof.bank_name or "").strip().lower() not in ("razorpay",):
         proof.bank_name = "Free"
     try:
         db.commit()
         db.refresh(proof)
     except Exception:
         _db_safe_rollback(db)
+    _collapse_duplicate_form_payments(db, proof, submission_id=row.id)
 
     if booking_id_text:
         existing_bid = _column_as_text(db, "payment_proofs", "id", proof.id, "booking_id")
@@ -466,7 +573,10 @@ def _ensure_payment_proof_for_submission(
 
 
 def _backfill_payment_data_from_forms(db: Session, form_rows) -> int:
-    """Create missing Payment Data rows for host-form attendees (fixes multi-guest buys)."""
+    """Create missing Payment Data rows for host-form attendees (fixes multi-guest buys).
+
+    Never create a FORM-* stub when a Razorpay/free payment already covers the form.
+    """
     created = 0
     for form_row in form_rows or []:
         try:
@@ -486,14 +596,43 @@ def _backfill_payment_data_from_forms(db: Session, form_rows) -> int:
             # Convert any ticketed / free / paid host form into Payment Data.
             if not (bid or status_val in ("paid", "qr_ready") or is_free):
                 continue
-            before = _payment_by_form_submission_id(db, sid)
+            existing = _payment_by_form_submission_id(db, sid)
+            if existing is not None:
+                # Keep the real Razorpay row; drop any leftover FORM-* duplicate.
+                _collapse_duplicate_form_payments(db, existing, submission_id=sid)
+                continue
             proof = _ensure_payment_proof_for_submission(db, form_row)
-            if before is None and proof is not None:
+            if proof is not None:
                 created += 1
         except Exception:
             _db_safe_rollback(db)
             continue
     return created
+
+
+def _dedupe_payment_list_items(items: list) -> list:
+    """Hide FORM-* placeholders when a gateway payment already exists for the same booking."""
+    pay_rows = [i for i in items if i.get("kind") == "payment"]
+    others = [i for i in items if i.get("kind") != "payment"]
+
+    covered_bookings = set()
+    for item in pay_rows:
+        txn = str(item.get("transaction_id") or "")
+        if not _is_gateway_txn(txn):
+            continue
+        bid = str(item.get("booking_id") or "").strip()
+        if bid:
+            covered_bookings.add(bid)
+
+    cleaned = []
+    for item in pay_rows:
+        txn = str(item.get("transaction_id") or "")
+        if _is_form_placeholder_txn(txn):
+            bid = str(item.get("booking_id") or "").strip()
+            if bid and bid in covered_bookings:
+                continue
+        cleaned.append(item)
+    return cleaned + others
 
 
 def _apply_form_identity_to_proof(
@@ -1425,6 +1564,7 @@ def list_form_submissions(
             or needle in str(item.get("transaction_id") or "").lower()
         ]
     items = [item for item in items if not _hide_from_admin_lists(item)]
+    items = _dedupe_payment_list_items(items)
     pay_items = [item for item in items if item.get("kind") == "payment"]
     ready = sum(1 for item in pay_items if item.get("has_qr"))
     return {

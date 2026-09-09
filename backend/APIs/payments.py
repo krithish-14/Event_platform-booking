@@ -472,6 +472,11 @@ def _record_razorpay_payment(
                 db.add(row)
                 db.commit()
                 db.refresh(row)
+                try:
+                    from APIs.admin import _collapse_duplicate_form_payments
+                    _collapse_duplicate_form_payments(db, row, submission_id=submission_id)
+                except Exception:
+                    logger.exception("Could not collapse duplicate FORM payment for submission %s", submission_id)
                 return row, submission_id
 
             qty = _clamp_purchase_quantity(db, event_key, quantity)
@@ -492,6 +497,11 @@ def _record_razorpay_payment(
             row.status = "payment_submitted"
             db.commit()
             db.refresh(row)
+            try:
+                from APIs.admin import _collapse_duplicate_form_payments
+                _collapse_duplicate_form_payments(db, row, submission_id=submission_id)
+            except Exception:
+                logger.exception("Could not collapse duplicate FORM payment for submission %s", submission_id)
             return row, submission_id
         except HTTPException:
             pass
@@ -536,7 +546,40 @@ def _record_razorpay_payment(
             dup.status = "payment_submitted"
             db.commit()
             db.refresh(dup)
+            try:
+                from APIs.admin import _collapse_duplicate_form_payments
+                _collapse_duplicate_form_payments(db, dup, submission_id=submission_id)
+            except Exception:
+                logger.exception("Could not collapse duplicate FORM payment for submission %s", submission_id)
             return dup, submission_id
+
+    # Prefer upgrading the form's existing FORM-* row instead of creating a second payment.
+    if submission_id is not None:
+        try:
+            from APIs.admin import _collapse_duplicate_form_payments, _payment_by_form_submission_id
+            existing_form_proof = _payment_by_form_submission_id(db, submission_id)
+            if existing_form_proof is not None:
+                existing_form_proof.attendee_name = name
+                existing_form_proof.attendee_email = delivery_email
+                existing_form_proof.attendee_phone = phone
+                existing_form_proof.bank_name = "Razorpay"
+                existing_form_proof.ticket_type = ticket
+                existing_form_proof.amount = amount_val
+                existing_form_proof.quantity = qty
+                existing_form_proof.customer_id = buyer_cid or existing_form_proof.customer_id
+                existing_form_proof.event_id = event_key or existing_form_proof.event_id
+                existing_form_proof.transaction_id = payment_id
+                existing_form_proof.status = "payment_submitted"
+                db.commit()
+                db.refresh(existing_form_proof)
+                _collapse_duplicate_form_payments(db, existing_form_proof, submission_id=submission_id)
+                return existing_form_proof, submission_id
+        except Exception:
+            logger.exception("Could not upgrade FORM payment to Razorpay for submission %s", submission_id)
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
     row = PaymentProof(
         customer_id=buyer_cid,
@@ -556,6 +599,11 @@ def _record_razorpay_payment(
     db.add(row)
     db.commit()
     db.refresh(row)
+    try:
+        from APIs.admin import _collapse_duplicate_form_payments
+        _collapse_duplicate_form_payments(db, row, submission_id=submission_id)
+    except Exception:
+        logger.exception("Could not collapse duplicate FORM payment for submission %s", submission_id)
     return row, submission_id
 
 
