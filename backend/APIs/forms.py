@@ -743,6 +743,50 @@ INTERNAL_ANSWER_KEYS = {
 	"ticket_price",
 }
 
+_IDENTITY_COLUMN_EXACT = {
+	"name",
+	"full name",
+	"your name",
+	"attendee name",
+	"participant name",
+	"guest name",
+	"email",
+	"email address",
+	"e mail",
+	"e-mail",
+	"mail id",
+	"email id",
+	"phone",
+	"mobile",
+	"whatsapp",
+	"number",
+	"phone number",
+	"mobile number",
+	"contact number",
+	"contact",
+	"what is your full name",
+	"what is your name",
+	"what is your email",
+	"what is your email address",
+}
+
+
+def _normalize_column_title(title: Any) -> str:
+	text = re.sub(r"[^a-z0-9\s]", " ", str(title or "").lower())
+	return re.sub(r"\s+", " ", text).strip()
+
+
+def _is_identity_column_title(title: Any) -> bool:
+	"""True for name/email/phone fields already shown as fixed table columns."""
+	key = _normalize_column_title(title)
+	if not key or key in INTERNAL_ANSWER_KEYS:
+		return True
+	if key in _IDENTITY_COLUMN_EXACT:
+		return True
+	if key.startswith("what is your") and any(tok in key for tok in ("name", "email", "phone", "mobile")):
+		return True
+	return False
+
 
 def _maybe_auto_issue_free_ticket(db: Session, sub: FormSubmission) -> None:
 	"""₹0 host-form rows become Payment Data + QR using form guest name/email."""
@@ -1027,7 +1071,7 @@ def _question_columns(db: Session, event, submissions: list) -> List[str]:
 		if not title or title.startswith("_"):
 			return
 		key = title.lower()
-		if key in seen or key in INTERNAL_ANSWER_KEYS:
+		if key in seen or key in INTERNAL_ANSWER_KEYS or _is_identity_column_title(title):
 			return
 		seen.add(key)
 		titles.append(title)
@@ -1057,12 +1101,18 @@ def _question_columns(db: Session, event, submissions: list) -> List[str]:
 
 		organizer_email = (getattr(event, "organizer_email", None) or "").lower().strip()
 		if organizer_email:
-			form_def = (
-				db.query(FormDefinition)
-				.filter(func.lower(FormDefinition.organizer_email) == organizer_email)
-				.order_by(FormDefinition.id.desc())
-				.first()
-			)
+			form_q = db.query(FormDefinition).filter(func.lower(FormDefinition.organizer_email) == organizer_email)
+			form_def = None
+			try:
+				form_def = (
+					form_q.filter(FormDefinition.event_id == str(event.event_id))
+					.order_by(FormDefinition.id.desc())
+					.first()
+				)
+			except Exception:
+				form_def = None
+			if form_def is None:
+				form_def = form_q.order_by(FormDefinition.id.desc()).first()
 			schema = form_def.schema_json if form_def else None
 			if isinstance(schema, list):
 				for item in schema:
@@ -1082,7 +1132,7 @@ def _extend_columns_from_items(columns: List[str], items: list) -> List[str]:
 	for item in items:
 		for key in (item.get("answer_values") or {}):
 			title = str(key or "").strip()
-			if not title or title.lower() in seen:
+			if not title or title.lower() in seen or _is_identity_column_title(title):
 				continue
 			seen.add(title.lower())
 			extra.append(title)
@@ -1111,23 +1161,23 @@ def _serialize_submission(
 		title = str(key or "").strip()
 		if not title or title.startswith("_") or title.lower() in INTERNAL_ANSWER_KEYS:
 			continue
+		if _is_identity_column_title(title):
+			continue
 		if not any(title.lower() == col.lower() for col in columns):
 			answer_values[title] = _pretty_answer(val)
 	submitted = row.submission_time
 	ticket_type = _submission_ticket(db, row, answers, ticket_cache, event)
-	customer = getattr(row, "customer", None)
+	# Host-form guest fields win over login profile (one buyer, many guests).
 	name, email, phone = pick_attendee_identity(
 		names=(
-			getattr(customer, "full_name", None) if customer is not None else None,
-			_pick_answer(answers, "full name", "attendee name", "your name", "name"),
+			_pick_answer(answers, "full name", "attendee name", "your name", "participant name", "guest name", "name"),
 		),
 		emails=(
+			_pick_answer(answers, "email", "email address", "e-mail", "mail id", "email id"),
 			row.user_email,
-			getattr(customer, "email", None) if customer is not None else None,
 		),
 		phones=(
-			getattr(customer, "phone", None) if customer is not None else None,
-			_pick_answer(answers, "phone", "mobile", "whatsapp"),
+			_pick_answer(answers, "phone", "mobile", "whatsapp", "contact number", "number"),
 		),
 	)
 	return {
@@ -1145,12 +1195,9 @@ def _serialize_submission(
 
 
 def _host_event_for_submissions(db: Session, email: str, event_id: Optional[str], current_user):
-	from APIs.host_events_api import resolve_or_create_event
+	from APIs.host_events_api import resolve_registrations_display_event
 
-	event, _, _ = resolve_or_create_event(
-		db, email, event_id, current_user, create_if_missing=False
-	)
-	return event
+	return resolve_registrations_display_event(db, email, event_id, current_user)
 
 
 @router.get("/submissions")
@@ -1160,12 +1207,16 @@ def get_form_submissions(
 	db: Session = Depends(get_db),
 	current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-	"""Fetch completed registration forms for the organizer's current event."""
+	"""Fetch registrations for the host display event.
+
+	Shows published/live data; until a new event is hosted live, keeps the last
+	ended event. Draft working events do not clear this view.
+	"""
 	if not current_user:
 		raise HTTPException(status_code=401, detail="Authentication required.")
 	email_clean = (email or current_user.email or "").lower().strip()
 	event = _host_event_for_submissions(db, email_clean, event_id, current_user)
-	from APIs.host_events_api import _form_submissions_for_event
+	from APIs.host_events_api import _form_submissions_for_event, compute_event_lifecycle
 
 	submissions = _form_submissions_for_event(db, event) if event else []
 	submissions = sorted(
@@ -1200,6 +1251,9 @@ def get_form_submissions(
 	paid_count = sum(1 for item in items if str(item.get("status") or "").lower() in ("paid", "completed", "confirmed"))
 
 	return {
+		"event_id": str(event.event_id) if event is not None else None,
+		"event_title": getattr(event, "event_title", None) if event is not None else None,
+		"lifecycle": compute_event_lifecycle(event) if event is not None else None,
 		"columns": columns,
 		"analytics": {
 			"total_registrations": total_count,

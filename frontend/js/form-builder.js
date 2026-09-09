@@ -1198,11 +1198,11 @@ function initFormBuilder() {
 	// \u2500\u2500 Submissions & Analytics Manager \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	async function loadSubmissionsData() {
 		if (!submissionsTableBody) return;
-		const eventId = resolveActiveEventId() || "";
 		try {
 			const qs = new URLSearchParams();
 			if (email) qs.set("email", email);
-			if (eventId) qs.set("event_id", eventId);
+			// Do not pass the draft working event_id. Backend picks published/live,
+			// or the last ended event until a new one is hosted live.
 			const res = await authFetch(`${API_BASE}/submissions?${qs.toString()}`, {
 				headers: { Accept: "application/json" }
 			});
@@ -1213,6 +1213,19 @@ function initFormBuilder() {
 				if (kpiTotalSubmissions) kpiTotalSubmissions.textContent = data.analytics.total_registrations;
 				if (kpiCompletionRate) kpiCompletionRate.textContent = data.analytics.completion_rate || "0%";
 				if (kpiAvgTime) kpiAvgTime.textContent = data.analytics.avg_completion_time || "\u2014";
+			}
+			const scopeNote = document.getElementById("submissionsEventScopeNote");
+			if (scopeNote) {
+				const title = (data.event_title || "").trim();
+				const life = (data.lifecycle || "").trim();
+				if (title) {
+					const lifeLabel = life ? ` (${life})` : "";
+					scopeNote.textContent = `Showing registrations for: ${title}${lifeLabel}`;
+					scopeNote.hidden = false;
+				} else {
+					scopeNote.textContent = "No published or previous event registrations to show yet.";
+					scopeNote.hidden = false;
+				}
 			}
 			allSubmissionsData = Array.isArray(data.submissions) ? data.submissions : [];
 			applySubmissionFilters();

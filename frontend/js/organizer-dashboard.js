@@ -1796,6 +1796,12 @@ async function initOrganizerDashboard() {
 	async function loadRegistrationModuleData() {
 		if (!email) return;
 		try {
+			// Keep Manage/draft working event separate from Submissions display event.
+			if (typeof window.loadFormSubmissionsData === "function") {
+				window.loadFormSubmissionsData();
+				return;
+			}
+
 			const res = await fetch(`${HOST_EVENTS_API_BASE}/registrations?email=${encodeURIComponent(email)}${activeEventId ? '&event_id=' + activeEventId : ''}`, {
 				headers: getAuthHeaders()
 			});
@@ -1803,18 +1809,12 @@ async function initOrganizerDashboard() {
 			const data = await res.json();
 			if (data.customer_id) activeCustomerId = data.customer_id;
 			if (data.host_id) activeHostId = data.host_id;
-			if (data.event_id) activeEventId = data.event_id;
 
 			const summary = data.summary || {};
 			const total = summary.total_registrations || 0;
 			const confirmed = summary.confirmed_registrations || 0;
 			const completion = total > 0 ? `${Math.round((confirmed / total) * 100)}%` : "0%";
 			const avgTime = total > 0 ? `${Math.max(1, Math.round(total / 2))}m` : "0m";
-
-			if (typeof window.loadFormSubmissionsData === "function") {
-				window.loadFormSubmissionsData();
-				return;
-			}
 
 			const totalSubmissionsEl = document.getElementById("kpiTotalSubmissions");
 			if (totalSubmissionsEl) totalSubmissionsEl.textContent = total.toLocaleString("en-IN");
@@ -5950,6 +5950,9 @@ async function initOrganizerDashboard() {
 					applySectionActionLabels();
 					renderOverviewState();
 					showNotification(`Event "${title}" is now live on Home, Category, and Event Details pages.`);
+				if (typeof window.loadFormSubmissionsData === "function") {
+					try { window.loadFormSubmissionsData(); } catch (_) {}
+				}
 				switchTab("overview");
 				}
 

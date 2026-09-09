@@ -502,6 +502,7 @@ def find_working_event(
     usable = [
         ev for ev in events
         if compute_event_lifecycle(ev) not in ("cancelled", "unpublished")
+        and not is_cleared_host_event(ev)
     ]
     if not usable:
         return None
@@ -515,6 +516,61 @@ def find_working_event(
         if compute_event_lifecycle(ev) == "ended":
             return ev
     return usable[0]
+
+
+def find_registrations_display_event(
+    db: Session,
+    email_clean: str,
+    customer_id: Optional[str],
+    host_id: Optional[str],
+) -> Optional[EventManagement]:
+    """Event whose registrations appear in Submissions & Analytics.
+
+    Prefer published/live. Until a new event is hosted live, keep the last ended
+    event's data. Never use a draft — drafting a new event must not wipe the table.
+    """
+    events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
+        EventManagement.created_at.desc()
+    ).all()
+    usable = [
+        ev for ev in events
+        if compute_event_lifecycle(ev) not in ("cancelled", "unpublished")
+        and not is_cleared_host_event(ev)
+    ]
+    for ev in usable:
+        if is_event_active(ev):
+            return ev
+    for ev in usable:
+        if compute_event_lifecycle(ev) == "ended":
+            return ev
+    return None
+
+
+def resolve_registrations_display_event(
+    db: Session,
+    email: str,
+    event_id: Optional[str] = None,
+    current_user: Optional[User] = None,
+) -> Optional[EventManagement]:
+    """Resolve the event to show in host Submissions & Analytics."""
+    email_clean = _bound_email(email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
+
+    requested = _lookup_event_by_id(db, event_id)
+    if requested and is_cleared_host_event(requested):
+        requested = None
+    if requested and not _event_owned(requested, email_clean, customer_id, host_id, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this event.",
+        )
+    if requested is not None:
+        life = compute_event_lifecycle(requested)
+        # Honor explicit published/live/ended selection; ignore draft ids.
+        if life in ("published", "live", "ended"):
+            return requested
+
+    return find_registrations_display_event(db, email_clean, customer_id, host_id)
 
 
 def assert_can_publish_event(
@@ -722,23 +778,6 @@ def _form_submissions_for_event(db: Session, event_mgt: EventManagement) -> list
             if form_eid and form_eid in compact
         }
 
-    payment_emails = set()
-    try:
-        from Models.payment_proof import PaymentProof
-        from sqlalchemy.orm import defer
-        proofs = (
-            db.query(PaymentProof)
-            .options(defer(PaymentProof.booking_id), defer(PaymentProof.screenshot_file_id))
-            .all()
-        )
-        for proof in proofs:
-            if event_id_compact(getattr(proof, "event_id", None)) in compact:
-                payment_emails.add((getattr(proof, "attendee_email", None) or "").lower().strip())
-        payment_emails.discard("")
-    except Exception:
-        db.rollback()
-        payment_emails = set()
-
     try:
         rows = fetch_form_submissions(db)
     except Exception:
@@ -755,12 +794,12 @@ def _form_submissions_for_event(db: Session, event_mgt: EventManagement) -> list
         except Exception:
             form_id_key = form_id
         form_eid = form_event_by_id.get(form_id_key, "")
-        row_email = (getattr(row, "user_email", None) or "").lower().strip()
+        # Strict event scope only — never pull another event's row just because
+        # the same email paid on this event (that mixed old + new registrations).
         matched = (
             (stored and stored in compact)
             or (form_id_key in this_event_form_ids)
             or (form_eid and form_eid in compact)
-            or (row_email and row_email in payment_emails)
         )
         if not matched:
             continue
