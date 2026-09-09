@@ -160,14 +160,50 @@ def _lookup_event(db: Session, event_id) -> Optional[Event]:
         row = db.query(Event).filter(cast(Event.id, String) == eid).first()
         if row:
             return row
-        return (
+        row = (
             db.query(Event)
             .filter(func.lower(func.replace(cast(Event.id, String), "-", "")) == compact)
             .first()
         )
+        if row:
+            return row
     except Exception:
         _db_safe_rollback(db)
-        return None
+
+    # Host EventManagement.event_id may differ slightly — resolve to public Event.
+    try:
+        from Models.event_management import EventManagement
+        from APIs.bookings import _related_event_id_keys
+
+        host = (
+            db.query(EventManagement)
+            .filter(cast(EventManagement.event_id, String) == eid)
+            .first()
+        )
+        if host is None:
+            host = (
+                db.query(EventManagement)
+                .filter(
+                    func.lower(func.replace(cast(EventManagement.event_id, String), "-", ""))
+                    == compact
+                )
+                .first()
+            )
+        if host is not None:
+            for key in _related_event_id_keys(db, host.event_id):
+                if not key:
+                    continue
+                found = db.query(Event).filter(
+                    func.lower(func.replace(cast(Event.id, String), "-", "")) == str(key).replace("-", "").lower()
+                ).first()
+                if found:
+                    return found
+            found = db.query(Event).filter(cast(Event.id, String) == str(host.event_id)).first()
+            if found:
+                return found
+    except Exception:
+        _db_safe_rollback(db)
+    return None
 
 
 def _unique_customer_id(db: Session) -> str:
@@ -323,7 +359,12 @@ def _payment_by_form_submission_id(db: Session, submission_id: int) -> Optional[
     return None
 
 
-def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> PaymentProof:
+def _ensure_payment_proof_for_submission(
+    db: Session,
+    row: FormSubmission,
+    *,
+    buyer_customer_id: Optional[str] = None,
+) -> PaymentProof:
     """One host-form submission => one Payment Data row (never share by login email)."""
     if getattr(row, "id", None) is None:
         raise HTTPException(status_code=400, detail="Form submission is missing an id.")
@@ -353,13 +394,14 @@ def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> Pa
     is_free = price <= 0.009
     booking_id_text = form_submission_booking_id(db, getattr(row, "id", None))
     preferred_txn = _preferred_form_payment_txn(row.id, is_free=is_free)
+    owner_cid = (buyer_customer_id or row.customer_id or "").strip() or None
 
     # Only reuse the payment that is already keyed to THIS form submission.
     proof = _payment_by_form_submission_id(db, row.id)
 
     if proof is None:
         proof = PaymentProof(
-            customer_id=row.customer_id,
+            customer_id=owner_cid,
             event_id=event_key,
             ticket_type=ticket_type,
             amount=price,
@@ -393,9 +435,12 @@ def _ensure_payment_proof_for_submission(db: Session, row: FormSubmission) -> Pa
     proof.attendee_phone = phone
     proof.ticket_type = ticket_type
     proof.amount = price
-    proof.customer_id = row.customer_id or proof.customer_id
+    proof.customer_id = owner_cid or proof.customer_id
+    proof.event_id = event_key or proof.event_id
     if (proof.transaction_id or "") not in _form_payment_txn_ids(row.id):
-        proof.transaction_id = preferred_txn
+        # Keep Razorpay / gateway txn ids; only force FORM key when still a placeholder.
+        if not str(proof.transaction_id or "").startswith(("pay_", "order_")):
+            proof.transaction_id = preferred_txn
     if is_free and (proof.bank_name or "").strip().lower() not in ("razorpay",):
         proof.bank_name = "Free"
     try:
@@ -521,18 +566,25 @@ EMAIL_KEYS = (
     "email address",
     "e_mail",
     "e mail",
+    "e-mail",
     "attendee_email",
     "attendee email",
     "your email",
     "mail",
     "mail id",
     "mailid",
+    "email id",
+    "emailid",
+    "official email",
+    "work email",
+    "personal email",
 )
 
 
 def _form_guest_identity(answers: Any, fallback_email: str = "") -> tuple:
     """Name/email/phone from host-form answers only (never login profile)."""
     from APIs.forms import _pick_answer
+    from Utils.text_sanitize import looks_like_email, looks_like_person_name
 
     answers = answers if isinstance(answers, dict) else {}
     name = _answer_value(answers, NAME_KEYS) or _pick_answer(
@@ -543,9 +595,27 @@ def _form_guest_identity(answers: Any, fallback_email: str = "") -> tuple:
         if maybe and not any(tok in maybe.lower() for tok in ("pass", "ticket", "general admission")):
             name = maybe
     email = _answer_value(answers, EMAIL_KEYS) or _pick_answer(
-        answers, "email", "e-mail", "mail id", "mailid"
+        answers, "email", "e-mail", "mail id", "mailid", "email id"
     )
-    # fallback_email is ignored on purpose — tickets must not use profile/login email.
+    if not email:
+        for key, val in answers.items():
+            if str(key).startswith("_"):
+                continue
+            text = str(val or "").strip()
+            if looks_like_email(text):
+                email = text
+                break
+    if not name:
+        for key, val in answers.items():
+            if str(key).startswith("_"):
+                continue
+            label = str(key or "").strip().lower()
+            if "name" not in label or any(tok in label for tok in ("user", "bank", "file", "org")):
+                continue
+            text = str(val or "").strip()
+            if looks_like_person_name(text):
+                name = text
+                break
     _ = fallback_email
     phone = _answer_value(answers, PHONE_KEYS) or _pick_answer(
         answers, "phone", "mobile", "whatsapp", "contact number"
@@ -916,6 +986,16 @@ def _issue_tickets_from_payment(
             event = None
     if not event:
         raise HTTPException(status_code=400, detail="This payment is not linked to a published event.")
+    # Normalize payment event_id to the public Event.id required by bookings FK.
+    try:
+        public_eid = str(event.id)
+        if str(row.event_id or "") != public_eid:
+            row.event_id = public_eid
+            db.commit()
+            db.refresh(row)
+    except Exception:
+        _db_safe_rollback(db)
+
     ticket_type = row.ticket_type or "General Admission"
     price = float(row.amount if row.amount is not None else (event.price or 0))
     qty = max(1, int(row.quantity or 1))
@@ -985,11 +1065,22 @@ def _issue_tickets_from_payment(
     if row.customer_id:
         buyer = db.query(User).filter(User.customer_id == str(row.customer_id)).first()
     if buyer is None:
+        # Last resort: attach buyer by payment owner email only for FK — ticket still uses form receiver_*.
+        email_owner = (row.attendee_email or "").strip().lower()
+        if email_owner:
+            buyer = db.query(User).filter(func.lower(User.email) == email_owner).first()
+    if buyer is None:
         raise HTTPException(
             status_code=400,
             detail="Payment is not linked to a buyer account. Cannot issue ticket.",
         )
     user = buyer
+    if not row.customer_id:
+        row.customer_id = user.customer_id
+        try:
+            db.commit()
+        except Exception:
+            _db_safe_rollback(db)
 
     # Never reuse another purchase's booking — only the booking already on this proof.
     booking = _reload_booking(db, _column_as_text(db, "payment_proofs", "id", row.id, "booking_id"))
