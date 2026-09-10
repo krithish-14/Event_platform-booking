@@ -1257,7 +1257,8 @@ async function initOrganizerDashboard() {
 	function setSectionVisible(section, visible) {
 		if (!section) return;
 		section.classList.toggle("active-tab", !!visible);
-		/* Clear legacy inline layout styles so CSS .tab-section rules win. */
+		section.hidden = !visible;
+		/* Clear legacy inline layout styles so CSS rules win. */
 		[
 			"display",
 			"visibility",
@@ -1268,6 +1269,10 @@ async function initOrganizerDashboard() {
 			"margin",
 			"padding",
 			"pointer-events",
+			"position",
+			"left",
+			"top",
+			"width",
 		].forEach(function (prop) {
 			section.style.removeProperty(prop);
 		});
@@ -1365,11 +1370,21 @@ async function initOrganizerDashboard() {
 			setTimeout(() => invalidateVenueMap(), 300);
 		}
 
-		window.scrollTo({ top: 0, behavior: "smooth" });
 		try {
 			const dashContent = document.querySelector(".dash-content");
-			if (dashContent) dashContent.scrollTop = 0;
+			if (dashContent) {
+				dashContent.scrollTop = 0;
+				/* Nudge layout so the active panel is the scrollport content. */
+				requestAnimationFrame(function () {
+					dashContent.scrollTop = 0;
+					if (targetSection && typeof targetSection.scrollIntoView === "function") {
+						targetSection.scrollIntoView({ block: "start", inline: "nearest" });
+						dashContent.scrollTop = 0;
+					}
+				});
+			}
 		} catch (_) {}
+		try { window.scrollTo(0, 0); } catch (_) {}
 
 		try {
 			const sectionIds = ['sectionOverview','sectionManage','sectionSettings','sectionDesign','sectionTicket','sectionRegistrations','sectionExhibitors','sectionCommunicate','sectionReports','sectionEventday','sectionAttendance'];

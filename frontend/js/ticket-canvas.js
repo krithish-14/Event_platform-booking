@@ -829,12 +829,12 @@
 			node.addEventListener("pointerdown", function (ev) {
 				const handle = ev.target && ev.target.closest ? ev.target.closest("[data-resize]") : null;
 				if (handle) {
-					ev.preventDefault();
+					if (ev.cancelable) ev.preventDefault();
 					ev.stopPropagation();
 					self.onResizeStart(ev, node, handle.getAttribute("data-resize"));
 					return;
 				}
-				ev.preventDefault();
+				/* Do not preventDefault on press — that locked panel scrolling. */
 				ev.stopPropagation();
 				self.onDragStart(ev, node);
 			});
@@ -939,7 +939,6 @@
 	};
 
 	TicketCanvasController.prototype.onDragStart = function (point, node) {
-		if (point.cancelable) point.preventDefault();
 		if (point.stopPropagation) point.stopPropagation();
 		this.releasePointer();
 		this._drag = null;
@@ -1045,6 +1044,7 @@
 			if (Math.abs(mdx) < 0.45 && Math.abs(mdy) < 0.45) return;
 			this._drag.active = true;
 			this._didDrag = true;
+			if (point.cancelable) point.preventDefault();
 		}
 		const dragItem = this.findById(this._drag.id);
 		if (!dragItem) return;

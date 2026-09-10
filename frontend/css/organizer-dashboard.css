@@ -237,6 +237,8 @@ body.dashboard-body {
 	min-height: 0;
 	height: calc(100vh - 60px);
 	height: calc(100dvh - 60px);
+	max-height: calc(100vh - 60px);
+	max-height: calc(100dvh - 60px);
 	overflow: hidden;
 }
 
@@ -249,10 +251,11 @@ body.dashboard-body {
 	visibility: visible !important;
 	flex-direction: column;
 	justify-content: flex-start;
-	padding: 0.45rem 0 0;
+	padding: 0.35rem 0 0.4rem;
 	height: 100%;
 	min-height: 0;
-	overflow: hidden;
+	overflow-x: hidden;
+	overflow-y: auto;
 	flex-shrink: 0;
 	position: relative;
 	z-index: 40;
@@ -261,17 +264,16 @@ body.dashboard-body {
 .sidebar-menu-top {
 	display: flex;
 	flex-direction: column;
-	gap: 0.08rem;
-	flex: 1 1 auto;
+	gap: 0.02rem;
+	flex: 0 0 auto;
 	min-height: 0;
-	overflow-y: auto;
-	overflow-x: hidden;
+	overflow: visible;
 }
 
 .sidebar-menu-bottom {
 	flex-shrink: 0;
-	margin-top: auto;
-	padding: 0.35rem 0 0.7rem;
+	margin-top: 0.25rem;
+	padding: 0.25rem 0 0.15rem;
 	border-top: 1px solid var(--dash-border);
 	background: var(--dash-sidebar-bg);
 }
@@ -281,7 +283,7 @@ body.dashboard-body {
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	padding: 0.48rem 0.2rem;
+	padding: 0.32rem 0.15rem;
 	color: #64748b;
 	text-decoration: none;
 	font-size: 0.68rem;
@@ -404,23 +406,44 @@ body.dashboard-body {
     box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.06) inset;
 }
 
-/* Tab visibility — only the .active-tab section is in layout (no height:0 ghosts). */
+/* Tab visibility — inactive panels must leave ZERO layout space. */
+.dash-content > .tab-section,
 .tab-section {
 	display: none !important;
-	position: relative;
-	width: 100%;
-	min-height: 0;
+	position: absolute !important;
+	left: -9999px !important;
+	top: 0 !important;
+	width: 1px !important;
+	height: 1px !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	overflow: hidden !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
+	min-height: 0 !important;
+	max-height: 0 !important;
+	opacity: 0 !important;
 }
-
+.dash-content > .tab-section.active-tab,
 .tab-section.active-tab {
 	display: block !important;
-	position: relative;
-	z-index: 1;
-	visibility: visible !important;
+	position: relative !important;
+	left: auto !important;
+	top: auto !important;
+	width: 100% !important;
 	height: auto !important;
 	max-height: none !important;
+	min-height: 0 !important;
+	margin: 0 !important;
+	padding: 0 !important;
 	overflow: visible !important;
+	visibility: visible !important;
 	pointer-events: auto !important;
+	opacity: 1 !important;
+	z-index: 1;
+}
+.tab-section[hidden] {
+	display: none !important;
 }
 
 /* Main content is the only scrollport inside the fixed shell. */
@@ -428,12 +451,14 @@ body.dashboard-body {
 	flex: 1 1 auto;
 	min-width: 0;
 	min-height: 0;
-	height: 100%;
-	padding: 1.5rem;
-	overflow-y: auto !important;
+	height: auto;
+	max-height: 100%;
+	padding: 1rem 1.25rem 1.5rem;
+	overflow-y: scroll !important;
 	overflow-x: hidden;
 	-webkit-overflow-scrolling: touch;
 	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
 	display: block;
 	position: relative;
 	z-index: 1;
@@ -2377,7 +2402,7 @@ html[data-theme="dark"] .dash-toast {
 }
 .ticket-studio-page {
 	max-width: 1180px;
-	margin: 0 auto;
+	margin: 0;
 	padding: 0 0 2rem;
 	width: 100%;
 	height: auto;
@@ -2388,8 +2413,8 @@ html[data-theme="dark"] .dash-toast {
 	flex-wrap: wrap;
 	align-items: flex-start;
 	justify-content: space-between;
-	gap: 1rem;
-	margin-bottom: 1rem;
+	gap: 0.75rem;
+	margin: 0 0 0.75rem;
 }
 .ticket-studio-actions {
 	display: flex;
@@ -2478,11 +2503,12 @@ html[data-theme="dark"] .dash-toast {
 	align-self: start;
 }
 .ticket-design-studio.is-studio-layout .ticket-canvas-stage {
-	min-height: 0;
+	min-height: 0 !important;
 	width: 100%;
-	padding: 0.75rem 0.75rem 1.25rem;
+	padding: 0.5rem 0.5rem 1rem;
 	justify-content: flex-start;
-	gap: 0.5rem;
+	align-items: center;
+	gap: 0.4rem;
 }
 .ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas {
 	width: min(100%, 380px);
@@ -2491,15 +2517,18 @@ html[data-theme="dark"] .dash-toast {
 }
 #sectionTicket.active-tab {
 	display: block !important;
-	width: 100%;
+	position: relative !important;
+	left: auto !important;
+	width: 100% !important;
 	height: auto !important;
 	max-height: none !important;
-	min-height: 0;
-	margin: 0;
+	min-height: 0 !important;
+	margin: 0 !important;
 	overflow: visible !important;
 	visibility: visible !important;
 	pointer-events: auto !important;
-	padding: 0 0 2rem;
+	padding: 0 0 1.5rem !important;
+	opacity: 1 !important;
 }
 .ticket-template-grid {
 	display: grid;
@@ -2570,13 +2599,13 @@ html[data-theme="dark"] .dash-toast {
 }
 .ticket-canvas-stage {
 	border-radius: 16px;
-	padding: 1rem 1rem 1.2rem;
-	min-height: 520px;
+	padding: 0.75rem 0.75rem 1rem;
+	min-height: 0;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: flex-start;
-	gap: 0.65rem;
+	gap: 0.45rem;
 	border: 1px solid #e2e8f0;
 	transition: background 0.25s ease;
 	overflow: visible;
@@ -2665,9 +2694,13 @@ html[data-theme="dark"] .dash-toast {
 	padding: 0.15rem 0.25rem;
 	background: transparent;
 	pointer-events: auto;
-	touch-action: none;
+	touch-action: pan-y;
 	--tc-font-scale: 1;
 	transition: opacity 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+}
+.tc-node.is-selected,
+.tc-node.is-dragging {
+	touch-action: none;
 }
 .tc-node:active { cursor: grabbing; }
 .tc-node.is-dimmed {
