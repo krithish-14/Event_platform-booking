@@ -443,7 +443,7 @@
 			'  </div>',
 			'  <div class="ticket-canvas-workspace ticket-studio-canvas-wrap">',
 			'    <div class="ticket-canvas-stage" id="ticketCanvasStage">',
-			'      <div class="ticket-canvas-hint">Hold and drag to move. Blue handles resize. Red dashed lines show alignment. Esc deselects · × removes.</div>',
+			'      <div class="ticket-canvas-hint">Preview stays on the right. Tools scroll on the left. Drag to move · handles resize · Esc deselects.</div>',
 			'      <div class="ticket-live-card is-canvas" id="ticketLiveCard" aria-live="polite"></div>',
 			'    </div>',
 			'  </div>',

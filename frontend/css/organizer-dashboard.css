@@ -231,6 +231,7 @@ body.dashboard-body {
 .dash-shell {
 	display: flex;
 	flex: 1;
+	min-height: 0;
 	height: calc(100vh - 60px);
 	overflow: hidden;
 }
@@ -414,8 +415,12 @@ body.dashboard-body {
 /* ------ Main Content Area --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- */
 .dash-content {
 	flex: 1;
+	min-width: 0;
+	min-height: 0;
 	padding: 1.5rem;
 	overflow-y: auto;
+	overflow-x: hidden;
+	-webkit-overflow-scrolling: touch;
 	display: flex;
 	flex-direction: column;
 	gap: 1.25rem;
@@ -2350,7 +2355,8 @@ html[data-theme="dark"] .dash-toast {
 .ticket-studio-page {
 	max-width: 1180px;
 	margin: 0 auto;
-	padding: 0.25rem 0 2rem;
+	padding: 0.25rem 0 2.5rem;
+	width: 100%;
 }
 .ticket-studio-header {
 	display: flex;
@@ -2398,8 +2404,9 @@ html[data-theme="dark"] .dash-toast {
 	flex-direction: column;
 	gap: 1.1rem;
 }
-.ticket-design-studio.is-studio-layout {
-	gap: 0.9rem;
+.ticket-design-studio.is-studio-layout .ticket-template-grid {
+	grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+	gap: 0.55rem;
 }
 .ticket-studio-toolbar {
 	display: flex;
@@ -2409,6 +2416,11 @@ html[data-theme="dark"] .dash-toast {
 	border: 1px solid #e2e8f0;
 	border-radius: 14px;
 	background: #fff;
+	max-height: calc(100vh - 200px);
+	overflow-y: auto;
+	overflow-x: hidden;
+	-webkit-overflow-scrolling: touch;
+	min-height: 0;
 }
 .ticket-studio-controls-top {
 	display: flex;
@@ -2430,7 +2442,12 @@ html[data-theme="dark"] .dash-toast {
 	gap: 0.4rem;
 }
 .ticket-studio-canvas-wrap {
-	display: block;
+	display: block !important;
+	grid-template-columns: none !important;
+	position: sticky;
+	top: 0.35rem;
+	min-width: 0;
+	align-self: start;
 }
 .ticket-design-studio.is-studio-layout .ticket-canvas-stage {
 	min-height: 640px;
@@ -2440,6 +2457,11 @@ html[data-theme="dark"] .dash-toast {
 .ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas {
 	width: min(100%, 380px);
 	height: 580px;
+}
+#sectionTicket.active-tab {
+	width: 100%;
+	min-height: 0;
+	padding-bottom: 2rem;
 }
 .ticket-template-grid {
 	display: grid;
@@ -3119,13 +3141,26 @@ html[data-theme="dark"] .ticket-form-fields-title {
 	color: #e2e8f0;
 }
 
-@media (max-width: 860px) {
-	.ticket-canvas-workspace {
+@media (max-width: 960px) {
+	.ticket-design-studio.is-studio-layout {
 		grid-template-columns: 1fr;
+	}
+	.ticket-studio-toolbar {
+		max-height: none;
+		order: 2;
+	}
+	.ticket-studio-canvas-wrap {
+		position: static;
+		order: 1;
 	}
 	.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas {
 		width: min(100%, 340px);
 		height: 520px;
+	}
+}
+@media (max-width: 860px) {
+	.ticket-canvas-workspace {
+		grid-template-columns: 1fr;
 	}
 }
 html[data-theme="dark"] .ticket-template-chip,
