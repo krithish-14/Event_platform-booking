@@ -443,7 +443,7 @@
 			'  </div>',
 			'  <div class="ticket-canvas-workspace ticket-studio-canvas-wrap">',
 			'    <div class="ticket-canvas-stage" id="ticketCanvasStage">',
-			'      <div class="ticket-canvas-hint">Preview stays on the right. Tools scroll on the left. Drag to move · handles resize · Esc deselects.</div>',
+			'      <div class="ticket-canvas-hint">Scroll the page to see the full ticket. Drag fields to move · handles resize · Esc deselects.</div>',
 			'      <div class="ticket-live-card is-canvas" id="ticketLiveCard" aria-live="polite"></div>',
 			'    </div>',
 			'  </div>',
@@ -578,7 +578,10 @@
 		});
 		document.addEventListener("mouseup", function (ev) { self.onPointerEnd(ev); });
 		document.addEventListener("touchmove", function (ev) {
-			self.onPointerMove(ev.touches && ev.touches[0] ? ev.touches[0] : ev);
+			if (!(self._drag && self._drag.active) && !self._resize) return;
+			const point = ev.touches && ev.touches[0] ? ev.touches[0] : ev;
+			self.onPointerMove(point);
+			if (ev.cancelable) ev.preventDefault();
 		}, { passive: false });
 		document.addEventListener("touchend", function (ev) { self.onPointerEnd(ev); });
 		document.addEventListener("touchcancel", function (ev) { self.onPointerEnd(ev); });
@@ -1035,7 +1038,6 @@
 			return;
 		}
 		if (!this._drag) return;
-		if (point.preventDefault) point.preventDefault();
 		const mdx = ((point.clientX - this._drag.startX) / this._drag.cardW) * 100;
 		const mdy = ((point.clientY - this._drag.startY) / this._drag.cardH) * 100;
 		if (!this._drag.active) {
@@ -1043,6 +1045,7 @@
 			this._drag.active = true;
 			this._didDrag = true;
 		}
+		if (point.preventDefault) point.preventDefault();
 		const dragItem = this.findById(this._drag.id);
 		if (!dragItem) return;
 		let nx = clampNum(this._drag.origX + mdx, 0, 100 - dragItem.w, dragItem.x);

@@ -417,10 +417,12 @@ body.dashboard-body {
 	flex: 1;
 	min-width: 0;
 	min-height: 0;
+	height: auto;
 	padding: 1.5rem;
-	overflow-y: auto;
+	overflow-y: auto !important;
 	overflow-x: hidden;
 	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
 	display: flex;
 	flex-direction: column;
 	gap: 1.25rem;
@@ -2355,8 +2357,10 @@ html[data-theme="dark"] .dash-toast {
 .ticket-studio-page {
 	max-width: 1180px;
 	margin: 0 auto;
-	padding: 0.25rem 0 2.5rem;
+	padding: 0.25rem 0 4rem;
 	width: 100%;
+	height: auto;
+	overflow: visible;
 }
 .ticket-studio-header {
 	display: flex;
@@ -2422,10 +2426,8 @@ html[data-theme="dark"] .dash-toast {
 	border: 1px solid #e2e8f0;
 	border-radius: 14px;
 	background: #fff;
-	max-height: calc(100vh - 200px);
-	overflow-y: auto;
-	overflow-x: hidden;
-	-webkit-overflow-scrolling: touch;
+	max-height: none;
+	overflow: visible;
 	min-height: 0;
 }
 .ticket-studio-controls-top {
@@ -2450,8 +2452,7 @@ html[data-theme="dark"] .dash-toast {
 .ticket-studio-canvas-wrap {
 	display: block !important;
 	grid-template-columns: none !important;
-	position: sticky;
-	top: 0.35rem;
+	position: static;
 	min-width: 0;
 	align-self: start;
 }
@@ -2466,8 +2467,11 @@ html[data-theme="dark"] .dash-toast {
 }
 #sectionTicket.active-tab {
 	width: 100%;
+	height: auto;
+	max-height: none;
 	min-height: 0;
-	padding-bottom: 2rem;
+	overflow: visible;
+	padding-bottom: 3rem;
 }
 .ticket-template-grid {
 	display: grid;
@@ -2585,7 +2589,7 @@ html[data-theme="dark"] .dash-toast {
 	padding: 0;
 	overflow: hidden;
 	user-select: none;
-	touch-action: none;
+	touch-action: pan-y;
 	cursor: default;
 	background-image:
 		linear-gradient(to right, color-mix(in srgb, var(--ticket-accent, #2563eb) 14%, transparent) 1px, transparent 1px),
@@ -2633,6 +2637,7 @@ html[data-theme="dark"] .dash-toast {
 	padding: 0.15rem 0.25rem;
 	background: transparent;
 	pointer-events: auto;
+	touch-action: none;
 	--tc-font-scale: 1;
 	transition: opacity 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
 }
