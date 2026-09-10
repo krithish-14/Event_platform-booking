@@ -1256,27 +1256,21 @@ async function initOrganizerDashboard() {
 
 	function setSectionVisible(section, visible) {
 		if (!section) return;
-		if (visible) {
-			section.classList.add('active-tab');
-			section.style.display = 'block';
-			section.style.removeProperty('visibility');
-			section.style.removeProperty('opacity');
-			section.style.removeProperty('height');
-			section.style.removeProperty('max-height');
-			section.style.removeProperty('overflow');
-			section.style.removeProperty('margin');
-			section.style.removeProperty('padding');
-		} else {
-			section.classList.remove('active-tab');
-			section.style.display = 'none';
-			section.style.visibility = 'hidden';
-			section.style.height = '0';
-			section.style.maxHeight = '0';
-			section.style.overflow = 'hidden';
-			section.style.margin = '0';
-			section.style.padding = '0';
-			section.style.removeProperty('opacity');
-		}
+		section.classList.toggle("active-tab", !!visible);
+		/* Clear legacy inline layout styles so CSS .tab-section rules win. */
+		[
+			"display",
+			"visibility",
+			"opacity",
+			"height",
+			"max-height",
+			"overflow",
+			"margin",
+			"padding",
+			"pointer-events",
+		].forEach(function (prop) {
+			section.style.removeProperty(prop);
+		});
 	}
 
 	function loadTabModuleData(tabName) {

@@ -597,6 +597,13 @@
 		document.addEventListener("touchend", function (ev) { self.onPointerEnd(ev); });
 		document.addEventListener("touchcancel", function (ev) { self.onPointerEnd(ev); });
 		window.addEventListener("blur", function () { self.onPointerEnd(); });
+		/* End sticky drag if the studio panel scrolls (unlocks page scroll). */
+		const scrollRoot = (this.host && this.host.closest) ? this.host.closest(".dash-content") : null;
+		if (scrollRoot) {
+			scrollRoot.addEventListener("scroll", function () {
+				if (self._drag || self._resize) self.onPointerEnd();
+			}, { passive: true });
+		}
 		/* No non-passive touchmove preventDefault — it locked page scrolling. */
 
 		const stage = this.root.querySelector("#ticketCanvasStage");
