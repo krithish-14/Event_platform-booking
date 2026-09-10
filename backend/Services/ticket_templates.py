@@ -198,6 +198,12 @@ def normalize_ticket_layout(
                 if not (color.startswith("#") and len(color) in (4, 7)):
                     color = "#38bdf8"
                 entry["color"] = color
+            try:
+                font_scale = float(item.get("fontScale", 1))
+            except (TypeError, ValueError):
+                font_scale = 1.0
+            if 0.7 <= font_scale <= 2.2 and abs(font_scale - 1.0) > 0.01:
+                entry["fontScale"] = round(font_scale, 2)
             cleaned_elements.append(entry)
     if cleaned_elements:
         base["canvas_elements"] = cleaned_elements

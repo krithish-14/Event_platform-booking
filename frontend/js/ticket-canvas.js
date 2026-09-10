@@ -125,6 +125,8 @@
 				h: clampNum(e.h, shape && (type === "line" || type === "dashed_line") ? 1 : 3, 40, 6),
 			};
 			if (shape) item.color = sanitizeColor(e.color, DEF_BY_TYPE[type].color);
+			const fs = Number(e.fontScale);
+			if (Number.isFinite(fs)) item.fontScale = clampNum(fs, 0.7, 2.2, 1);
 			out.push(item);
 		});
 		return out;
@@ -306,7 +308,7 @@
 		this.renderPalette();
 		this.renderPreview();
 		this.syncControls();
-		this.syncShapeColorControl();
+		this.syncSelectedPanel();
 		this.emitChange();
 	};
 
@@ -314,19 +316,73 @@
 		if (!this.selectedId) return;
 		this.selectedId = null;
 		this._drag = null;
+		this._resize = null;
 		this._didDrag = false;
 		this.renderPreview();
-		this.syncShapeColorControl();
+		this.syncSelectedPanel();
+	};
+
+	TicketCanvasController.prototype.isTextElement = function (type) {
+		return ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge", "jod_logo"].indexOf(type) >= 0;
+	};
+
+	TicketCanvasController.prototype.syncSelectedPanel = function () {
+		const panel = this.root && this.root.querySelector("#ticketSelectedPanel");
+		const label = this.root && this.root.querySelector("#ticketSelectedLabel");
+		const wEl = this.root && this.root.querySelector("#ticketElWidth");
+		const hEl = this.root && this.root.querySelector("#ticketElHeight");
+		const hWrap = this.root && this.root.querySelector("#ticketElHeightWrap");
+		const fEl = this.root && this.root.querySelector("#ticketElFont");
+		const fWrap = this.root && this.root.querySelector("#ticketElFontWrap");
+		const colorWrap = this.root && this.root.querySelector("#ticketShapeColorWrap");
+		const colorInput = this.root && this.root.querySelector("#ticketShapeColor");
+		if (!panel) return;
+		const item = this.findById(this.selectedId);
+		if (!item) {
+			panel.hidden = true;
+			if (colorWrap) colorWrap.hidden = true;
+			return;
+		}
+		const def = DEF_BY_TYPE[item.type] || {};
+		const isLine = item.type === "line" || item.type === "dashed_line";
+		panel.hidden = false;
+		if (label) label.textContent = "· " + (def.label || item.type);
+		if (wEl) wEl.value = String(Math.round(item.w));
+		if (hEl) hEl.value = String(Math.round(item.h));
+		if (hWrap) hWrap.hidden = !!isLine;
+		if (fWrap) fWrap.hidden = !this.isTextElement(item.type);
+		if (fEl) fEl.value = String(Math.round((item.fontScale || 1) * 100));
+		if (colorWrap && colorInput) {
+			const showColor = isShapeType(item.type);
+			colorWrap.hidden = !showColor;
+			if (showColor) colorInput.value = sanitizeColor(item.color, "#38bdf8");
+		}
 	};
 
 	TicketCanvasController.prototype.updateSelectionStyles = function () {
 		if (!this.root) return;
 		const selected = this.selectedId;
+		const card = this.root.querySelector("#ticketLiveCard");
+		if (card) card.classList.toggle("has-selection", !!selected);
 		this.root.querySelectorAll(".tc-node").forEach(function (node) {
 			const on = node.getAttribute("data-id") === selected;
 			node.classList.toggle("is-selected", on);
+			node.classList.toggle("is-dimmed", !!(selected && !on));
 		});
-		this.syncShapeColorControl();
+		this.syncSelectedPanel();
+	};
+
+	TicketCanvasController.prototype.applyNodeBox = function (item) {
+		if (!item || !this.root) return;
+		const safeId = String(item.id || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+		const node = this.root.querySelector('.tc-node[data-id="' + safeId + '"]');
+		if (!node) return;
+		node.style.left = item.x + "%";
+		node.style.top = item.y + "%";
+		node.style.width = item.w + "%";
+		node.style.height = item.h + "%";
+		const scale = item.fontScale || 1;
+		node.style.setProperty("--tc-font-scale", String(scale));
 	};
 
 	TicketCanvasController.prototype.mount = function () {
@@ -337,16 +393,24 @@
 			'  <div class="ticket-template-grid" id="ticketTemplateGrid" role="listbox" aria-label="Ticket templates"></div>',
 			'  <div class="ticket-canvas-workspace">',
 			'    <div class="ticket-canvas-stage" id="ticketCanvasStage">',
-			'      <div class="ticket-canvas-hint">Drag to move. Click empty space or press Esc to deselect. Click × to remove. Click a selected item again to cancel selection.</div>',
+			'      <div class="ticket-canvas-hint">Select an element to move or resize it. Blue corner handles extend size. Esc deselects · × removes.</div>',
 			'      <div class="ticket-live-card is-canvas" id="ticketLiveCard" aria-live="polite"></div>',
 			'    </div>',
 			'    <div class="ticket-canvas-controls">',
 			'      <label class="ticket-ctrl"><span>Accent color</span><input type="color" id="ticketAccentColor" value="#2563eb" /></label>',
 			'      <label class="ticket-ctrl"><span>Headline override</span><input type="text" id="ticketHeadlineOverride" maxlength="80" placeholder="Leave blank to use event title" /></label>',
 			'      <label class="ticket-ctrl"><span>Footer note</span><input type="text" id="ticketCustomFooter" maxlength="120" placeholder="Optional short note on ticket" /></label>',
+			'      <div class="ticket-selected-panel" id="ticketSelectedPanel" hidden>',
+			'        <div class="ticket-palette-title">Selected element <span id="ticketSelectedLabel"></span></div>',
+			'        <p class="ticket-selected-help">This field is on the ticket. Drag to move. Pull handles to extend. Adjust size below.</p>',
+			'        <label class="ticket-ctrl"><span>Width</span><input type="range" id="ticketElWidth" min="8" max="96" step="1" /></label>',
+			'        <label class="ticket-ctrl" id="ticketElHeightWrap"><span>Height</span><input type="range" id="ticketElHeight" min="1" max="40" step="1" /></label>',
+			'        <label class="ticket-ctrl" id="ticketElFontWrap" hidden><span>Text size</span><input type="range" id="ticketElFont" min="70" max="220" step="5" /></label>',
+			'        <label class="ticket-ctrl ticket-shape-color-wrap" id="ticketShapeColorWrap" hidden><span>Shape color</span><input type="color" id="ticketShapeColor" value="#38bdf8" /></label>',
+			'        <button type="button" class="ticket-reset-btn" id="ticketDeselectBtn">Deselect</button>',
+			'      </div>',
 			'      <div class="ticket-palette-title">Shapes</div>',
 			'      <div class="ticket-element-palette" id="ticketShapePalette"></div>',
-			'      <label class="ticket-ctrl ticket-shape-color-wrap" id="ticketShapeColorWrap" hidden><span>Selected shape color</span><input type="color" id="ticketShapeColor" value="#38bdf8" /></label>',
 			'      <div class="ticket-palette-title">Add fields</div>',
 			'      <div class="ticket-element-palette" id="ticketElementPalette"></div>',
 			'      <div class="ticket-palette-title">Show on ticket</div>',
@@ -373,7 +437,7 @@
 		this.renderTemplatePicker();
 		this.renderPalette();
 		this.renderPreview();
-		this.syncShapeColorControl();
+		this.syncSelectedPanel();
 	};
 
 	TicketCanvasController.prototype.bindEvents = function () {
@@ -439,6 +503,35 @@
 			});
 		}
 
+		[["ticketElWidth", "w"], ["ticketElHeight", "h"]].forEach(function (pair) {
+			const el = self.root.querySelector("#" + pair[0]);
+			if (!el) return;
+			el.addEventListener("input", function () {
+				const item = self.findById(self.selectedId);
+				if (!item) return;
+				const key = pair[1];
+				const isLine = item.type === "line" || item.type === "dashed_line";
+				const min = key === "h" && isLine ? 1 : (key === "w" ? 8 : 3);
+				item[key] = clampNum(Number(el.value), min, key === "w" ? 96 : 40, item[key]);
+				if (item.x + item.w > 100) item.x = Math.max(0, 100 - item.w);
+				if (item.y + item.h > 100) item.y = Math.max(0, 100 - item.h);
+				self.applyNodeBox(item);
+				self.emitChange();
+			});
+		});
+		const fontEl = this.root.querySelector("#ticketElFont");
+		if (fontEl) {
+			fontEl.addEventListener("input", function () {
+				const item = self.findById(self.selectedId);
+				if (!item || !self.isTextElement(item.type)) return;
+				item.fontScale = clampNum(Number(fontEl.value) / 100, 0.7, 2.2, 1);
+				self.applyNodeBox(item);
+				self.emitChange();
+			});
+		}
+		const deselectBtn = this.root.querySelector("#ticketDeselectBtn");
+		if (deselectBtn) deselectBtn.addEventListener("click", function () { self.clearSelection(); });
+
 		const resetBtn = this.root.querySelector("#ticketResetLayout");
 		if (resetBtn) {
 			resetBtn.addEventListener("click", function () {
@@ -454,24 +547,25 @@
 				self.syncControls();
 				self.renderPalette();
 				self.renderPreview();
-				self.syncShapeColorControl();
+				self.syncSelectedPanel();
 				self.emitChange();
 			});
 		}
 
-		document.addEventListener("mousemove", function (ev) { self.onDragMove(ev); });
-		document.addEventListener("mouseup", function () { self.onDragEnd(); });
+		document.addEventListener("mousemove", function (ev) { self.onPointerMove(ev); });
+		document.addEventListener("mouseup", function () { self.onPointerEnd(); });
 		document.addEventListener("touchmove", function (ev) {
-			self.onDragMove(ev.touches && ev.touches[0] ? ev.touches[0] : ev);
+			self.onPointerMove(ev.touches && ev.touches[0] ? ev.touches[0] : ev);
 		}, { passive: false });
-		document.addEventListener("touchend", function () { self.onDragEnd(); });
+		document.addEventListener("touchend", function () { self.onPointerEnd(); });
 
 		const stage = this.root.querySelector("#ticketCanvasStage");
 		if (stage) {
 			stage.addEventListener("pointerdown", function (ev) {
 				const node = ev.target && ev.target.closest ? ev.target.closest(".tc-node") : null;
 				const removeBtn = ev.target && ev.target.closest ? ev.target.closest("[data-remove], .tc-node-remove") : null;
-				if (removeBtn) return;
+				const handle = ev.target && ev.target.closest ? ev.target.closest("[data-resize]") : null;
+				if (removeBtn || handle) return;
 				if (!node) self.clearSelection();
 			});
 		}
@@ -495,13 +589,7 @@
 	};
 
 	TicketCanvasController.prototype.syncShapeColorControl = function () {
-		const wrap = this.root && this.root.querySelector("#ticketShapeColorWrap");
-		const input = this.root && this.root.querySelector("#ticketShapeColor");
-		if (!wrap || !input) return;
-		const item = this.findById(this.selectedId);
-		const show = !!(item && isShapeType(item.type));
-		wrap.hidden = !show;
-		if (show) input.value = sanitizeColor(item.color, "#38bdf8");
+		this.syncSelectedPanel();
 	};
 
 	TicketCanvasController.prototype.syncControls = function () {
@@ -646,9 +734,10 @@
 		const L = this.layout;
 		const accent = L.accent_color || p.accent || "#2563eb";
 		const self = this;
+		const hasSel = !!this.selectedId;
 
 		stage.style.background = p.bg || "#f4f6f8";
-		card.className = "ticket-live-card is-canvas style-" + (tmpl.id || "classic");
+		card.className = "ticket-live-card is-canvas style-" + (tmpl.id || "classic") + (hasSel ? " has-selection" : "");
 		card.style.background = p.card || "#fff";
 		card.style.color = p.text || "#111827";
 		card.style.setProperty("--ticket-accent", accent);
@@ -659,20 +748,43 @@
 			const locked = el.type === "jod_logo" && !self.isPremium;
 			const selected = self.selectedId === el.id;
 			const def = DEF_BY_TYPE[el.type] || {};
+			const isLine = el.type === "line" || el.type === "dashed_line";
+			const scale = Number.isFinite(Number(el.fontScale)) ? el.fontScale : 1;
+			const handles = isLine
+				? '<span class="tc-handle tc-handle-e" data-resize="e" title="Extend"></span><span class="tc-handle tc-handle-w" data-resize="w" title="Extend"></span><span class="tc-handle tc-handle-s" data-resize="s" title="Thickness"></span>'
+				: '<span class="tc-handle tc-handle-nw" data-resize="nw"></span><span class="tc-handle tc-handle-ne" data-resize="ne"></span><span class="tc-handle tc-handle-sw" data-resize="sw"></span><span class="tc-handle tc-handle-se" data-resize="se"></span><span class="tc-handle tc-handle-n" data-resize="n"></span><span class="tc-handle tc-handle-s" data-resize="s"></span><span class="tc-handle tc-handle-e" data-resize="e"></span><span class="tc-handle tc-handle-w" data-resize="w"></span>';
 			bits.push(
-				'<div class="tc-node' + (selected ? " is-selected" : "") + (locked ? " is-locked" : "") + (def.shape ? " is-shape" : "") + '" data-id="' + escapeHtml(el.id) + '" data-type="' + el.type + '" style="left:' + el.x + "%;top:" + el.y + "%;width:" + el.w + "%;height:" + el.h + '%;">' +
-				'<div class="tc-node-toolbar"><span>' + escapeHtml(def.label || el.type) + "</span>" +
-				(locked ? "" : '<button type="button" class="tc-node-remove" data-remove="' + escapeHtml(el.id) + '" title="Remove">×</button>') +
+				'<div class="tc-node' +
+					(selected ? " is-selected" : "") +
+					(hasSel && !selected ? " is-dimmed" : "") +
+					(locked ? " is-locked" : "") +
+					(def.shape ? " is-shape" : "") +
+					(isLine ? " is-line" : "") +
+					'" data-id="' + escapeHtml(el.id) + '" data-type="' + el.type +
+					'" style="left:' + el.x + "%;top:" + el.y + "%;width:" + el.w + "%;height:" + el.h +
+					"%;--tc-font-scale:" + scale + ';">' +
+				'<div class="tc-node-toolbar"><span class="tc-on-ticket">On ticket</span><span class="tc-node-name">' +
+					escapeHtml(def.label || el.type) + "</span>" +
+				(locked ? "" : '<button type="button" class="tc-node-remove" data-remove="' + escapeHtml(el.id) + '" title="Remove from ticket">×</button>') +
 				"</div>" +
 				'<div class="tc-node-body">' + self.elementContent(el) + "</div>" +
+				'<div class="tc-handles" aria-hidden="true">' + handles + "</div>" +
 				"</div>"
 			);
 		});
 		card.innerHTML = bits.join("");
+		this.syncSelectedPanel();
 
 		card.querySelectorAll(".tc-node").forEach(function (node) {
 			node.addEventListener("pointerdown", function (ev) {
 				if (ev.target && ev.target.closest && ev.target.closest("[data-remove], .tc-node-remove")) return;
+				const handle = ev.target && ev.target.closest ? ev.target.closest("[data-resize]") : null;
+				if (handle) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					self.onResizeStart(ev, node, handle.getAttribute("data-resize"));
+					return;
+				}
 				ev.stopPropagation();
 				self.onDragStart(ev, node);
 			});
@@ -690,8 +802,8 @@
 		});
 	};
 
-	TicketCanvasController.prototype.onDragStart = function (point, node, rawEvent) {
-		if (rawEvent && rawEvent.cancelable) rawEvent.preventDefault();
+	TicketCanvasController.prototype.onDragStart = function (point, node) {
+		if (point.cancelable) point.preventDefault();
 		if (point.stopPropagation) point.stopPropagation();
 		const id = node.getAttribute("data-id");
 		const item = this.findById(id);
@@ -701,6 +813,7 @@
 		this.selectedId = id;
 		this._wasAlreadySelected = already;
 		this._didDrag = false;
+		this._resize = null;
 		const rect = card.getBoundingClientRect();
 		this._drag = {
 			id: id,
@@ -711,29 +824,95 @@
 			cardW: rect.width,
 			cardH: rect.height,
 		};
-		// Avoid full re-render on select — that was destroying the × button before click.
 		this.updateSelectionStyles();
 	};
 
-	TicketCanvasController.prototype.onDragMove = function (point) {
-		if (!this._drag || !point) return;
-		if (point.preventDefault) point.preventDefault();
-		const dx = ((point.clientX - this._drag.startX) / this._drag.cardW) * 100;
-		const dy = ((point.clientY - this._drag.startY) / this._drag.cardH) * 100;
-		if (Math.abs(dx) > 0.3 || Math.abs(dy) > 0.3) this._didDrag = true;
-		const item = this.findById(this._drag.id);
-		if (!item) return;
-		item.x = clampNum(this._drag.origX + dx, 0, 100 - item.w, item.x);
-		item.y = clampNum(this._drag.origY + dy, 0, 100 - item.h, item.y);
-		const safeId = String(item.id || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-		const node = this.root.querySelector('.tc-node[data-id="' + safeId + '"]');
-		if (node) {
-			node.style.left = item.x + "%";
-			node.style.top = item.y + "%";
-		}
+	TicketCanvasController.prototype.onResizeStart = function (point, node, edge) {
+		if (point.cancelable) point.preventDefault();
+		if (point.stopPropagation) point.stopPropagation();
+		const id = node.getAttribute("data-id");
+		const item = this.findById(id);
+		const card = this.root.querySelector("#ticketLiveCard");
+		if (!item || !card || !edge) return;
+		this.selectedId = id;
+		this._drag = null;
+		this._didDrag = true;
+		this._wasAlreadySelected = true;
+		const rect = card.getBoundingClientRect();
+		this._resize = {
+			id: id,
+			edge: edge,
+			startX: point.clientX,
+			startY: point.clientY,
+			origX: item.x,
+			origY: item.y,
+			origW: item.w,
+			origH: item.h,
+			cardW: rect.width,
+			cardH: rect.height,
+		};
+		this.updateSelectionStyles();
 	};
 
-	TicketCanvasController.prototype.onDragEnd = function () {
+	TicketCanvasController.prototype.onPointerMove = function (point) {
+		if (!point) return;
+		if (this._resize) {
+			if (point.preventDefault) point.preventDefault();
+			const dx = ((point.clientX - this._resize.startX) / this._resize.cardW) * 100;
+			const dy = ((point.clientY - this._resize.startY) / this._resize.cardH) * 100;
+			const item = this.findById(this._resize.id);
+			if (!item) return;
+			const edge = this._resize.edge;
+			const isLine = item.type === "line" || item.type === "dashed_line";
+			const minW = 8;
+			const minH = isLine ? 1 : 3;
+			let x = this._resize.origX;
+			let y = this._resize.origY;
+			let w = this._resize.origW;
+			let h = this._resize.origH;
+			if (edge.indexOf("e") >= 0) w = this._resize.origW + dx;
+			if (edge.indexOf("s") >= 0) h = this._resize.origH + dy;
+			if (edge.indexOf("w") >= 0) {
+				w = this._resize.origW - dx;
+				x = this._resize.origX + dx;
+			}
+			if (edge.indexOf("n") >= 0) {
+				h = this._resize.origH - dy;
+				y = this._resize.origY + dy;
+			}
+			w = clampNum(w, minW, 96, item.w);
+			h = clampNum(h, minH, 40, item.h);
+			if (edge.indexOf("w") >= 0) x = this._resize.origX + (this._resize.origW - w);
+			if (edge.indexOf("n") >= 0) y = this._resize.origY + (this._resize.origH - h);
+			x = clampNum(x, 0, 100 - w, item.x);
+			y = clampNum(y, 0, 100 - h, item.y);
+			item.x = x;
+			item.y = y;
+			item.w = w;
+			item.h = h;
+			this.applyNodeBox(item);
+			this.syncSelectedPanel();
+			return;
+		}
+		if (!this._drag) return;
+		if (point.preventDefault) point.preventDefault();
+		const mdx = ((point.clientX - this._drag.startX) / this._drag.cardW) * 100;
+		const mdy = ((point.clientY - this._drag.startY) / this._drag.cardH) * 100;
+		if (Math.abs(mdx) > 0.3 || Math.abs(mdy) > 0.3) this._didDrag = true;
+		const dragItem = this.findById(this._drag.id);
+		if (!dragItem) return;
+		dragItem.x = clampNum(this._drag.origX + mdx, 0, 100 - dragItem.w, dragItem.x);
+		dragItem.y = clampNum(this._drag.origY + mdy, 0, 100 - dragItem.h, dragItem.y);
+		this.applyNodeBox(dragItem);
+	};
+
+	TicketCanvasController.prototype.onPointerEnd = function () {
+		if (this._resize) {
+			this._resize = null;
+			this._didDrag = false;
+			this.emitChange();
+			return;
+		}
 		if (!this._drag) return;
 		const moved = this._didDrag;
 		const id = this._drag.id;
@@ -745,7 +924,6 @@
 			this.emitChange();
 			return;
 		}
-		// Click (no drag) on an already-selected element cancels selection.
 		if (already && this.selectedId === id) {
 			this.clearSelection();
 		}
