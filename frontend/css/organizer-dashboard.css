@@ -31,7 +31,50 @@ body.dashboard-body {
 	flex-direction: column;
 }
 
-/* No special ticket-studio body layout — same fixed shell as every other tab. */
+/* Ticket studio: use real page scroll so tools + canvas are never clipped. */
+body.dashboard-body.ticket-studio-open {
+	height: auto !important;
+	min-height: 100vh;
+	min-height: 100dvh;
+	overflow-x: hidden !important;
+	overflow-y: auto !important;
+	-webkit-overflow-scrolling: touch;
+}
+body.dashboard-body.ticket-studio-open .dash-topbar {
+	position: sticky;
+	top: 0;
+	z-index: 200;
+}
+body.dashboard-body.ticket-studio-open .dash-shell {
+	height: auto !important;
+	max-height: none !important;
+	min-height: calc(100vh - 60px);
+	min-height: calc(100dvh - 60px);
+	overflow: visible !important;
+	align-items: flex-start;
+}
+body.dashboard-body.ticket-studio-open .dash-sidebar {
+	position: sticky !important;
+	top: 60px;
+	align-self: flex-start;
+	height: calc(100vh - 60px) !important;
+	height: calc(100dvh - 60px) !important;
+	max-height: calc(100vh - 60px) !important;
+	max-height: calc(100dvh - 60px) !important;
+	overflow-x: hidden !important;
+	overflow-y: auto !important;
+	display: flex !important;
+	visibility: visible !important;
+	flex-shrink: 0;
+	z-index: 150;
+}
+body.dashboard-body.ticket-studio-open .dash-content {
+	overflow: visible !important;
+	height: auto !important;
+	max-height: none !important;
+	min-height: 0;
+	flex: 1 1 auto;
+}
 
 .leaflet-container,
 .leaflet-container a,
@@ -406,47 +449,25 @@ body.dashboard-body {
     box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.06) inset;
 }
 
-/* Tab visibility — inactive panels must leave ZERO layout space. */
-.dash-content > .tab-section,
-.tab-section {
-	display: none !important;
-	position: absolute !important;
-	left: -9999px !important;
-	top: 0 !important;
-	width: 1px !important;
-	height: 1px !important;
-	margin: 0 !important;
-	padding: 0 !important;
-	overflow: hidden !important;
-	visibility: hidden !important;
-	pointer-events: none !important;
-	min-height: 0 !important;
-	max-height: 0 !important;
-	opacity: 0 !important;
-}
-.dash-content > .tab-section.active-tab,
-.tab-section.active-tab {
-	display: block !important;
-	position: relative !important;
-	left: auto !important;
-	top: auto !important;
-	width: 100% !important;
-	height: auto !important;
-	max-height: none !important;
-	min-height: 0 !important;
-	margin: 0 !important;
-	padding: 0 !important;
-	overflow: visible !important;
-	visibility: visible !important;
-	pointer-events: auto !important;
-	opacity: 1 !important;
-	z-index: 1;
-}
+/* Tab visibility — inactive panels take no space. */
+.tab-section,
 .tab-section[hidden] {
 	display: none !important;
 }
+.tab-section.active-tab:not([hidden]) {
+	display: block !important;
+	position: relative;
+	width: 100%;
+	height: auto;
+	margin: 0;
+	padding: 0;
+	overflow: visible;
+	visibility: visible;
+	pointer-events: auto;
+	z-index: 1;
+}
 
-/* Main content is the only scrollport inside the fixed shell. */
+/* Default: main content scrolls inside the fixed shell. */
 .dash-content {
 	flex: 1 1 auto;
 	min-width: 0;
@@ -454,11 +475,10 @@ body.dashboard-body {
 	height: auto;
 	max-height: 100%;
 	padding: 1rem 1.25rem 1.5rem;
-	overflow-y: scroll !important;
+	overflow-y: auto !important;
 	overflow-x: hidden;
 	-webkit-overflow-scrolling: touch;
 	overscroll-behavior: contain;
-	scrollbar-gutter: stable;
 	display: block;
 	position: relative;
 	z-index: 1;
@@ -2459,6 +2479,10 @@ html[data-theme="dark"] .dash-toast {
 	grid-template-columns: minmax(260px, 0.92fr) minmax(300px, 1.08fr);
 	gap: 1rem;
 	align-items: start;
+}
+body.ticket-studio-open .ticket-studio-canvas-wrap {
+	position: sticky;
+	top: 1rem;
 }
 .ticket-design-studio.is-studio-layout .ticket-template-grid {
 	grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));

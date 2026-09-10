@@ -135,6 +135,12 @@
 	function cloneLayout(src) {
 		const out = Object.assign({}, DEFAULT_LAYOUT, src || {});
 		out.canvas_elements = cloneElements((src && src.canvas_elements) || DEFAULT_ELEMENTS);
+		/* Keep footer from sitting on top of venue (old drafts). */
+		const venue = out.canvas_elements.find(function (e) { return e.type === "venue"; });
+		const footer = out.canvas_elements.find(function (e) { return e.type === "footer"; });
+		if (venue && footer && Math.abs(footer.y - venue.y) < 6) {
+			footer.y = Math.min(92, venue.y + venue.h + 1);
+		}
 		return out;
 	}
 
@@ -157,7 +163,7 @@
 			date: "Sat, Apr 18, 2026, 06:30 PM",
 			venue: "Chennai Trade Centre",
 			ticketType: "General Admission",
-			seat: "General Admission",
+			seat: "Seat A12",
 			price: "Rs. 999",
 			bookingId: "JOD-A1B2C3D4",
 			attendeeName: "Priya Sharma",
@@ -281,6 +287,12 @@
 			base || {},
 			{ id: id, type: type }
 		);
+		if (type === "footer" && !base) {
+			next.x = 30;
+			next.y = 25;
+			next.w = 58;
+			next.h = 4;
+		}
 		if (def.shape) next.color = def.color || "#38bdf8";
 		this.layout.canvas_elements = (this.layout.canvas_elements || []).concat([next]);
 		if (def.flag) this.layout[def.flag] = true;
@@ -450,7 +462,7 @@
 			'  </div>',
 			'  <div class="ticket-canvas-workspace ticket-studio-canvas-wrap">',
 			'    <div class="ticket-canvas-stage" id="ticketCanvasStage">',
-			'      <div class="ticket-canvas-hint">Scroll the page to see the full ticket. Drag fields to move · handles resize · Esc deselects.</div>',
+			'      <div class="ticket-canvas-hint">Scroll down for the full ticket. Drag fields to move · blue handles resize · Esc deselects.</div>',
 			'      <div class="ticket-live-card is-canvas" id="ticketLiveCard" aria-live="polite"></div>',
 			'    </div>',
 			'  </div>',

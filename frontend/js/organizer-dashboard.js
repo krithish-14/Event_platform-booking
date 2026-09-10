@@ -1372,19 +1372,9 @@ async function initOrganizerDashboard() {
 
 		try {
 			const dashContent = document.querySelector(".dash-content");
-			if (dashContent) {
-				dashContent.scrollTop = 0;
-				/* Nudge layout so the active panel is the scrollport content. */
-				requestAnimationFrame(function () {
-					dashContent.scrollTop = 0;
-					if (targetSection && typeof targetSection.scrollIntoView === "function") {
-						targetSection.scrollIntoView({ block: "start", inline: "nearest" });
-						dashContent.scrollTop = 0;
-					}
-				});
-			}
+			if (dashContent) dashContent.scrollTop = 0;
+			window.scrollTo(0, 0);
 		} catch (_) {}
-		try { window.scrollTo(0, 0); } catch (_) {}
 
 		try {
 			const sectionIds = ['sectionOverview','sectionManage','sectionSettings','sectionDesign','sectionTicket','sectionRegistrations','sectionExhibitors','sectionCommunicate','sectionReports','sectionEventday','sectionAttendance'];
