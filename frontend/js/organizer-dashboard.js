@@ -1334,7 +1334,9 @@ async function initOrganizerDashboard() {
 		});
 
 		try {
-			document.body.classList.toggle("ticket-studio-open", tabName === "ticket");
+			const onTicket = tabName === "ticket";
+			document.body.classList.toggle("ticket-studio-open", onTicket);
+			document.documentElement.classList.toggle("ticket-studio-scroll", onTicket);
 		} catch (_) {}
 
 		const targetSections = {
