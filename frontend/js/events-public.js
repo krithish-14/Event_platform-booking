@@ -150,7 +150,9 @@
 	}
 
 	function pad(n) {
-		return String(n).padStart(2, "0");
+		const x = Number(n);
+		if (!Number.isFinite(x)) return "00";
+		return String(Math.max(0, Math.floor(x))).padStart(2, "0");
 	}
 
 	function getEventPhase(event) {

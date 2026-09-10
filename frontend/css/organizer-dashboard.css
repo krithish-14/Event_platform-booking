@@ -31,56 +31,17 @@ body.dashboard-body {
 	flex-direction: column;
 }
 
-/* Ticket studio: use real page scroll so tools + canvas are never clipped. */
-body.dashboard-body.ticket-studio-open {
-	height: auto !important;
-	min-height: 100vh;
-	min-height: 100dvh;
-	overflow-x: hidden !important;
-	overflow-y: auto !important;
-	-webkit-overflow-scrolling: touch;
-}
-body.dashboard-body.ticket-studio-open .dash-topbar {
-	position: sticky;
-	top: 0;
-	z-index: 200;
-}
-body.dashboard-body.ticket-studio-open .dash-shell {
-	height: auto !important;
-	max-height: none !important;
-	min-height: calc(100vh - 60px);
-	min-height: calc(100dvh - 60px);
-	overflow: visible !important;
-	align-items: flex-start;
+/* Ticket studio stays inside the fixed dashboard shell (no body-scroll hacks). */
+body.dashboard-body.ticket-studio-open .dash-content {
+	display: flex !important;
+	flex-direction: column;
+	overflow: hidden !important;
+	padding: 0.65rem 0.75rem 0.75rem !important;
 }
 body.dashboard-body.ticket-studio-open .dash-sidebar {
-	position: sticky !important;
-	top: 60px;
-	align-self: flex-start;
-	height: calc(100vh - 60px) !important;
-	height: calc(100dvh - 60px) !important;
-	max-height: calc(100vh - 60px) !important;
-	max-height: calc(100dvh - 60px) !important;
-	overflow-x: hidden !important;
-	overflow-y: auto !important;
 	display: flex !important;
 	visibility: visible !important;
-	flex-shrink: 0;
-	z-index: 150;
-}
-body.dashboard-body.ticket-studio-open .dash-content {
-	overflow: visible !important;
-	height: auto !important;
-	max-height: none !important;
-	min-height: 0;
-	flex: 1 1 auto;
-	padding: 0.65rem 0.85rem 2.5rem 0.65rem !important;
-}
-html.ticket-studio-scroll,
-html.ticket-studio-scroll body.dashboard-body.ticket-studio-open {
-	height: auto !important;
-	overflow-x: hidden !important;
-	overflow-y: auto !important;
+	z-index: 40;
 }
 
 .leaflet-container,
@@ -2430,27 +2391,34 @@ html[data-theme="dark"] .dash-toast {
 .ticket-studio-page {
 	max-width: none;
 	margin: 0;
-	padding: 0 0 2rem;
+	padding: 0;
 	width: 100%;
-	height: auto;
-	overflow: visible;
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 .ticket-studio-header {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
-	gap: 0.55rem 0.85rem;
-	margin: 0 0 0.55rem;
+	gap: 0.45rem 0.75rem;
+	margin: 0 0 0.5rem;
+	flex: 0 0 auto;
 }
 .ticket-studio-heading .rich-form-title {
-	margin: 0.15rem 0 0.1rem !important;
-	font-size: 1.35rem;
+	margin: 0.1rem 0 0.05rem !important;
+	font-size: 1.25rem;
 }
 .ticket-studio-heading .rich-form-subtitle {
 	margin: 0 !important;
-	font-size: 0.82rem;
-	max-width: 40rem;
+	font-size: 0.8rem;
+	max-width: 38rem;
+}
+.ticket-studio-heading .form-pill-badge {
+	margin-bottom: 0.15rem;
 }
 .ticket-studio-actions {
 	display: flex;
@@ -2490,41 +2458,43 @@ html[data-theme="dark"] .dash-toast {
 	flex-direction: column;
 	gap: 1.1rem;
 }
-/* Tools (left, next to sidebar) + preview (right) — keep side-by-side on laptops. */
+/* Tools left (beside sidebar) + preview right — fill remaining shell height. */
+.ticket-design-host-studio {
+	flex: 1 1 auto;
+	min-height: 0;
+	margin: 0;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
 .ticket-design-studio.is-studio-layout {
 	display: grid !important;
-	grid-template-columns: minmax(250px, 320px) minmax(280px, 1fr) !important;
-	gap: 0.85rem;
-	align-items: start;
+	grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) !important;
+	gap: 0.75rem;
+	align-items: stretch;
 	width: 100%;
-}
-body.ticket-studio-open .ticket-studio-toolbar {
-	position: sticky;
-	top: 0.75rem;
-	max-height: calc(100dvh - 5.5rem);
-	overflow-x: hidden;
-	overflow-y: auto;
-	-webkit-overflow-scrolling: touch;
-}
-body.ticket-studio-open .ticket-studio-canvas-wrap {
-	position: sticky;
-	top: 0.75rem;
-	justify-self: start;
+	flex: 1 1 auto;
+	min-height: 0;
+	height: 100%;
 }
 .ticket-design-studio.is-studio-layout .ticket-template-grid {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 0.45rem;
+	gap: 0.4rem;
 }
 .ticket-studio-toolbar {
 	display: flex;
 	flex-direction: column;
-	gap: 0.65rem;
-	padding: 0.7rem 0.75rem;
+	gap: 0.55rem;
+	padding: 0.65rem 0.7rem;
 	border: 1px solid #e2e8f0;
 	border-radius: 14px;
 	background: #fff;
 	min-height: 0;
 	min-width: 0;
+	max-height: 100%;
+	overflow-x: hidden;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
 }
 .ticket-studio-controls-top {
 	display: flex;
@@ -2546,38 +2516,45 @@ body.ticket-studio-open .ticket-studio-canvas-wrap {
 	gap: 0.4rem;
 }
 .ticket-studio-canvas-wrap {
-	display: block !important;
+	display: flex !important;
+	flex-direction: column;
 	grid-template-columns: none !important;
-	position: static;
+	position: relative;
 	min-width: 0;
-	align-self: start;
+	min-height: 0;
+	max-height: 100%;
+	overflow: auto;
+	-webkit-overflow-scrolling: touch;
+	align-self: stretch;
 }
 .ticket-design-studio.is-studio-layout .ticket-canvas-stage {
 	min-height: 0 !important;
 	width: 100%;
-	padding: 0.5rem 0.5rem 1rem;
+	flex: 1;
+	padding: 0.5rem;
 	justify-content: flex-start;
 	align-items: center;
-	gap: 0.4rem;
+	gap: 0.35rem;
 }
 .ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas {
-	width: min(100%, 380px);
-	height: 580px;
+	width: min(100%, 360px);
+	height: min(560px, 72vh);
 	margin-top: 0;
 }
-#sectionTicket.active-tab {
-	display: block !important;
+#sectionTicket.active-tab:not([hidden]) {
+	display: flex !important;
+	flex-direction: column;
 	position: relative !important;
-	left: auto !important;
 	width: 100% !important;
-	height: auto !important;
-	max-height: none !important;
+	flex: 1 1 auto;
+	height: 100% !important;
+	max-height: 100% !important;
 	min-height: 0 !important;
 	margin: 0 !important;
-	overflow: visible !important;
+	overflow: hidden !important;
 	visibility: visible !important;
 	pointer-events: auto !important;
-	padding: 0 0 1.5rem !important;
+	padding: 0 !important;
 	opacity: 1 !important;
 }
 .ticket-template-grid {

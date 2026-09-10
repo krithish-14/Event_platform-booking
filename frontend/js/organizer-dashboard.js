@@ -1336,7 +1336,7 @@ async function initOrganizerDashboard() {
 		try {
 			const onTicket = tabName === "ticket";
 			document.body.classList.toggle("ticket-studio-open", onTicket);
-			document.documentElement.classList.toggle("ticket-studio-scroll", onTicket);
+			document.documentElement.classList.remove("ticket-studio-scroll");
 		} catch (_) {}
 
 		const targetSections = {
