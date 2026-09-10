@@ -31,37 +31,7 @@ body.dashboard-body {
 	flex-direction: column;
 }
 
-/* Keep sidebar fixed in the shell. Only .dash-content scrolls (all tabs, incl. Ticket). */
-body.dashboard-body.ticket-studio-open {
-	height: 100vh;
-	height: 100dvh;
-	overflow: hidden;
-}
-body.dashboard-body.ticket-studio-open .dash-shell {
-	height: auto;
-	max-height: calc(100vh - 60px);
-	max-height: calc(100dvh - 60px);
-	min-height: 0;
-	overflow: hidden;
-	align-items: stretch;
-}
-body.dashboard-body.ticket-studio-open .dash-sidebar {
-	position: relative;
-	display: flex !important;
-	visibility: visible !important;
-	height: 100%;
-	max-height: none;
-	flex-shrink: 0;
-	z-index: 40;
-}
-body.dashboard-body.ticket-studio-open .dash-content {
-	flex: 1;
-	min-height: 0;
-	height: auto;
-	overflow-y: auto !important;
-	overflow-x: hidden;
-	-webkit-overflow-scrolling: touch;
-}
+/* No special ticket-studio body layout — same fixed shell as every other tab. */
 
 .leaflet-container,
 .leaflet-container a,
@@ -263,11 +233,10 @@ body.dashboard-body.ticket-studio-open .dash-content {
 /* ------ Layout Shell --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- */
 .dash-shell {
 	display: flex;
-	flex: 1;
+	flex: 1 1 auto;
 	min-height: 0;
-	height: auto;
-	max-height: calc(100vh - 60px);
-	max-height: calc(100dvh - 60px);
+	height: calc(100vh - 60px);
+	height: calc(100dvh - 60px);
 	overflow: hidden;
 }
 
@@ -276,7 +245,8 @@ body.dashboard-body.ticket-studio-open .dash-content {
 	width: 78px;
 	background-color: var(--dash-sidebar-bg);
 	border-right: 1px solid var(--dash-border);
-	display: flex;
+	display: flex !important;
+	visibility: visible !important;
 	flex-direction: column;
 	justify-content: flex-start;
 	padding: 0.45rem 0 0;
@@ -284,7 +254,8 @@ body.dashboard-body.ticket-studio-open .dash-content {
 	min-height: 0;
 	overflow: hidden;
 	flex-shrink: 0;
-	z-index: 9999;
+	position: relative;
+	z-index: 40;
 }
 
 .sidebar-menu-top {
@@ -454,16 +425,18 @@ body.dashboard-body.ticket-studio-open .dash-content {
 
 /* Main content is the only scrollport inside the fixed shell. */
 .dash-content {
-	flex: 1;
+	flex: 1 1 auto;
 	min-width: 0;
 	min-height: 0;
-	height: auto;
+	height: 100%;
 	padding: 1.5rem;
 	overflow-y: auto !important;
 	overflow-x: hidden;
 	-webkit-overflow-scrolling: touch;
 	overscroll-behavior: contain;
 	display: block;
+	position: relative;
+	z-index: 1;
 }
 
 /* ------ KPI Cards Row (Top 3 Cards) ------------------------------------------------------------------------------------------------------------------------------------------ */
@@ -1830,10 +1803,10 @@ html[data-theme="dark"] .ticket-offer-hint {
 
 	.dash-shell {
 		flex-direction: column;
-		flex: 1;
+		flex: 1 1 auto;
 		min-height: 0;
-		height: auto;
-		max-height: calc(100dvh - 60px);
+		height: calc(100dvh - 60px);
+		max-height: none;
 		overflow: hidden;
 	}
 
@@ -2505,13 +2478,16 @@ html[data-theme="dark"] .dash-toast {
 	align-self: start;
 }
 .ticket-design-studio.is-studio-layout .ticket-canvas-stage {
-	min-height: 640px;
+	min-height: 0;
 	width: 100%;
-	padding: 1.25rem 1rem 1.5rem;
+	padding: 0.75rem 0.75rem 1.25rem;
+	justify-content: flex-start;
+	gap: 0.5rem;
 }
 .ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas {
 	width: min(100%, 380px);
 	height: 580px;
+	margin-top: 0;
 }
 #sectionTicket.active-tab {
 	display: block !important;
