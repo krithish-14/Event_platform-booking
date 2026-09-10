@@ -30,32 +30,20 @@ body.dashboard-body {
 	flex-direction: column;
 }
 
-/* Ticket studio: use normal page scroll (browser scrollbar), not nested panel scroll. */
-body.dashboard-body.ticket-studio-open {
-	height: auto;
-	min-height: 100vh;
-	overflow-x: hidden;
-	overflow-y: auto;
-	-webkit-overflow-scrolling: touch;
-}
-body.dashboard-body.ticket-studio-open .dash-shell {
-	height: auto;
-	min-height: calc(100vh - 60px);
-	overflow: visible;
-	align-items: flex-start;
-}
-body.dashboard-body.ticket-studio-open .dash-sidebar {
-	position: sticky;
-	top: 0;
-	height: 100vh;
-	max-height: 100vh;
-	align-self: flex-start;
-}
+/* Ticket studio: keep normal dash-content scroll; avoid phantom empty height. */
 body.dashboard-body.ticket-studio-open .dash-content {
-	overflow: visible !important;
-	height: auto;
-	min-height: calc(100vh - 60px);
-	flex: 1 0 auto;
+	overflow-y: auto !important;
+	overflow-x: hidden;
+}
+.tab-section:not(.active-tab) {
+	display: none !important;
+	height: 0 !important;
+	max-height: 0 !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	overflow: hidden !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
 }
 
 .leaflet-container,
@@ -2385,7 +2373,7 @@ html[data-theme="dark"] .dash-toast {
 .ticket-studio-page {
 	max-width: 1180px;
 	margin: 0 auto;
-	padding: 0.25rem 0 4rem;
+	padding: 0 0 2rem;
 	width: 100%;
 	height: auto;
 	overflow: visible;
@@ -2409,9 +2397,9 @@ html[data-theme="dark"] .dash-toast {
 	color: #64748b;
 	font-weight: 600;
 }
-.ticket-save-status.is-saving { color: #d97706; }
+.ticket-save-status.is-saving { color: #64748b; }
 .ticket-save-status.is-saved { color: #059669; }
-.ticket-save-status.is-dirty { color: #b45309; }
+.ticket-save-status.is-dirty { color: #475569; }
 .ticket-publish-btn {
 	background: #2563eb;
 	color: #fff;
@@ -2494,12 +2482,16 @@ html[data-theme="dark"] .dash-toast {
 	height: 580px;
 }
 #sectionTicket.active-tab {
+	display: block !important;
 	width: 100%;
 	height: auto;
 	max-height: none;
 	min-height: 0;
+	margin: 0;
 	overflow: visible;
-	padding-bottom: 3rem;
+	visibility: visible !important;
+	pointer-events: auto !important;
+	padding: 0 0 2rem;
 }
 .ticket-template-grid {
 	display: grid;
@@ -2675,9 +2667,9 @@ html[data-theme="dark"] .dash-toast {
 	filter: none;
 }
 .tc-node.is-selected {
-	border-color: var(--ticket-accent, #2563eb);
+	border-color: #2563eb;
 	border-style: solid;
-	box-shadow: 0 0 0 1px color-mix(in srgb, var(--ticket-accent, #2563eb) 35%, transparent);
+	box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.28);
 	z-index: 6;
 	opacity: 1;
 	filter: none;
@@ -2690,65 +2682,14 @@ html[data-theme="dark"] .dash-toast {
 	padding: 0.35rem 0.15rem;
 	overflow: visible;
 }
-.tc-node-toolbar {
-	display: none;
-	position: absolute;
-	left: 2px;
-	right: 2px;
-	top: 2px;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.25rem;
-	font-size: 0.58rem;
-	font-weight: 700;
-	letter-spacing: 0.03em;
-	text-transform: uppercase;
-	color: #fff;
-	background: var(--ticket-accent, #2563eb);
-	border-radius: 6px;
-	padding: 0.18rem 0.3rem;
-	box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
-	pointer-events: auto;
-	z-index: 8;
-	white-space: nowrap;
-}
-.tc-node.is-selected .tc-node-toolbar { display: flex; }
-.tc-node.is-line .tc-node-toolbar,
-.tc-node.is-selected.is-line .tc-node-toolbar {
-	top: auto;
-	bottom: calc(100% - 2px);
+.tc-node-toolbar,
+.tc-on-ticket,
+.tc-node-name,
+.tc-node-remove {
+	display: none !important;
 }
 .tc-node.is-selected .tc-node-body {
-	padding-top: 1.15rem;
-}
-.tc-node.is-selected.is-shape .tc-node-body,
-.tc-node.is-selected.is-line .tc-node-body {
 	padding-top: 0;
-}
-.tc-on-ticket {
-	flex: 0 0 auto;
-	background: rgba(255,255,255,0.22);
-	border-radius: 4px;
-	padding: 0.05rem 0.28rem;
-	font-size: 0.52rem;
-}
-.tc-node-name {
-	flex: 1 1 auto;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-.tc-node-remove {
-	border: none;
-	background: transparent;
-	color: #fff;
-	font-size: 0.95rem;
-	line-height: 1;
-	cursor: pointer;
-	padding: 0 0.15rem;
-	font-weight: 800;
-	pointer-events: auto;
-	z-index: 5;
-	position: relative;
 }
 .tc-node-body {
 	width: 100%;
@@ -2768,7 +2709,7 @@ html[data-theme="dark"] .dash-toast {
 	height: 10px;
 	border-radius: 50%;
 	background: #fff;
-	border: 2px solid var(--ticket-accent, #2563eb);
+	border: 2px solid #2563eb;
 	box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
 	z-index: 9;
 	pointer-events: auto;

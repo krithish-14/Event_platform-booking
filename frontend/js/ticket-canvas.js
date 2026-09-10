@@ -362,6 +362,12 @@
 			colorWrap.hidden = !showColor;
 			if (showColor) colorInput.value = sanitizeColor(item.color, "#38bdf8");
 		}
+		const removeBtn = this.root && this.root.querySelector("#ticketRemoveSelectedBtn");
+		if (removeBtn) {
+			const lockedLogo = item.type === "jod_logo" && !this.isPremium;
+			removeBtn.hidden = !!lockedLogo;
+			removeBtn.disabled = !!lockedLogo;
+		}
 	};
 
 	TicketCanvasController.prototype.updateSelectionStyles = function () {
@@ -405,13 +411,14 @@
 			'      </div>',
 			'      <div class="ticket-selected-panel" id="ticketSelectedPanel" hidden>',
 			'        <div class="ticket-palette-title">Selected <span id="ticketSelectedLabel"></span></div>',
-			'        <p class="ticket-selected-help">Drag to move. Pull handles to resize. Red dashed lines help align.</p>',
+			'        <p class="ticket-selected-help">Drag to move. Pull blue handles to resize. Use Remove to delete from the ticket.</p>',
 			'        <div class="ticket-ctrl-row">',
 			'          <label class="ticket-ctrl"><span>Width</span><input type="range" id="ticketElWidth" min="8" max="96" step="1" /></label>',
 			'          <label class="ticket-ctrl" id="ticketElHeightWrap"><span>Height</span><input type="range" id="ticketElHeight" min="1" max="40" step="1" /></label>',
 			'          <label class="ticket-ctrl" id="ticketElFontWrap" hidden><span>Text size</span><input type="range" id="ticketElFont" min="70" max="220" step="5" /></label>',
 			'          <label class="ticket-ctrl ticket-shape-color-wrap" id="ticketShapeColorWrap" hidden><span>Color</span><input type="color" id="ticketShapeColor" value="#38bdf8" /></label>',
 			'          <button type="button" class="ticket-reset-btn" id="ticketDeselectBtn">Deselect</button>',
+			'          <button type="button" class="ticket-reset-btn ticket-remove-selected-btn" id="ticketRemoveSelectedBtn">Remove</button>',
 			'        </div>',
 			'      </div>',
 			'      <div class="ticket-tool-block">',
@@ -548,6 +555,15 @@
 		}
 		const deselectBtn = this.root.querySelector("#ticketDeselectBtn");
 		if (deselectBtn) deselectBtn.addEventListener("click", function () { self.clearSelection(); });
+		const removeSelectedBtn = this.root.querySelector("#ticketRemoveSelectedBtn");
+		if (removeSelectedBtn) {
+			removeSelectedBtn.addEventListener("click", function () {
+				const item = self.findById(self.selectedId);
+				if (!item) return;
+				if (item.type === "jod_logo" && !self.isPremium) return;
+				self.removeElement(self.selectedId);
+			});
+		}
 
 		const resetBtn = this.root.querySelector("#ticketResetLayout");
 		if (resetBtn) {
@@ -794,10 +810,6 @@
 					'" data-id="' + escapeHtml(el.id) + '" data-type="' + el.type +
 					'" style="left:' + el.x + "%;top:" + el.y + "%;width:" + el.w + "%;height:" + el.h +
 					"%;--tc-font-scale:" + scale + ';">' +
-				'<div class="tc-node-toolbar"><span class="tc-on-ticket">On ticket</span><span class="tc-node-name">' +
-					escapeHtml(def.label || el.type) + "</span>" +
-				(locked ? "" : '<button type="button" class="tc-node-remove" data-remove="' + escapeHtml(el.id) + '" title="Remove from ticket">×</button>') +
-				"</div>" +
 				'<div class="tc-node-body">' + self.elementContent(el) + "</div>" +
 				'<div class="tc-handles" aria-hidden="true">' + handles + "</div>" +
 				"</div>"
@@ -808,7 +820,6 @@
 
 		card.querySelectorAll(".tc-node").forEach(function (node) {
 			node.addEventListener("pointerdown", function (ev) {
-				if (ev.target && ev.target.closest && ev.target.closest("[data-remove], .tc-node-remove")) return;
 				const handle = ev.target && ev.target.closest ? ev.target.closest("[data-resize]") : null;
 				if (handle) {
 					ev.preventDefault();
@@ -819,18 +830,6 @@
 				ev.preventDefault();
 				ev.stopPropagation();
 				self.onDragStart(ev, node);
-			});
-		});
-		card.querySelectorAll("[data-remove]").forEach(function (btn) {
-			btn.addEventListener("pointerdown", function (ev) {
-				ev.preventDefault();
-				ev.stopPropagation();
-				self.onPointerEnd(ev);
-				self.removeElement(btn.getAttribute("data-remove"));
-			});
-			btn.addEventListener("click", function (ev) {
-				ev.preventDefault();
-				ev.stopPropagation();
 			});
 		});
 	};

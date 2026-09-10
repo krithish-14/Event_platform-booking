@@ -1261,10 +1261,20 @@ async function initOrganizerDashboard() {
 			section.style.display = 'block';
 			section.style.removeProperty('visibility');
 			section.style.removeProperty('opacity');
+			section.style.removeProperty('height');
+			section.style.removeProperty('max-height');
+			section.style.removeProperty('overflow');
+			section.style.removeProperty('margin');
+			section.style.removeProperty('padding');
 		} else {
 			section.classList.remove('active-tab');
 			section.style.display = 'none';
-			section.style.removeProperty('visibility');
+			section.style.visibility = 'hidden';
+			section.style.height = '0';
+			section.style.maxHeight = '0';
+			section.style.overflow = 'hidden';
+			section.style.margin = '0';
+			section.style.padding = '0';
 			section.style.removeProperty('opacity');
 		}
 	}
@@ -1349,7 +1359,7 @@ async function initOrganizerDashboard() {
 		});
 
 		loadTabModuleData(tabName);
-		if (tabName === "ticket" || tabName === "design") {
+		if (tabName === "ticket") {
 			ensureTicketCanvas();
 			updateTicketPublishUi();
 		}
