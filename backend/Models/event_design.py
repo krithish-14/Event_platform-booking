@@ -32,6 +32,7 @@ class EventDesign(Base):
     performers_title = Column(String(200), nullable=True)
     ticket_template_id = Column(String(64), nullable=True, default="classic")
     ticket_layout_json = Column(JSONType, nullable=True)
+    ticket_layout_draft_json = Column(JSONType, nullable=True)
     created_at      = Column(DateTime, default=datetime.utcnow, nullable=True)
     updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 

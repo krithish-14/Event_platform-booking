@@ -1611,6 +1611,8 @@ class SaveEventDesignRequest(BaseModel):
     performers_title: Optional[str] = None
     ticket_template_id: Optional[str] = None
     ticket_layout_json: Optional[Dict[str, Any]] = None
+    ticket_layout_draft_json: Optional[Dict[str, Any]] = None
+    publish_ticket_layout: Optional[bool] = False
 
 
 class SaveRegistrationFormRequest(BaseModel):
@@ -2024,9 +2026,54 @@ def save_event_design(
     if payload.performers_title is not None:
         cleaned_title = str(payload.performers_title).strip()
         design.performers_title = cleaned_title or None
-    if payload.ticket_template_id is not None or payload.ticket_layout_json is not None:
-        from Services.ticket_templates import normalize_ticket_layout
-        premium = _organizer_is_premium(db, email_clean, customer_id, host_id)
+
+    from Services.ticket_templates import normalize_ticket_layout
+    premium = _organizer_is_premium(db, email_clean, customer_id, host_id)
+
+    # Draft autosave — does not change attendee/PDF layout until publish.
+    if payload.ticket_layout_draft_json is not None:
+        draft_src = (
+            payload.ticket_layout_draft_json
+            if isinstance(payload.ticket_layout_draft_json, dict)
+            else {}
+        )
+        tid = payload.ticket_template_id
+        if not tid and isinstance(draft_src, dict):
+            tid = draft_src.get("template_id")
+        if not tid:
+            tid = design.ticket_template_id
+        draft_layout = normalize_ticket_layout(
+            draft_src,
+            template_id=tid,
+            is_premium=premium,
+        )
+        design.ticket_layout_draft_json = draft_layout
+        design.ticket_template_id = draft_layout["template_id"]
+
+    # Explicit publish (Update tickets) copies draft → published layout used by attendee PDFs.
+    if payload.publish_ticket_layout:
+        publish_src = (
+            design.ticket_layout_draft_json
+            if isinstance(design.ticket_layout_draft_json, dict)
+            else (
+                payload.ticket_layout_json
+                if isinstance(payload.ticket_layout_json, dict)
+                else (design.ticket_layout_json if isinstance(design.ticket_layout_json, dict) else {})
+            )
+        )
+        tid = payload.ticket_template_id or (
+            publish_src.get("template_id") if isinstance(publish_src, dict) else None
+        ) or design.ticket_template_id
+        published = normalize_ticket_layout(
+            publish_src if isinstance(publish_src, dict) else {},
+            template_id=tid,
+            is_premium=premium,
+        )
+        design.ticket_template_id = published["template_id"]
+        design.ticket_layout_json = published
+        design.ticket_layout_draft_json = published
+    elif payload.ticket_layout_json is not None and payload.ticket_layout_draft_json is None:
+        # Legacy path: direct layout write still publishes (older clients).
         layout_src = (
             payload.ticket_layout_json
             if isinstance(payload.ticket_layout_json, dict)
@@ -2044,6 +2091,9 @@ def save_event_design(
         )
         design.ticket_template_id = layout["template_id"]
         design.ticket_layout_json = layout
+        if design.ticket_layout_draft_json is None:
+            design.ticket_layout_draft_json = layout
+
     design.updated_at = datetime.utcnow()
 
     db.commit()
@@ -2075,6 +2125,7 @@ def save_event_design(
             "performers_title": design.performers_title,
             "ticket_template_id": design.ticket_template_id or "classic",
             "ticket_layout_json": design.ticket_layout_json,
+            "ticket_layout_draft_json": design.ticket_layout_draft_json,
             "updated_at": design.updated_at.isoformat() if design.updated_at else None
         }
     }
@@ -2286,6 +2337,7 @@ def get_current_host_event(
             "performers_title": design.performers_title if design else None,
             "ticket_template_id": (design.ticket_template_id if design else None) or "classic",
             "ticket_layout_json": design.ticket_layout_json if design else None,
+            "ticket_layout_draft_json": design.ticket_layout_draft_json if design else None,
         } if design else None,
         "subscription_tier": _organizer_subscription_tier(db, email_clean, customer_id, host_id),
         "is_premium": _organizer_is_premium(db, email_clean, customer_id, host_id),

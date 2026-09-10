@@ -430,6 +430,7 @@ def _migrate_tables(engine=None):
                 ("performers_title", "VARCHAR(200)"),
                 ("ticket_template_id", "VARCHAR(64)"),
                 ("ticket_layout_json", "TEXT" if not is_pg else "JSONB"),
+                ("ticket_layout_draft_json", "TEXT" if not is_pg else "JSONB"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in design_migrations:
