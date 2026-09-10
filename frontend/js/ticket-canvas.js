@@ -313,7 +313,19 @@
 	TicketCanvasController.prototype.clearSelection = function () {
 		if (!this.selectedId) return;
 		this.selectedId = null;
+		this._drag = null;
+		this._didDrag = false;
 		this.renderPreview();
+		this.syncShapeColorControl();
+	};
+
+	TicketCanvasController.prototype.updateSelectionStyles = function () {
+		if (!this.root) return;
+		const selected = this.selectedId;
+		this.root.querySelectorAll(".tc-node").forEach(function (node) {
+			const on = node.getAttribute("data-id") === selected;
+			node.classList.toggle("is-selected", on);
+		});
 		this.syncShapeColorControl();
 	};
 
@@ -325,7 +337,7 @@
 			'  <div class="ticket-template-grid" id="ticketTemplateGrid" role="listbox" aria-label="Ticket templates"></div>',
 			'  <div class="ticket-canvas-workspace">',
 			'    <div class="ticket-canvas-stage" id="ticketCanvasStage">',
-			'      <div class="ticket-canvas-hint">Drag to move. Click empty space to deselect. Add shapes (lines, boxes) below and change their color.</div>',
+			'      <div class="ticket-canvas-hint">Drag to move. Click empty space or press Esc to deselect. Click × to remove. Click a selected item again to cancel selection.</div>',
 			'      <div class="ticket-live-card is-canvas" id="ticketLiveCard" aria-live="polite"></div>',
 			'    </div>',
 			'    <div class="ticket-canvas-controls">',
@@ -456,11 +468,30 @@
 
 		const stage = this.root.querySelector("#ticketCanvasStage");
 		if (stage) {
-			stage.addEventListener("mousedown", function (ev) {
+			stage.addEventListener("pointerdown", function (ev) {
 				const node = ev.target && ev.target.closest ? ev.target.closest(".tc-node") : null;
+				const removeBtn = ev.target && ev.target.closest ? ev.target.closest("[data-remove], .tc-node-remove") : null;
+				if (removeBtn) return;
 				if (!node) self.clearSelection();
 			});
 		}
+
+		document.addEventListener("keydown", function (ev) {
+			if (!self.root || !self.selectedId) return;
+			if (ev.key === "Escape") {
+				ev.preventDefault();
+				self.clearSelection();
+			}
+			if ((ev.key === "Delete" || ev.key === "Backspace") && self.selectedId) {
+				const tag = (ev.target && ev.target.tagName) || "";
+				if (tag === "INPUT" || tag === "TEXTAREA" || (ev.target && ev.target.isContentEditable)) return;
+				const item = self.findById(self.selectedId);
+				if (!item) return;
+				if (item.type === "jod_logo" && !self.isPremium) return;
+				ev.preventDefault();
+				self.removeElement(self.selectedId);
+			}
+		});
 	};
 
 	TicketCanvasController.prototype.syncShapeColorControl = function () {
@@ -640,22 +671,21 @@
 		card.innerHTML = bits.join("");
 
 		card.querySelectorAll(".tc-node").forEach(function (node) {
-			node.addEventListener("mousedown", function (ev) {
+			node.addEventListener("pointerdown", function (ev) {
+				if (ev.target && ev.target.closest && ev.target.closest("[data-remove], .tc-node-remove")) return;
 				ev.stopPropagation();
 				self.onDragStart(ev, node);
 			});
-			node.addEventListener("touchstart", function (ev) {
-				if (ev.touches && ev.touches[0]) {
-					ev.stopPropagation();
-					self.onDragStart(ev.touches[0], node, ev);
-				}
-			}, { passive: false });
 		});
 		card.querySelectorAll("[data-remove]").forEach(function (btn) {
-			btn.addEventListener("click", function (ev) {
+			btn.addEventListener("pointerdown", function (ev) {
 				ev.preventDefault();
 				ev.stopPropagation();
 				self.removeElement(btn.getAttribute("data-remove"));
+			});
+			btn.addEventListener("click", function (ev) {
+				ev.preventDefault();
+				ev.stopPropagation();
 			});
 		});
 	};
@@ -667,7 +697,9 @@
 		const item = this.findById(id);
 		const card = this.root.querySelector("#ticketLiveCard");
 		if (!item || !card) return;
+		const already = this.selectedId === id;
 		this.selectedId = id;
+		this._wasAlreadySelected = already;
 		this._didDrag = false;
 		const rect = card.getBoundingClientRect();
 		this._drag = {
@@ -679,8 +711,8 @@
 			cardW: rect.width,
 			cardH: rect.height,
 		};
-		this.renderPreview();
-		this.syncShapeColorControl();
+		// Avoid full re-render on select — that was destroying the × button before click.
+		this.updateSelectionStyles();
 	};
 
 	TicketCanvasController.prototype.onDragMove = function (point) {
@@ -693,7 +725,8 @@
 		if (!item) return;
 		item.x = clampNum(this._drag.origX + dx, 0, 100 - item.w, item.x);
 		item.y = clampNum(this._drag.origY + dy, 0, 100 - item.h, item.y);
-		const node = this.root.querySelector('.tc-node[data-id="' + item.id + '"]');
+		const safeId = String(item.id || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+		const node = this.root.querySelector('.tc-node[data-id="' + safeId + '"]');
 		if (node) {
 			node.style.left = item.x + "%";
 			node.style.top = item.y + "%";
@@ -703,9 +736,19 @@
 	TicketCanvasController.prototype.onDragEnd = function () {
 		if (!this._drag) return;
 		const moved = this._didDrag;
+		const id = this._drag.id;
+		const already = this._wasAlreadySelected;
 		this._drag = null;
 		this._didDrag = false;
-		if (moved) this.emitChange();
+		this._wasAlreadySelected = false;
+		if (moved) {
+			this.emitChange();
+			return;
+		}
+		// Click (no drag) on an already-selected element cancels selection.
+		if (already && this.selectedId === id) {
+			this.clearSelection();
+		}
 	};
 
 	global.JodTicketCanvas = {

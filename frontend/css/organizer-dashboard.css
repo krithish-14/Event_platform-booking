@@ -2498,6 +2498,15 @@ html[data-theme="dark"] .dash-toast {
 	cursor: pointer;
 	padding: 0 0.15rem;
 	font-weight: 800;
+	pointer-events: auto;
+	z-index: 5;
+	position: relative;
+}
+.ticket-live-card.is-canvas {
+	cursor: default;
+}
+.tc-node {
+	pointer-events: auto;
 }
 .tc-node-body {
 	width: 100%;
