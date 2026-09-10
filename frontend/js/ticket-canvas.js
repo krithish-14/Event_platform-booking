@@ -569,23 +569,19 @@
 			});
 		}
 
-		document.addEventListener("pointermove", function (ev) { self.onPointerMove(ev); });
-		document.addEventListener("pointerup", function (ev) { self.onPointerEnd(ev); });
-		document.addEventListener("pointercancel", function (ev) { self.onPointerEnd(ev); });
+		document.addEventListener("pointermove", function (ev) { self.onPointerMove(ev); }, true);
+		document.addEventListener("pointerup", function (ev) { self.onPointerEnd(ev); }, true);
+		document.addEventListener("pointercancel", function (ev) { self.onPointerEnd(ev); }, true);
 		document.addEventListener("mousemove", function (ev) {
-			if (ev.buttons === 0 && (self._drag || self._resize)) self.onPointerEnd(ev);
+			if (!(self._drag || self._resize)) return;
+			if (ev.buttons === 0) self.onPointerEnd(ev);
 			else self.onPointerMove(ev);
 		});
 		document.addEventListener("mouseup", function (ev) { self.onPointerEnd(ev); });
-		document.addEventListener("touchmove", function (ev) {
-			if (!(self._drag && self._drag.active) && !self._resize) return;
-			const point = ev.touches && ev.touches[0] ? ev.touches[0] : ev;
-			self.onPointerMove(point);
-			if (ev.cancelable) ev.preventDefault();
-		}, { passive: false });
 		document.addEventListener("touchend", function (ev) { self.onPointerEnd(ev); });
 		document.addEventListener("touchcancel", function (ev) { self.onPointerEnd(ev); });
 		window.addEventListener("blur", function () { self.onPointerEnd(); });
+		/* No non-passive touchmove preventDefault — it locked page scrolling. */
 
 		const stage = this.root.querySelector("#ticketCanvasStage");
 		if (stage) {
@@ -1004,7 +1000,6 @@
 			return;
 		}
 		if (this._resize) {
-			if (point.preventDefault) point.preventDefault();
 			const dx = ((point.clientX - this._resize.startX) / this._resize.cardW) * 100;
 			const dy = ((point.clientY - this._resize.startY) / this._resize.cardH) * 100;
 			if (Math.abs(dx) > 0.25 || Math.abs(dy) > 0.25) this._didDrag = true;
@@ -1045,14 +1040,13 @@
 			this._drag.active = true;
 			this._didDrag = true;
 		}
-		if (point.preventDefault) point.preventDefault();
 		const dragItem = this.findById(this._drag.id);
 		if (!dragItem) return;
 		let nx = clampNum(this._drag.origX + mdx, 0, 100 - dragItem.w, dragItem.x);
 		let ny = clampNum(this._drag.origY + mdy, 0, 100 - dragItem.h, dragItem.y);
-		const snapped = this.snapBox({ x: nx, y: ny, w: dragItem.w, h: dragItem.h }, dragItem.id);
-		dragItem.x = snapped.x;
-		dragItem.y = snapped.y;
+		const snappedMove = this.snapBox({ x: nx, y: ny, w: dragItem.w, h: dragItem.h }, dragItem.id);
+		dragItem.x = snappedMove.x;
+		dragItem.y = snappedMove.y;
 		this.applyNodeBox(dragItem);
 	};
 

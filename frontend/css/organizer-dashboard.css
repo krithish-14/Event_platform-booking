@@ -30,6 +30,34 @@ body.dashboard-body {
 	flex-direction: column;
 }
 
+/* Ticket studio: use normal page scroll (browser scrollbar), not nested panel scroll. */
+body.dashboard-body.ticket-studio-open {
+	height: auto;
+	min-height: 100vh;
+	overflow-x: hidden;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+}
+body.dashboard-body.ticket-studio-open .dash-shell {
+	height: auto;
+	min-height: calc(100vh - 60px);
+	overflow: visible;
+	align-items: flex-start;
+}
+body.dashboard-body.ticket-studio-open .dash-sidebar {
+	position: sticky;
+	top: 0;
+	height: 100vh;
+	max-height: 100vh;
+	align-self: flex-start;
+}
+body.dashboard-body.ticket-studio-open .dash-content {
+	overflow: visible !important;
+	height: auto;
+	min-height: calc(100vh - 60px);
+	flex: 1 0 auto;
+}
+
 .leaflet-container,
 .leaflet-container a,
 .leaflet-bar a {

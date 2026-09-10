@@ -1324,6 +1324,10 @@ async function initOrganizerDashboard() {
 			item.setAttribute("aria-selected", isActive ? "true" : "false");
 		});
 
+		try {
+			document.body.classList.toggle("ticket-studio-open", tabName === "ticket");
+		} catch (_) {}
+
 		const targetSections = {
 			overview: sectionOverview,
 			manage: sectionManage,
@@ -1358,6 +1362,10 @@ async function initOrganizerDashboard() {
 		}
 
 		window.scrollTo({ top: 0, behavior: "smooth" });
+		try {
+			const dashContent = document.querySelector(".dash-content");
+			if (dashContent) dashContent.scrollTop = 0;
+		} catch (_) {}
 
 		try {
 			const sectionIds = ['sectionOverview','sectionManage','sectionSettings','sectionDesign','sectionTicket','sectionRegistrations','sectionExhibitors','sectionCommunicate','sectionReports','sectionEventday','sectionAttendance'];
