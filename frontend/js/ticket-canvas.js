@@ -313,11 +313,16 @@
 	};
 
 	TicketCanvasController.prototype.clearSelection = function () {
-		if (!this.selectedId) return;
+		if (!this.selectedId && !this._drag && !this._resize) {
+			this.clearGuides();
+			return;
+		}
 		this.selectedId = null;
 		this._drag = null;
 		this._resize = null;
 		this._didDrag = false;
+		this.releasePointer();
+		this.clearGuides();
 		this.renderPreview();
 		this.syncSelectedPanel();
 	};
@@ -393,7 +398,7 @@
 			'  <div class="ticket-template-grid" id="ticketTemplateGrid" role="listbox" aria-label="Ticket templates"></div>',
 			'  <div class="ticket-canvas-workspace">',
 			'    <div class="ticket-canvas-stage" id="ticketCanvasStage">',
-			'      <div class="ticket-canvas-hint">Select an element to move or resize it. Blue corner handles extend size. Esc deselects · × removes.</div>',
+			'      <div class="ticket-canvas-hint">Hold and drag to move. Blue handles resize. Red dashed lines show alignment (like Canva). Esc deselects · × removes.</div>',
 			'      <div class="ticket-live-card is-canvas" id="ticketLiveCard" aria-live="polite"></div>',
 			'    </div>',
 			'    <div class="ticket-canvas-controls">',
@@ -552,12 +557,20 @@
 			});
 		}
 
-		document.addEventListener("mousemove", function (ev) { self.onPointerMove(ev); });
-		document.addEventListener("mouseup", function () { self.onPointerEnd(); });
+		document.addEventListener("pointermove", function (ev) { self.onPointerMove(ev); });
+		document.addEventListener("pointerup", function (ev) { self.onPointerEnd(ev); });
+		document.addEventListener("pointercancel", function (ev) { self.onPointerEnd(ev); });
+		document.addEventListener("mousemove", function (ev) {
+			if (ev.buttons === 0 && (self._drag || self._resize)) self.onPointerEnd(ev);
+			else self.onPointerMove(ev);
+		});
+		document.addEventListener("mouseup", function (ev) { self.onPointerEnd(ev); });
 		document.addEventListener("touchmove", function (ev) {
 			self.onPointerMove(ev.touches && ev.touches[0] ? ev.touches[0] : ev);
 		}, { passive: false });
-		document.addEventListener("touchend", function () { self.onPointerEnd(); });
+		document.addEventListener("touchend", function (ev) { self.onPointerEnd(ev); });
+		document.addEventListener("touchcancel", function (ev) { self.onPointerEnd(ev); });
+		window.addEventListener("blur", function () { self.onPointerEnd(); });
 
 		const stage = this.root.querySelector("#ticketCanvasStage");
 		if (stage) {
@@ -566,7 +579,11 @@
 				const removeBtn = ev.target && ev.target.closest ? ev.target.closest("[data-remove], .tc-node-remove") : null;
 				const handle = ev.target && ev.target.closest ? ev.target.closest("[data-resize]") : null;
 				if (removeBtn || handle) return;
-				if (!node) self.clearSelection();
+				if (!node) {
+					self.onPointerEnd(ev);
+					self.clearSelection();
+					self.clearGuides();
+				}
 			});
 		}
 
@@ -743,7 +760,10 @@
 		card.style.setProperty("--ticket-accent", accent);
 		card.style.setProperty("--ticket-muted", p.muted || "#6b7280");
 
-		const bits = ['<div class="tlc-accent" aria-hidden="true"></div>'];
+		const bits = [
+			'<div class="tlc-accent" aria-hidden="true"></div>',
+			'<div class="tc-guides" id="ticketGuides" aria-hidden="true"></div>',
+		];
 		(L.canvas_elements || []).forEach(function (el) {
 			const locked = el.type === "jod_logo" && !self.isPremium;
 			const selected = self.selectedId === el.id;
@@ -785,6 +805,7 @@
 					self.onResizeStart(ev, node, handle.getAttribute("data-resize"));
 					return;
 				}
+				ev.preventDefault();
 				ev.stopPropagation();
 				self.onDragStart(ev, node);
 			});
@@ -793,6 +814,7 @@
 			btn.addEventListener("pointerdown", function (ev) {
 				ev.preventDefault();
 				ev.stopPropagation();
+				self.onPointerEnd(ev);
 				self.removeElement(btn.getAttribute("data-remove"));
 			});
 			btn.addEventListener("click", function (ev) {
@@ -802,9 +824,111 @@
 		});
 	};
 
+	TicketCanvasController.prototype.clearGuides = function () {
+		const host = this.root && this.root.querySelector("#ticketGuides");
+		if (host) host.innerHTML = "";
+	};
+
+	TicketCanvasController.prototype.showGuides = function (vLines, hLines) {
+		const host = this.root && this.root.querySelector("#ticketGuides");
+		if (!host) return;
+		const bits = [];
+		(vLines || []).forEach(function (x) {
+			bits.push('<div class="tc-guide is-v' + (Math.abs(x - 50) < 0.01 ? " is-center" : "") + '" style="left:' + x + '%;"></div>');
+		});
+		(hLines || []).forEach(function (y) {
+			bits.push('<div class="tc-guide is-h' + (Math.abs(y - 50) < 0.01 ? " is-center" : "") + '" style="top:' + y + '%;"></div>');
+		});
+		host.innerHTML = bits.join("");
+	};
+
+	TicketCanvasController.prototype.snapBox = function (box, ignoreId) {
+		const SNAP = 1.1;
+		const others = (this.layout.canvas_elements || []).filter(function (e) { return e && e.id !== ignoreId; });
+		const xTargets = [0, 50, 100];
+		const yTargets = [0, 50, 100];
+		others.forEach(function (e) {
+			xTargets.push(e.x, e.x + e.w / 2, e.x + e.w);
+			yTargets.push(e.y, e.y + e.h / 2, e.y + e.h);
+		});
+		const left = box.x;
+		const right = box.x + box.w;
+		const cx = box.x + box.w / 2;
+		const top = box.y;
+		const bottom = box.y + box.h;
+		const cy = box.y + box.h / 2;
+		let bestDx = null;
+		let bestDy = null;
+		const vGuides = [];
+		const hGuides = [];
+
+		xTargets.forEach(function (t) {
+			[[left, 0], [cx, box.w / 2], [right, box.w]].forEach(function (pair) {
+				const d = t - pair[0];
+				if (Math.abs(d) <= SNAP && (bestDx === null || Math.abs(d) < Math.abs(bestDx))) {
+					bestDx = d;
+				}
+			});
+		});
+		yTargets.forEach(function (t) {
+			[[top, 0], [cy, box.h / 2], [bottom, box.h]].forEach(function (pair) {
+				const d = t - pair[0];
+				if (Math.abs(d) <= SNAP && (bestDy === null || Math.abs(d) < Math.abs(bestDy))) {
+					bestDy = d;
+				}
+			});
+		});
+
+		if (bestDx !== null) box.x = clampNum(box.x + bestDx, 0, 100 - box.w, box.x);
+		if (bestDy !== null) box.y = clampNum(box.y + bestDy, 0, 100 - box.h, box.y);
+
+		const nLeft = box.x;
+		const nRight = box.x + box.w;
+		const nCx = box.x + box.w / 2;
+		const nTop = box.y;
+		const nBottom = box.y + box.h;
+		const nCy = box.y + box.h / 2;
+		xTargets.forEach(function (t) {
+			if (Math.abs(nLeft - t) < 0.2 || Math.abs(nCx - t) < 0.2 || Math.abs(nRight - t) < 0.2) {
+				if (vGuides.indexOf(t) < 0) vGuides.push(t);
+			}
+		});
+		yTargets.forEach(function (t) {
+			if (Math.abs(nTop - t) < 0.2 || Math.abs(nCy - t) < 0.2 || Math.abs(nBottom - t) < 0.2) {
+				if (hGuides.indexOf(t) < 0) hGuides.push(t);
+			}
+		});
+		this.showGuides(vGuides, hGuides);
+		return box;
+	};
+
+	TicketCanvasController.prototype.releasePointer = function () {
+		if (this._pointerId == null) return;
+		try {
+			const el = this._pointerTarget;
+			if (el && el.releasePointerCapture) el.releasePointerCapture(this._pointerId);
+		} catch (err) { /* ignore */ }
+		this._pointerId = null;
+		this._pointerTarget = null;
+	};
+
+	TicketCanvasController.prototype.capturePointer = function (ev, el) {
+		if (!ev || ev.pointerId == null || !el || !el.setPointerCapture) return;
+		try {
+			el.setPointerCapture(ev.pointerId);
+			this._pointerId = ev.pointerId;
+			this._pointerTarget = el;
+		} catch (err) { /* ignore */ }
+	};
+
 	TicketCanvasController.prototype.onDragStart = function (point, node) {
 		if (point.cancelable) point.preventDefault();
 		if (point.stopPropagation) point.stopPropagation();
+		this.releasePointer();
+		this._drag = null;
+		this._resize = null;
+		this._didDrag = false;
+		this.clearGuides();
 		const id = node.getAttribute("data-id");
 		const item = this.findById(id);
 		const card = this.root.querySelector("#ticketLiveCard");
@@ -812,31 +936,34 @@
 		const already = this.selectedId === id;
 		this.selectedId = id;
 		this._wasAlreadySelected = already;
-		this._didDrag = false;
-		this._resize = null;
 		const rect = card.getBoundingClientRect();
 		this._drag = {
 			id: id,
+			active: false,
 			startX: point.clientX,
 			startY: point.clientY,
 			origX: item.x,
 			origY: item.y,
-			cardW: rect.width,
-			cardH: rect.height,
+			cardW: Math.max(1, rect.width),
+			cardH: Math.max(1, rect.height),
 		};
+		this.capturePointer(point, node);
 		this.updateSelectionStyles();
 	};
 
 	TicketCanvasController.prototype.onResizeStart = function (point, node, edge) {
 		if (point.cancelable) point.preventDefault();
 		if (point.stopPropagation) point.stopPropagation();
+		this.releasePointer();
+		this._drag = null;
+		this._resize = null;
+		this._didDrag = false;
+		this.clearGuides();
 		const id = node.getAttribute("data-id");
 		const item = this.findById(id);
 		const card = this.root.querySelector("#ticketLiveCard");
 		if (!item || !card || !edge) return;
 		this.selectedId = id;
-		this._drag = null;
-		this._didDrag = true;
 		this._wasAlreadySelected = true;
 		const rect = card.getBoundingClientRect();
 		this._resize = {
@@ -848,48 +975,49 @@
 			origY: item.y,
 			origW: item.w,
 			origH: item.h,
-			cardW: rect.width,
-			cardH: rect.height,
+			cardW: Math.max(1, rect.width),
+			cardH: Math.max(1, rect.height),
 		};
+		this.capturePointer(point, node);
 		this.updateSelectionStyles();
 	};
 
 	TicketCanvasController.prototype.onPointerMove = function (point) {
 		if (!point) return;
+		if (typeof point.buttons === "number" && point.buttons === 0 && (this._drag || this._resize)) {
+			this.onPointerEnd(point);
+			return;
+		}
 		if (this._resize) {
 			if (point.preventDefault) point.preventDefault();
 			const dx = ((point.clientX - this._resize.startX) / this._resize.cardW) * 100;
 			const dy = ((point.clientY - this._resize.startY) / this._resize.cardH) * 100;
+			if (Math.abs(dx) > 0.25 || Math.abs(dy) > 0.25) this._didDrag = true;
 			const item = this.findById(this._resize.id);
 			if (!item) return;
 			const edge = this._resize.edge;
 			const isLine = item.type === "line" || item.type === "dashed_line";
 			const minW = 8;
 			const minH = isLine ? 1 : 3;
-			let x = this._resize.origX;
-			let y = this._resize.origY;
 			let w = this._resize.origW;
 			let h = this._resize.origH;
 			if (edge.indexOf("e") >= 0) w = this._resize.origW + dx;
 			if (edge.indexOf("s") >= 0) h = this._resize.origH + dy;
-			if (edge.indexOf("w") >= 0) {
-				w = this._resize.origW - dx;
-				x = this._resize.origX + dx;
-			}
-			if (edge.indexOf("n") >= 0) {
-				h = this._resize.origH - dy;
-				y = this._resize.origY + dy;
-			}
+			if (edge.indexOf("w") >= 0) w = this._resize.origW - dx;
+			if (edge.indexOf("n") >= 0) h = this._resize.origH - dy;
 			w = clampNum(w, minW, 96, item.w);
 			h = clampNum(h, minH, 40, item.h);
+			let x = this._resize.origX;
+			let y = this._resize.origY;
 			if (edge.indexOf("w") >= 0) x = this._resize.origX + (this._resize.origW - w);
 			if (edge.indexOf("n") >= 0) y = this._resize.origY + (this._resize.origH - h);
 			x = clampNum(x, 0, 100 - w, item.x);
 			y = clampNum(y, 0, 100 - h, item.y);
-			item.x = x;
-			item.y = y;
-			item.w = w;
-			item.h = h;
+			const snapped = this.snapBox({ x: x, y: y, w: w, h: h }, item.id);
+			item.x = snapped.x;
+			item.y = snapped.y;
+			item.w = snapped.w;
+			item.h = snapped.h;
 			this.applyNodeBox(item);
 			this.syncSelectedPanel();
 			return;
@@ -898,33 +1026,42 @@
 		if (point.preventDefault) point.preventDefault();
 		const mdx = ((point.clientX - this._drag.startX) / this._drag.cardW) * 100;
 		const mdy = ((point.clientY - this._drag.startY) / this._drag.cardH) * 100;
-		if (Math.abs(mdx) > 0.3 || Math.abs(mdy) > 0.3) this._didDrag = true;
+		if (!this._drag.active) {
+			if (Math.abs(mdx) < 0.45 && Math.abs(mdy) < 0.45) return;
+			this._drag.active = true;
+			this._didDrag = true;
+		}
 		const dragItem = this.findById(this._drag.id);
 		if (!dragItem) return;
-		dragItem.x = clampNum(this._drag.origX + mdx, 0, 100 - dragItem.w, dragItem.x);
-		dragItem.y = clampNum(this._drag.origY + mdy, 0, 100 - dragItem.h, dragItem.y);
+		let nx = clampNum(this._drag.origX + mdx, 0, 100 - dragItem.w, dragItem.x);
+		let ny = clampNum(this._drag.origY + mdy, 0, 100 - dragItem.h, dragItem.y);
+		const snapped = this.snapBox({ x: nx, y: ny, w: dragItem.w, h: dragItem.h }, dragItem.id);
+		dragItem.x = snapped.x;
+		dragItem.y = snapped.y;
 		this.applyNodeBox(dragItem);
 	};
 
 	TicketCanvasController.prototype.onPointerEnd = function () {
-		if (this._resize) {
-			this._resize = null;
-			this._didDrag = false;
-			this.emitChange();
+		const hadResize = !!this._resize;
+		const hadDrag = !!this._drag;
+		if (!hadResize && !hadDrag) {
+			this.clearGuides();
 			return;
 		}
-		if (!this._drag) return;
-		const moved = this._didDrag;
-		const id = this._drag.id;
+		const moved = this._didDrag || (this._drag && this._drag.active);
+		const id = (this._drag && this._drag.id) || (this._resize && this._resize.id);
 		const already = this._wasAlreadySelected;
+		this.releasePointer();
+		this._resize = null;
 		this._drag = null;
 		this._didDrag = false;
 		this._wasAlreadySelected = false;
+		this.clearGuides();
 		if (moved) {
 			this.emitChange();
 			return;
 		}
-		if (already && this.selectedId === id) {
+		if (hadDrag && already && this.selectedId === id) {
 			this.clearSelection();
 		}
 	};
