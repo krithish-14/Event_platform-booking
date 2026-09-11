@@ -1256,26 +1256,117 @@ async function initOrganizerDashboard() {
 
 	function setSectionVisible(section, visible) {
 		if (!section) return;
-		section.classList.toggle("active-tab", !!visible);
-		section.hidden = !visible;
-		/* Clear legacy inline layout styles so CSS rules win. */
-		[
-			"display",
-			"visibility",
-			"opacity",
-			"height",
-			"max-height",
-			"overflow",
-			"margin",
-			"padding",
-			"pointer-events",
-			"position",
-			"left",
-			"top",
-			"width",
-		].forEach(function (prop) {
-			section.style.removeProperty(prop);
+		/* Classic host-dashboard: class + inline display only (no hidden attr fights). */
+		section.removeAttribute("hidden");
+		if (visible) {
+			section.classList.add("active-tab");
+			section.style.display = "block";
+		} else {
+			section.classList.remove("active-tab");
+			section.style.display = "none";
+		}
+		section.style.removeProperty("visibility");
+		section.style.removeProperty("opacity");
+		section.style.removeProperty("height");
+		section.style.removeProperty("max-height");
+		section.style.removeProperty("overflow");
+		section.style.removeProperty("position");
+		section.style.removeProperty("left");
+		section.style.removeProperty("top");
+	}
+
+	/** Keep every tab-section inside .dash-content (guards against bad HTML closes). */
+	function repairDashboardNesting() {
+		const content = document.querySelector(".dash-content");
+		if (!content) return;
+		const orphans = [];
+		document.querySelectorAll(".tab-section").forEach(function (el) {
+			if (!content.contains(el)) orphans.push(el);
 		});
+		orphans.forEach(function (el) {
+			content.appendChild(el);
+		});
+	}
+
+	/** Keep header/sidebar/content shell intact for every tab (Ticket → Attendance included). */
+	function enforceAppShellLayout() {
+		repairDashboardNesting();
+		const root = document.documentElement;
+		const body = document.body;
+		const shell = document.querySelector(".dash-shell");
+		const sidebar = document.querySelector(".dash-sidebar");
+		const content = document.querySelector(".dash-content");
+		const isNarrow = window.matchMedia && window.matchMedia("(max-width: 900px)").matches;
+		if (root) {
+			root.style.setProperty("height", "100%", "important");
+			root.style.setProperty("overflow", "hidden", "important");
+		}
+		if (body) {
+			body.style.setProperty("display", "flex", "important");
+			body.style.setProperty("flex-direction", "column", "important");
+			body.style.setProperty("height", "100dvh", "important");
+			body.style.setProperty("max-height", "100dvh", "important");
+			body.style.setProperty("overflow", "hidden", "important");
+			body.style.setProperty("margin", "0", "important");
+			body.style.setProperty("padding", "0", "important");
+		}
+		if (shell) {
+			if (isNarrow) {
+				shell.style.setProperty("display", "flex", "important");
+				shell.style.setProperty("flex-direction", "column", "important");
+				shell.style.removeProperty("grid-template-columns");
+				shell.style.removeProperty("grid-template-rows");
+			} else {
+				shell.style.setProperty("display", "grid", "important");
+				shell.style.setProperty("grid-template-columns", "78px minmax(0, 1fr)", "important");
+				shell.style.setProperty("grid-template-rows", "minmax(0, 1fr)", "important");
+				shell.style.setProperty("flex-direction", "row", "important");
+			}
+			shell.style.setProperty("flex", "1 1 auto", "important");
+			shell.style.setProperty("min-height", "0", "important");
+			shell.style.setProperty("height", "calc(100dvh - 60px)", "important");
+			shell.style.setProperty("max-height", "calc(100dvh - 60px)", "important");
+			shell.style.setProperty("overflow", "hidden", "important");
+			shell.style.setProperty("align-items", "stretch", "important");
+			shell.style.setProperty("width", "100%", "important");
+		}
+		if (sidebar) {
+			sidebar.style.setProperty("display", "flex", "important");
+			sidebar.style.setProperty("visibility", "visible", "important");
+			sidebar.style.setProperty("align-self", "stretch", "important");
+			sidebar.style.setProperty("position", "relative", "important");
+			sidebar.style.setProperty("top", "auto", "important");
+			sidebar.style.setProperty("overflow-x", isNarrow ? "auto" : "hidden", "important");
+			sidebar.style.setProperty("overflow-y", "hidden", "important");
+			if (isNarrow) {
+				sidebar.style.setProperty("flex", "0 0 auto", "important");
+				sidebar.style.setProperty("width", "100%", "important");
+				sidebar.style.setProperty("min-width", "0", "important");
+				sidebar.style.setProperty("max-width", "none", "important");
+				sidebar.style.setProperty("height", "auto", "important");
+				sidebar.style.setProperty("flex-direction", "row", "important");
+			} else {
+				sidebar.style.setProperty("flex", "0 0 78px", "important");
+				sidebar.style.setProperty("width", "78px", "important");
+				sidebar.style.setProperty("min-width", "78px", "important");
+				sidebar.style.setProperty("max-width", "78px", "important");
+				sidebar.style.setProperty("height", "100%", "important");
+				sidebar.style.setProperty("max-height", "none", "important");
+				sidebar.style.setProperty("flex-direction", "column", "important");
+			}
+		}
+		if (content) {
+			content.style.setProperty("display", "block", "important");
+			content.style.setProperty("flex", "1 1 auto", "important");
+			content.style.setProperty("min-width", "0", "important");
+			content.style.setProperty("min-height", "0", "important");
+			content.style.setProperty("align-self", "stretch", "important");
+			content.style.setProperty("height", isNarrow ? "auto" : "100%", "important");
+			content.style.setProperty("max-height", isNarrow ? "none" : "100%", "important");
+			content.style.setProperty("overflow-x", "hidden", "important");
+			content.style.setProperty("overflow-y", "auto", "important");
+			content.style.setProperty("position", "relative", "important");
+		}
 	}
 
 	function loadTabModuleData(tabName) {
@@ -1334,9 +1425,9 @@ async function initOrganizerDashboard() {
 		});
 
 		try {
-			const onTicket = tabName === "ticket";
-			document.body.classList.toggle("ticket-studio-open", onTicket);
+			document.body.classList.remove("ticket-studio-open", "ticket-studio-scroll");
 			document.documentElement.classList.remove("ticket-studio-scroll");
+			enforceAppShellLayout();
 		} catch (_) {}
 
 		const targetSections = {
@@ -1359,6 +1450,17 @@ async function initOrganizerDashboard() {
 			setSectionVisible(section, section === targetSection);
 		});
 
+		/* Hard guarantee: only one panel visible (classic host flow). */
+		try {
+			document.querySelectorAll(".dash-content > .tab-section").forEach(function (el) {
+				const on = el === targetSection;
+				el.classList.toggle("active-tab", on);
+				el.style.setProperty("display", on ? "block" : "none", "important");
+			});
+			document.body.classList.remove("ticket-studio-open", "ticket-studio-scroll");
+			document.documentElement.classList.remove("ticket-studio-scroll");
+		} catch (_) {}
+
 		loadTabModuleData(tabName);
 		if (tabName === "ticket") {
 			ensureTicketCanvas();
@@ -1372,10 +1474,16 @@ async function initOrganizerDashboard() {
 			setTimeout(() => invalidateVenueMap(), 300);
 		}
 
+		/* Re-assert shell after tab modules mount (Ticket canvas / form builder). */
+		try {
+			enforceAppShellLayout();
+			requestAnimationFrame(function () { enforceAppShellLayout(); });
+			setTimeout(enforceAppShellLayout, 50);
+		} catch (_) {}
+
 		try {
 			const dashContent = document.querySelector(".dash-content");
 			if (dashContent) dashContent.scrollTop = 0;
-			window.scrollTo(0, 0);
 		} catch (_) {}
 
 		try {
@@ -1819,6 +1927,13 @@ async function initOrganizerDashboard() {
 	// \u2500\u2500 Initializer: Load organizer state & apply initial tab \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	(async function initDashboardStateAndTab() {
 		await loadDashboardData();
+
+		try {
+			enforceAppShellLayout();
+			window.addEventListener("resize", function () {
+				try { enforceAppShellLayout(); } catch (_) {}
+			});
+		} catch (_) {}
 
 		const initialTab = requestedInitialTab || 'overview';
 		switchTab(initialTab);
@@ -3305,7 +3420,8 @@ async function initOrganizerDashboard() {
 		const host = document.getElementById("ticketDesignStudioHost");
 		if (!host || !window.JodTicketCanvas) return;
 		const sampleTitle = (eventTitleInput && eventTitleInput.value.trim()) || "Your Event Title";
-		const sampleVenue = (document.getElementById("eventLocationInput") && document.getElementById("eventLocationInput").value.trim()) || "Venue TBA";
+		let sampleVenue = (document.getElementById("eventLocationInput") && document.getElementById("eventLocationInput").value.trim()) || "Venue TBA";
+		if (sampleVenue.length > 90) sampleVenue = sampleVenue.slice(0, 87).trim() + "…";
 		const formFields = detectHostFormIdentityFields();
 		if (!ticketCanvasCtrl) {
 			ticketCanvasCtrl = window.JodTicketCanvas.create({

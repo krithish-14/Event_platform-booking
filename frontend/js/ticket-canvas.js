@@ -30,9 +30,9 @@
 		{ type: "email", label: "Email", flag: "show_attendee_email", w: 70, h: 5, locked: false, shape: false },
 		{ type: "qr", label: "QR code", flag: "show_qr", w: 34, h: 22, locked: false, shape: false },
 		{ type: "booking_id", label: "Booking ID", flag: null, w: 55, h: 4, locked: false, shape: false },
-		{ type: "price", label: "Price", flag: "show_price", w: 86, h: 6, locked: false, shape: false },
-		{ type: "jod_logo", label: "JOD Events logo", flag: "show_jod_logo", w: 40, h: 5, locked: true, shape: false },
-		{ type: "footer", label: "Footer note", flag: null, w: 70, h: 5, locked: false, shape: false },
+		{ type: "price", label: "Price", flag: "show_price", w: 86, h: 5, locked: false, shape: false },
+		{ type: "jod_logo", label: "JOD Events logo", flag: "show_jod_logo", w: 78, h: 12, locked: true, shape: false },
+		{ type: "footer", label: "Footer note", flag: null, w: 70, h: 4, locked: false, shape: false },
 	];
 
 	const SHAPE_DEFS = [
@@ -46,26 +46,29 @@
 	const DEF_BY_TYPE = {};
 	ELEMENT_DEFS.forEach(function (d) { DEF_BY_TYPE[d.type] = d; });
 
+	/* Shared geometry for every color format — templates only change colors. */
+	const LAYOUT_VERSION = 2;
 	const DEFAULT_ELEMENTS = [
-		{ id: "poster", type: "poster", x: 4, y: 4, w: 22, h: 18 },
-		{ id: "badge", type: "badge", x: 78, y: 4, w: 18, h: 4 },
-		{ id: "title", type: "title", x: 30, y: 5, w: 46, h: 8 },
-		{ id: "date", type: "date", x: 30, y: 14, w: 58, h: 5 },
-		{ id: "venue", type: "venue", x: 30, y: 19, w: 58, h: 8 },
-		{ id: "qty", type: "qty", x: 35, y: 30, w: 30, h: 4 },
-		{ id: "ticket_type", type: "ticket_type", x: 22, y: 34, w: 55, h: 6 },
-		{ id: "seat", type: "seat", x: 22, y: 40, w: 55, h: 5 },
-		{ id: "name", type: "name", x: 15, y: 47, w: 70, h: 5 },
-		{ id: "phone", type: "phone", x: 15, y: 52, w: 70, h: 5 },
-		{ id: "email", type: "email", x: 15, y: 57, w: 70, h: 5 },
-		{ id: "qr", type: "qr", x: 33, y: 63, w: 34, h: 18 },
-		{ id: "booking_id", type: "booking_id", x: 22, y: 82, w: 55, h: 4 },
-		{ id: "price", type: "price", x: 7, y: 87, w: 86, h: 6 },
-		{ id: "jod_logo", type: "jod_logo", x: 30, y: 93, w: 40, h: 5 },
+		{ id: "poster", type: "poster", x: 4, y: 3, w: 20, h: 16 },
+		{ id: "badge", type: "badge", x: 78, y: 3, w: 18, h: 4 },
+		{ id: "title", type: "title", x: 28, y: 3, w: 48, h: 7 },
+		{ id: "date", type: "date", x: 28, y: 11, w: 60, h: 4 },
+		{ id: "venue", type: "venue", x: 28, y: 16, w: 62, h: 9 },
+		{ id: "qty", type: "qty", x: 35, y: 28, w: 30, h: 4 },
+		{ id: "ticket_type", type: "ticket_type", x: 20, y: 33, w: 60, h: 5 },
+		{ id: "seat", type: "seat", x: 20, y: 39, w: 60, h: 4 },
+		{ id: "name", type: "name", x: 7, y: 45, w: 86, h: 5 },
+		{ id: "phone", type: "phone", x: 7, y: 50, w: 86, h: 5 },
+		{ id: "email", type: "email", x: 7, y: 55, w: 86, h: 5 },
+		{ id: "qr", type: "qr", x: 30, y: 61, w: 40, h: 17 },
+		{ id: "booking_id", type: "booking_id", x: 15, y: 79, w: 70, h: 4 },
+		{ id: "price", type: "price", x: 7, y: 84, w: 86, h: 5 },
+		{ id: "jod_logo", type: "jod_logo", x: 11, y: 89, w: 78, h: 10 },
 	];
 
 	const DEFAULT_LAYOUT = {
 		template_id: "classic",
+		layout_version: LAYOUT_VERSION,
 		accent_color: "#2563eb",
 		show_jod_logo: true,
 		show_venue: true,
@@ -132,14 +135,45 @@
 		return out;
 	}
 
+	function defaultByType() {
+		const map = {};
+		DEFAULT_ELEMENTS.forEach(function (e) { map[e.type] = e; });
+		return map;
+	}
+
+	function snapDataElementsToDefault(elements) {
+		const map = defaultByType();
+		return (elements || []).map(function (el) {
+			if (!el || isShapeType(el.type)) return el;
+			const base = map[el.type];
+			if (!base) {
+				/* Keep custom footer below booking / above price so it never sits on venue. */
+				if (el.type === "footer") {
+					return Object.assign({}, el, { x: 15, y: 75, w: 70, h: 4 });
+				}
+				return el;
+			}
+			return Object.assign({}, el, { x: base.x, y: base.y, w: base.w, h: base.h });
+		});
+	}
+
 	function cloneLayout(src) {
 		const out = Object.assign({}, DEFAULT_LAYOUT, src || {});
 		out.canvas_elements = cloneElements((src && src.canvas_elements) || DEFAULT_ELEMENTS);
+		const prevVer = Number(src && src.layout_version) || 0;
+		/* v2+: one shared alignment for every color format; migrate older drafts once. */
+		if (!src || !Array.isArray(src.canvas_elements) || !src.canvas_elements.length || prevVer < LAYOUT_VERSION) {
+			out.canvas_elements = snapDataElementsToDefault(out.canvas_elements);
+		}
+		out.layout_version = LAYOUT_VERSION;
 		/* Keep footer from sitting on top of venue (old drafts). */
 		const venue = out.canvas_elements.find(function (e) { return e.type === "venue"; });
 		const footer = out.canvas_elements.find(function (e) { return e.type === "footer"; });
-		if (venue && footer && Math.abs(footer.y - venue.y) < 6) {
-			footer.y = Math.min(92, venue.y + venue.h + 1);
+		if (venue && footer && Math.abs(footer.y - venue.y) < 8) {
+			footer.y = 75;
+			footer.x = 15;
+			footer.w = 70;
+			footer.h = 4;
 		}
 		return out;
 	}
@@ -166,9 +200,9 @@
 			seat: "Seat A12",
 			price: "Rs. 999",
 			bookingId: "JOD-A1B2C3D4",
-			attendeeName: "Priya Sharma",
-			attendeeEmail: "priya@email.com",
-			attendeePhone: "+91 98765 43210",
+			attendeeName: "fullname",
+			attendeeEmail: "contact@jodevents.com",
+			attendeePhone: "+91 91509 04455",
 		}, opts.sample || {});
 		this.onChange = typeof opts.onChange === "function" ? opts.onChange : function () {};
 		this.selectedId = null;
@@ -777,8 +811,8 @@
 			case "email": return '<div class="tc-el-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>";
 			case "qr": return '<div class="tc-el-qr" aria-hidden="true"></div>';
 			case "booking_id": return '<div class="tc-el-text center strong">BOOKING ID: #' + escapeHtml(s.bookingId) + "</div>";
-			case "price": return '<div class="tc-el-price"><span class="tc-price-label">Total Amount</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>";
-			case "jod_logo": return '<div class="tc-el-logo">JOD Events</div>';
+			case "price": return '<div class="tc-el-price"><span class="tc-price-label">Price</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>";
+			case "jod_logo": return '<div class="tc-el-logo is-watermark" aria-label="JOD Events"><img src="/images/JOD%20Events%20Logo.png" alt="JOD Events" draggable="false" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'/images/jod-logo.png\';}" /></div>';
 			case "footer": return '<div class="tc-el-text muted center">' + escapeHtml(L.custom_footer || "Footer note") + "</div>";
 			case "line": return '<div class="tc-shape-line" style="background:' + color + ';"></div>';
 			case "dashed_line": return '<div class="tc-shape-line is-dashed" style="border-top-color:' + color + ';"></div>';
@@ -819,6 +853,10 @@
 			const handles = isLine
 				? '<span class="tc-handle tc-handle-e" data-resize="e" title="Extend"></span><span class="tc-handle tc-handle-w" data-resize="w" title="Extend"></span><span class="tc-handle tc-handle-s" data-resize="s" title="Thickness"></span>'
 				: '<span class="tc-handle tc-handle-nw" data-resize="nw"></span><span class="tc-handle tc-handle-ne" data-resize="ne"></span><span class="tc-handle tc-handle-sw" data-resize="sw"></span><span class="tc-handle tc-handle-se" data-resize="se"></span><span class="tc-handle tc-handle-n" data-resize="n"></span><span class="tc-handle tc-handle-s" data-resize="s"></span><span class="tc-handle tc-handle-e" data-resize="e"></span><span class="tc-handle tc-handle-w" data-resize="w"></span>';
+			/* Always mount chrome; CSS shows it only on .is-selected (selection updates via class, not full re-render). */
+			const removeCtrl = locked
+				? ""
+				: '<button type="button" class="tc-node-remove" data-remove title="Delete" aria-label="Delete" tabindex="-1">&times;</button>';
 			bits.push(
 				'<div class="tc-node' +
 					(selected ? " is-selected" : "") +
@@ -830,6 +868,7 @@
 					'" style="left:' + el.x + "%;top:" + el.y + "%;width:" + el.w + "%;height:" + el.h +
 					"%;--tc-font-scale:" + scale + ';">' +
 				'<div class="tc-node-body">' + self.elementContent(el) + "</div>" +
+				removeCtrl +
 				'<div class="tc-handles" aria-hidden="true">' + handles + "</div>" +
 				"</div>"
 			);
@@ -839,6 +878,13 @@
 
 		card.querySelectorAll(".tc-node").forEach(function (node) {
 			node.addEventListener("pointerdown", function (ev) {
+				const removeBtn = ev.target && ev.target.closest ? ev.target.closest("[data-remove], .tc-node-remove") : null;
+				if (removeBtn) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					self.removeElement(node.getAttribute("data-id"));
+					return;
+				}
 				const handle = ev.target && ev.target.closest ? ev.target.closest("[data-resize]") : null;
 				if (handle) {
 					if (ev.cancelable) ev.preventDefault();

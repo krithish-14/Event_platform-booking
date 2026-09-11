@@ -32,7 +32,7 @@
 
 	if (isHome && !isErrorPage) {
  document.body.classList.add("home-page");
-	} else {
+	} else if (!(document.body && document.body.classList.contains("dashboard-body"))) {
  document.body.classList.add("sub-page");
 	}
 

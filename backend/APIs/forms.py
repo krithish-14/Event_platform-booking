@@ -1296,7 +1296,7 @@ def download_host_submission_ticket_pdf(
 	db: Session = Depends(get_db),
 	current_user: User = Depends(get_current_user),
 ):
-	"""Host ticket PDF — same staff layout as admin (name + logo, no prices)."""
+	"""Host ticket PDF — uses the host-designed M-ticket layout (same as user and admin downloads)."""
 	from APIs.bookings import _lookup_booking_row
 	from APIs.host_events_api import (
 		_bound_email,
@@ -1306,7 +1306,7 @@ def download_host_submission_ticket_pdf(
 		resolve_host_identifiers,
 		resolve_registrations_display_event,
 	)
-	from Services.ticket_pdf import build_staff_mticket_pdf_from_booking, host_ticket_pdf_filename
+	from Services.ticket_pdf import build_mticket_pdf_from_booking, ticket_pdf_filename
 
 	row = form_submission_by_id(db, submission_id)
 	if not row:
@@ -1342,27 +1342,15 @@ def download_host_submission_ticket_pdf(
 			detail="QR ticket is not ready yet for this registration.",
 		)
 
-	answers = parse_answers_json(getattr(row, "answers_json", None))
-	name, _, _ = pick_attendee_identity(
-		names=(
-			_pick_answer(answers, "full name", "attendee name", "your name", "participant name", "guest name", "name"),
-			getattr(booking, "receiver_name", None),
-		),
-		emails=(
-			_pick_answer(answers, "email", "email address", "e-mail", "mail id"),
-			row.user_email,
-		),
-		phones=(),
-	)
-	pdf = build_staff_mticket_pdf_from_booking(
+	# Use the host-designed M-ticket renderer — same design as user and admin downloads.
+	pdf = build_mticket_pdf_from_booking(
 		booking,
-		attendee_name=name,
 		qr_token=tickets[0].qr_token,
 		db=db,
 	)
 	if not pdf:
 		raise HTTPException(status_code=500, detail="Could not generate the host ticket PDF.")
-	filename = host_ticket_pdf_filename(booking.booking_id)
+	filename = ticket_pdf_filename(booking.booking_id)
 	return Response(
 		content=pdf,
 		media_type="application/pdf",

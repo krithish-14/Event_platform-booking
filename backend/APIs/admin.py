@@ -1358,30 +1358,10 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
     pdf_bytes = None
     try:
         from Services.ticket_pdf import build_mticket_pdf_from_booking
+        # Always use the host-designed M-ticket renderer (loads EventDesign.ticket_layout_json).
         pdf_bytes = build_mticket_pdf_from_booking(booking, qr_token=token, db=db)
     except Exception:
         pdf_bytes = None
-    if not pdf_bytes:
-        try:
-            event = booking.event
-            pdf_bytes = build_ticket_pdf_bytes(
-                booking_id=booking.booking_id,
-                event_name=event_title,
-                event_date=event_when if event_when != "TBA" else (event.start_date if event else None),
-                qr_token=token,
-                venue=(event.venue or event.location or "") if event else "",
-                language=getattr(event, "language", None) if event else "English",
-                event_format=getattr(event, "event_format", None) if event else "Live Event",
-                ticket_type=booking.ticket_type or "General Admission",
-                quantity=max(1, int(booking.quantity or 1)),
-                total_price=float(booking.total_price or 0),
-                gst_amount=float(getattr(booking, "gst_amount", 0) or 0),
-                poster_url=(getattr(event, "card_image", None) or getattr(event, "image_url", None) or "") if event else "",
-                seat_number=getattr(booking, "seat_number", None) or "General Admission",
-                payment_mode=getattr(booking, "payment_mode", None) or "",
-            )
-        except Exception:
-            pdf_bytes = None
     attachments = []
     if pdf_bytes:
         short = (str(booking.booking_id).replace("-", "")[:8] or "ticket").upper()
@@ -1669,16 +1649,16 @@ def download_admin_payment_ticket_pdf(
         form_email=row.attendee_email or "",
         form_phone=row.attendee_phone or "",
     )
-    from Services.ticket_pdf import build_staff_mticket_pdf_from_booking
-    pdf = build_staff_mticket_pdf_from_booking(
+    from Services.ticket_pdf import build_mticket_pdf_from_booking, ticket_pdf_filename
+    # Use the host-designed M-ticket renderer — same design as user/host downloads.
+    pdf = build_mticket_pdf_from_booking(
         booking,
-        attendee_name=name,
         qr_token=(tickets[0].qr_token or ""),
         db=db,
     )
     if not pdf:
         raise HTTPException(status_code=500, detail="Could not generate the admin ticket PDF.")
-    filename = admin_ticket_pdf_filename(booking.booking_id)
+    filename = ticket_pdf_filename(booking.booking_id)
     return Response(
         content=pdf,
         media_type="application/pdf",
@@ -1722,16 +1702,16 @@ def download_admin_submission_ticket_pdf(
         form_phone=form_phone,
         prefer_form=True,
     )
-    from Services.ticket_pdf import build_staff_mticket_pdf_from_booking
-    pdf = build_staff_mticket_pdf_from_booking(
+    from Services.ticket_pdf import build_mticket_pdf_from_booking, ticket_pdf_filename
+    # Use the host-designed M-ticket renderer — same design as user/host downloads.
+    pdf = build_mticket_pdf_from_booking(
         booking,
-        attendee_name=name,
         qr_token=tickets[0].qr_token,
         db=db,
     )
     if not pdf:
         raise HTTPException(status_code=500, detail="Could not generate the admin ticket PDF.")
-    filename = admin_ticket_pdf_filename(booking.booking_id)
+    filename = ticket_pdf_filename(booking.booking_id)
     return Response(
         content=pdf,
         media_type="application/pdf",

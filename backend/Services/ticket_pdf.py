@@ -713,7 +713,7 @@ def build_mticket_pdf_bytes(
             ops.extend([
                 "BT",
                 f"/F1 11 Tf {_rgb(text_rgb)} rg",
-                f"1 0 0 1 {inner_x:.1f} {divider_y - 22:.1f} Tm ({_pdf_escape('Total Amount')}) Tj",
+                f"1 0 0 1 {inner_x:.1f} {divider_y - 22:.1f} Tm ({_pdf_escape('Price')}) Tj",
                 _tj_right(inner_right, divider_y - 22, _money(total), 6.4),
                 f"/F2 9 Tf {_rgb(muted_rgb)} rg",
                 f"1 0 0 1 {inner_x:.1f} {divider_y - 40:.1f} Tm ({_pdf_escape(f'Ticket price (x{qty})')}) Tj",
@@ -739,9 +739,9 @@ def build_mticket_pdf_bytes(
             if show_jod_logo and logo:
                 filt, payload, lw, lh = logo
                 xobjects["ImL"] = (payload, lw, lh, filt)
-                logo_h = 18.0
+                logo_h = 28.0
                 aspect = (lw / float(lh)) if lh else 3.0
-                logo_w = min(96.0, logo_h * aspect)
+                logo_w = min(140.0, logo_h * aspect)
                 logo_x = center_x - logo_w / 2.0
                 logo_y = brand_top - 8 - logo_h
                 ops.append(_draw_image("ImL", logo_x, logo_y, logo_w, logo_h))
@@ -1261,7 +1261,10 @@ def build_admin_mticket_pdf_from_booking(
     qr_token: str = "",
     db=None,
 ) -> Optional[bytes]:
-    """Build the admin-portal ticket PDF (name footer, 85x130mm card)."""
+    """Build the host/admin ticket PDF using the **host-designed layout** (same M-ticket
+    renderer as the user-facing download).  Falls back to the legacy 85x130mm admin card
+    only when no host design exists for the event.
+    """
     event = getattr(booking, "event", None)
     token = (qr_token or "").strip()
     if not token:
@@ -1274,6 +1277,8 @@ def build_admin_mticket_pdf_from_booking(
     if event is not None:
         poster = getattr(event, "card_image", None) or getattr(event, "image_url", None) or ""
     qty = max(1, int(getattr(booking, "quantity", 1) or 1))
+    total = float(getattr(booking, "total_price", 0) or 0)
+    gst = float(getattr(booking, "gst_amount", 0) or 0)
     event_date = None
     public_start = getattr(event, "start_date", None) if event is not None else None
     if db is not None:
@@ -1300,6 +1305,74 @@ def build_admin_mticket_pdf_from_booking(
         # Host-form / booking receiver only — never profile full_name.
         guest = (getattr(booking, "receiver_name", None) or "").strip() or "Guest"
 
+    # ── Load host-designed ticket layout from EventDesign ──────────────────────
+    ticket_layout = None
+    has_host_design = False
+    if db is not None:
+        try:
+            from Models.event_design import EventDesign
+            from Models.event_management import EventManagement
+            from Models.organizer_accounts import OrganizerAccount
+            from Services.ticket_templates import is_premium_tier, normalize_ticket_layout
+            from sqlalchemy import or_
+
+            event_id = getattr(booking, "event_id", None)
+            design = None
+            if event_id:
+                design = db.query(EventDesign).filter(EventDesign.event_id == event_id).first()
+            if design and (design.ticket_layout_json or design.ticket_template_id):
+                has_host_design = True
+                premium = False
+                try:
+                    em = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
+                    email = (getattr(em, "organizer_email", None) or "").strip().lower()
+                    org = None
+                    if email:
+                        org = db.query(OrganizerAccount).filter(OrganizerAccount.email == email).first()
+                    if not org and em is not None:
+                        org = db.query(OrganizerAccount).filter(
+                            or_(
+                                OrganizerAccount.customer_id == getattr(em, "customer_id", None),
+                                OrganizerAccount.host_id == getattr(em, "host_id", None),
+                            )
+                        ).first()
+                    premium = is_premium_tier(getattr(org, "subscription_tier", None) if org else None)
+                except Exception:
+                    premium = False
+                ticket_layout = normalize_ticket_layout(
+                    design.ticket_layout_json if isinstance(design.ticket_layout_json, dict) else {},
+                    template_id=design.ticket_template_id,
+                    is_premium=premium,
+                )
+        except Exception:
+            ticket_layout = None
+            has_host_design = False
+
+    # ── Use host-designed M-ticket renderer when a design is available ─────────
+    if has_host_design:
+        return build_mticket_pdf_bytes(
+            booking_id=getattr(booking, "booking_id", ""),
+            event_name=getattr(event, "title", None) if event is not None else "JOD Events",
+            event_date=event_date,
+            venue=(getattr(event, "venue", None) or getattr(event, "location", None) or "") if event is not None else "",
+            language=getattr(event, "language", None) if event is not None else "English",
+            event_format=getattr(event, "event_format", None) if event is not None else "Live Event",
+            ticket_type=getattr(booking, "ticket_type", None) or "General Admission",
+            quantity=qty,
+            total_price=total,
+            gst_amount=gst,
+            qr_token=token,
+            poster_url=poster,
+            seat_number=getattr(booking, "seat_number", None) or "General Admission",
+            payment_mode=getattr(booking, "payment_mode", None) or "",
+            include_qr=bool(token),
+            ticket_layout=ticket_layout,
+            attendee_name=guest,
+            attendee_email=getattr(booking, "receiver_email", None) or "",
+            attendee_phone=getattr(booking, "receiver_phone", None) or "",
+        )
+
+    # ── Fallback: legacy 85x130mm admin card (no host design configured) ──────
     return build_admin_mticket_pdf_bytes(
         booking_id=getattr(booking, "booking_id", ""),
         event_name=getattr(event, "title", None) if event is not None else "JOD Events",
