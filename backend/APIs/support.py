@@ -3,6 +3,7 @@ Help & Support tickets — guests and signed-in users can raise a query.
 Public ticket IDs use THP-#### (separate from booking tickets).
 """
 
+import os
 import random
 import re
 from typing import List, Optional
@@ -38,6 +39,7 @@ _SCHEMA_READY = False
 class SupportTicketCreate(BaseModel):
 	name: str = Field(..., min_length=2, max_length=200)
 	email: EmailStr
+	phone: Optional[str] = Field(None, max_length=50)
 	category: str = Field(..., min_length=2, max_length=80)
 	priority: str = "normal"
 	subject: str = Field(..., min_length=6, max_length=250)
@@ -49,6 +51,7 @@ class SupportTicketResponse(BaseModel):
 	ticket_code: str
 	name: str
 	email: str
+	phone: Optional[str] = None
 	category: str
 	priority: str
 	subject: str
@@ -68,11 +71,13 @@ def _ensure_support_schema(db: Session) -> None:
 	statements = [
 		"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolution_note TEXT",
 		"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",
+		"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS phone VARCHAR(50)",
 	]
 	# SQLite does not support IF NOT EXISTS on ADD COLUMN in older versions
 	sqlite_statements = [
 		"ALTER TABLE support_tickets ADD COLUMN resolution_note TEXT",
 		"ALTER TABLE support_tickets ADD COLUMN resolved_at DATETIME",
+		"ALTER TABLE support_tickets ADD COLUMN phone VARCHAR(50)",
 	]
 	bind = db.get_bind()
 	dialect = (bind.dialect.name if bind is not None else "") or ""
@@ -136,6 +141,7 @@ def _serialize(ticket: SupportTicket) -> SupportTicketResponse:
 		ticket_code=ticket.ticket_code,
 		name=ticket.name,
 		email=ticket.email,
+		phone=getattr(ticket, "phone", None),
 		category=ticket.category,
 		priority=ticket.priority,
 		subject=ticket.subject,
@@ -158,6 +164,45 @@ def _unique_code(db: Session) -> str:
 	return f"THP-{random.randint(10000, 999999)}"
 
 
+def _notify_admin_new_support_ticket(ticket: SupportTicket) -> bool:
+	admin_addr = (os.getenv("ADMIN_EMAIL") or "contact@jodevents.com").strip()
+	if not admin_addr or "@" not in admin_addr:
+		return False
+	code = ticket.ticket_code
+	phone_str = ticket.phone or "Not provided"
+	subject = f"[Support Ticket {code}] {ticket.subject} — from {ticket.name}"
+	text_body = (
+		f"A new Help & Support ticket has been submitted.\n\n"
+		f"Ticket ID: {code}\n"
+		f"Customer Name: {ticket.name}\n"
+		f"Customer Email: {ticket.email}\n"
+		f"Customer Phone: {phone_str}\n"
+		f"Category: {ticket.category}\n"
+		f"Priority: {ticket.priority}\n"
+		f"Subject: {ticket.subject}\n\n"
+		f"Message:\n{ticket.message}\n\n"
+		f"View this ticket in Admin Portal:\n"
+		f"https://jodevents.com/admin.html?section=support\n"
+	)
+	html_body = (
+		f"<h2 style='color:#1e293b;margin-bottom:12px;'>New Support Ticket: {code}</h2>"
+		f"<p><strong>Name:</strong> {ticket.name}</p>"
+		f"<p><strong>Email:</strong> <a href='mailto:{ticket.email}'>{ticket.email}</a></p>"
+		f"<p><strong>Phone:</strong> {phone_str}</p>"
+		f"<p><strong>Category:</strong> {ticket.category} &middot; <strong>Priority:</strong> {ticket.priority}</p>"
+		f"<p><strong>Subject:</strong> {ticket.subject}</p>"
+		f"<hr style='border:0;border-top:1px solid #e2e8f0;margin:16px 0;'/>"
+		f"<p><strong>Message:</strong></p>"
+		f"<div style='background:#f8fafc;padding:14px 18px;border-left:4px solid #f97316;border-radius:6px;white-space:pre-wrap;line-height:1.5;'>{ticket.message}</div>"
+		f"<p style='margin-top:20px;'><a href='https://jodevents.com/admin.html?section=support' style='display:inline-block;background:#f97316;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;'>Open in Admin Portal</a></p>"
+	)
+	try:
+		from Services.email import send_email
+		return bool(send_email(admin_addr, subject, text_body, html_body=html_body))
+	except Exception:
+		return False
+
+
 @router.post("/tickets", response_model=SupportTicketResponse, status_code=status.HTTP_201_CREATED)
 def create_support_ticket(
 	payload: SupportTicketCreate,
@@ -172,6 +217,9 @@ def create_support_ticket(
 		email = current_user.email.lower().strip()
 		if current_user.full_name:
 			name = current_user.full_name.strip() or name
+	phone = (payload.phone or "").strip() or None
+	if not phone and current_user and getattr(current_user, "phone", None):
+		phone = str(current_user.phone).strip() or None
 	limit_support(request, email)
 	subject = payload.subject.strip()
 	message = payload.message.strip()
@@ -183,6 +231,7 @@ def create_support_ticket(
 		customer_id=current_user.customer_id if current_user else None,
 		name=name,
 		email=current_user.email.lower() if current_user and current_user.email else email,
+		phone=phone,
 		category=_normalize_category(payload.category),
 		priority=_normalize_priority(payload.priority),
 		subject=subject,
@@ -198,6 +247,10 @@ def create_support_ticket(
 		db.add(ticket)
 		db.commit()
 	db.refresh(ticket)
+	try:
+		_notify_admin_new_support_ticket(ticket)
+	except Exception:
+		pass
 	return _serialize(ticket)
 
 

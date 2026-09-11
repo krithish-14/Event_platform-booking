@@ -6,9 +6,9 @@ Public IDs use THP-#### so they never clash with booking / QR ticket codes.
 import random
 import uuid
 
-from sqlalchemy import Column, DateTime, String, Text
+from sqlalchemy import Column, DateTime, String, Text, Uuid
 
-from Models.base import Base, GUID
+from Models.base import Base
 from Utils.datetimes import utc_now
 
 
@@ -20,7 +20,7 @@ def generate_ticket_code():
 class SupportTicket(Base):
 	__tablename__ = "support_tickets"
 
-	id = Column(GUID, primary_key=True, default=uuid.uuid4, index=True)
+	id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 	ticket_code = Column(String(20), unique=True, nullable=False, index=True, default=generate_ticket_code)
 	customer_id = Column(String(50), nullable=True, index=True)
 	name = Column(String(200), nullable=False)
@@ -30,6 +30,7 @@ class SupportTicket(Base):
 	subject = Column(String(250), nullable=False)
 	message = Column(Text, nullable=False)
 	status = Column(String(30), default="open", nullable=False)
+	phone = Column(String(50), nullable=True)
 	resolution_note = Column(Text, nullable=True)
 	resolved_at = Column(DateTime, nullable=True)
 	created_at = Column(DateTime, default=utc_now, nullable=True)

@@ -493,7 +493,7 @@
 			if (copy) copy.textContent = "Tickets raised from Help & Support (THP- IDs). Open an issue, then mark it solved to email the customer.";
 			if (hint) hint.textContent = "Review customer issues from the Help page and mark them solved when fixed.";
 			if (ticketCol) ticketCol.textContent = "Issue preview";
-			if (searchInput) searchInput.placeholder = "Search THP- ID, name, email, or subject";
+			if (searchInput) searchInput.placeholder = "Search THP- ID, name, email, phone, or subject";
 			const head = document.querySelector("#adminTableWrap thead tr");
 			if (head) {
 				head.innerHTML = "<th>Ticket / Customer</th><th>Subject</th><th>Issue preview</th><th>Submitted</th><th>Status</th><th>Action</th>";
@@ -1130,6 +1130,7 @@
 				<div class="admin-name">${escapeHtml(row.ticket_code)}</div>
 				<div class="admin-muted">${escapeHtml(row.name || "")}</div>
 				<div class="admin-muted">${escapeHtml(row.email || "")}</div>
+				${row.phone ? `<div class="admin-muted"><a href="tel:${escapeHtml(row.phone)}" style="color:inherit;text-decoration:none;">📞 ${escapeHtml(row.phone)}</a></div>` : ""}
 			</td>
 			<td>
 				<button type="button" class="admin-event-title" data-support-view="${escapeHtml(row.ticket_code)}" title="View issue">${escapeHtml(row.subject || "Support issue")}</button>
@@ -1182,7 +1183,7 @@
 		if (title) title.textContent = row.ticket_code || "Support ticket";
 		body.innerHTML = `
 			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(row.status || "open")}">${escapeHtml(supportStatusLabel(row.status))}</span></dd>
-			<dt>Customer</dt><dd>${escapeHtml(row.name || "")}<br>${escapeHtml(row.email || "")}</dd>
+			<dt>Customer</dt><dd>${escapeHtml(row.name || "")}<br>${escapeHtml(row.email || "")}${row.phone ? `<br><strong>Phone:</strong> <a href="tel:${escapeHtml(row.phone)}">${escapeHtml(row.phone)}</a>` : ""}</dd>
 			<dt>Category / Priority</dt><dd>${escapeHtml(row.category || "")} \u00b7 ${escapeHtml(row.priority || "normal")}</dd>
 			<dt>Subject</dt><dd>${escapeHtml(row.subject || "")}</dd>
 			<dt>Issue details</dt><dd>${escapeHtml(row.message || "")}</dd>

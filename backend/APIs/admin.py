@@ -1820,11 +1820,13 @@ def _ensure_support_ticket_columns(db: Session) -> None:
         stmts = [
             "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolution_note TEXT",
             "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",
+            "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS phone VARCHAR(50)",
         ]
     else:
         stmts = [
             "ALTER TABLE support_tickets ADD COLUMN resolution_note TEXT",
             "ALTER TABLE support_tickets ADD COLUMN resolved_at DATETIME",
+            "ALTER TABLE support_tickets ADD COLUMN phone VARCHAR(50)",
         ]
     for sql in stmts:
         try:
@@ -1840,6 +1842,7 @@ def _serialize_support_ticket(row) -> dict:
         "ticket_code": row.ticket_code,
         "name": row.name,
         "email": row.email,
+        "phone": getattr(row, "phone", None) or "",
         "category": row.category,
         "priority": row.priority,
         "subject": row.subject,
@@ -1906,6 +1909,7 @@ def admin_list_support_tickets(
             if needle in str(item.get("ticket_code") or "").lower()
             or needle in str(item.get("name") or "").lower()
             or needle in str(item.get("email") or "").lower()
+            or needle in str(item.get("phone") or "").lower()
             or needle in str(item.get("subject") or "").lower()
             or needle in str(item.get("message") or "").lower()
             or needle in str(item.get("category") or "").lower()
