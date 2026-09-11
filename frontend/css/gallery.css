@@ -66,10 +66,10 @@ html[data-theme="dark"] .gallery-heading {
 
 .gallery-description {
 	font-size: clamp(0.95rem, 1.8vw, 1.1rem);
-	line-height: 1.55;
+	line-height: 1.6;
 	color: #64748b;
 	margin: 0 auto;
-	max-width: 520px;
+	max-width: 620px;
 	font-weight: 450;
 }
 
