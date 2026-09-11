@@ -18,11 +18,11 @@
 		return "https://assets.jodevents.com/images/" + clean;
 	}
 
-	const FALLBACK = asset("images/Picflow Images Aug 20/2G5A0980.webp");
+	const FALLBACK = asset("images/Singapenn marathon/1.webp");
 
 	/* --------------------------------------------------------------------------
 	   Event Galleries Data (Configured with Cloudflare R2 Folders)
-	   - Singapenn Marathon 2026: images/Picflow Images Aug 20/
+	   - Singapenn Marathon 2026: images/Singapenn marathon/
 	   - Sandd: images/Sandd/
 	   - Conference: images/Conference/
 	   -------------------------------------------------------------------------- */
@@ -34,19 +34,19 @@
 		{
 			id: "marathon",
 			name: "Singapenn Marathon 2026",
-			folder: "images/Picflow Images Aug 20",
+			folder: "images/Singapenn marathon",
 			items: [
-				{ id: "sm-1", title: "Singapenn Marathon 2026", file: "8I2A8909.webp", type: "image" },
-				{ id: "sm-2", title: "Marathon Celebration", file: "2G5A0980.webp", type: "image" },
-				{ id: "sm-3", title: "Festival Stage Celebration", file: "773A2389.webp", type: "image" },
-				{ id: "sm-4", title: "Runners on Route", file: "8I2A8969.webp", type: "image" },
-				{ id: "sm-5", title: "Award Ceremony", file: "2G5A0951.webp", type: "image" },
-				{ id: "sm-6", title: "Cheering Participants", file: "2G5A1131.webp", type: "image" },
-				{ id: "sm-7", title: "Morning Warm-Up", file: "773A2231.webp", type: "image" },
-				{ id: "sm-8", title: "Flag-Off Highlights", file: "8I2A9088.webp", type: "image" },
-				{ id: "sm-9", title: "Community Runners", file: "8I2A9521.webp", type: "image" },
-				{ id: "sm-10", title: "Medal Distribution", file: "8I2A9250.webp", type: "image" },
-				{ id: "sm-11", title: "Event Grand Finale", file: "773A2276.webp", type: "image" }
+				{ id: "sm-1",  title: "Singapenn Marathon 2026",  file: "1.webp",  type: "image" },
+				{ id: "sm-2",  title: "Marathon Moments",          file: "2.webp",  type: "image" },
+				{ id: "sm-3",  title: "Runners on Route",           file: "3.webp",  type: "image" },
+				{ id: "sm-4",  title: "Cheering Crowd",             file: "4.webp",  type: "image" },
+				{ id: "sm-5",  title: "Flag-Off Highlights",        file: "5.webp",  type: "image" },
+				{ id: "sm-6",  title: "Community Spirit",           file: "6.webp",  type: "image" },
+				{ id: "sm-7",  title: "Morning Warm-Up",            file: "7.webp",  type: "image" },
+				{ id: "sm-8",  title: "Award Ceremony",             file: "8.webp",  type: "image" },
+				{ id: "sm-9",  title: "Medal Distribution",         file: "9.webp",  type: "image" },
+				{ id: "sm-10", title: "Grand Celebration",          file: "10.webp", type: "image" },
+				{ id: "sm-11", title: "Event Grand Finale",         file: "11.webp", type: "image" }
 			]
 		},
 		{
