@@ -1,7 +1,8 @@
 /**
  * JOD Events — Modern Editorial Layered Image Carousel
  * Visual Diary & Event Gallery with 4:5 Aspect Ratio, Dynamic 3D Layering,
- * Smooth Transitions, Category Filtering, and Lightbox Integration.
+ * Event Filtering (Singapenn Marathon, Sandd, Conference), Smooth Transitions,
+ * and Fullscreen Lightbox Integration.
  */
 (function () {
 	"use strict";
@@ -10,131 +11,98 @@
 		if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
 			return window.JodConfig.assetUrl(path);
 		}
-		return "https://assets.jodevents.com/images/" + String(path || "").replace(/^images\//, "");
+		const clean = String(path || "").replace(/^\/+/, "");
+		if (clean.startsWith("images/")) {
+			return "https://assets.jodevents.com/" + clean;
+		}
+		return "https://assets.jodevents.com/images/" + clean;
 	}
 
-	function photoUrl(name) {
-		return asset("images/Picflow Images Aug 20/" + name);
-	}
+	const FALLBACK = asset("images/Picflow Images Aug 20/2G5A0980.webp");
 
-	const FALLBACK = photoUrl("2G5A0980.webp");
-
-	/* Curated Visual Diary & Event Gallery Dataset with 4:5 Aspect Ratio Images */
-	const GALLERY_DATA = [
+	/* --------------------------------------------------------------------------
+	   Event Galleries Data (Configured with Cloudflare R2 Folders)
+	   - Singapenn Marathon 2026: images/Picflow Images Aug 20/
+	   - Sandd: images/Sandd/
+	   - Conference: images/Conference/
+	   -------------------------------------------------------------------------- */
+	const EVENT_GALLERIES = [
 		{
-			id: "diary-1",
-			title: "Lake Braies Mountain Reflections",
-			category: "Italy",
-			type: "image",
-			src: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&h=1500&q=85",
-			poster: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&h=750&q=80"
+			id: "all",
+			name: "All Events"
 		},
 		{
-			id: "diary-2",
-			title: "Golden Hour Over Sea of Clouds",
-			category: "Dubai",
-			type: "image",
-			src: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1200&h=1500&q=85",
-			poster: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=600&h=750&q=80"
+			id: "marathon",
+			name: "Singapenn Marathon 2026",
+			folder: "images/Picflow Images Aug 20",
+			items: [
+				{ id: "sm-1", title: "Singapenn Marathon 2026", file: "8I2A8909.webp", type: "image" },
+				{ id: "sm-2", title: "Marathon Celebration", file: "2G5A0980.webp", type: "image" },
+				{ id: "sm-3", title: "Festival Stage Celebration", file: "773A2389.webp", type: "image" },
+				{ id: "sm-4", title: "Runners on Route", file: "8I2A8969.webp", type: "image" },
+				{ id: "sm-5", title: "Award Ceremony", file: "2G5A0951.webp", type: "image" },
+				{ id: "sm-6", title: "Cheering Participants", file: "2G5A1131.webp", type: "image" },
+				{ id: "sm-7", title: "Morning Warm-Up", file: "773A2231.webp", type: "image" },
+				{ id: "sm-8", title: "Flag-Off Highlights", file: "8I2A9088.webp", type: "image" },
+				{ id: "sm-9", title: "Community Runners", file: "8I2A9521.webp", type: "image" },
+				{ id: "sm-10", title: "Medal Distribution", file: "8I2A9250.webp", type: "image" },
+				{ id: "sm-11", title: "Event Grand Finale", file: "773A2276.webp", type: "image" }
+			]
 		},
 		{
-			id: "diary-3",
-			title: "Vintage Traveler Gear & Film Camera",
-			category: "London",
-			type: "video",
-			src: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&h=1500&q=85",
-			poster: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&h=750&q=80"
+			id: "sandd",
+			name: "Sandd",
+			folder: "images/Sandd",
+			items: [
+				{ id: "sd-intro", title: "Sandd Showcase", file: "intro.webp", type: "image" },
+				{ id: "sd-1", title: "Sandd Moments 01", file: "1.webp", type: "image" },
+				{ id: "sd-2", title: "Sandd Moments 02", file: "2.webp", type: "image" },
+				{ id: "sd-3", title: "Sandd Moments 03", file: "3.webp", type: "image" },
+				{ id: "sd-4", title: "Sandd Moments 04", file: "4.webp", type: "image" },
+				{ id: "sd-5", title: "Sandd Moments 05", file: "5.webp", type: "image" },
+				{ id: "sd-6", title: "Sandd Moments 06", file: "6.webp", type: "image" },
+				{ id: "sd-7", title: "Sandd Moments 07", file: "7.webp", type: "image" },
+				{ id: "sd-8", title: "Sandd Moments 08", file: "8.webp", type: "image" },
+				{ id: "sd-9", title: "Sandd Moments 09", file: "9.webp", type: "image" },
+				{ id: "sd-10", title: "Sandd Moments 10", file: "10.webp", type: "image" }
+			]
 		},
 		{
-			id: "diary-4",
-			title: "Alpine Lake & Lone Hiker",
-			category: "Berlin",
-			type: "image",
-			src: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1200&h=1500&q=85",
-			poster: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=600&h=750&q=80"
-		},
-		{
-			id: "diary-5",
-			title: "Dolomites Sunset Glow",
-			category: "Rome",
-			type: "image",
-			src: "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&h=1500&q=85",
-			poster: "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=600&h=750&q=80"
-		},
-		{
-			id: "diary-6",
-			title: "Lisbon Coastline & Ocean Breeze",
-			category: "Lisbon",
-			type: "image",
-			src: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&h=1500&q=85",
-			poster: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=600&h=750&q=80"
-		},
-		{
-			id: "diary-7",
-			title: "Singapenn Marathon 2026 Runners",
-			category: "India",
-			type: "image",
-			src: photoUrl("8I2A8909.webp"),
-			poster: photoUrl("8I2A8909.webp")
-		},
-		{
-			id: "diary-8",
-			title: "Singapenn Marathon Celebration",
-			category: "India",
-			type: "image",
-			src: photoUrl("2G5A0980.webp"),
-			poster: photoUrl("2G5A0980.webp")
-		},
-		{
-			id: "diary-9",
-			title: "Ancient Pagoda & Bamboo Groves",
-			category: "China",
-			type: "image",
-			src: "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?auto=format&fit=crop&w=1200&h=1500&q=85",
-			poster: "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?auto=format&fit=crop&w=600&h=750&q=80"
-		},
-		{
-			id: "diary-10",
-			title: "Kyoto Lanterns & Cherry Blossoms",
-			category: "Japan",
-			type: "video",
-			src: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1200&h=1500&q=85",
-			poster: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=600&h=750&q=80"
-		},
-		{
-			id: "diary-11",
-			title: "Festival Lights & Stage Energy",
-			category: "Concerts",
-			type: "image",
-			src: photoUrl("773A2389.webp"),
-			poster: photoUrl("773A2389.webp")
-		},
-		{
-			id: "diary-12",
-			title: "Cheering Crowd & Live Music",
-			category: "Concerts",
-			type: "image",
-			src: photoUrl("8I2A8969.webp"),
-			poster: photoUrl("8I2A8969.webp")
+			id: "conference",
+			name: "Conference",
+			folder: "images/Conference",
+			items: [
+				{ id: "conf-1", title: "Keynote & Panel Discussion", file: "IMG_6945.JPG.webp", type: "image" },
+				{ id: "conf-2", title: "Leadership Stage", file: "IMG_6961.JPG.webp", type: "image" },
+				{ id: "conf-3", title: "Delegate Interactive Session", file: "IMG_7054.JPG.webp", type: "image" },
+				{ id: "conf-4", title: "Speaker Address", file: "IMG_7062.JPG.webp", type: "image" },
+				{ id: "conf-5", title: "Networking & Experience", file: "IMG_7073.JPG.webp", type: "image" },
+				{ id: "conf-6", title: "Conference Highlights", file: "IMG_7076.JPG.webp", type: "image" }
+			]
 		}
 	];
 
-	const CATEGORIES = [
-		"Italy",
-		"Dubai",
-		"London",
-		"Berlin",
-		"Rome",
-		"Lisbon",
-		"India",
-		"China",
-		"Japan",
-		"View More →"
-	];
+	// Flatten all items with full URL and event name attached
+	const ALL_EVENT_ITEMS = [];
+	EVENT_GALLERIES.forEach((ev) => {
+		if (!ev.items) return;
+		ev.items.forEach((it) => {
+			const itemUrl = asset(ev.folder + "/" + it.file);
+			const fullItem = {
+				id: it.id,
+				title: it.title,
+				category: ev.name,
+				eventId: ev.id,
+				type: it.type || "image",
+				src: itemUrl,
+				poster: itemUrl
+			};
+			ALL_EVENT_ITEMS.push(fullItem);
+		});
+	});
 
-	let allItems = GALLERY_DATA.slice();
-	let visibleItems = allItems.slice();
-	let activeCategory = "Italy";
+	let activeEventId = "all";
+	let visibleItems = ALL_EVENT_ITEMS.slice();
 	let currentIndex = 0;
 	let lightboxIndex = 0;
 
@@ -166,45 +134,38 @@
 	}
 
 	/* --------------------------------------------------------------------------
-	   Category Filters
+	   Event Buttons (Category Filter Pills)
 	   -------------------------------------------------------------------------- */
-	function renderCategoryPills() {
+	function renderEventButtons() {
 		if (!filtersContainer) return;
-		filtersContainer.innerHTML = CATEGORIES.map((cat) => {
-			const isActive = cat.toLowerCase() === activeCategory.toLowerCase();
-			return `<button type="button" class="gallery-pill ${isActive ? "is-active" : ""}" data-category="${escapeHtml(cat)}" role="tab" aria-selected="${isActive}">
-				${escapeHtml(cat)}
+		filtersContainer.innerHTML = EVENT_GALLERIES.map((ev) => {
+			const isActive = ev.id === activeEventId;
+			return `<button type="button" class="gallery-pill ${isActive ? "is-active" : ""}" data-event-id="${escapeHtml(ev.id)}" role="tab" aria-selected="${isActive}">
+				${escapeHtml(ev.name)}
 			</button>`;
 		}).join("");
 
 		filtersContainer.querySelectorAll(".gallery-pill").forEach((pill) => {
 			pill.addEventListener("click", () => {
-				const cat = pill.getAttribute("data-category");
-				selectCategory(cat);
+				const id = pill.getAttribute("data-event-id");
+				selectEvent(id);
 			});
 		});
 	}
 
-	function selectCategory(category) {
-		activeCategory = category;
+	function selectEvent(eventId) {
+		activeEventId = eventId;
 
-		if (category === "View More →" || category === "All") {
-			visibleItems = allItems.slice();
-			currentIndex = 0;
+		if (eventId === "all") {
+			visibleItems = ALL_EVENT_ITEMS.slice();
 		} else {
-			// Center directly on the item matching this category or reorder with category first
-			const matchIdx = allItems.findIndex((it) => it.category.toLowerCase() === category.toLowerCase());
-			if (matchIdx !== -1) {
-				visibleItems = allItems.slice();
-				currentIndex = matchIdx;
-			} else {
-				visibleItems = allItems.filter((it) => it.category.toLowerCase() === category.toLowerCase());
-				currentIndex = 0;
-			}
+			visibleItems = ALL_EVENT_ITEMS.filter((it) => it.eventId === eventId);
 		}
 
+		currentIndex = 0;
+
 		document.querySelectorAll(".gallery-pill").forEach((pill) => {
-			const on = pill.getAttribute("data-category").toLowerCase() === category.toLowerCase();
+			const on = pill.getAttribute("data-event-id") === eventId;
 			pill.classList.toggle("is-active", on);
 			pill.setAttribute("aria-selected", String(on));
 			if (on && typeof pill.scrollIntoView === "function") {
@@ -212,9 +173,8 @@
 			}
 		});
 
-		updateCardPositions();
+		renderCarousel();
 	}
-
 
 	/* --------------------------------------------------------------------------
 	   Carousel Rendering & Positioning
@@ -306,9 +266,7 @@
 				if (pos === "0") {
 					// Center card clicked -> open lightbox
 					openLightbox(idx);
-				} else if (pos === "-1" || pos === "-2") {
-					stepTo(idx);
-				} else if (pos === "1" || pos === "2") {
+				} else {
 					stepTo(idx);
 				}
 			});
@@ -478,7 +436,7 @@
 	}
 
 	document.addEventListener("DOMContentLoaded", () => {
-		renderCategoryPills();
+		renderEventButtons();
 		renderCarousel();
 		bindControls();
 	});
