@@ -1041,6 +1041,94 @@ canvas#trendChartCanvas {
 	line-height: 1.5;
 }
 
+/* Registrations header + sub-tab switcher */
+.registrations-header-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.25rem;
+	flex-wrap: wrap;
+	border-bottom: 1px solid #e2e8f0;
+	padding-bottom: 1.2rem;
+	margin-bottom: 1.8rem;
+}
+
+.registrations-header-copy {
+	flex: 1 1 22rem;
+	min-width: 0;
+}
+
+.subtab-switcher {
+	display: inline-flex;
+	align-items: stretch;
+	flex-shrink: 0;
+	gap: 0.25rem;
+	max-width: 100%;
+	padding: 0.25rem;
+	background: #f1f5f9;
+	border: 1px solid #cbd5e1;
+	border-radius: 10px;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.subtab-switcher::-webkit-scrollbar {
+	display: none;
+}
+
+.subtab-btn {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.25rem;
+	padding: 0.5rem 1.1rem;
+	background: transparent;
+	color: #64748b;
+	border: 1px solid transparent;
+	border-radius: 7px;
+	font-family: inherit;
+	font-size: 0.88rem;
+	font-weight: 600;
+	line-height: 1.2;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.subtab-btn:hover:not(.active) {
+	background: rgba(37, 99, 235, 0.08);
+	color: #2563eb;
+}
+
+.subtab-btn:focus-visible {
+	outline: 2px solid #2563eb;
+	outline-offset: 2px;
+}
+
+.subtab-btn.active {
+	background: #ffffff;
+	color: #2563eb;
+	font-weight: 700;
+	border-color: #e2e8f0;
+	box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+@media (max-width: 860px) {
+	.registrations-header-row {
+		align-items: flex-start;
+	}
+
+	/* Full-width strip that scrolls sideways instead of stretching the page.
+	   min-width:0 is required or the flex item refuses to shrink below its
+	   content and overflow-x never engages. */
+	.subtab-switcher {
+		width: 100%;
+		min-width: 0;
+		flex-shrink: 1;
+	}
+}
+
 /* ------ Multi-Step Wizard Navigation --------------------------------------------------------------------------------- */
 .wizard-steps {
 	display: flex;

@@ -391,19 +391,8 @@ function initFormBuilder() {
 	// \u2500\u2500 Sub-Tab Switcher \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	function styleSubTab(tab, active) {
 		if (!tab) return;
-		if (active) {
-			tab.classList.add("active");
-			tab.style.background = "#ffffff";
-			tab.style.color = "#2563eb";
-			tab.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-			tab.style.fontWeight = "700";
-		} else {
-			tab.classList.remove("active");
-			tab.style.background = "transparent";
-			tab.style.color = "#64748b";
-			tab.style.boxShadow = "none";
-			tab.style.fontWeight = "600";
-		}
+		tab.classList.toggle("active", active);
+		tab.setAttribute("aria-selected", active ? "true" : "false");
 	}
 
 	function showRegistrationSubView(view) {

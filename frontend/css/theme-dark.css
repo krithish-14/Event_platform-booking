@@ -689,7 +689,6 @@ html[data-theme="dark"] body.dashboard-body .qa-btn,
 html[data-theme="dark"] body.dashboard-body .btn-card-action,
 html[data-theme="dark"] body.dashboard-body .reg-upload-btn,
 html[data-theme="dark"] body.dashboard-body .reg-preset-btn,
-html[data-theme="dark"] body.dashboard-body .subtab-btn,
 html[data-theme="dark"] body.dashboard-body .btn-edit-gate,
 html[data-theme="dark"] body.dashboard-body .btn-upload-sponsor-logo,
 html[data-theme="dark"] body.dashboard-body .btn-upload-artist-photo {
@@ -708,10 +707,36 @@ html[data-theme="dark"] body.dashboard-body .number-card svg {
 html[data-theme="dark"] body.dashboard-body .qa-btn:hover,
 html[data-theme="dark"] body.dashboard-body .btn-card-action:hover,
 html[data-theme="dark"] body.dashboard-body .reg-upload-btn:hover,
-html[data-theme="dark"] body.dashboard-body .reg-preset-btn:hover,
-html[data-theme="dark"] body.dashboard-body .subtab-btn:hover,
-html[data-theme="dark"] body.dashboard-body .subtab-btn.active {
+html[data-theme="dark"] body.dashboard-body .reg-preset-btn:hover {
 	background: rgba(255, 117, 8, 0.18) !important;
+	color: #FFD7A8 !important;
+	border-color: #FF8A1F !important;
+}
+
+/* Sub-tab switcher: the active tab must stay distinct from a hovered one. */
+html[data-theme="dark"] body.dashboard-body .registrations-header-row {
+	border-bottom-color: rgba(255, 138, 31, 0.22) !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .subtab-switcher {
+	background: #1c1814 !important;
+	border-color: rgba(255, 138, 31, 0.22) !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .subtab-btn {
+	background: transparent !important;
+	color: #c8bfb4 !important;
+	border-color: transparent !important;
+	box-shadow: none !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .subtab-btn:hover:not(.active) {
+	background: rgba(255, 117, 8, 0.12) !important;
+	color: #FFD7A8 !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .subtab-btn.active {
+	background: rgba(255, 117, 8, 0.22) !important;
 	color: #FFD7A8 !important;
 	border-color: #FF8A1F !important;
 }
