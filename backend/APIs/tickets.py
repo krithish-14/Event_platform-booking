@@ -414,7 +414,7 @@ def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
     )
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
-    full = _serialize_booking(booking, db=db)
+    full = _serialize_booking(booking, db=db, active_qr_token=qr_token)
     allowed = {
         "booking_id",
         "ticket_id",
@@ -435,6 +435,10 @@ def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
         "event_end_time",
         "ticket_type",
         "quantity",
+        "booking_quantity",
+        "ticket_index",
+        "guest_label",
+        "tickets",
         "total_price",
         "gst_amount",
         "status",

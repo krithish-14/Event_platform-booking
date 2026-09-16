@@ -1335,7 +1335,7 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
         f"Booking ID: JOD-{(str(booking.booking_id).replace('-', '')[:8] or '00000000').upper()}\n"
         f"Event date: {event_when}\n"
         f"Ticket type: {booking.ticket_type or 'General Admission'}\n"
-        f"Your ticket PDF is attached. Open your e-ticket: {ticket_link}\n"
+        f"{'Your ticket PDFs are attached (' + str(len(tickets)) + ' tickets).' if len(tickets) > 1 else 'Your ticket PDF is attached.'} Open your e-ticket: {ticket_link}\n"
         f"{extra_text + chr(10) if extra_text else ''}"
         f"Show the QR code at the gate. Token: {token}\n"
         "This QR is unique to you. Do not share it."
@@ -1344,7 +1344,7 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#201d19;">
       <h2 style="color:#FF7508;">Your ticket is ready</h2>
       <p>Hi {attendee},</p>
-      <p>Your unique QR ticket for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) is ready. A PDF with booking ID, event date, and QR is attached.</p>
+      <p>Your unique QR ticket{'s' if len(tickets) > 1 else ''} for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) {'are' if len(tickets) > 1 else 'is'} ready. {'Separate PDFs for each ticket are attached.' if len(tickets) > 1 else 'A PDF with booking ID, event date, and QR is attached.'}</p>
       <p style="text-align:center;margin:24px 0;">
         <img src="{image}" alt="Ticket QR" width="220" height="220" style="border:8px solid #fff8f0;border-radius:12px;" />
       </p>
@@ -1355,17 +1355,13 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
       <p style="font-size:13px;color:#64748b;">Booking ID: JOD-{(str(booking.booking_id).replace('-', '')[:8] or '00000000').upper()} · Gate token: {token}</p>
     </div>
     """
-    pdf_bytes = None
-    try:
-        from Services.ticket_pdf import build_mticket_pdf_from_booking
-        # Always use the host-designed M-ticket renderer (loads EventDesign.ticket_layout_json).
-        pdf_bytes = build_mticket_pdf_from_booking(booking, qr_token=token, db=db)
-    except Exception:
-        pdf_bytes = None
     attachments = []
-    if pdf_bytes:
-        short = (str(booking.booking_id).replace("-", "")[:8] or "ticket").upper()
-        attachments.append((f"JOD-Ticket-{short}.pdf", pdf_bytes, "application/pdf"))
+    try:
+        from Services.ticket_pdf import build_all_mticket_pdfs_from_booking
+
+        attachments = build_all_mticket_pdfs_from_booking(booking, db=db, include_qr=True)
+    except Exception:
+        attachments = []
     email_sent = send_email(
         email_addr,
         f"Your QR ticket — {event_title}",

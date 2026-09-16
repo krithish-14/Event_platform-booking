@@ -359,12 +359,27 @@ class BookingCreateRequest(BaseModel):
     receiver_phone: Optional[str] = None
 
 
+class BookingTicketSummary(BaseModel):
+    ticket_id: str
+    qr_token: str
+    ticket_status: Optional[str] = None
+    used_at: Optional[datetime] = None
+    ticket_index: int = 0
+    guest_label: Optional[str] = None
+    is_primary: bool = False
+    is_active: bool = False
+
+
 class BookingResponse(BaseModel):
     booking_id: str
     ticket_id: Optional[str] = None
     qr_token: Optional[str] = None
     ticket_status: Optional[str] = "VALID"
     used_at: Optional[datetime] = None
+    ticket_index: int = 0
+    guest_label: Optional[str] = None
+    booking_quantity: Optional[int] = None
+    tickets: Optional[List[BookingTicketSummary]] = None
     customer_id: str
     user_name: Optional[str] = None
     user_email: Optional[str] = None
@@ -520,7 +535,61 @@ def _event_schedule_display(db: Optional[Session], event_id, public_start, publi
     return start_display or None, end_display or None, start_time, end_time
 
 
-def _serialize_booking(b: Booking, db: Optional[Session] = None) -> dict:
+def _guest_label_for_index(index: int) -> str:
+    from Services.ticket_pdf import guest_label_for_index
+
+    return guest_label_for_index(index)
+
+
+def _serialize_ticket_rows(tickets: list, active_token: str = "") -> list:
+    rows = []
+    active = (active_token or "").strip()
+    for index, ticket in enumerate(tickets or []):
+        token = (getattr(ticket, "qr_token", None) or "").strip()
+        if not token:
+            continue
+        rows.append({
+            "ticket_id": str(getattr(ticket, "ticket_id", "")),
+            "qr_token": token,
+            "ticket_status": getattr(ticket, "ticket_status", None),
+            "used_at": getattr(ticket, "used_at", None),
+            "ticket_index": index,
+            "guest_label": _guest_label_for_index(index) or None,
+            "is_primary": index == 0,
+            "is_active": bool(active and token == active),
+        })
+    return rows
+
+
+def _apply_active_ticket_fields(payload: dict, tickets: list, active_token: str = "") -> dict:
+    """When viewing one QR from a multi-ticket booking, expose per-ticket pricing."""
+    active = (active_token or "").strip()
+    if not active or len(tickets or []) <= 1:
+        return payload
+    index = 0
+    active_ticket = tickets[0]
+    for i, ticket in enumerate(tickets):
+        if (getattr(ticket, "qr_token", None) or "").strip() == active:
+            index = i
+            active_ticket = ticket
+            break
+    booking_qty = max(1, int(payload.get("quantity") or payload.get("booking_quantity") or 1))
+    total = float(payload.get("total_price") or 0)
+    gst = float(payload.get("gst_amount") or 0)
+    divisor = max(len(tickets), booking_qty)
+    payload["ticket_id"] = str(getattr(active_ticket, "ticket_id", ""))
+    payload["qr_token"] = active
+    payload["ticket_status"] = getattr(active_ticket, "ticket_status", None)
+    payload["used_at"] = getattr(active_ticket, "used_at", None)
+    payload["ticket_index"] = index
+    payload["guest_label"] = _guest_label_for_index(index) or None
+    payload["quantity"] = 1
+    payload["total_price"] = total / divisor if divisor else total
+    payload["gst_amount"] = gst / divisor if divisor else gst
+    return payload
+
+
+def _serialize_booking(b: Booking, db: Optional[Session] = None, *, active_qr_token: str = "") -> dict:
     event_title = b.event.title if b.event else "Event"
     event_venue = (b.event.venue or b.event.location) if b.event else None
     event_start = b.event.start_date if b.event else None
@@ -535,17 +604,30 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None) -> dict:
     seat = getattr(b, "seat_number", None) or ""
 
     tickets = _booking_tickets(b, db=db)
-    primary_ticket = tickets[0] if tickets else None
+    active_token = (active_qr_token or "").strip()
+    active_ticket = None
+    active_index = 0
+    if active_token:
+        for index, ticket in enumerate(tickets):
+            if (getattr(ticket, "qr_token", None) or "").strip() == active_token:
+                active_ticket = ticket
+                active_index = index
+                break
+    primary_ticket = active_ticket or (tickets[0] if tickets else None)
     ticket_id = str(primary_ticket.ticket_id) if primary_ticket else None
     qr_token = primary_ticket.qr_token if primary_ticket else None
     ticket_status = primary_ticket.ticket_status if primary_ticket else (b.status or None)
     used_at = primary_ticket.used_at if primary_ticket else None
+    guest_label = _guest_label_for_index(active_index) if active_ticket else (_guest_label_for_index(0) if tickets else None)
+    if guest_label == "":
+        guest_label = None
+    tickets_payload = _serialize_ticket_rows(tickets, active_token=active_token or (qr_token or ""))
     ticket_image, card_image, hero_image = _booking_event_images(b, db=db)
     start_display, end_display, start_time, end_time = _event_schedule_display(
         db, b.event_id, event_start, b.event.end_date if b.event else None
     )
 
-    return {
+    payload = {
         "booking_id": str(b.booking_id),
         "ticket_id": ticket_id,
         "qr_token": qr_token,
@@ -569,6 +651,10 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None) -> dict:
         "event_updated_at": getattr(b.event, "updated_at", None) if b.event else None,
         "ticket_type": _as_optional_str(getattr(b, "ticket_type", None)) or "Standard Access",
         "quantity": b.quantity,
+        "booking_quantity": b.quantity,
+        "ticket_index": active_index if primary_ticket else 0,
+        "guest_label": guest_label,
+        "tickets": tickets_payload,
         "total_price": _as_float(getattr(b, "total_price", None)),
         "status": b.status or "CONFIRMED",
         "payment_id": pid,
@@ -586,6 +672,11 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None) -> dict:
         "language": getattr(b.event, "language", None) if b.event else None,
         "event_format": getattr(b.event, "event_format", None) if b.event else None,
     }
+    if active_token and len(tickets) > 1:
+        payload = _apply_active_ticket_fields(payload, tickets, active_token)
+    elif len(tickets) > 1 and max(1, int(b.quantity or 1)) > 1:
+        payload = _apply_active_ticket_fields(payload, tickets, qr_token or "")
+    return payload
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -996,16 +1087,22 @@ def get_single_booking(
 
 
 def _ticket_pdf_http_response(booking: Booking, db: Session, qr_token: str = "", kind: str = "ticket"):
-    from Services.ticket_pdf import build_mticket_pdf_from_booking, ticket_pdf_filename
+    from Services.ticket_pdf import (
+        _resolve_per_ticket_context,
+        build_mticket_pdf_from_booking,
+        ticket_pdf_filename,
+    )
 
     kind_key = "invoice" if str(kind or "").strip().lower() == "invoice" else "ticket"
     include_qr = kind_key != "invoice"
+    ctx = _resolve_per_ticket_context(booking, qr_token=qr_token, db=db)
     pdf = build_mticket_pdf_from_booking(
-        booking, qr_token=qr_token, db=db, include_qr=include_qr
+        booking, qr_token=ctx.get("qr_token") or qr_token, db=db, include_qr=include_qr
     )
     if not pdf:
         raise HTTPException(status_code=500, detail="Could not generate the ticket PDF.")
-    filename = ticket_pdf_filename(booking.booking_id, kind=kind_key)
+    ticket_index = int(ctx.get("ticket_index") or 0) if kind_key == "ticket" else 0
+    filename = ticket_pdf_filename(booking.booking_id, kind=kind_key, ticket_index=ticket_index)
     return Response(
         content=pdf,
         media_type="application/pdf",
@@ -1020,6 +1117,8 @@ def _ticket_pdf_http_response(booking: Booking, db: Session, qr_token: str = "",
 def download_booking_ticket_pdf(
     booking_id: str,
     kind: str = "ticket",
+    token: str = "",
+    qr_token: str = "",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1029,13 +1128,13 @@ def download_booking_ticket_pdf(
         raise HTTPException(status_code=404, detail="Booking not found.")
     _assert_booking_owner(booking, current_user)
     tickets = _booking_tickets(booking, db=db)
-    token = ""
-    if tickets:
-        token = (getattr(tickets[0], "qr_token", None) or "").strip()
+    chosen = (token or qr_token or "").strip()
+    if not chosen and tickets:
+        chosen = (getattr(tickets[0], "qr_token", None) or "").strip()
     kind_key = "invoice" if str(kind or "").strip().lower() == "invoice" else "ticket"
-    if kind_key == "ticket" and not token:
+    if kind_key == "ticket" and not chosen:
         raise HTTPException(status_code=404, detail="QR ticket is not ready yet.")
-    return _ticket_pdf_http_response(booking, db, token, kind=kind_key)
+    return _ticket_pdf_http_response(booking, db, chosen, kind=kind_key)
 
 
 @router.post("/{booking_id}/cancel", response_model=BookingResponse)

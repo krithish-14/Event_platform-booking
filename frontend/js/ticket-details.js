@@ -190,10 +190,10 @@
  return issued[0];
 	}
 
-	async function loadBookingData(bookingId) {
+	async function loadBookingData(bookingId, preferredToken) {
  await readyAuthSession();
  const apiBase = getApiBase();
- const qrToken = getQueryParam("token") || getQueryParam("qr");
+ const qrToken = preferredToken || getQueryParam("token") || getQueryParam("qr");
  const eventId = getQueryParam("event") || getQueryParam("eventId") || getQueryParam("event_id");
 
  if (qrToken) {
@@ -292,8 +292,65 @@
  return "https://assets.jodevents.com/images/hero-event.jpg";
 	}
 
+	function ticketCountLabel(data) {
+ const bookingQty = max(1, data.booking_quantity || data.quantity || 1);
+ const tickets = Array.isArray(data.tickets) ? data.tickets : [];
+ const isMulti = tickets.length > 1 || bookingQty > 1;
+ const shownQty = isMulti ? max(1, data.quantity || 1) : bookingQty;
+ return shownQty === 1 ? "1 Ticket" : `${shownQty} Tickets`;
+	}
+
+	function pdfFilenameForTicket(data, kind) {
+ const short = String((data && data.booking_id) || "ticket").replace(/-/g, "").slice(0, 8).toUpperCase() || "TICKET";
+ if (kind === "invoice") return `JOD-Invoice-${short}.pdf`;
+ const guest = String((data && data.guest_label) || "").replace(/\s+/g, "");
+ return guest ? `JOD-Ticket-${short}-${guest}.pdf` : `JOD-Ticket-${short}.pdf`;
+	}
+
+	function ensureTicketAttendeeBlock() {
+ const seating = document.querySelector(".mticket-seating-block");
+ if (!seating || document.getElementById("ticketAttendeeBlock")) return;
+ const block = document.createElement("div");
+ block.id = "ticketAttendeeBlock";
+ block.className = "mticket-attendee-block";
+ block.innerHTML = '<div class="mticket-attendee-label">Attendee</div><div class="mticket-attendee-name" id="ticketAttendeeName">Guest Customer</div><div class="mticket-guest-label" id="ticketGuestLabel" hidden></div>';
+ seating.insertAdjacentElement("afterend", block);
+	}
+
+	function renderTicketMultiNav(data, onSelect) {
+ let nav = document.getElementById("ticketMultiNav");
+ const tickets = Array.isArray(data.tickets) ? data.tickets.filter((t) => t && t.qr_token) : [];
+ const bookingQty = max(1, data.booking_quantity || data.quantity || 1);
+ if (tickets.length <= 1 && bookingQty <= 1) {
+ if (nav) nav.hidden = true;
+ return;
+ }
+ if (!nav) {
+ nav = document.createElement("div");
+ nav.id = "ticketMultiNav";
+ nav.className = "ticket-multi-nav";
+ const wrapper = document.querySelector(".ticket-mticket-wrapper");
+ if (wrapper && wrapper.parentNode) wrapper.parentNode.insertBefore(nav, wrapper);
+ }
+ nav.hidden = false;
+ nav.innerHTML = `<p class="ticket-multi-nav-title">${tickets.length} tickets in this order — select one to view or download</p><div class="ticket-multi-nav-buttons"></div>`;
+ const buttons = nav.querySelector(".ticket-multi-nav-buttons");
+ tickets.forEach((ticket, index) => {
+ const label = ticket.guest_label ? `${data.receiver_name || data.user_name || "Guest"} (${ticket.guest_label})` : (data.receiver_name || data.user_name || (index === 0 ? "Primary ticket" : `Ticket ${index + 1}`));
+ const btn = document.createElement("button");
+ btn.type = "button";
+ btn.className = "ticket-multi-nav-btn" + (String(data.qr_token || "") === String(ticket.qr_token || "") ? " is-active" : "");
+ btn.textContent = label;
+ btn.addEventListener("click", () => {
+ if (typeof onSelect === "function") onSelect(ticket, index);
+ });
+ buttons.appendChild(btn);
+ });
+	}
+
 	function renderTicketDOM(data) {
  if (!data) return;
+ ensureTicketAttendeeBlock();
 
  const isCancelled = (data.status || "").toUpperCase() === "CANCELLED";
  const isCheckedIn = !isCancelled && String(data.ticket_status || "").toUpperCase() === "USED";
@@ -375,7 +432,7 @@
  if (idVal) idVal.textContent = bookingIdDisplay;
  if (catVal) catVal.textContent = data.ticket_type || "Standard Access Pass";
  if (seatVal) seatVal.textContent = data.seat_number || "General Admission";
- if (countVal) countVal.textContent = `${data.quantity || 1} Ticket(s)`;
+ if (countVal) countVal.textContent = ticketCountLabel(data);
  if (bookedTimeVal) bookedTimeVal.textContent = formatDateFull(data.booked_at);
 
  // Booking ID & Secure QR Code Block
@@ -423,9 +480,22 @@
  const recEmail = document.getElementById("receiverEmail");
  const recPhone = document.getElementById("receiverPhone");
 
- if (recName) recName.textContent = data.receiver_name || data.user_name || "Guest Customer";
+ const attendeeName = data.receiver_name || data.user_name || "Guest Customer";
+ if (recName) recName.textContent = attendeeName;
  if (recEmail) recEmail.textContent = data.receiver_email || data.user_email || "customer@jodevents.com";
  if (recPhone) recPhone.textContent = data.receiver_phone || "+91 98765 43210";
+ const attendeeNameEl = document.getElementById("ticketAttendeeName");
+ const guestLabelEl = document.getElementById("ticketGuestLabel");
+ if (attendeeNameEl) attendeeNameEl.textContent = attendeeName;
+ if (guestLabelEl) {
+ if (data.guest_label) {
+ guestLabelEl.hidden = false;
+ guestLabelEl.textContent = `(${data.guest_label})`;
+ } else {
+ guestLabelEl.hidden = true;
+ guestLabelEl.textContent = "";
+ }
+ }
 
  renderAgendaBack(data);
  window.requestAnimationFrame(syncFlipHeight);
@@ -644,47 +714,114 @@
  });
 	}
 
-	async function downloadOfficialTicketPdf(bookingData, options) {
- const kind = (options && options.kind) === "invoice" ? "invoice" : "ticket";
+ async function downloadTicketPdfForToken(bookingData, token, kind) {
  const apiBase = getApiBase();
- const token = (bookingData && bookingData.qr_token) || getQueryParam("token") || getQueryParam("qr");
  const id = (bookingData && bookingData.booking_id) || getQueryParam("id") || getQueryParam("booking_id");
- const qs = kind === "invoice" ? "?kind=invoice" : "";
+ const qsParts = [];
+ if (kind === "invoice") qsParts.push("kind=invoice");
+ if (token) qsParts.push(`token=${encodeURIComponent(token)}`);
+ const qs = qsParts.length ? `?${qsParts.join("&")}` : "";
  const url = token
- ? `${apiBase}/api/tickets/public/${encodeURIComponent(token)}/pdf${qs}`
+ ? `${apiBase}/api/tickets/public/${encodeURIComponent(token)}/pdf${kind === "invoice" ? "?kind=invoice" : ""}`
  : `${apiBase}/api/bookings/${encodeURIComponent(id)}/pdf${qs}`;
- try {
- if (kind === "ticket" && !token && !id) throw new Error("missing");
  const res = token
  ? await fetch(url, { cache: "no-store", credentials: "include" })
  : await authFetch(url, { allowGuest: true });
  if (!res.ok) throw new Error("pdf");
  const blob = await res.blob();
  if (!blob || blob.size < 8) throw new Error("empty");
- const short = String(id || "ticket").replace(/-/g, "").slice(0, 8).toUpperCase() || "TICKET";
+ let filename = pdfFilenameForTicket(bookingData, kind);
+ const disposition = res.headers.get("Content-Disposition") || "";
+ const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+ if (match && match[1]) filename = match[1];
  const href = URL.createObjectURL(blob);
  const a = document.createElement("a");
  a.href = href;
- a.download = kind === "invoice" ? `JOD-Invoice-${short}.pdf` : `JOD-Ticket-${short}.pdf`;
+ a.download = filename;
  document.body.appendChild(a);
  a.click();
  a.remove();
  setTimeout(() => URL.revokeObjectURL(href), 2000);
+	}
+
+	async function downloadOfficialTicketPdf(bookingData, options) {
+ const kind = (options && options.kind) === "invoice" ? "invoice" : "ticket";
+ const token = (bookingData && bookingData.qr_token) || getQueryParam("token") || getQueryParam("qr");
+ const id = (bookingData && bookingData.booking_id) || getQueryParam("id") || getQueryParam("booking_id");
+ const downloadAll = Boolean(options && options.downloadAll);
+ const tickets = Array.isArray(bookingData && bookingData.tickets) ? bookingData.tickets.filter((t) => t && t.qr_token) : [];
+ try {
+ if (kind === "ticket" && !token && !id) throw new Error("missing");
+ if (downloadAll && kind === "ticket" && tickets.length > 1) {
+ for (let i = 0; i < tickets.length; i += 1) {
+ const row = tickets[i];
+ const slice = Object.assign({}, bookingData, {
+ qr_token: row.qr_token,
+ guest_label: row.guest_label || null,
+ ticket_index: row.ticket_index != null ? row.ticket_index : i,
+ quantity: 1,
+ });
+ await downloadTicketPdfForToken(slice, row.qr_token, kind);
+ if (i < tickets.length - 1) await new Promise((resolve) => setTimeout(resolve, 350));
+ }
+ return;
+ }
+ await downloadTicketPdfForToken(bookingData, token, kind);
  return;
  } catch (_) {
  printTicketCardOnly(bookingData, { includeAgenda: false, mode: kind });
  }
 	}
 
-	function bindActions(bookingData) {
+	let activeBookingData = null;
+	let ticketReloadFn = null;
+
+	async function switchActiveTicket(bookingData, ticket) {
+ if (!ticket || !ticket.qr_token) return;
+ const bookingId = bookingData.booking_id || getQueryParam("id") || getQueryParam("booking_id");
+ if (typeof ticketReloadFn === "function") {
+ const fresh = await ticketReloadFn(bookingId, ticket.qr_token);
+ if (fresh && !fresh._error) {
+ activeBookingData = fresh;
+ renderTicketDOM(fresh);
+ renderTicketMultiNav(fresh, (t) => switchActiveTicket(fresh, t));
+ return;
+ }
+ }
+ const next = Object.assign({}, bookingData, {
+ qr_token: ticket.qr_token,
+ guest_label: ticket.guest_label || null,
+ ticket_index: ticket.ticket_index,
+ ticket_status: ticket.ticket_status,
+ used_at: ticket.used_at,
+ quantity: 1,
+ });
+ activeBookingData = next;
+ renderTicketDOM(next);
+ renderTicketMultiNav(next, (t) => switchActiveTicket(next, t));
+ if (bookingId) {
+ const params = new URLSearchParams(window.location.search);
+ params.set("id", bookingId);
+ params.set("token", ticket.qr_token);
+ window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+ }
+	}
+
+	function bindActions(bookingData, reloadFn) {
+ activeBookingData = bookingData;
+ ticketReloadFn = reloadFn;
  const btnDownloadTicket = document.getElementById("btnDownloadTicket");
+ const btnDownloadAllTickets = document.getElementById("btnDownloadAllTickets");
  const btnToggleDetails = document.getElementById("btnToggleDetails");
  const collapsibleContent = document.getElementById("collapsibleTicketDetails");
  const toggleText = document.getElementById("toggleDetailsText");
+ const tickets = Array.isArray(bookingData.tickets) ? bookingData.tickets : [];
+ if (btnDownloadAllTickets) btnDownloadAllTickets.hidden = tickets.length <= 1;
 
+ if (btnToggleDetails && btnToggleDetails.dataset.bound !== "1") {
+ btnToggleDetails.dataset.bound = "1";
  let isCollapsed = false;
-
- btnToggleDetails?.addEventListener("click", () => {
+ btnToggleDetails.addEventListener("click", () => {
  isCollapsed = !isCollapsed;
  if (collapsibleContent) {
  if (isCollapsed) {
@@ -697,9 +834,23 @@
  window.requestAnimationFrame(syncFlipHeight);
  }
  });
+ }
 
- btnDownloadTicket?.addEventListener("click", () => {
- downloadOfficialTicketPdf(bookingData, { kind: "ticket" });
+ if (btnDownloadTicket && btnDownloadTicket.dataset.bound !== "1") {
+ btnDownloadTicket.dataset.bound = "1";
+ btnDownloadTicket.addEventListener("click", () => {
+ downloadOfficialTicketPdf(activeBookingData, { kind: "ticket" });
+ });
+ }
+ if (btnDownloadAllTickets && btnDownloadAllTickets.dataset.bound !== "1") {
+ btnDownloadAllTickets.dataset.bound = "1";
+ btnDownloadAllTickets.addEventListener("click", () => {
+ downloadOfficialTicketPdf(activeBookingData, { kind: "ticket", downloadAll: true });
+ });
+ }
+
+ renderTicketMultiNav(bookingData, (ticket) => {
+ switchActiveTicket(bookingData, ticket);
  });
 	}
 
@@ -710,14 +861,18 @@
  window.JodInbox.markRead(`booking-cancelled-${bookingId}`);
  window.JodInbox.markRead(`remind-${bookingId}`);
  }
- const bookingData = await loadBookingData(bookingId);
- if (!bookingData || bookingData._error) {
+	async function reloadBookingData(bookingId, qrToken) {
+ return loadBookingData(bookingId, qrToken);
+	}
+
+	const bookingData = await loadBookingData(bookingId);
+	if (!bookingData || bookingData._error) {
  showTicketUnavailable(bookingData && bookingData._error);
  return;
  }
  setDownloadActionsVisible(true);
  renderTicketDOM(bookingData);
- bindActions(bookingData);
+ bindActions(bookingData, reloadBookingData);
  bindTicketFlip();
  window.requestAnimationFrame(syncFlipHeight);
 

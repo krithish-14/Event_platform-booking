@@ -44,7 +44,7 @@
 	right: 5%;
 	width: min(36vw, 22rem);
 	height: 62%;
-	background-image: url("https://assets.jodevents.com/images/Picflow%20Images%20Aug%2020/2G5A0980.webp");
+	background-image: url("https://assets.jodevents.com/images/Conference/IMG_6945.JPG.webp");
 	opacity: calc(0.25 + var(--in) * 0.7);
 	transform: translate3d(
 		calc((1 - var(--in)) * 48px + var(--mx) * -18px),
@@ -58,7 +58,7 @@
 	bottom: 14%;
 	width: min(20vw, 11.5rem);
 	height: 34%;
-	background-image: url("https://assets.jodevents.com/images/Picflow%20Images%20Aug%2020/8I2A8909.webp");
+	background-image: url("https://assets.jodevents.com/images/Sandd/1.webp");
 	opacity: calc(0.15 + var(--in) * 0.75);
 	transform: translate3d(
 		calc((1 - var(--in)) * -36px + var(--mx) * 12px),
@@ -72,7 +72,7 @@
 	bottom: 10%;
 	width: min(16vw, 9.5rem);
 	height: 30%;
-	background-image: url("https://assets.jodevents.com/images/Picflow%20Images%20Aug%2020/2G5A0951.webp");
+	background-image: url("https://assets.jodevents.com/images/Singapenn%20marathon/5.webp");
 	opacity: calc(0.12 + var(--in) * 0.7);
 	transform: translate3d(
 		calc((1 - var(--in)) * 40px + var(--mx) * -8px),

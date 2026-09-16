@@ -13,7 +13,7 @@ import struct
 import zlib
 from datetime import datetime
 from io import BytesIO
-from typing import Optional
+from typing import List, Optional, Tuple
 from urllib.parse import quote
 
 import httpx
@@ -427,9 +427,80 @@ def _tj_center(center_x: float, y: float, text: str, char_w: float) -> str:
     return f"1 0 0 1 {center_x - width / 2.0:.1f} {y:.1f} Tm ({_pdf_escape(text)}) Tj"
 
 
-def ticket_pdf_filename(booking_id, kind: str = "ticket") -> str:
+def guest_label_for_index(index: int) -> str:
+    """Primary ticket (index 0) has no label; guests are Guest 1, Guest 2, …"""
+    idx = int(index or 0)
+    if idx <= 0:
+        return ""
+    return f"Guest {idx}"
+
+
+def ticket_pdf_filename(booking_id, kind: str = "ticket", *, ticket_index: int = 0) -> str:
     prefix = "JOD-Invoice" if str(kind).strip().lower() == "invoice" else "JOD-Ticket"
-    return f"{prefix}-{_short_booking_id(booking_id)}.pdf"
+    short = _short_booking_id(booking_id)
+    guest = guest_label_for_index(ticket_index).replace(" ", "")
+    if guest:
+        return f"{prefix}-{short}-{guest}.pdf"
+    return f"{prefix}-{short}.pdf"
+
+
+def _ordered_booking_tickets(booking, db=None) -> list:
+    tickets = list(getattr(booking, "tickets", None) or [])
+    if not tickets and db is not None:
+        try:
+            from APIs.bookings import _booking_tickets
+
+            tickets = _booking_tickets(booking, db=db)
+        except Exception:
+            tickets = []
+    tickets = [t for t in tickets if (getattr(t, "qr_token", None) or "").strip()]
+    try:
+        tickets.sort(key=lambda t: (getattr(t, "created_at", None) or "", str(getattr(t, "ticket_id", ""))))
+    except Exception:
+        pass
+    return tickets
+
+
+def _resolve_per_ticket_context(booking, qr_token: str = "", db=None) -> dict:
+    """Map a booking + optional QR token to single-ticket PDF fields."""
+    tickets = _ordered_booking_tickets(booking, db=db)
+    booking_qty = max(1, int(getattr(booking, "quantity", 1) or 1))
+    total = float(getattr(booking, "total_price", 0) or 0)
+    gst = float(getattr(booking, "gst_amount", 0) or 0)
+
+    token = (qr_token or "").strip()
+    index = 0
+    if token:
+        for i, ticket in enumerate(tickets):
+            if (getattr(ticket, "qr_token", None) or "").strip() == token:
+                index = i
+                break
+    elif tickets:
+        token = (tickets[0].qr_token or "").strip()
+        index = 0
+
+    multi = len(tickets) > 1 or (len(tickets) == 1 and booking_qty > 1)
+    if multi and tickets:
+        divisor = max(len(tickets), booking_qty)
+        return {
+            "qr_token": token,
+            "ticket_index": index,
+            "guest_label": guest_label_for_index(index),
+            "quantity": 1,
+            "total_price": total / divisor if divisor else total,
+            "gst_amount": gst / divisor if divisor else gst,
+            "ticket_count": len(tickets),
+        }
+
+    return {
+        "qr_token": token,
+        "ticket_index": 0,
+        "guest_label": "",
+        "quantity": booking_qty,
+        "total_price": total,
+        "gst_amount": gst,
+        "ticket_count": max(len(tickets), booking_qty),
+    }
 
 
 def build_mticket_pdf_bytes(
@@ -453,6 +524,7 @@ def build_mticket_pdf_bytes(
     attendee_name: str = "",
     attendee_email: str = "",
     attendee_phone: str = "",
+    attendee_guest_label: str = "",
 ) -> Optional[bytes]:
     """One-page M-ticket PDF. Returns None if assembly fails."""
     try:
@@ -490,7 +562,10 @@ def build_mticket_pdf_bytes(
         guest_name = _ascii_text(attendee_name, "") if show_attendee_name else ""
         guest_email = _ascii_text(attendee_email, "") if show_attendee_email else ""
         guest_phone = _ascii_text(attendee_phone, "") if show_attendee_phone else ""
+        guest_sub_label = _ascii_text(attendee_guest_label, "") if attendee_guest_label else ""
         attendee_lines = sum(1 for x in (guest_name, guest_email, guest_phone) if x)
+        if guest_sub_label:
+            attendee_lines += 1
         attendee_h = (18.0 + attendee_lines * 14.0) if attendee_lines else 0.0
 
         title = _ascii_text(headline_override or event_name, "JOD Events") or "JOD Events"
@@ -632,7 +707,7 @@ def build_mticket_pdf_bytes(
             f"{inner_x:.1f} {block_top + 8:.1f} m {inner_right:.1f} {block_top + 8:.1f} l S",
             "BT",
             f"/F2 9 Tf {_rgb(muted_rgb)} rg",
-            _tj_center(center_x, block_top - 6, f"{qty} Ticket(s)", 4.8),
+            _tj_center(center_x, block_top - 6, f"{qty} Ticket" if qty == 1 else f"{qty} Tickets", 4.8),
         ])
         if type_label:
             ops.extend([
@@ -660,6 +735,12 @@ def build_mticket_pdf_bytes(
                     _tj_center(center_x, cursor_a, guest_name[:40], 5.6),
                 ])
                 cursor_a -= 13
+            if guest_sub_label:
+                ops.extend([
+                    f"/F2 9 Tf {_rgb(muted_rgb)} rg",
+                    _tj_center(center_x, cursor_a, f"({guest_sub_label})"[:42], 4.8),
+                ])
+                cursor_a -= 12
             if guest_email:
                 ops.extend([
                     f"/F2 9 Tf {_rgb(muted_rgb)} rg",
@@ -800,21 +881,17 @@ def build_mticket_pdf_bytes(
 
 
 def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None, include_qr: bool = True) -> Optional[bytes]:
-    """Build the M-ticket PDF from a Booking ORM row."""
+    """Build one M-ticket PDF from a Booking ORM row (per unique QR when qty > 1)."""
     event = getattr(booking, "event", None)
-    token = (qr_token or "").strip()
-    if not token:
-        tickets = list(getattr(booking, "tickets", None) or [])
-        for ticket in tickets:
-            if (getattr(ticket, "qr_token", None) or "").strip():
-                token = ticket.qr_token.strip()
-                break
+    ctx = _resolve_per_ticket_context(booking, qr_token=qr_token, db=db)
+    token = ctx["qr_token"]
     poster = ""
     if event is not None:
         poster = getattr(event, "card_image", None) or getattr(event, "image_url", None) or ""
-    qty = max(1, int(getattr(booking, "quantity", 1) or 1))
-    total = float(getattr(booking, "total_price", 0) or 0)
-    gst = float(getattr(booking, "gst_amount", 0) or 0)
+    qty = max(1, int(ctx.get("quantity") or 1))
+    total = float(ctx.get("total_price") or 0)
+    gst = float(ctx.get("gst_amount") or 0)
+    guest_label = ctx.get("guest_label") or ""
     event_date = None
     public_start = getattr(event, "start_date", None) if event is not None else None
     if db is not None:
@@ -895,7 +972,41 @@ def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None, include
         attendee_name=getattr(booking, "receiver_name", None) or "",
         attendee_email=getattr(booking, "receiver_email", None) or "",
         attendee_phone=getattr(booking, "receiver_phone", None) or "",
+        attendee_guest_label=guest_label,
     )
+
+
+def build_all_mticket_pdfs_from_booking(
+    booking,
+    db=None,
+    include_qr: bool = True,
+) -> List[Tuple[str, bytes, str]]:
+    """Build one PDF per unique QR ticket (primary + Guest 1, Guest 2, …)."""
+    tickets = _ordered_booking_tickets(booking, db=db)
+    booking_qty = max(1, int(getattr(booking, "quantity", 1) or 1))
+    if not tickets:
+        pdf = build_mticket_pdf_from_booking(booking, db=db, include_qr=include_qr)
+        if not pdf:
+            return []
+        return [(ticket_pdf_filename(booking.booking_id), pdf, "application/pdf")]
+
+    if len(tickets) == 1 and booking_qty <= 1:
+        pdf = build_mticket_pdf_from_booking(booking, qr_token=tickets[0].qr_token, db=db, include_qr=include_qr)
+        if not pdf:
+            return []
+        return [(ticket_pdf_filename(booking.booking_id), pdf, "application/pdf")]
+
+    out: List[Tuple[str, bytes, str]] = []
+    for index, ticket in enumerate(tickets):
+        token = (getattr(ticket, "qr_token", None) or "").strip()
+        if not token:
+            continue
+        pdf = build_mticket_pdf_from_booking(booking, qr_token=token, db=db, include_qr=include_qr)
+        if not pdf:
+            continue
+        filename = ticket_pdf_filename(booking.booking_id, ticket_index=index)
+        out.append((filename, pdf, "application/pdf"))
+    return out
 
 
 def build_ticket_pdf_bytes(

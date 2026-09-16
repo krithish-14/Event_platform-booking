@@ -1,7 +1,7 @@
 /**
  * JOD Events — Modern Editorial Layered Image Carousel
  * Visual Diary & Event Gallery with 4:5 Aspect Ratio, Dynamic 3D Layering,
- * Event Filtering (Singapenn Marathon, Sandd, Conference), Smooth Transitions,
+ * Event Filtering (Singapenn Marathon, Sandd, Rotary Business Meet), Smooth Transitions,
  * and Fullscreen Lightbox Integration.
  */
 (function () {
@@ -24,7 +24,7 @@
 	   Event Galleries Data (Configured with Cloudflare R2 Folders)
 	   - Singapenn Marathon 2026: images/Singapenn marathon/
 	   - Sandd: images/Sandd/
-	   - Conference: images/Conference/
+	   - Rotary Business Meet: images/Conference/
 	   -------------------------------------------------------------------------- */
 	const EVENT_GALLERIES = [
 		{
@@ -69,7 +69,7 @@
 		},
 		{
 			id: "conference",
-			name: "Conference",
+			name: "Rotary Business Meet",
 			folder: "images/Conference",
 			items: [
 				{ id: "conf-1", title: "Keynote & Panel Discussion", file: "IMG_6945.JPG.webp", type: "image" },
@@ -202,7 +202,6 @@
 			<div class="editorial-card-shade"></div>
 			<div class="editorial-card-info">
 				<span class="editorial-card-tag">${escapeHtml(item.category)}</span>
-				<h3 class="editorial-card-title">${escapeHtml(item.title)}</h3>
 			</div>
 			${playBtn}
 		</div>`;

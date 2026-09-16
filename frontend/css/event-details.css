@@ -1537,6 +1537,16 @@ html[data-theme="dark"] .event-description-text {
     color: #d4cbbf;
 }
 
+/* Rich editor HTML often saves inline black text — force readable copy in dark mode */
+html[data-theme="dark"] .event-description-text.is-rich,
+html[data-theme="dark"] .event-description-text.is-rich p,
+html[data-theme="dark"] .event-description-text.is-rich li,
+html[data-theme="dark"] .event-description-text.is-rich span,
+html[data-theme="dark"] .event-description-text.is-rich div,
+html[data-theme="dark"] .event-description-text.is-rich font {
+    color: #f6f0e8 !important;
+}
+
 html[data-theme="dark"] .event-desc-toggle {
     color: #ff8a1f;
 }

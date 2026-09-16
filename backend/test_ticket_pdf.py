@@ -3,7 +3,10 @@ import zlib
 
 from Services.ticket_pdf import (
     _decode_png_rgb,
+    _resolve_per_ticket_context,
+    build_mticket_pdf_bytes,
     build_ticket_pdf_bytes,
+    guest_label_for_index,
     ticket_pdf_filename,
 )
 
@@ -62,6 +65,63 @@ def test_mticket_pdf_without_qr():
     assert ticket_pdf_filename("323560f3") == "JOD-Ticket-323560F3.pdf"
 
 
+def test_guest_labels_and_filenames():
+    assert guest_label_for_index(0) == ""
+    assert guest_label_for_index(1) == "Guest 1"
+    assert guest_label_for_index(2) == "Guest 2"
+    assert ticket_pdf_filename("323560f3-aaaa-bbbb-cccc-ddddeeeeffff", ticket_index=1) == "JOD-Ticket-323560F3-Guest1.pdf"
+
+
+def test_mticket_pdf_renders_guest_label():
+    pdf = build_mticket_pdf_bytes(
+        booking_id="323560f3-aaaa-bbbb-cccc-ddddeeeeffff",
+        event_name="Makeup & Boutique Workshop",
+        event_date="2026-09-25T10:00:00",
+        qr_token="guest-token-1",
+        venue="Express Avenue, Chennai",
+        ticket_type="Silver Access",
+        quantity=1,
+        total_price=166.33,
+        gst_amount=29.94,
+        seat_number="General Admission",
+        payment_mode="UPI",
+        attendee_name="Priya Sharma",
+        attendee_guest_label="Guest 1",
+    )
+    assert pdf is not None
+    assert pdf.startswith(b"%PDF")
+    assert b"Priya Sharma" in pdf
+    assert b"Guest 1" in pdf
+
+
+class _FakeTicket:
+    def __init__(self, token, created_at=None):
+        self.qr_token = token
+        self.ticket_id = token
+        self.created_at = created_at or "2026-01-01T00:00:00"
+
+
+class _FakeBooking:
+    def __init__(self, qty=3, tickets=None):
+        self.quantity = qty
+        self.total_price = 499.0
+        self.gst_amount = 89.82
+        self.tickets = tickets or []
+
+
+def test_resolve_per_ticket_context_splits_multi_ticket_booking():
+    booking = _FakeBooking(
+        qty=3,
+        tickets=[_FakeTicket("tok-a", "2026-01-01"), _FakeTicket("tok-b", "2026-01-02"), _FakeTicket("tok-c", "2026-01-03")],
+    )
+    ctx = _resolve_per_ticket_context(booking, qr_token="tok-b")
+    assert ctx["ticket_index"] == 1
+    assert ctx["guest_label"] == "Guest 1"
+    assert ctx["quantity"] == 1
+    assert abs(ctx["total_price"] - (499.0 / 3)) < 0.01
+    assert abs(ctx["gst_amount"] - (89.82 / 3)) < 0.01
+
+
 def test_invoice_pdf_omits_qr_and_booking_id():
     pdf = build_ticket_pdf_bytes(
         booking_id="323560f3-aaaa-bbbb-cccc-ddddeeeeffff",
@@ -88,5 +148,8 @@ def test_invoice_pdf_omits_qr_and_booking_id():
 if __name__ == "__main__":
     test_png_poster_decodes_to_rgb()
     test_mticket_pdf_without_qr()
+    test_guest_labels_and_filenames()
+    test_mticket_pdf_renders_guest_label()
+    test_resolve_per_ticket_context_splits_multi_ticket_booking()
     test_invoice_pdf_omits_qr_and_booking_id()
     print("ticket pdf ok")
