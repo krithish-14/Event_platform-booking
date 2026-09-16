@@ -630,7 +630,8 @@ def build_mticket_pdf_bytes(
         show_seat = bool(layout.get("show_seat", True))
         show_ticket_type = bool(layout.get("show_ticket_type", True))
         show_jod_logo = bool(layout.get("show_jod_logo", True))
-        show_attendee_name = bool(layout.get("show_attendee_name", True)) and bool(str(attendee_name or "").strip())
+        allow_attendee_name = bool(layout.get("show_attendee_name", True))
+        show_attendee_name = allow_attendee_name and bool(str(attendee_name or "").strip())
         show_attendee_email = bool(layout.get("show_attendee_email", True)) and bool(str(attendee_email or "").strip())
         show_attendee_phone = bool(layout.get("show_attendee_phone", True)) and bool(str(attendee_phone or "").strip())
         custom_footer = _ascii_text(layout.get("custom_footer") or "", "")
@@ -640,10 +641,10 @@ def build_mticket_pdf_bytes(
         guest_phone = _ascii_text(attendee_phone, "") if show_attendee_phone else ""
         guest_sub_label = _ascii_text(attendee_guest_label, "") if attendee_guest_label else ""
         attendee_rows: list[tuple[str, str]] = []
-        if guest_name:
-            name_value = guest_name
-            if guest_sub_label:
-                name_value = f"{guest_name} ({guest_sub_label})"
+        if guest_name or (guest_sub_label and allow_attendee_name):
+            # Keep the guest label even when no name is on file, so every page of a
+            # multi-ticket PDF stays distinguishable at the gate.
+            name_value = f"{guest_name} ({guest_sub_label})".strip() if guest_sub_label else guest_name
             attendee_rows.append(("Name", name_value))
         if guest_phone:
             attendee_rows.append(("Phone", guest_phone))

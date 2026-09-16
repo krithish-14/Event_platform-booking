@@ -133,17 +133,6 @@ def test_multipage_pdf_assembly():
     assert pdf.count(b"/Type /Page") >= 2
 
 
-def test_combined_pdf_from_multi_ticket_booking():
-    booking = _FakeBooking(
-        qty=2,
-        tickets=[_FakeTicket("tok-a", "2026-01-01"), _FakeTicket("tok-b", "2026-01-02")],
-    )
-    pdf = build_combined_mticket_pdf_from_booking(booking)
-    assert pdf is not None
-    assert pdf.startswith(b"%PDF")
-    assert pdf.count(b"/Type /Page") >= 2
-
-
 class _FakeTicket:
     def __init__(self, token, created_at=None):
         self.qr_token = token
@@ -152,11 +141,55 @@ class _FakeTicket:
 
 
 class _FakeBooking:
-    def __init__(self, qty=3, tickets=None):
+    def __init__(self, qty=3, tickets=None, receiver_name="Priya Sharma"):
         self.quantity = qty
         self.total_price = 499.0
         self.gst_amount = 89.82
         self.tickets = tickets or []
+        self.receiver_name = receiver_name
+        self.receiver_email = "priya@example.com"
+        self.receiver_phone = "9890989090"
+
+
+def test_combined_pdf_from_multi_ticket_booking():
+    """Staff and attendee 'all tickets' downloads: one page per unique QR."""
+    booking = _FakeBooking(
+        qty=3,
+        tickets=[
+            _FakeTicket("tok-a", "2026-01-01"),
+            _FakeTicket("tok-b", "2026-01-02"),
+            _FakeTicket("tok-c", "2026-01-03"),
+        ],
+    )
+    pdf = build_combined_mticket_pdf_from_booking(booking)
+    assert pdf is not None
+    assert pdf.startswith(b"%PDF")
+    assert pdf.count(b"/Type /Page ") == 3
+    assert b"/Count 3" in pdf
+    assert b"Guest 1" in pdf
+    assert b"Guest 2" in pdf
+
+
+def test_combined_pdf_single_ticket_stays_one_page():
+    booking = _FakeBooking(qty=1, tickets=[_FakeTicket("tok-only")])
+    pdf = build_combined_mticket_pdf_from_booking(booking)
+    assert pdf is not None
+    assert pdf.startswith(b"%PDF")
+    assert pdf.count(b"/Type /Page ") == 1
+    assert b"/Count 1" in pdf
+    assert b"Guest 1" not in pdf
+
+
+def test_combined_pdf_keeps_guest_label_without_attendee_name():
+    booking = _FakeBooking(
+        qty=2,
+        tickets=[_FakeTicket("tok-a", "2026-01-01"), _FakeTicket("tok-b", "2026-01-02")],
+        receiver_name="",
+    )
+    pdf = build_combined_mticket_pdf_from_booking(booking)
+    assert pdf is not None
+    assert pdf.count(b"/Type /Page ") == 2
+    assert b"Guest 1" in pdf
 
 
 def test_resolve_per_ticket_context_splits_multi_ticket_booking():
@@ -202,6 +235,8 @@ if __name__ == "__main__":
     test_mticket_pdf_renders_guest_label_and_contact_rows()
     test_multipage_pdf_assembly()
     test_combined_pdf_from_multi_ticket_booking()
+    test_combined_pdf_single_ticket_stays_one_page()
+    test_combined_pdf_keeps_guest_label_without_attendee_name()
     test_resolve_per_ticket_context_splits_multi_ticket_booking()
     test_invoice_pdf_omits_qr_and_booking_id()
     print("ticket pdf ok")

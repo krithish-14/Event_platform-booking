@@ -1645,16 +1645,16 @@ def download_admin_payment_ticket_pdf(
         form_email=row.attendee_email or "",
         form_phone=row.attendee_phone or "",
     )
-    from Services.ticket_pdf import build_mticket_pdf_from_booking, ticket_pdf_filename
-    # Use the host-designed M-ticket renderer — same design as user/host downloads.
-    pdf = build_mticket_pdf_from_booking(
-        booking,
-        qr_token=(tickets[0].qr_token or ""),
-        db=db,
-    )
+    from Services.ticket_pdf import build_combined_mticket_pdf_from_booking, ticket_pdf_filename
+    # Host-designed M-ticket renderer — same design as user/host downloads.
+    # Multi-quantity bookings return one page per unique QR.
+    pdf = build_combined_mticket_pdf_from_booking(booking, db=db)
     if not pdf:
         raise HTTPException(status_code=500, detail="Could not generate the admin ticket PDF.")
-    filename = ticket_pdf_filename(booking.booking_id)
+    filename = ticket_pdf_filename(
+        booking.booking_id,
+        ticket_index=-1 if len(tickets) > 1 else 0,
+    )
     return Response(
         content=pdf,
         media_type="application/pdf",
@@ -1698,16 +1698,16 @@ def download_admin_submission_ticket_pdf(
         form_phone=form_phone,
         prefer_form=True,
     )
-    from Services.ticket_pdf import build_mticket_pdf_from_booking, ticket_pdf_filename
-    # Use the host-designed M-ticket renderer — same design as user/host downloads.
-    pdf = build_mticket_pdf_from_booking(
-        booking,
-        qr_token=tickets[0].qr_token,
-        db=db,
-    )
+    from Services.ticket_pdf import build_combined_mticket_pdf_from_booking, ticket_pdf_filename
+    # Host-designed M-ticket renderer — same design as user/host downloads.
+    # Multi-quantity bookings return one page per unique QR.
+    pdf = build_combined_mticket_pdf_from_booking(booking, db=db)
     if not pdf:
         raise HTTPException(status_code=500, detail="Could not generate the admin ticket PDF.")
-    filename = ticket_pdf_filename(booking.booking_id)
+    filename = ticket_pdf_filename(
+        booking.booking_id,
+        ticket_index=-1 if len(tickets) > 1 else 0,
+    )
     return Response(
         content=pdf,
         media_type="application/pdf",
