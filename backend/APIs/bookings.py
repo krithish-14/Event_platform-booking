@@ -1086,22 +1086,34 @@ def get_single_booking(
     return _serialize_booking(b, db=db)
 
 
-def _ticket_pdf_http_response(booking: Booking, db: Session, qr_token: str = "", kind: str = "ticket"):
+def _ticket_pdf_http_response(
+    booking: Booking,
+    db: Session,
+    qr_token: str = "",
+    kind: str = "ticket",
+    *,
+    combined: bool = False,
+):
     from Services.ticket_pdf import (
         _resolve_per_ticket_context,
+        build_combined_mticket_pdf_from_booking,
         build_mticket_pdf_from_booking,
         ticket_pdf_filename,
     )
 
     kind_key = "invoice" if str(kind or "").strip().lower() == "invoice" else "ticket"
     include_qr = kind_key != "invoice"
-    ctx = _resolve_per_ticket_context(booking, qr_token=qr_token, db=db)
-    pdf = build_mticket_pdf_from_booking(
-        booking, qr_token=ctx.get("qr_token") or qr_token, db=db, include_qr=include_qr
-    )
-    if not pdf:
+    if combined and kind_key == "ticket":
+        pdf = build_combined_mticket_pdf_from_booking(booking, db=db, include_qr=include_qr)
+        ticket_index = -1
+    else:
+        ctx = _resolve_per_ticket_context(booking, qr_token=qr_token, db=db)
+        pdf = build_mticket_pdf_from_booking(
+            booking, qr_token=ctx.get("qr_token") or qr_token, db=db, include_qr=include_qr
+        )
+        ticket_index = int(ctx.get("ticket_index") or 0) if kind_key == "ticket" else 0
+    if not pdf or not isinstance(pdf, bytes):
         raise HTTPException(status_code=500, detail="Could not generate the ticket PDF.")
-    ticket_index = int(ctx.get("ticket_index") or 0) if kind_key == "ticket" else 0
     filename = ticket_pdf_filename(booking.booking_id, kind=kind_key, ticket_index=ticket_index)
     return Response(
         content=pdf,
@@ -1119,6 +1131,7 @@ def download_booking_ticket_pdf(
     kind: str = "ticket",
     token: str = "",
     qr_token: str = "",
+    combined: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1132,9 +1145,18 @@ def download_booking_ticket_pdf(
     if not chosen and tickets:
         chosen = (getattr(tickets[0], "qr_token", None) or "").strip()
     kind_key = "invoice" if str(kind or "").strip().lower() == "invoice" else "ticket"
-    if kind_key == "ticket" and not chosen:
+    want_combined = bool(combined) and kind_key == "ticket"
+    if kind_key == "ticket" and not chosen and not want_combined:
         raise HTTPException(status_code=404, detail="QR ticket is not ready yet.")
-    return _ticket_pdf_http_response(booking, db, chosen, kind=kind_key)
+    if want_combined and not tickets:
+        raise HTTPException(status_code=404, detail="QR ticket is not ready yet.")
+    return _ticket_pdf_http_response(
+        booking,
+        db,
+        chosen,
+        kind=kind_key,
+        combined=want_combined,
+    )
 
 
 @router.post("/{booking_id}/cancel", response_model=BookingResponse)

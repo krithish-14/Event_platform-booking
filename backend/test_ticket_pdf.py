@@ -2,8 +2,10 @@ import struct
 import zlib
 
 from Services.ticket_pdf import (
+    _assemble_pdf_from_page_chunks,
     _decode_png_rgb,
     _resolve_per_ticket_context,
+    build_combined_mticket_pdf_from_booking,
     build_mticket_pdf_bytes,
     build_ticket_pdf_bytes,
     guest_label_for_index,
@@ -72,7 +74,7 @@ def test_guest_labels_and_filenames():
     assert ticket_pdf_filename("323560f3-aaaa-bbbb-cccc-ddddeeeeffff", ticket_index=1) == "JOD-Ticket-323560F3-Guest1.pdf"
 
 
-def test_mticket_pdf_renders_guest_label():
+def test_mticket_pdf_renders_guest_label_and_contact_rows():
     pdf = build_mticket_pdf_bytes(
         booking_id="323560f3-aaaa-bbbb-cccc-ddddeeeeffff",
         event_name="Makeup & Boutique Workshop",
@@ -86,12 +88,60 @@ def test_mticket_pdf_renders_guest_label():
         seat_number="General Admission",
         payment_mode="UPI",
         attendee_name="Priya Sharma",
+        attendee_email="contact@jodevents.com",
+        attendee_phone="+91 91509 04455",
         attendee_guest_label="Guest 1",
     )
     assert pdf is not None
     assert pdf.startswith(b"%PDF")
     assert b"Priya Sharma" in pdf
     assert b"Guest 1" in pdf
+    assert b"Name" in pdf
+    assert b"Phone" in pdf
+    assert b"Email" in pdf
+    assert b"contact@jodevents.com" in pdf
+    assert ticket_pdf_filename("323560f3", ticket_index=-1) == "JOD-Ticket-323560F3-All.pdf"
+
+
+def test_multipage_pdf_assembly():
+    chunk_a = build_mticket_pdf_bytes(
+        booking_id="323560f3-aaaa-bbbb-cccc-ddddeeeeffff",
+        event_name="Run Marathon",
+        event_date="2026-09-25T10:00:00",
+        qr_token="token-a",
+        attendee_name="Test ananda",
+        attendee_email="test@gmail.com",
+        attendee_phone="9890989090",
+        _return_page_chunk=True,
+    )
+    chunk_b = build_mticket_pdf_bytes(
+        booking_id="323560f3-aaaa-bbbb-cccc-ddddeeeeffff",
+        event_name="Run Marathon",
+        event_date="2026-09-25T10:00:00",
+        qr_token="token-b",
+        attendee_name="Test ananda",
+        attendee_email="test@gmail.com",
+        attendee_phone="9890989090",
+        attendee_guest_label="Guest 1",
+        _return_page_chunk=True,
+    )
+    assert isinstance(chunk_a, dict)
+    assert isinstance(chunk_b, dict)
+    pdf = _assemble_pdf_from_page_chunks([chunk_a, chunk_b])
+    assert pdf is not None
+    assert pdf.startswith(b"%PDF")
+    assert pdf.count(b"/Type /Page") >= 2
+
+
+def test_combined_pdf_from_multi_ticket_booking():
+    booking = _FakeBooking(
+        qty=2,
+        tickets=[_FakeTicket("tok-a", "2026-01-01"), _FakeTicket("tok-b", "2026-01-02")],
+    )
+    pdf = build_combined_mticket_pdf_from_booking(booking)
+    assert pdf is not None
+    assert pdf.startswith(b"%PDF")
+    assert pdf.count(b"/Type /Page") >= 2
 
 
 class _FakeTicket:
@@ -149,7 +199,9 @@ if __name__ == "__main__":
     test_png_poster_decodes_to_rgb()
     test_mticket_pdf_without_qr()
     test_guest_labels_and_filenames()
-    test_mticket_pdf_renders_guest_label()
+    test_mticket_pdf_renders_guest_label_and_contact_rows()
+    test_multipage_pdf_assembly()
+    test_combined_pdf_from_multi_ticket_booking()
     test_resolve_per_ticket_context_splits_multi_ticket_booking()
     test_invoice_pdf_omits_qr_and_booking_id()
     print("ticket pdf ok")

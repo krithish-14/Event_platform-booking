@@ -115,29 +115,34 @@
 }
 
 .mticket-attendee-block {
-	text-align: center;
 	padding: 0.35rem 1.1rem 0.75rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.45rem;
 }
 
-.mticket-attendee-label {
-	font-size: 0.72rem;
-	font-weight: 700;
-	letter-spacing: 0.12em;
-	text-transform: uppercase;
+.mticket-attendee-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	font-size: 0.82rem;
+}
+
+.mticket-attendee-row span {
+	flex: 0 1 auto;
 	color: #6b7280;
-	margin-bottom: 0.25rem;
+	font-weight: 600;
+	white-space: nowrap;
 }
 
-.mticket-attendee-name {
-	font-size: 1rem;
+.mticket-attendee-row strong {
+	flex: 0 1 auto;
+	margin-left: auto;
 	font-weight: 700;
 	color: #0f172a;
-}
-
-.mticket-guest-label {
-	font-size: 0.88rem;
-	color: #6b7280;
-	margin-top: 0.15rem;
+	text-align: right;
+	word-break: break-word;
 }
 
 /* --- BookMyShow Style M-Ticket Wrapper --- */

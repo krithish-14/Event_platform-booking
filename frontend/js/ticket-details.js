@@ -300,21 +300,27 @@
  return shownQty === 1 ? "1 Ticket" : `${shownQty} Tickets`;
 	}
 
-	function pdfFilenameForTicket(data, kind) {
+ function pdfFilenameForTicket(data, kind, options) {
  const short = String((data && data.booking_id) || "ticket").replace(/-/g, "").slice(0, 8).toUpperCase() || "TICKET";
  if (kind === "invoice") return `JOD-Invoice-${short}.pdf`;
+ if (options && options.combined) return `JOD-Ticket-${short}-All.pdf`;
  const guest = String((data && data.guest_label) || "").replace(/\s+/g, "");
  return guest ? `JOD-Ticket-${short}-${guest}.pdf` : `JOD-Ticket-${short}.pdf`;
-	}
+ }
 
-	function ensureTicketAttendeeBlock() {
+ function ensureTicketAttendeeBlock() {
  const seating = document.querySelector(".mticket-seating-block");
- if (!seating || document.getElementById("ticketAttendeeBlock")) return;
- const block = document.createElement("div");
+ if (!seating) return;
+ let block = document.getElementById("ticketAttendeeBlock");
+ if (!block) {
+ block = document.createElement("div");
  block.id = "ticketAttendeeBlock";
  block.className = "mticket-attendee-block";
- block.innerHTML = '<div class="mticket-attendee-label">Attendee</div><div class="mticket-attendee-name" id="ticketAttendeeName">Guest Customer</div><div class="mticket-guest-label" id="ticketGuestLabel" hidden></div>';
  seating.insertAdjacentElement("afterend", block);
+ }
+ if (!document.getElementById("ticketAttendeePhone")) {
+ block.innerHTML = '<div class="mticket-attendee-row"><span>Name</span><strong id="ticketAttendeeName">Guest Customer</strong></div><div class="mticket-attendee-row"><span>Phone</span><strong id="ticketAttendeePhone">+91 98765 43210</strong></div><div class="mticket-attendee-row"><span>Email</span><strong id="ticketAttendeeEmail">customer@jodevents.com</strong></div>';
+ }
 	}
 
 	function renderTicketMultiNav(data, onSelect) {
@@ -485,17 +491,14 @@
  if (recEmail) recEmail.textContent = data.receiver_email || data.user_email || "customer@jodevents.com";
  if (recPhone) recPhone.textContent = data.receiver_phone || "+91 98765 43210";
  const attendeeNameEl = document.getElementById("ticketAttendeeName");
- const guestLabelEl = document.getElementById("ticketGuestLabel");
- if (attendeeNameEl) attendeeNameEl.textContent = attendeeName;
- if (guestLabelEl) {
- if (data.guest_label) {
- guestLabelEl.hidden = false;
- guestLabelEl.textContent = `(${data.guest_label})`;
- } else {
- guestLabelEl.hidden = true;
- guestLabelEl.textContent = "";
- }
- }
+ const attendeePhoneEl = document.getElementById("ticketAttendeePhone");
+ const attendeeEmailEl = document.getElementById("ticketAttendeeEmail");
+ const attendeePhone = data.receiver_phone || data.user_phone || "+91 98765 43210";
+ const attendeeEmail = data.receiver_email || data.user_email || "customer@jodevents.com";
+ const displayName = data.guest_label ? `${attendeeName} (${data.guest_label})` : attendeeName;
+ if (attendeeNameEl) attendeeNameEl.textContent = displayName;
+ if (attendeePhoneEl) attendeePhoneEl.textContent = attendeePhone;
+ if (attendeeEmailEl) attendeeEmailEl.textContent = attendeeEmail;
 
  renderAgendaBack(data);
  window.requestAnimationFrame(syncFlipHeight);
@@ -714,23 +717,25 @@
  });
 	}
 
- async function downloadTicketPdfForToken(bookingData, token, kind) {
+ async function downloadTicketPdfForToken(bookingData, token, kind, options) {
  const apiBase = getApiBase();
  const id = (bookingData && bookingData.booking_id) || getQueryParam("id") || getQueryParam("booking_id");
+ const combined = Boolean(options && options.combined);
  const qsParts = [];
  if (kind === "invoice") qsParts.push("kind=invoice");
- if (token) qsParts.push(`token=${encodeURIComponent(token)}`);
+ if (combined) qsParts.push("combined=1");
+ if (token && !combined) qsParts.push(`token=${encodeURIComponent(token)}`);
  const qs = qsParts.length ? `?${qsParts.join("&")}` : "";
- const url = token
+ const url = (token && !combined)
  ? `${apiBase}/api/tickets/public/${encodeURIComponent(token)}/pdf${kind === "invoice" ? "?kind=invoice" : ""}`
  : `${apiBase}/api/bookings/${encodeURIComponent(id)}/pdf${qs}`;
- const res = token
+ const res = (token && !combined)
  ? await fetch(url, { cache: "no-store", credentials: "include" })
  : await authFetch(url, { allowGuest: true });
  if (!res.ok) throw new Error("pdf");
  const blob = await res.blob();
  if (!blob || blob.size < 8) throw new Error("empty");
- let filename = pdfFilenameForTicket(bookingData, kind);
+ let filename = pdfFilenameForTicket(bookingData, kind, options);
  const disposition = res.headers.get("Content-Disposition") || "";
  const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
  if (match && match[1]) filename = match[1];
@@ -753,17 +758,7 @@
  try {
  if (kind === "ticket" && !token && !id) throw new Error("missing");
  if (downloadAll && kind === "ticket" && tickets.length > 1) {
- for (let i = 0; i < tickets.length; i += 1) {
- const row = tickets[i];
- const slice = Object.assign({}, bookingData, {
- qr_token: row.qr_token,
- guest_label: row.guest_label || null,
- ticket_index: row.ticket_index != null ? row.ticket_index : i,
- quantity: 1,
- });
- await downloadTicketPdfForToken(slice, row.qr_token, kind);
- if (i < tickets.length - 1) await new Promise((resolve) => setTimeout(resolve, 350));
- }
+ await downloadTicketPdfForToken(bookingData, token, kind, { combined: true });
  return;
  }
  await downloadTicketPdfForToken(bookingData, token, kind);

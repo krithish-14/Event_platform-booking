@@ -366,6 +366,79 @@ def _assemble_pdf(object_bodies: list[bytes]) -> bytes:
     return b"".join(chunks + xref + [trailer])
 
 
+def _assemble_pdf_from_page_chunks(page_chunks: list[dict]) -> Optional[bytes]:
+    """Build one PDF from one or more page chunks ({ops, xobjects})."""
+    if not page_chunks:
+        return None
+    if len(page_chunks) == 1:
+        chunk = page_chunks[0]
+        stream = "\n".join(chunk["ops"]).encode("latin-1", "replace")
+        xobjects = chunk.get("xobjects") or {}
+        xobject_refs = []
+        image_objects = []
+        next_obj = 7
+        for name, (payload, width, height, pdf_filter) in xobjects.items():
+            xobject_refs.append(f"/{name} {next_obj} 0 R")
+            image_objects.append(_image_xobject(payload, width, height, pdf_filter))
+            next_obj += 1
+        xobject_dict = f"/XObject << {' '.join(xobject_refs)} >>" if xobject_refs else ""
+        resources = (
+            f"<< /Font << /F1 4 0 R /F2 5 0 R >> {xobject_dict} >>".encode("ascii")
+        )
+        contents_obj = f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
+        page_obj = (
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources "
+            + resources
+            + b" /Contents 6 0 R >>"
+        )
+        objects = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            page_obj,
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            contents_obj,
+        ]
+        objects.extend(image_objects)
+        return _assemble_pdf(objects)
+
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"",  # Pages — filled after page objects are known
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    page_obj_ids: list[int] = []
+    for chunk in page_chunks:
+        page_obj_id = len(objects) + 1
+        contents_obj_id = page_obj_id + 1
+        page_obj_ids.append(page_obj_id)
+
+        xobject_refs = []
+        image_objects = []
+        for name, (payload, width, height, pdf_filter) in (chunk.get("xobjects") or {}).items():
+            img_id = contents_obj_id + 1 + len(image_objects)
+            xobject_refs.append(f"/{name} {img_id} 0 R")
+            image_objects.append(_image_xobject(payload, width, height, pdf_filter))
+
+        stream = "\n".join(chunk["ops"]).encode("latin-1", "replace")
+        contents_obj = f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
+        xobject_dict = f"/XObject << {' '.join(xobject_refs)} >>" if xobject_refs else ""
+        resources = f"<< /Font << /F1 3 0 R /F2 4 0 R >> {xobject_dict} >>".encode("ascii")
+        page_obj = (
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources "
+            + resources
+            + f" /Contents {contents_obj_id} 0 R >>".encode("ascii")
+        )
+        objects.append(page_obj)
+        objects.append(contents_obj)
+        objects.extend(image_objects)
+
+    kids = " ".join(f"{obj_id} 0 R" for obj_id in page_obj_ids)
+    objects[1] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_obj_ids)} >>".encode("ascii")
+    return _assemble_pdf(objects)
+
+
 def _image_xobject(payload: bytes, width: int, height: int, pdf_filter: str = "DCTDecode") -> bytes:
     return (
         b"<< /Type /XObject /Subtype /Image "
@@ -438,6 +511,8 @@ def guest_label_for_index(index: int) -> str:
 def ticket_pdf_filename(booking_id, kind: str = "ticket", *, ticket_index: int = 0) -> str:
     prefix = "JOD-Invoice" if str(kind).strip().lower() == "invoice" else "JOD-Ticket"
     short = _short_booking_id(booking_id)
+    if int(ticket_index) == -1:
+        return f"{prefix}-{short}-All.pdf"
     guest = guest_label_for_index(ticket_index).replace(" ", "")
     if guest:
         return f"{prefix}-{short}-{guest}.pdf"
@@ -525,7 +600,8 @@ def build_mticket_pdf_bytes(
     attendee_email: str = "",
     attendee_phone: str = "",
     attendee_guest_label: str = "",
-) -> Optional[bytes]:
+    _return_page_chunk: bool = False,
+) -> Optional[bytes | dict]:
     """One-page M-ticket PDF. Returns None if assembly fails."""
     try:
         from Services.ticket_templates import (
@@ -563,10 +639,17 @@ def build_mticket_pdf_bytes(
         guest_email = _ascii_text(attendee_email, "") if show_attendee_email else ""
         guest_phone = _ascii_text(attendee_phone, "") if show_attendee_phone else ""
         guest_sub_label = _ascii_text(attendee_guest_label, "") if attendee_guest_label else ""
-        attendee_lines = sum(1 for x in (guest_name, guest_email, guest_phone) if x)
-        if guest_sub_label:
-            attendee_lines += 1
-        attendee_h = (18.0 + attendee_lines * 14.0) if attendee_lines else 0.0
+        attendee_rows: list[tuple[str, str]] = []
+        if guest_name:
+            name_value = guest_name
+            if guest_sub_label:
+                name_value = f"{guest_name} ({guest_sub_label})"
+            attendee_rows.append(("Name", name_value))
+        if guest_phone:
+            attendee_rows.append(("Phone", guest_phone))
+        if guest_email:
+            attendee_rows.append(("Email", guest_email))
+        attendee_h = (10.0 + len(attendee_rows) * 14.0) if attendee_rows else 0.0
 
         title = _ascii_text(headline_override or event_name, "JOD Events") or "JOD Events"
         date_label = _ascii_text(_format_event_date(event_date), "Date TBA") if show_date else ""
@@ -722,38 +805,19 @@ def build_mticket_pdf_bytes(
         ops.append("ET")
 
         attendee_top = block_top - (58.0 if (show_ticket_type or show_seat) else 20.0)
-        if attendee_lines:
-            ops.extend([
-                "BT",
-                f"/F2 8 Tf {_rgb(muted_rgb)} rg",
-                _tj_center(center_x, attendee_top, "ATTENDEE", 4.4),
-            ])
-            cursor_a = attendee_top - 14
-            if guest_name:
+        if attendee_rows:
+            ops.append("BT")
+            cursor_a = attendee_top
+            for label, value in attendee_rows:
                 ops.extend([
-                    f"/F1 10 Tf {_rgb(text_rgb)} rg",
-                    _tj_center(center_x, cursor_a, guest_name[:40], 5.6),
+                    f"/F2 9 Tf {_rgb(muted_rgb)} rg",
+                    f"1 0 0 1 {inner_x:.1f} {cursor_a:.1f} Tm ({_pdf_escape(label)}) Tj",
+                    f"/F1 9 Tf {_rgb(text_rgb)} rg",
+                    _tj_right(inner_right, cursor_a, value[:44], 5.0),
                 ])
                 cursor_a -= 13
-            if guest_sub_label:
-                ops.extend([
-                    f"/F2 9 Tf {_rgb(muted_rgb)} rg",
-                    _tj_center(center_x, cursor_a, f"({guest_sub_label})"[:42], 4.8),
-                ])
-                cursor_a -= 12
-            if guest_email:
-                ops.extend([
-                    f"/F2 9 Tf {_rgb(muted_rgb)} rg",
-                    _tj_center(center_x, cursor_a, guest_email[:42], 4.8),
-                ])
-                cursor_a -= 12
-            if guest_phone:
-                ops.extend([
-                    f"/F2 9 Tf {_rgb(muted_rgb)} rg",
-                    _tj_center(center_x, cursor_a, guest_phone[:28], 4.8),
-                ])
             ops.append("ET")
-            qr_anchor = cursor_a - 16
+            qr_anchor = cursor_a - 14
         else:
             qr_anchor = block_top - 58
 
@@ -848,39 +912,21 @@ def build_mticket_pdf_bytes(
                     "ET",
                 ])
 
-        stream = "\n".join(ops).encode("latin-1", "replace")
-        xobject_refs = []
-        image_objects = []
-        next_obj = 7
-        for name, (payload, width, height, pdf_filter) in xobjects.items():
-            xobject_refs.append(f"/{name} {next_obj} 0 R")
-            image_objects.append(_image_xobject(payload, width, height, pdf_filter))
-            next_obj += 1
-        xobject_dict = f"/XObject << {' '.join(xobject_refs)} >>" if xobject_refs else ""
-        resources = (
-            f"<< /Font << /F1 4 0 R /F2 5 0 R >> {xobject_dict} >>".encode("ascii")
-        )
-        contents_obj = f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
-        page_obj = (
-            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources "
-            + resources
-            + b" /Contents 6 0 R >>"
-        )
-        objects = [
-            b"<< /Type /Catalog /Pages 2 0 R >>",
-            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-            page_obj,
-            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
-            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-            contents_obj,
-        ]
-        objects.extend(image_objects)
-        return _assemble_pdf(objects)
+        if _return_page_chunk:
+            return {"ops": ops, "xobjects": xobjects}
+        return _assemble_pdf_from_page_chunks([{"ops": ops, "xobjects": xobjects}])
     except Exception:
         return None
 
 
-def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None, include_qr: bool = True) -> Optional[bytes]:
+def build_mticket_pdf_from_booking(
+    booking,
+    qr_token: str = "",
+    db=None,
+    include_qr: bool = True,
+    *,
+    _return_page_chunk: bool = False,
+) -> Optional[bytes | dict]:
     """Build one M-ticket PDF from a Booking ORM row (per unique QR when qty > 1)."""
     event = getattr(booking, "event", None)
     ctx = _resolve_per_ticket_context(booking, qr_token=qr_token, db=db)
@@ -973,7 +1019,44 @@ def build_mticket_pdf_from_booking(booking, qr_token: str = "", db=None, include
         attendee_email=getattr(booking, "receiver_email", None) or "",
         attendee_phone=getattr(booking, "receiver_phone", None) or "",
         attendee_guest_label=guest_label,
+        _return_page_chunk=_return_page_chunk,
     )
+
+
+def build_combined_mticket_pdf_from_booking(
+    booking,
+    db=None,
+    include_qr: bool = True,
+) -> Optional[bytes]:
+    """One PDF with one page per unique QR ticket (primary + Guest 1, Guest 2, …)."""
+    tickets = _ordered_booking_tickets(booking, db=db)
+    booking_qty = max(1, int(getattr(booking, "quantity", 1) or 1))
+    if not tickets or (len(tickets) == 1 and booking_qty <= 1):
+        result = build_mticket_pdf_from_booking(
+            booking,
+            qr_token=(tickets[0].qr_token if tickets else ""),
+            db=db,
+            include_qr=include_qr,
+        )
+        return result if isinstance(result, bytes) else None
+
+    chunks: list[dict] = []
+    for ticket in tickets:
+        token = (getattr(ticket, "qr_token", None) or "").strip()
+        if not token:
+            continue
+        chunk = build_mticket_pdf_from_booking(
+            booking,
+            qr_token=token,
+            db=db,
+            include_qr=include_qr,
+            _return_page_chunk=True,
+        )
+        if isinstance(chunk, dict):
+            chunks.append(chunk)
+    if not chunks:
+        return None
+    return _assemble_pdf_from_page_chunks(chunks)
 
 
 def build_all_mticket_pdfs_from_booking(
