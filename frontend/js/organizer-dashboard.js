@@ -1544,16 +1544,11 @@ async function initOrganizerDashboard() {
 			const el = document.getElementById(id);
 			if (el) el.textContent = id === "valSold" || id === "valPending" || id === "valAvail" ? "0 (0%)" : "0";
 		});
-		const donutCenterValue = document.getElementById("donutCenterValue");
-		const donutCenterLabel = document.getElementById("donutCenterLabel");
 		const donutCaption = document.getElementById("donutCaption");
-		if (donutCenterValue) donutCenterValue.textContent = "0";
-		if (donutCenterLabel) donutCenterLabel.textContent = "of 0 tickets";
 		if (donutCaption) donutCaption.textContent = "No active event.";
-		["donutPendingPath", "donutSoldPath", "donutCheckinPath"].forEach((id) => {
-			const el = document.getElementById(id);
-			if (el) el.setAttribute("stroke-dasharray", "0, 100");
-		});
+		drawTrendChart([]);
+		paintRegsPie(0, 0, 0);
+		paintCheckinPie(0, 0);
 	}
 
 	function paintEmptyHostDashboard() {
@@ -1732,17 +1727,9 @@ async function initOrganizerDashboard() {
 		if (valPending) valPending.textContent = `${pending.toLocaleString()} (${fmtPct(pendingPct)}%)`;
 		if (valAvail) valAvail.textContent = `${avail.toLocaleString()} (${fmtPct(availPct)}%)`;
 
-		const claimedArc = soldPct + pendingPct;
-		const donutPendingPath = document.getElementById("donutPendingPath");
-		const donutSoldPath = document.getElementById("donutSoldPath");
-		if (donutPendingPath) donutPendingPath.setAttribute("stroke-dasharray", `${claimedArc.toFixed(2)}, 100`);
-		if (donutSoldPath) donutSoldPath.setAttribute("stroke-dasharray", `${soldPct.toFixed(2)}, 100`);
+		paintRegsPie(sold, pending, avail);
 
-		const donutCenterValue = document.getElementById("donutCenterValue");
-		const donutCenterLabel = document.getElementById("donutCenterLabel");
 		const donutCaption = document.getElementById("donutCaption");
-		if (donutCenterValue) donutCenterValue.textContent = claimed.toLocaleString();
-		if (donutCenterLabel) donutCenterLabel.textContent = `of ${total.toLocaleString()} tickets`;
 		if (donutCaption) {
 			donutCaption.textContent = `${sold.toLocaleString()} sold + ${pending.toLocaleString()} pending are held. ${avail.toLocaleString()} still available.`;
 		}
@@ -1751,8 +1738,7 @@ async function initOrganizerDashboard() {
 		const valYetToCheckIn = document.getElementById("valYetToCheckIn");
 		if (valCheckedIn) valCheckedIn.textContent = checked.toLocaleString();
 		if (valYetToCheckIn) valYetToCheckIn.textContent = yetCheck.toLocaleString();
-		const donutCheckinPath = document.getElementById("donutCheckinPath");
-		if (donutCheckinPath) donutCheckinPath.setAttribute("stroke-dasharray", `${checkedPct}, 100`);
+		paintCheckinPie(checked, yetCheck);
 
 		const sidebarBadge = document.getElementById("sidebarCheckinCount");
 		if (sidebarBadge) {
@@ -2864,7 +2850,10 @@ async function initOrganizerDashboard() {
 				if (emptyStateCard) emptyStateCard.style.display = "none";
 				if (populatedOverviewGrid) populatedOverviewGrid.style.display = "flex";
 				loadDashboardData();
-				setTimeout(drawTrendChart, 100);
+				setTimeout(() => {
+					drawTrendChart();
+					if (window.JodPieChart) window.JodPieChart.redrawAll();
+				}, 100);
 			}
 			applyLifecycleStatusBadge();
 			updateLifecycleBanners();
@@ -2952,11 +2941,47 @@ async function initOrganizerDashboard() {
 	}
 	updateManageQuestionsPreview();
 
-	// Draw Smooth Line Chart on Canvas
+	function paintCanvasPie(canvasId, slices, emptyText, valueNoun) {
+		const canvas = document.getElementById(canvasId);
+		if (!canvas || !window.JodPieChart) return;
+		window.JodPieChart.draw(canvas, slices, {
+			emptyText: emptyText || "No data yet",
+			valueNoun: valueNoun || ""
+		});
+	}
+
+	function paintRegsPie(sold, pending, avail) {
+		paintCanvasPie("regsPieCanvas", [
+			{ label: "Sold", value: sold, color: "#6366f1" },
+			{ label: "Pending", value: pending, color: "#f59e0b" },
+			{ label: "Available", value: avail, color: "#10b981" }
+		], "No tickets yet", "tickets");
+	}
+
+	function paintCheckinPie(checked, yetCheck) {
+		paintCanvasPie("checkinPieCanvas", [
+			{ label: "Checked-in", value: checked, color: "#10b981" },
+			{ label: "Yet to check-in", value: yetCheck, color: "#f59e0b" }
+		], "No attendance yet", "attendees");
+	}
+
 	let lastTrendData = [];
 	let lastTrendPoints = [];
 	let trendHoverIndex = -1;
 	let trendChartEventsBound = false;
+
+	function trendTheme() {
+		const dark = document.documentElement.getAttribute("data-theme") === "dark";
+		return {
+			grid: dark ? "#3a322a" : "#e2e8f0",
+			axis: dark ? "#c8bfb4" : "#94a3b8",
+			label: dark ? "#e2e8f0" : "#64748b",
+			line: "#3b82f6",
+			fillTop: "rgba(59, 130, 246, 0.35)",
+			fillBottom: "rgba(59, 130, 246, 0.0)",
+			hoverRing: dark ? "#1e293b" : "#ffffff"
+		};
+	}
 
 	function showTrendTooltip(point, canvas, mx, my) {
 		const tip = document.getElementById("trendChartTooltip");
@@ -3024,13 +3049,15 @@ async function initOrganizerDashboard() {
 		trendChartEventsBound = true;
 		canvas.addEventListener("mousemove", onTrendChartMouseMove);
 		canvas.addEventListener("mouseleave", onTrendChartMouseLeave);
+		window.addEventListener("jod-theme-change", function () {
+			drawTrendChart();
+		});
 	}
 
 	function drawTrendChart(incoming) {
 		const canvas = document.getElementById("trendChartCanvas");
 		if (!canvas) return;
 		const ctx = canvas.getContext("2d");
-		
 		const rect = canvas.getBoundingClientRect();
 		if (rect.width === 0 || rect.height === 0) return;
 
@@ -3046,10 +3073,10 @@ async function initOrganizerDashboard() {
 
 		const width = rect.width;
 		const height = rect.height;
-
+		const theme = trendTheme();
 		ctx.clearRect(0, 0, width, height);
 
-		if (Array.isArray(incoming) && incoming.length) {
+		if (Array.isArray(incoming)) {
 			lastTrendData = incoming.map((row) => ({
 				date: row.date || "Now",
 				value: Number(row.value) || 0
@@ -3066,7 +3093,6 @@ async function initOrganizerDashboard() {
 		const rawMax = Math.max(1, ...trendData.map((d) => d.value));
 		const maxVal = Math.max(4, Math.ceil(rawMax / 4) * 4);
 		const gridStep = maxVal / 4;
-
 		const denom = Math.max(1, trendData.length - 1);
 		const points = trendData.map((d, i) => {
 			const x = paddingX + (i / denom) * chartW;
@@ -3075,11 +3101,9 @@ async function initOrganizerDashboard() {
 		});
 		lastTrendPoints = points;
 
-		// Horizontal Grid Lines
-		ctx.strokeStyle = "#e2e8f0";
+		ctx.strokeStyle = theme.grid;
 		ctx.lineWidth = 1;
 		ctx.setLineDash([4, 4]);
-
 		for (let i = 0; i <= 4; i++) {
 			const val = Math.round(gridStep * i);
 			const y = height - paddingY - (val / maxVal) * chartH;
@@ -3087,20 +3111,16 @@ async function initOrganizerDashboard() {
 			ctx.moveTo(paddingX, y);
 			ctx.lineTo(width - paddingX, y);
 			ctx.stroke();
-
-			ctx.fillStyle = "#94a3b8";
+			ctx.fillStyle = theme.axis;
 			ctx.font = "10px sans-serif";
 			ctx.textAlign = "right";
 			ctx.fillText(String(val), paddingX - 6, y + 3);
 		}
-
 		ctx.setLineDash([]);
 
-		// Fill Gradient
 		const grad = ctx.createLinearGradient(0, 0, 0, height);
-		grad.addColorStop(0, "rgba(59, 130, 246, 0.35)");
-		grad.addColorStop(1, "rgba(59, 130, 246, 0.0)");
-
+		grad.addColorStop(0, theme.fillTop);
+		grad.addColorStop(1, theme.fillBottom);
 		ctx.beginPath();
 		ctx.moveTo(points[0].x, points[0].y);
 		for (let i = 0; i < points.length - 1; i++) {
@@ -3115,7 +3135,6 @@ async function initOrganizerDashboard() {
 		ctx.fillStyle = grad;
 		ctx.fill();
 
-		// Smooth Curve Line
 		ctx.beginPath();
 		ctx.moveTo(points[0].x, points[0].y);
 		for (let i = 0; i < points.length - 1; i++) {
@@ -3124,24 +3143,22 @@ async function initOrganizerDashboard() {
 			ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
 		}
 		ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
-		ctx.strokeStyle = "#3b82f6";
+		ctx.strokeStyle = theme.line;
 		ctx.lineWidth = 3;
 		ctx.stroke();
 
-		// Data Points & X-Labels
 		points.forEach((p, i) => {
 			const hovered = i === trendHoverIndex;
-			ctx.fillStyle = hovered ? "#1d4ed8" : "#3b82f6";
+			ctx.fillStyle = hovered ? "#1d4ed8" : theme.line;
 			ctx.beginPath();
 			ctx.arc(p.x, p.y, hovered ? 6 : 4, 0, Math.PI * 2);
 			ctx.fill();
 			if (hovered) {
-				ctx.strokeStyle = "#ffffff";
+				ctx.strokeStyle = theme.hoverRing;
 				ctx.lineWidth = 2;
 				ctx.stroke();
 			}
-
-			ctx.fillStyle = "#64748b";
+			ctx.fillStyle = theme.label;
 			ctx.font = "10px sans-serif";
 			ctx.textAlign = "center";
 			ctx.fillText(p.date, p.x, height - 6);

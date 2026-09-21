@@ -449,6 +449,37 @@ button.admin-event-title:focus-visible {
 	color: #7a7168;
 }
 
+.admin-pie-wrap {
+	width: 100%;
+	height: 280px;
+	min-height: 240px;
+	margin-top: 0.6rem;
+}
+
+.admin-pie-wrap--sm {
+	height: 240px;
+	min-height: 220px;
+}
+
+.admin-pie-canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.admin-pie-caption {
+	margin: 0.15rem 0 0.55rem;
+	text-align: center;
+	font-size: 0.82rem;
+	color: #7a7168;
+}
+
+.admin-pie-caption strong {
+	color: #201d19;
+	font-size: 1.05rem;
+	margin-right: 0.2rem;
+}
+
 .admin-bars {
 	display: flex;
 	flex-direction: column;
@@ -1290,13 +1321,15 @@ html[data-theme="dark"] .admin-toolbar input {
 
 html[data-theme="dark"] .admin-bar-row span,
 html[data-theme="dark"] .admin-legend li,
-html[data-theme="dark"] .admin-donut-center span {
+html[data-theme="dark"] .admin-donut-center span,
+html[data-theme="dark"] .admin-pie-caption {
 	color: #c8bfb4;
 }
 
 html[data-theme="dark"] .admin-bar-row em,
 html[data-theme="dark"] .admin-donut-center strong,
-html[data-theme="dark"] .admin-legend span {
+html[data-theme="dark"] .admin-legend span,
+html[data-theme="dark"] .admin-pie-caption strong {
 	color: #ffffff;
 }
 

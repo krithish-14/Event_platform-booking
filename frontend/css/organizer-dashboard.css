@@ -680,7 +680,7 @@ body.dashboard-body {
 	background-color: #2563eb;
 }
 
-/* Trend Line Chart */
+/* Trend line chart */
 .chart-container {
 	flex: 1;
 	height: 240px;
@@ -691,6 +691,25 @@ body.dashboard-body {
 }
 
 canvas#trendChartCanvas {
+	display: block;
+	width: 100% !important;
+	height: 100% !important;
+	cursor: default;
+}
+
+.pie-chart-wrap {
+	width: 100%;
+	height: 280px;
+	min-height: 240px;
+	position: relative;
+}
+
+.pie-chart-wrap--sm {
+	height: 240px;
+	min-height: 220px;
+}
+
+canvas.pie-chart-canvas {
 	display: block;
 	width: 100% !important;
 	height: 100% !important;

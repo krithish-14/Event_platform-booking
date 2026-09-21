@@ -640,6 +640,9 @@ def submit_attendee_response(
 	if customer_id:
 		customer_id = str(customer_id).strip() or None
 	event_id_str = str(payload.event_id).strip() if payload.event_id else None
+	if event_id_str:
+		from Services.event_service import assert_ticket_sales_open
+		assert_ticket_sales_open(db, event_id_str)
 	form_id = _integer_form_id_for_event(db, event_id_str, payload.form_id) or 1
 
 	answers = dict(payload.answers_json or {})

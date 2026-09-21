@@ -18,13 +18,55 @@
 	}
 
 	// Active filter state
+	const PRICE_MIN = 0;
+	const PRICE_MAX = 2000;
+
 	const filterState = {
  category: "all",
  subtopic: "all",
  date: "all",
  format: "all",
- price: "all",
+ priceMin: PRICE_MIN,
+ priceMax: PRICE_MAX,
 	};
+
+	function formatRs(value) {
+ return `Rs. ${Number(value || 0).toLocaleString("en-IN")}`;
+	}
+
+	function isFullPriceRange() {
+ return Number(filterState.priceMin) === PRICE_MIN && Number(filterState.priceMax) === PRICE_MAX;
+	}
+
+	function hasActiveFilters() {
+ return ["category", "subtopic", "date", "format"].some((key) => filterState[key] && filterState[key] !== "all")
+ || !isFullPriceRange();
+	}
+
+	function updatePriceRangeUI() {
+ const minInput = document.getElementById("priceRangeMin");
+ const maxInput = document.getElementById("priceRangeMax");
+ const minLabel = document.getElementById("priceRangeMinLabel");
+ const maxLabel = document.getElementById("priceRangeMaxLabel");
+ const track = document.getElementById("priceRangeTrack");
+ if (minInput) minInput.value = String(filterState.priceMin);
+ if (maxInput) maxInput.value = String(filterState.priceMax);
+ if (minLabel) minLabel.textContent = formatRs(filterState.priceMin);
+ if (maxLabel) maxLabel.textContent = formatRs(filterState.priceMax);
+ if (track) {
+ const span = PRICE_MAX - PRICE_MIN || 1;
+ const left = ((filterState.priceMin - PRICE_MIN) / span) * 100;
+ const right = ((filterState.priceMax - PRICE_MIN) / span) * 100;
+ track.style.left = `${left}%`;
+ track.style.width = `${Math.max(0, right - left)}%`;
+ }
+	}
+
+	function resetPriceRange() {
+ filterState.priceMin = PRICE_MIN;
+ filterState.priceMax = PRICE_MAX;
+ updatePriceRangeUI();
+	}
 
 	const EP = window.JodEventsPublic;
 
@@ -139,11 +181,9 @@
  if (filterState.date && filterState.date !== "all") {
  params.date_filter = filterState.date;
  }
- if (filterState.price && filterState.price !== "all") {
- if (filterState.price === "free") params.max_price = 0;
- else if (filterState.price === "0-500") { params.min_price = 0; params.max_price = 500; }
- else if (filterState.price === "501-2000") { params.min_price = 501; params.max_price = 2000; }
- else if (filterState.price === "above-2000") params.min_price = 2001;
+ if (!isFullPriceRange()) {
+ params.min_price = filterState.priceMin;
+ params.max_price = filterState.priceMax;
  }
 
  return EP.fetchPublishedEvents(params);
@@ -169,6 +209,7 @@
  if (tagsContainer) {
  tagsContainer.innerHTML = "";
  Object.entries(filterState).forEach(([key, val]) => {
+ if (key === "priceMin" || key === "priceMax") return;
  if (val && val !== "all") {
  const tag = document.createElement("span");
  tag.className = "active-tag";
@@ -176,9 +217,20 @@
  tagsContainer.appendChild(tag);
  }
  });
+ if (!isFullPriceRange()) {
+ const tag = document.createElement("span");
+ tag.className = "active-tag";
+ tag.innerHTML = `price: <strong>${formatRs(filterState.priceMin)} - ${formatRs(filterState.priceMax)}</strong> <button type="button" data-clear-key="price">&times;</button>`;
+ tagsContainer.appendChild(tag);
+ }
  tagsContainer.querySelectorAll("button[data-clear-key]").forEach((btn) => {
  btn.addEventListener("click", () => {
  const k = btn.dataset.clearKey;
+ if (k === "price") {
+ resetPriceRange();
+ updateAndRender();
+ return;
+ }
  if (k) {
  filterState[k] = "all";
  syncSidebarChipState(`filter${k.charAt(0).toUpperCase() + k.slice(1)}List`, "all");
@@ -192,7 +244,7 @@
  grid.innerHTML = "";
  if (emptyState) {
  const catName = filterState.category !== "all" ? filterState.category : "this category";
- const hasFilters = Object.values(filterState).some(v => v && v !== "all");
+ const hasFilters = hasActiveFilters();
  const titleEl = emptyState.querySelector("h3");
  const msgEl = emptyState.querySelector("p");
  if (titleEl) titleEl.textContent = hasFilters ? "No Events Found" : "No events available in this category";
@@ -237,6 +289,39 @@
  }
 	}
 
+	function bindPriceRange() {
+ const minInput = document.getElementById("priceRangeMin");
+ const maxInput = document.getElementById("priceRangeMax");
+ if (!minInput || !maxInput) return;
+ let debounceTimer = 0;
+ const apply = (fromMin) => {
+ let minV = Number(minInput.value);
+ let maxV = Number(maxInput.value);
+ if (!Number.isFinite(minV)) minV = PRICE_MIN;
+ if (!Number.isFinite(maxV)) maxV = PRICE_MAX;
+ if (fromMin && minV > maxV) minV = maxV;
+ if (!fromMin && maxV < minV) maxV = minV;
+ minV = Math.min(PRICE_MAX, Math.max(PRICE_MIN, minV));
+ maxV = Math.min(PRICE_MAX, Math.max(PRICE_MIN, maxV));
+ filterState.priceMin = minV;
+ filterState.priceMax = maxV;
+ updatePriceRangeUI();
+ clearTimeout(debounceTimer);
+ debounceTimer = setTimeout(updateAndRender, 180);
+ };
+ minInput.addEventListener("input", () => {
+ minInput.style.zIndex = "4";
+ maxInput.style.zIndex = "3";
+ apply(true);
+ });
+ maxInput.addEventListener("input", () => {
+ maxInput.style.zIndex = "4";
+ minInput.style.zIndex = "3";
+ apply(false);
+ });
+ updatePriceRangeUI();
+	}
+
 	function bindFilterEvents() {
  // Subtopics top chips
  document.querySelectorAll("#subtopicsBar .subtopic-chip").forEach((chip) => {
@@ -268,12 +353,17 @@
  wireChipGroup("filterCategoriesList", "category");
  wireChipGroup("filterDateList", "date");
  wireChipGroup("filterFormatList", "format");
- wireChipGroup("filterPriceList", "price");
+ bindPriceRange();
 
  // Clear group buttons
  document.querySelectorAll(".btn-clear-group").forEach((btn) => {
  btn.addEventListener("click", () => {
  const groupKey = btn.dataset.clear;
+ if (groupKey === "price") {
+ resetPriceRange();
+ updateAndRender();
+ return;
+ }
  if (groupKey) {
  filterState[groupKey] = "all";
  syncSidebarChipState(`filter${groupKey.charAt(0).toUpperCase() + groupKey.slice(1)}List`, "all");
@@ -290,12 +380,11 @@
  filterState.subtopic = "all";
  filterState.date = "all";
  filterState.format = "all";
- filterState.price = "all";
+ resetPriceRange();
 
  syncSidebarChipState("filterCategoriesList", "all");
  syncSidebarChipState("filterDateList", "all");
  syncSidebarChipState("filterFormatList", "all");
- syncSidebarChipState("filterPriceList", "all");
 
  document.querySelectorAll("#subtopicsBar .subtopic-chip").forEach((c, idx) => {
  c.classList.toggle("active", idx === 0);

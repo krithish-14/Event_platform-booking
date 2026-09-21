@@ -350,27 +350,6 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 			font-weight: 700;
 		}
 
-		.header-back-btn {
-			display: inline-flex;
-			align-items: center;
-			justify-content: center;
-			gap: 0.35rem;
-			height: 2.4rem;
-			padding: 0 0.9rem 0 0.65rem;
-			margin: 0 0 1rem;
-			border: 1px solid #e2e8f0;
-			background: #ffffff;
-			color: #0f172a;
-			border-radius: 999px;
-			font-size: 0.875rem;
-			font-weight: 700;
-			font-family: inherit;
-			cursor: pointer;
-			text-decoration: none;
-			width: fit-content;
-		}
-		.header-back-btn svg { width: 1.05rem; height: 1.05rem; display: block; }
-
 		@media (max-width: 640px) {
 			body { padding: 0.85rem 0.7rem 1.5rem; }
 			.form-card-body { padding: 1.25rem 1rem 1.4rem; }
@@ -401,6 +380,10 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 		}
 
 		.policy-modal[hidden] {
+			display: none !important;
+		}
+
+		#formPageBack {
 			display: none !important;
 		}
 
@@ -526,7 +509,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) --> <div id="policyModal" class="policy-modal" hidden> <div class="policy-modal-card" role="dialog" aria-modal="true" aria-labelledby="policyModalTitle"> <div class="policy-modal-header"> <h2 id="policyModalTitle">Host Policies</h2> <p>Please review the host policy details before continuing to the registration form.</p> </div> <div class="policy-modal-body" id="policyModalBody"></div> <div class="policy-modal-footer"> <label class="policy-agree" for="policyAgreeCheck"> <input type="checkbox" id="policyAgreeCheck" /> <span>I agree</span> </label> <button type="button" class="policy-next-btn" id="policyNextBtn" disabled>Next</button> <a class="policy-back-link" id="policyBackLink" href="/">Back to event</a> </div> </div> </div> <div id="pageContainer"> <button type="button" class="header-back-btn" id="formPageBack" data-header-back data-back-fallback="/" aria-label="Go back"> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> <span>Back</span> </button> <!-- LOADING STATE --> <div id="loadingState"> <div class="spinner"></div> <h3 style="font-weight: 700; color: #334155;">Loading Form...</h3> <p style="font-size: 0.88rem; color: #64748b; margin-top: 0.4rem;">Fetching published event registration details.</p> </div> <!-- ERROR STATE --> <div id="errorState"> <div style="font-size: 3rem; margin-bottom: 0.8rem;">&#9888;&#65039;</div> <h3 id="errorTitle" style="font-weight: 800; color: #991b1b; margin-bottom: 0.5rem;">Form Not Found</h3> <p id="errorMsg" style="font-size: 0.9rem; color: #7f1d1d; line-height: 1.5;">This registration form does not exist or has not been published yet.</p> </div> <!-- MAIN PUBLISHED FORM CARD --> <div id="formCard"> <!-- Header Banner Image --> <div id="bannerContainer" class="banner-img-container"> <img id="bannerImg" src="" alt="Event Banner" /> </div> <div class="form-card-body"> <!-- Form Title & Description Header --> <div id="formHeader" class="form-header"> <h1 id="pubFormTitle" class="form-title">Event Registration Form</h1> <p id="pubFormDesc" class="form-description"></p> </div> <!-- Dynamic Questions Form --> <form id="pubFormElement"> <div id="questionsContainer"></div> <!-- Attendee Email Field (if not already in schema) --> <div id="attendeeEmailGroup" class="question-group" style="display: none;"> <label class="question-label"> Attendee Email Address <span class="req-star">*</span> </label> <span class="help-text">Used to send your registration confirmation ticket.</span> <input type="email" id="attendeeEmailInput" class="form-input" placeholder="you@example.com" /> </div> <button type="submit" id="submitBtn" class="submit-btn"> Submit Registration
+<!-- End Google Tag Manager (noscript) --> <div id="policyModal" class="policy-modal" hidden> <div class="policy-modal-card" role="dialog" aria-modal="true" aria-labelledby="policyModalTitle"> <div class="policy-modal-header"> <h2 id="policyModalTitle">Host Policies</h2> <p>Please review the host policy details before continuing to the registration form.</p> </div> <div class="policy-modal-body" id="policyModalBody"></div> <div class="policy-modal-footer"> <label class="policy-agree" for="policyAgreeCheck"> <input type="checkbox" id="policyAgreeCheck" /> <span>I agree</span> </label> <button type="button" class="policy-next-btn" id="policyNextBtn" disabled>Next</button> <a class="policy-back-link" id="policyBackLink" href="/">Back to event</a> </div> </div> </div> <div id="pageContainer"> <!-- LOADING STATE --> <div id="loadingState"> <div class="spinner"></div> <h3 style="font-weight: 700; color: #334155;">Loading Form...</h3> <p style="font-size: 0.88rem; color: #64748b; margin-top: 0.4rem;">Fetching published event registration details.</p> </div> <!-- ERROR STATE --> <div id="errorState"> <div style="font-size: 3rem; margin-bottom: 0.8rem;">&#9888;&#65039;</div> <h3 id="errorTitle" style="font-weight: 800; color: #991b1b; margin-bottom: 0.5rem;">Form Not Found</h3> <p id="errorMsg" style="font-size: 0.9rem; color: #7f1d1d; line-height: 1.5;">This registration form does not exist or has not been published yet.</p> </div> <!-- MAIN PUBLISHED FORM CARD --> <div id="formCard"> <!-- Header Banner Image --> <div id="bannerContainer" class="banner-img-container"> <img id="bannerImg" src="" alt="Event Banner" /> </div> <div class="form-card-body"> <!-- Form Title & Description Header --> <div id="formHeader" class="form-header"> <h1 id="pubFormTitle" class="form-title">Event Registration Form</h1> <p id="pubFormDesc" class="form-description"></p> </div> <!-- Dynamic Questions Form --> <form id="pubFormElement"> <div id="questionsContainer"></div> <!-- Attendee Email Field (if not already in schema) --> <div id="attendeeEmailGroup" class="question-group" style="display: none;"> <label class="question-label"> Attendee Email Address <span class="req-star">*</span> </label> <span class="help-text">Used to send your registration confirmation ticket.</span> <input type="email" id="attendeeEmailInput" class="form-input" placeholder="you@example.com" /> </div> <button type="submit" id="submitBtn" class="submit-btn"> Submit Registration
 					</button> </form> </div> </div> <!-- Powered By Footer --> <div class="powered-by"> Powered by <a href="#" onclick="return false;">JOD Events Platform</a> </div> </div> <div id="successState" aria-hidden="true"> <div class="success-modal-card" role="dialog" aria-modal="true" aria-labelledby="successTitle"> <div class="success-icon">&#10003;</div> <h2 id="successTitle">Registration form completed</h2> <p class="success-lead">Move to payment to finish your full registration process.</p> <div class="success-actions"> <button type="button" class="success-btn success-btn-next" id="successNextBtn">Continue to Payment</button> </div> </div> </div> <script> (function () {
 			const localDev = window.location.origin.includes("5500") || window.location.origin.includes("127.0.0.1") || window.location.hostname === "localhost";
 			const API_ROOT = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api');
@@ -577,18 +560,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			let formData = null;
 			let hasEmailQuestionInSchema = false;
 			let policyAccepted = isHostReadOnly;
-			let eventMeta = { title: "", venue: "", ticketTypes: [] };
+			let eventMeta = { title: "", venue: "", ticketTypes: [], startDate: "", endDate: "" };
 			let resolvedTicketName = ticketType;
 			let resolvedTicketPrice = ticketPrice;
 
 			if (eventId && policyBackLink) {
 				policyBackLink.href = `event-details.html?id=${encodeURIComponent(eventId)}`;
 			}
-			const formPageBack = document.getElementById("formPageBack");
-			if (formPageBack && eventId) {
-				formPageBack.setAttribute("data-back-fallback", `event-details.html?id=${encodeURIComponent(eventId)}`);
-			}
-
+			const leftoverBack = document.getElementById("formPageBack");
+			if (leftoverBack) leftoverBack.remove();
 			if (!formId && !eventId) {
 				showError("Missing Event or Form ID", "No event ID or form ID was specified in the URL. Please use the Book Now link from the event page.");
 				return;
@@ -610,6 +590,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					eventMeta.title = data.title || "";
 					eventMeta.venue = data.venue || data.location || "";
 					eventMeta.ticketTypes = Array.isArray(data.ticket_types) ? data.ticket_types : [];
+					eventMeta.startDate = data.start_date || "";
+					eventMeta.endDate = data.end_date || "";
 					if ((resolvedTicketPrice === "" || resolvedTicketPrice == null) && data.price != null) {
 						resolvedTicketPrice = String(data.price);
 					}
@@ -754,7 +736,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				if (!blocks.length) {
 					blocks.push({
 						label: "Event Policy",
-						val: "By continuing, you agree to the host&#8217;s event policies and the JOD Events platform terms."
+						val: "By continuing, you agree to the host's event policies and the JOD Events platform terms."
 					});
 				}
 				return blocks;
@@ -796,6 +778,26 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				policyNextBtn.addEventListener("click", acceptPoliciesAndContinue);
 			}
 
+			function eventSalesClosedReason() {
+				if (isHostReadOnly) return "";
+				const EP = window.JodEventsPublic;
+				if (EP && typeof EP.ticketSalesClosedReason === "function") {
+					return EP.ticketSalesClosedReason({
+						start_date: eventMeta.startDate,
+						end_date: eventMeta.endDate
+					}) || "";
+				}
+				const start = Date.parse(eventMeta.startDate || "");
+				if (!Number.isFinite(start)) return "";
+				const now = Date.now();
+				if (now < start) return "";
+				const end = Date.parse(eventMeta.endDate || "");
+				if (Number.isFinite(end) && end > start && now >= end) {
+					return "This event has ended. Ticket sales are closed.";
+				}
+				return "Ticket sales are closed because this event is now live.";
+			}
+
 			async function fetchPublishedForm() {
 				try {
 					let res;
@@ -822,17 +824,25 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					if (ticketType) formData._ticket_type = ticketType;
 					if (ticketPrice) formData._ticket_price = ticketPrice;
 					const policyEventId = eventId || formData.event_id;
+					let policyInfo = { policies: null, terms: "", title: "" };
 					if (shouldGatePolicies()) {
-						const [policyInfo] = await Promise.all([
+						const loaded = await Promise.all([
 							fetchEventPolicies(policyEventId),
 							loadEventMeta(policyEventId)
 						]);
-						renderForm(formData);
-						if (!policyAccepted) showPolicyGate(policyInfo);
+						policyInfo = loaded[0];
 					} else {
 						await loadEventMeta(policyEventId);
-						renderForm(formData);
 					}
+					const closed = eventSalesClosedReason();
+					if (closed) {
+						if (policyModal) policyModal.hidden = true;
+						document.body.style.overflow = "";
+						showError("Ticket sales closed", closed);
+						return;
+					}
+					renderForm(formData);
+					if (shouldGatePolicies() && !policyAccepted) showPolicyGate(policyInfo);
 				} catch (err) {
 					showError("Form Unavailable", err.message || "Failed to load published form.");
 				}

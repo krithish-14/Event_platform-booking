@@ -4,6 +4,7 @@
 document.addEventListener('DOMContentLoaded', () => {
  initEventDetailsPage();
  setupEventDescriptionToggle();
+ setupViewTicketLinks();
 });
 
 let currentSelectedPrice = 0;
@@ -17,6 +18,23 @@ let galleryImages = [];
 let galleryIndex = 0;
 let galleryLightboxBound = false;
 let hasIssuedTicket = false;
+
+function setupViewTicketLinks() {
+ const ordersHref = ordersPageHref();
+ document.querySelectorAll(".post-purchase-actions [data-action='view-ticket']").forEach((el) => {
+ el.setAttribute("href", ordersHref);
+ });
+ if (document.documentElement.dataset.viewTicketBound === "1") return;
+ document.documentElement.dataset.viewTicketBound = "1";
+ document.addEventListener("click", (event) => {
+ const link = event.target && event.target.closest
+ ? event.target.closest("[data-action='view-ticket']")
+ : null;
+ if (!link) return;
+ event.preventDefault();
+ window.location.href = ordersPageHref();
+ });
+}
 
 function setupEventDescriptionToggle() {
  const descEl = document.getElementById("eventDescription");
@@ -689,10 +707,13 @@ function paintTicketTypes(event) {
  const escape = (EP && typeof EP.escapeHtml === "function")
  ? EP.escapeHtml
  : (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+ const closedReason = EP && typeof EP.ticketSalesClosedReason === "function"
+ ? EP.ticketSalesClosedReason(event)
+ : "";
+ if (closedReason) {
  const ended = EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(event) === "ended";
- if (ended) {
- tList.innerHTML = '<p class="ticket-unavailable">This event has ended.</p>';
- setBuyTicketEnabled(false, "Event ended");
+ tList.innerHTML = `<p class="ticket-unavailable">${closedReason}</p>`;
+ setBuyTicketEnabled(false, ended ? "Event ended" : "Event live");
  startingTicketPrice = 0;
  setStartingPriceDisplay(0);
  updateQuantityTotalDisplay(0);
@@ -934,14 +955,6 @@ function authFetch(url, options) {
  return fetch(url, opts);
 }
 
-function ticketPageHref(bookingId, qrToken) {
- const params = new URLSearchParams();
- if (qrToken) params.set("token", qrToken);
- if (bookingId) params.set("id", bookingId);
- const qs = params.toString();
- return qs ? `ticket-details.html?${qs}` : "orders.html";
-}
-
 function getApiRoot() {
  if (window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
  return window.JodConfig.getApiOrigin().replace(/\/$/, "");
@@ -1065,22 +1078,31 @@ function setBookNowLabels(label) {
  });
 }
 
-function setPostPurchaseLinks(bookingId, qrToken) {
- const ticketHref = ticketPageHref(bookingId, qrToken);
+function ordersPageHref() {
+ if (window.JodUrls && typeof window.JodUrls.prettyHref === "function") {
+ return window.JodUrls.prettyHref("orders.html");
+ }
+ return "orders.html";
+}
+
+function setPostPurchaseLinks(bookingId) {
+ // View Ticket goes to Your Orders so every ticket in a multi-ticket
+ // booking is reachable rather than jumping to a single QR page.
  const agendaHref = bookingId
  ? `agenda.html?id=${encodeURIComponent(bookingId)}`
  : "orders.html";
+ const ordersHref = ordersPageHref();
  document.querySelectorAll(".post-purchase-actions [data-action='view-ticket']").forEach((el) => {
- el.setAttribute("href", ticketHref);
+ el.setAttribute("href", ordersHref);
  });
  document.querySelectorAll(".post-purchase-actions [data-action='view-agenda']").forEach((el) => {
  el.setAttribute("href", agendaHref);
  });
 }
 
-function showPostPurchaseActions(bookingId, qrToken) {
+function showPostPurchaseActions(bookingId) {
  hasIssuedTicket = true;
- setPostPurchaseLinks(bookingId, qrToken);
+ setPostPurchaseLinks(bookingId);
  // Keep Buy Ticket visible so the same user can purchase again for this event.
  document.querySelectorAll(".btn-book-now").forEach((btn) => {
  if (btn.classList.contains("btn-view-ticket")) return;
@@ -1115,11 +1137,20 @@ function hidePostPurchaseActions() {
 async function applyBookingCtaState(eventId) {
  const status = await fetchRegistrationStatus(eventId);
  const hasTicket = Boolean(status.has_ticket || status.state === "ticket" || status.booking_id);
+ const closedReason = window.JodEventsPublic && typeof window.JodEventsPublic.ticketSalesClosedReason === "function" && currentEventData
+ ? window.JodEventsPublic.ticketSalesClosedReason(currentEventData)
+ : "";
  if (hasTicket) {
- showPostPurchaseActions(status.booking_id, status.qr_token);
- setBuyTicketEnabled(true, "Buy Ticket");
+ showPostPurchaseActions(status.booking_id);
  } else {
  hidePostPurchaseActions();
+ }
+ if (closedReason) {
+ const ended = window.JodEventsPublic.getEventPhase(currentEventData) === "ended";
+ setBuyTicketEnabled(false, ended ? "Event ended" : "Event live");
+ } else if (hasTicket) {
+ setBuyTicketEnabled(true, "Buy Ticket");
+ } else {
  setBookNowLabels("Buy Ticket");
  }
  return status;
@@ -1134,8 +1165,11 @@ async function triggerBookingModal() {
  return;
  }
  const EP = window.JodEventsPublic;
- if (EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(currentEventData) === "ended") {
- showToast("This event has ended.");
+ const closedReason = EP && typeof EP.ticketSalesClosedReason === "function"
+ ? EP.ticketSalesClosedReason(currentEventData)
+ : "";
+ if (closedReason) {
+ showToast(closedReason);
  return;
  }
  if (EP && typeof EP.visibleTicketTypes === "function") {

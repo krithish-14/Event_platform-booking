@@ -5,35 +5,38 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="Page not found. Return to JOD Events to discover upcoming experiences in Chennai." />
 	<meta name="robots" content="noindex" />
-	<title>Page Not Found | JOD Events</title> <link rel="icon" href="/favicon.ico" sizes="any" /><link rel="icon" type="image/png" href="/favicon.png" /><link rel="apple-touch-icon" href="/favicon.png" />
+	<title>Page Not Found | JOD Events</title>
+	<link rel="icon" href="/favicon.ico" sizes="any" />
+	<link rel="icon" type="image/png" href="/favicon.png" />
+	<link rel="apple-touch-icon" href="/favicon.png" />
 	<!-- Root-relative assets: this page is served for any missing URL path. -->
 	<base href="/" />
+	<link rel="stylesheet" href="/css/fonts.css?v=2" />
 	<script src="/js/theme.js?v=27"></script>
 	<script src="/js/api-config.js?v=5"></script>
-	<link rel="stylesheet" href="/css/style.css?v=78" />
+	<link rel="stylesheet" href="/css/style.css?v=79" />
 	<link rel="stylesheet" href="/css/responsive.css?v=64" />
 </head>
 <body class="sub-page error-404-page">
-	<canvas class="bg-canvas" id="bgCanvas"></canvas>
-	<div class="bg-gradient-layer"></div>
-
 	<div class="site-shell" id="top">
 		<div id="header"></div>
 
 		<main>
-			<section class="error-404 section-dark" aria-labelledby="error-404-title">
-				<div class="glow-layer"></div>
-				<div class="error-404-orbs" aria-hidden="true">
-					<span class="error-404-orb error-404-orb-a"></span>
-					<span class="error-404-orb error-404-orb-b"></span>
-				</div>
+			<section class="error-404" aria-labelledby="error-404-title">
 				<div class="container error-404-inner">
-					<p class="error-404-code" aria-hidden="true">404</p>
-					<h1 id="error-404-title">This page left the venue</h1>
-					<p class="error-404-copy">
-						The link may be outdated, mistyped, or the event page has moved.
-						Head back home and keep exploring unforgettable experiences.
-					</p>
+					<h1 id="error-404-title">Oops! Page not found</h1>
+					<img
+						class="error-404-art"
+						id="error404Art"
+						src="https://assets.jodevents.com/images/404.png?v=20260921_2"
+						alt="404"
+						width="720"
+						height="380"
+					/>
+					<a class="error-404-home" href="/">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+						Go To Homepage
+					</a>
 				</div>
 			</section>
 		</main>
@@ -41,6 +44,15 @@
 		<div id="footer"></div>
 	</div>
 
+	<script>
+		(function () {
+			var img = document.getElementById("error404Art");
+			if (!img) return;
+			if (window.JodConfig && typeof window.JodConfig.assetUrl === "function") {
+				img.src = window.JodConfig.assetUrl("images/404.png") + "?v=20260921_2";
+			}
+		})();
+	</script>
 	<script src="/js/include.js?v=55"></script>
 	<script src="/js/auth.js?v=43"></script>
 	<script src="/js/profile.js?v=13"></script>

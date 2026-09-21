@@ -166,6 +166,13 @@
 		return "live";
 	}
 
+	function ticketSalesClosedReason(event) {
+		const phase = getEventPhase(event);
+		if (phase === "ended") return "This event has ended. Ticket sales are closed.";
+		if (phase === "live") return "Ticket sales are closed because this event is now live.";
+		return "";
+	}
+
 	function ticketSaleStart(ticket) {
 		if (!ticket || typeof ticket !== "object") return "";
 		return ticket.sales_start || ticket.offer_start || ticket.sale_start || "";
@@ -765,6 +772,7 @@
 		parseEventMs,
 		getCountdownParts,
 		getEventPhase,
+		ticketSalesClosedReason,
 		ticketSaleStart,
 		ticketSaleEnd,
 		ticketOfferPhase,

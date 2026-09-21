@@ -91,6 +91,76 @@ def _event_has_ended(event, now=None) -> bool:
     return False
 
 
+def _event_is_live(event, now=None) -> bool:
+    """True once start has been reached and a valid end (if any) is still in the future."""
+    now = now or datetime.utcnow()
+    start = getattr(event, "start_date", None) or getattr(event, "event_start_date", None)
+    if not start:
+        return False
+    if now < start:
+        return False
+    return not _event_has_ended(event, now)
+
+
+def ticket_sales_closed_message(db: Session, event_id: str) -> Optional[str]:
+    """Attendee-facing reason ticket sales are closed, or None if buying is still allowed.
+
+    Sales stop the moment the event goes live (start time reached) and stay
+    closed after it ends or is cancelled. Host/admin issue flows should not
+    call this — only public purchase endpoints.
+    """
+    if not event_id:
+        return None
+    host = None
+    try:
+        from Models.event_management import EventManagement
+        host = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        host = None
+    if host is not None:
+        try:
+            from APIs.host_events_api import compute_event_lifecycle
+            life = (compute_event_lifecycle(host) or "").lower()
+        except Exception:
+            life = (getattr(host, "event_status", None) or "").lower()
+        if life in ("cancelled", "unpublished"):
+            return "This event is no longer available."
+        if life == "ended":
+            return "This event has ended. Ticket sales are closed."
+        if life == "live":
+            return "Ticket sales are closed because this event is now live."
+        return None
+
+    event = None
+    try:
+        event = db.query(Event).filter(Event.id == event_id).first()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        event = None
+    if event is None:
+        return None
+    if _event_has_ended(event):
+        return "This event has ended. Ticket sales are closed."
+    if _event_is_live(event):
+        return "Ticket sales are closed because this event is now live."
+    return None
+
+
+def assert_ticket_sales_open(db: Session, event_id: str) -> None:
+    """Raise HTTP 403 when attendees must not buy tickets for this event."""
+    from fastapi import HTTPException, status
+    reason = ticket_sales_closed_message(db, event_id)
+    if reason:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
+
+
 def event_currently_visible(event, now=None) -> bool:
     now = now or datetime.utcnow()
     if _event_has_ended(event, now):

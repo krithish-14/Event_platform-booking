@@ -696,6 +696,8 @@ async def claim_free_ticket(
     event_id = sanitize_text(payload.event_id or "", max_length=255)
     if not event_id:
         raise HTTPException(status_code=400, detail="Missing event_id.")
+    from Services.event_service import assert_ticket_sales_open
+    assert_ticket_sales_open(db, event_id)
     ticket_type = sanitize_text(payload.ticket_type or "General Admission", max_length=100) or "General Admission"
     qty = _clamp_purchase_quantity(db, event_id, payload.quantity)
 
@@ -817,6 +819,8 @@ async def submit_payment_proof(
     event_key = sanitize_text(event_id or "", max_length=255)
     if not event_key:
         raise HTTPException(status_code=400, detail="Missing event_id.")
+    from Services.event_service import assert_ticket_sales_open
+    assert_ticket_sales_open(db, event_key)
     ticket = sanitize_text(ticket_type or "General Admission", max_length=100) or "General Admission"
     # Always take name/email from host form — never profile / form-posted profile copy alone.
     name, email, phone, _login, submission = _attendee_from_host_form(
@@ -959,6 +963,10 @@ async def create_razorpay_order(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Amount must be at least 100 paise (₹1).",
         )
+    event_id = sanitize_text(payload.event_id or "", max_length=255)
+    if event_id:
+        from Services.event_service import assert_ticket_sales_open
+        assert_ticket_sales_open(db, event_id)
     currency = (payload.currency or "INR").strip().upper() or "INR"
     receipt = sanitize_text(payload.receipt or "", max_length=40)
     if not receipt:

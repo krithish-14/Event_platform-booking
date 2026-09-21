@@ -243,39 +243,28 @@
 		if (!(options && options.keepNavOpen)) setNavOpen(false);
 	}
 
+	function paintAdminPies(stats) {
+		const pie = window.JodPieChart;
+		if (!pie) return;
+		pie.draw(document.getElementById("adminWorkloadPie"), [
+			{ label: "Attendees", value: stats.host, color: "#4F7CFF" },
+			{ label: "Payments", value: stats.pay, color: "#F5D142" },
+			{ label: "Cancels", value: stats.cancel, color: "#FF7A7A" },
+			{ label: "Hosts pending", value: stats.hostPending || 0, color: "#C084FC" },
+			{ label: "Help open", value: stats.supportOpen, color: "#34d399" }
+		], { emptyText: "No workload yet", valueNoun: "records" });
+		pie.draw(document.getElementById("adminQrPie"), [
+			{ label: "QR sent", value: stats.ready, color: "#16a34a" },
+			{ label: "Need QR", value: stats.pending, color: "#FF7508" }
+		], { emptyText: "No payments yet", valueNoun: "payments" });
+	}
+
 	function updateOverview(stats) {
-		const bars = document.getElementById("adminWorkloadBars");
-		if (bars) {
-			const items = [
-				{ label: "Attendees", value: stats.host },
-				{ label: "Payments", value: stats.pay },
-				{ label: "Cancels", value: stats.cancel },
-				{ label: "Hosts pending", value: stats.hostPending || 0 },
-				{ label: "Help open", value: stats.supportOpen },
-			];
-			const max = Math.max(1, ...items.map((row) => row.value));
-			bars.innerHTML = items.map((row) => {
-				const pct = Math.round((row.value / max) * 100);
-				return `<div class="admin-bar-row">
-					<span>${escapeHtml(row.label)}</span>
-					<div class="admin-bar-track"><div class="admin-bar-fill" style="width:${pct}%"></div></div>
-					<em>${row.value}</em>
-				</div>`;
-			}).join("");
-		}
+		paintAdminPies(stats);
 
 		const totalPay = Math.max(0, Number(stats.pay) || 0);
 		const ready = Math.max(0, Number(stats.ready) || 0);
 		const pending = Math.max(0, Number(stats.pending) || 0);
-		const readyPct = totalPay ? (ready / totalPay) * 100 : 0;
-		const pendingPct = totalPay ? (pending / totalPay) * 100 : 0;
-		const readyPath = document.getElementById("adminDonutReady");
-		const pendingPath = document.getElementById("adminDonutPending");
-		if (readyPath) readyPath.setAttribute("stroke-dasharray", `${readyPct.toFixed(2)}, 100`);
-		if (pendingPath) {
-			pendingPath.setAttribute("stroke-dasharray", `${pendingPct.toFixed(2)}, 100`);
-			pendingPath.setAttribute("stroke-dashoffset", String((-readyPct).toFixed(2)));
-		}
 		const setText = (id, value) => {
 			const el = document.getElementById(id);
 			if (el) el.textContent = String(value);
@@ -463,6 +452,9 @@
 			ready: payReady,
 			pending: payPending,
 		});
+		setTimeout(() => {
+			if (window.JodPieChart) window.JodPieChart.redrawAll();
+		}, 60);
 
 		if (showingOverview) {
 			if (pageTitle) pageTitle.textContent = "Overview";

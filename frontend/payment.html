@@ -878,6 +878,24 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  }
  applyPaymentQr(ticketQrFromTypes(data.ticket_types, ticket) || qrFromUrl, ticket);
  applyGstNote((data.ticket_purchase && data.ticket_purchase.price_note) || saved.priceNote);
+ const startMs = Date.parse(data.start_date || "");
+ const endMs = Date.parse(data.end_date || "");
+ const now = Date.now();
+ const started = Number.isFinite(startMs) && now >= startMs;
+ const ended = Number.isFinite(endMs) && Number.isFinite(startMs) && endMs > startMs && now >= endMs;
+ if (started) {
+ const msg = ended
+  ? "This event has ended. Ticket sales are closed."
+  : "Ticket sales are closed because this event is now live.";
+ errEl.textContent = msg;
+ hidePayNow();
+ if (formPanel) {
+  formPanel.classList.add("is-hidden");
+  formPanel.classList.remove("is-open");
+ }
+ if (subEl) subEl.textContent = msg;
+ if (statusEl) statusEl.textContent = ended ? "Event ended" : "Event live";
+ }
  } catch (_) {
  if (eventEl && !eventEl.textContent) eventEl.textContent = saved.eventTitle || "Event";
  applyPaymentQr(qrFromUrl, ticket);
