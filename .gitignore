@@ -64,6 +64,9 @@ Thumbs.db
 desktop.ini
 ehthumbs.db
 
+# Home reels play from R2 (assets.jodevents.com/images/video/), not the Pages zip
+frontend/videos/
+
 # Node / frontend tooling (if added later)
 node_modules/
 npm-debug.log*

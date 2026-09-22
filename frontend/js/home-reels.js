@@ -49,7 +49,7 @@
 			title: "Singapenn Marathon",
 			caption: "A glimpse of Singapenn Marathon 2026",
 			instagram: "https://www.instagram.com/reel/DbGVVoVP28i/",
-			poster: "videos/reels/DbGVVoVP28i.jpg"
+			poster: asset("images/video/DbGVVoVP28i.jpg")
 		},
 		{
 			id: "rotaract",
@@ -57,7 +57,7 @@
 			title: "Rotaract Club",
 			caption: "A glimpse of Rotaract Club event",
 			instagram: "https://www.instagram.com/reel/DWivgeMkl4d/",
-			poster: "videos/reels/DWivgeMkl4d.jpg"
+			poster: asset("images/video/DWivgeMkl4d.jpg")
 		},
 		{
 			id: "sandd",
@@ -73,7 +73,7 @@
 	const LIKED_KEY = "jod_reel_liked_v1";
 
 	function videoUrl(reel) {
-		return "videos/reels/" + reel.shortcode + ".mp4";
+		return asset("images/video/" + reel.shortcode + ".mp4");
 	}
 
 	function formatCount(value) {
@@ -210,7 +210,7 @@
 				'<button type="button" class="reels-card-hit" data-open-reel="' + index + '" aria-label="Play ' + escapeHtml(reel.title) + ' with sound">' +
 					'<div class="reels-card-media">' +
 						'<img class="reels-card-poster" src="' + escapeHtml(reel.poster) + '" alt="">' +
-						'<video class="reels-card-video" muted autoplay loop playsinline webkit-playsinline preload="auto" poster="' + escapeHtml(reel.poster) + '" src="' + escapeHtml(videoUrl(reel)) + '"></video>' +
+						'<video class="reels-card-video" muted autoplay loop playsinline webkit-playsinline preload="metadata" poster="' + escapeHtml(reel.poster) + '" src="' + escapeHtml(videoUrl(reel)) + '"></video>' +
 						'<div class="reels-card-top">' +
 							'<img class="reels-card-brand" data-no-cdn="1" src="/images/JOD%20Events%20Logo.png" alt="JOD Events" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'https://assets.jodevents.com/images/JOD%20Events%20Logo.png\';}">' +
 						'</div>' +
