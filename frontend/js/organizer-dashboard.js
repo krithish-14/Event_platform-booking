@@ -135,6 +135,7 @@ function normalizeTab(tabName) {
 	if (t === 'design' || t === 'designstudio') return 'design';
 	if (t === 'ticket' || t === 'tickets' || t === 'ticketstudio' || t === 'ticket-studio') return 'ticket';
 	if (t === 'manage' || t === 'create') return 'manage';
+	if (t === 'history' || t === 'event-history' || t === 'event_history' || t === 'past') return 'history';
 	return t;
 }
 
@@ -1184,6 +1185,7 @@ async function initOrganizerDashboard() {
 	const sectionReports = document.getElementById("sectionReports");
 	const sectionEventday = document.getElementById("sectionEventday");
 	const sectionAttendance = document.getElementById("sectionAttendance");
+	const sectionHistory = document.getElementById("sectionHistory");
 	const sidebarRoot = document.querySelector(".dash-sidebar");
 
 	const createEventForm = document.getElementById("createEventForm");
@@ -1200,7 +1202,8 @@ async function initOrganizerDashboard() {
 		sectionCommunicate,
 		sectionReports,
 		sectionEventday,
-		sectionAttendance
+		sectionAttendance,
+		sectionHistory
 	].filter(Boolean);
 
 	// Track whether event has been created for this organizer
@@ -1399,6 +1402,9 @@ async function initOrganizerDashboard() {
 		} else if (tabName === 'attendance') {
 			loadAttendanceData();
 			startAttendancePolling();
+		} else if (tabName === 'history') {
+			loadHistoryList();
+			stopAttendancePolling();
 		} else {
 			stopAttendancePolling();
 		}
@@ -1442,7 +1448,8 @@ async function initOrganizerDashboard() {
 			communicate: sectionCommunicate,
 			reports: sectionReports,
 			eventday: sectionEventday,
-			attendance: sectionAttendance
+			attendance: sectionAttendance,
+			history: sectionHistory
 		};
 
 		const targetSection = targetSections[tabName] || sectionOverview;
@@ -1488,7 +1495,7 @@ async function initOrganizerDashboard() {
 		} catch (_) {}
 
 		try {
-			const sectionIds = ['sectionOverview','sectionManage','sectionSettings','sectionDesign','sectionTicket','sectionRegistrations','sectionExhibitors','sectionCommunicate','sectionReports','sectionEventday','sectionAttendance'];
+			const sectionIds = ['sectionOverview','sectionManage','sectionSettings','sectionDesign','sectionTicket','sectionRegistrations','sectionExhibitors','sectionCommunicate','sectionReports','sectionEventday','sectionAttendance','sectionHistory'];
 			const visible = sectionIds.filter(id => {
 				const el = document.getElementById(id);
 				return el && (el.classList.contains('active-tab') || el.style.display === 'block');
@@ -2038,6 +2045,212 @@ async function initOrganizerDashboard() {
 		} catch (err) {
 			console.warn("Could not load reports data:", err);
 		}
+	}
+
+	let historyEventsCache = [];
+	let historySelectedId = null;
+	let historyDetailCache = null;
+
+	function formatHistoryDate(value) {
+		if (!value) return "Date TBA";
+		const text = String(value);
+		if (/AM|PM/i.test(text) && text.indexOf("T") < 0) return text;
+		const d = new Date(text);
+		if (isNaN(d.getTime())) return text.slice(0, 10);
+		return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+	}
+
+	function escapeHistoryText(value) {
+		return String(value == null ? "" : value)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
+	function renderHistoryList(events) {
+		const list = document.getElementById("historyEventList");
+		const empty = document.getElementById("historyEmptyState");
+		const detail = document.getElementById("historyDetailPanel");
+		if (!list) return;
+		historyEventsCache = Array.isArray(events) ? events : [];
+		if (!historyEventsCache.length) {
+			list.innerHTML = "";
+			if (empty) empty.hidden = false;
+			if (detail) detail.hidden = true;
+			return;
+		}
+		if (empty) empty.hidden = true;
+		list.innerHTML = historyEventsCache.map(function (ev) {
+			const id = String(ev.event_id || "");
+			const open = historySelectedId && String(historySelectedId) === id;
+			const life = String(ev.lifecycle || "ended");
+			const badgeClass = life === "cancelled" ? " is-cancelled" : "";
+			return (
+				'<button type="button" class="history-event-row' + (open ? " is-open" : "") + '" data-history-id="' + escapeHistoryText(id) + '" role="listitem">' +
+					'<span class="history-event-row-title">' + escapeHistoryText(ev.event_title || "Untitled event") + "</span>" +
+					'<span class="history-event-row-meta">' + escapeHistoryText(formatHistoryDate(ev.event_start_date)) + " · " + escapeHistoryText(ev.venue || "Venue TBD") + "</span>" +
+					'<span class="history-event-row-badge' + badgeClass + '">' + escapeHistoryText(life) + "</span>" +
+					'<span class="history-event-row-rev">' + formatInr(ev.gross_revenue) + "</span>" +
+				"</button>"
+			);
+		}).join("");
+	}
+
+	function fillHistoryReport(data) {
+		const gross = Number(data.gross_revenue || 0);
+		const platformFee = Number(data.platform_fee != null ? data.platform_fee : gross * 0.05);
+		const gstFee = Number(data.gst_fee != null ? data.gst_fee : gross * 0.18);
+		const net = Number(data.net_earnings != null ? data.net_earnings : gross - platformFee - gstFee);
+		const platformPct = Number(data.platform_fee_pct || 5);
+		const gstPct = Number(data.gst_fee_pct != null ? data.gst_fee_pct : 18);
+		const setText = function (id, value) {
+			const el = document.getElementById(id);
+			if (el) el.textContent = value;
+		};
+		setText("historyDetailTitle", data.event_title || "Untitled event");
+		setText("historyDetailMeta", [formatHistoryDate(data.event_start_date), data.venue || "Venue TBD", data.lifecycle || "ended"].filter(Boolean).join(" · "));
+		setText("histGrossRevenue", formatInr(gross));
+		setText("histNetEarnings", formatInr(net));
+		setText("histAttendanceRate", Number(data.attendance_rate || 0).toFixed(1) + "%");
+		setText("histConversionRate", Number(data.conversion_rate || 0).toFixed(1) + "%");
+		setText("histGrossSales", formatInr(gross));
+		setText("histPlatformFee", formatInr(-platformFee, true));
+		setText("histGstFee", formatInr(-gstFee, true));
+		setText("histNetPayout", formatInr(net));
+		const platformLabel = document.getElementById("histPlatformFeeLabel");
+		const gstLabel = document.getElementById("histGstFeeLabel");
+		if (platformLabel) platformLabel.textContent = "Platform Service Fee (" + platformPct + "%)";
+		if (gstLabel) gstLabel.textContent = "Taxes & Statutory GST (" + gstPct + "%)";
+		const citiesEl = document.getElementById("histTopCities");
+		if (citiesEl) {
+			const cities = Array.isArray(data.top_cities) ? data.top_cities : [];
+			if (!cities.length) {
+				citiesEl.innerHTML = '<div class="history-cities-empty">No attendee locations recorded.</div>';
+			} else {
+				citiesEl.innerHTML = cities.map(function (row) {
+					return '<div class="history-city-row"><span>' + escapeHistoryText(row.city || "Unknown") + "</span><strong>" + Number(row.count || 0).toLocaleString("en-IN") + " (" + Number(row.percent || 0) + "%)</strong></div>";
+				}).join("");
+			}
+		}
+		const sold = Number(data.tickets_sold || 0);
+		const pending = Number(data.pending_registrations || 0);
+		const avail = Number(data.tickets_available || 0);
+		const checked = Number(data.checked_in != null ? data.checked_in : data.checkins_count || 0);
+		const yet = Number(data.yet_to_checkin || 0);
+		paintCanvasPie("historyRegsPieCanvas", [
+			{ label: "Sold", value: sold, color: "#6366f1" },
+			{ label: "Pending", value: pending, color: "#f59e0b" },
+			{ label: "Available", value: avail, color: "#10b981" }
+		], "No tickets recorded", "tickets");
+		paintCanvasPie("historyCheckinPieCanvas", [
+			{ label: "Checked-in", value: checked, color: "#10b981" },
+			{ label: "Yet to check-in", value: yet, color: "#f59e0b" }
+		], "No attendance recorded", "attendees");
+	}
+
+	function csvCell(value) {
+		const text = String(value == null ? "" : value);
+		if (/[",\n]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
+		return text;
+	}
+
+	function downloadHistoryReport() {
+		const data = historyDetailCache;
+		if (!data || !data.event_id) {
+			showNotification("Open a past event first.");
+			return;
+		}
+		const rows = [
+			["Field", "Value"],
+			["Event", data.event_title || ""],
+			["Event ID", data.event_id || ""],
+			["Status", data.lifecycle || ""],
+			["Start date", data.event_start_date || ""],
+			["End date", data.event_end_date || ""],
+			["Venue", data.venue || ""],
+			["Registrations", data.registrations_count || 0],
+			["Tickets sold", data.tickets_sold || 0],
+			["Ticket capacity", data.ticket_capacity || 0],
+			["Checked in", data.checkins_count || data.checked_in || 0],
+			["Attendance rate %", data.attendance_rate || 0],
+			["Conversion rate %", data.conversion_rate || 0],
+			["Gross revenue (INR)", data.gross_revenue || 0],
+			["Platform fee (INR)", data.platform_fee || 0],
+			["GST (INR)", data.gst_fee || 0],
+			["Net earnings (INR)", data.net_earnings || 0]
+		];
+		(data.top_cities || []).forEach(function (city) {
+			rows.push(["City: " + (city.city || "Unknown"), (city.count || 0) + " (" + (city.percent || 0) + "%)"]);
+		});
+		const csv = rows.map(function (row) {
+			return row.map(csvCell).join(",");
+		}).join("\r\n");
+		const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+		const a = document.createElement("a");
+		const safeName = String(data.event_title || "event").replace(/[^\w\-]+/g, "_").slice(0, 40);
+		a.href = URL.createObjectURL(blob);
+		a.download = "jod-event-history-" + safeName + ".csv";
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		setTimeout(function () { URL.revokeObjectURL(a.href); }, 500);
+	}
+
+	async function openHistoryEvent(eventId) {
+		if (!email || !eventId) return;
+		historySelectedId = eventId;
+		renderHistoryList(historyEventsCache);
+		const detail = document.getElementById("historyDetailPanel");
+		try {
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/history/${encodeURIComponent(eventId)}?email=${encodeURIComponent(email)}`, {
+				headers: getAuthHeaders()
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				showNotification(apiErrorMessage(data, "Could not load this past event."));
+				return;
+			}
+			historyDetailCache = data;
+			if (detail) detail.hidden = false;
+			fillHistoryReport(data);
+		} catch (err) {
+			console.warn("Could not load history detail:", err);
+			showNotification("Could not load this past event.");
+		}
+	}
+
+	async function loadHistoryList() {
+		if (!email) return;
+		try {
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/history?email=${encodeURIComponent(email)}`, {
+				headers: getAuthHeaders()
+			});
+			if (!res.ok) return;
+			const data = await res.json();
+			renderHistoryList(data.events || []);
+			if (historySelectedId) {
+				const stillThere = (data.events || []).some(function (ev) { return String(ev.event_id) === String(historySelectedId); });
+				if (stillThere) openHistoryEvent(historySelectedId);
+			}
+		} catch (err) {
+			console.warn("Could not load event history:", err);
+		}
+	}
+
+	const historyListEl = document.getElementById("historyEventList");
+	if (historyListEl && !historyListEl._wired) {
+		historyListEl._wired = true;
+		historyListEl.addEventListener("click", function (e) {
+			const row = e.target && e.target.closest ? e.target.closest("[data-history-id]") : null;
+			if (!row) return;
+			openHistoryEvent(row.getAttribute("data-history-id"));
+		});
+	}
+	const historyDownloadBtn = document.getElementById("historyDownloadBtn");
+	if (historyDownloadBtn && !historyDownloadBtn._wired) {
+		historyDownloadBtn._wired = true;
+		historyDownloadBtn.addEventListener("click", downloadHistoryReport);
 	}
 
 	let cachedCommAudienceOptions = [];

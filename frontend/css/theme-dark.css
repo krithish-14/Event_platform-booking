@@ -1237,6 +1237,38 @@ html[data-theme="dark"] .info-details-btn {
 	border-color: rgba(255, 138, 31, 0.32) !important;
 }
 
+html[data-theme="dark"] .history-event-row,
+html[data-theme="dark"] .history-detail-panel,
+html[data-theme="dark"] .history-report-card {
+	background: #1c1814 !important;
+	border-color: rgba(255, 138, 31, 0.22) !important;
+}
+html[data-theme="dark"] .history-event-row:hover,
+html[data-theme="dark"] .history-event-row.is-open {
+	background: #241c14 !important;
+	border-color: rgba(255, 138, 31, 0.45) !important;
+}
+html[data-theme="dark"] .history-event-row-title,
+html[data-theme="dark"] .history-detail-title,
+html[data-theme="dark"] .history-report-card h4,
+html[data-theme="dark"] .history-city-row strong {
+	color: #fff8f0 !important;
+}
+html[data-theme="dark"] .history-event-row-meta,
+html[data-theme="dark"] .history-detail-meta,
+html[data-theme="dark"] .history-empty,
+html[data-theme="dark"] .history-fee-row,
+html[data-theme="dark"] .history-cities-empty {
+	color: #c8bfb4 !important;
+}
+html[data-theme="dark"] .history-event-row-rev,
+html[data-theme="dark"] .history-fee-row.is-net {
+	color: #86efac !important;
+}
+html[data-theme="dark"] .history-page-header {
+	border-bottom-color: rgba(255, 138, 31, 0.22);
+}
+
 html[data-theme="dark"] .agenda-page-card,
 html[data-theme="dark"] .agenda-stop-card {
 	background: #1c1814 !important;

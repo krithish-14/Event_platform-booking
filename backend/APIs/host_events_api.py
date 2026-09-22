@@ -3494,37 +3494,38 @@ def _host_ticket_fee_breakdown(bookings: list) -> Dict[str, Any]:
     }
 
 
-# ── Reports Endpoint ───────────────────────────────────────────────────────
-@router.get("/reports")
-def get_reports_summary(
-    email: str = Query(..., description="Organizer email address"),
-    event_id: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Return financial and engagement metrics for the reports tab."""
-    event, _, _ = resolve_or_create_event(db, email, event_id, current_user, create_if_missing=False)
-    if not event:
-        return {
-            "event_title": None,
-            "gross_revenue": 0,
-            "platform_fee": 0,
-            "gst_fee": 0,
-            "net_earnings": 0,
-            "platform_fee_pct": HOST_PLATFORM_FEE_PCT,
-            "gst_fee_pct": HOST_GST_FEE_PCT,
-            "attendance_rate": 0,
-            "conversion_rate": 0,
-            "registrations_count": 0,
-            "tickets_sold": 0,
-            "ticket_capacity": 0,
-            "checkins_count": 0,
-            "communications_count": 0,
-            "exhibitors_count": 0,
-            "top_cities": [],
-            "ticket_fee_rows": [],
-        }
+def _empty_event_report_payload() -> Dict[str, Any]:
+    return {
+        "event_id": None,
+        "event_title": None,
+        "venue": None,
+        "lifecycle": None,
+        "event_start_date": None,
+        "event_end_date": None,
+        "gross_revenue": 0,
+        "platform_fee": 0,
+        "gst_fee": 0,
+        "net_earnings": 0,
+        "platform_fee_pct": HOST_PLATFORM_FEE_PCT,
+        "gst_fee_pct": HOST_GST_FEE_PCT,
+        "attendance_rate": 0,
+        "conversion_rate": 0,
+        "registrations_count": 0,
+        "pending_registrations": 0,
+        "tickets_sold": 0,
+        "tickets_available": 0,
+        "ticket_capacity": 0,
+        "checkins_count": 0,
+        "checked_in": 0,
+        "yet_to_checkin": 0,
+        "communications_count": 0,
+        "exhibitors_count": 0,
+        "top_cities": [],
+        "ticket_fee_rows": [],
+    }
 
+
+def _event_report_payload(db: Session, event: EventManagement) -> Dict[str, Any]:
     tickets = db.query(EventRegistrationTicket).filter(
         EventRegistrationTicket.event_id == event.event_id,
         EventRegistrationTicket.deleted_at.is_(None)
@@ -3554,9 +3555,15 @@ def get_reports_summary(
         net_earnings = round(gross_revenue - platform_fee - gst_fee, 2)
     attendance_rate = round((checked / sold * 100) if sold else 0.0, 1)
     conversion_rate = round((sold / max(capacity, 1) * 100), 1)
-
+    start = event.event_start_date.isoformat() if event.event_start_date else None
+    end = event.event_end_date.isoformat() if event.event_end_date else None
     return {
+        "event_id": str(event.event_id),
         "event_title": event.event_title,
+        "venue": event.venue or "Venue TBD",
+        "lifecycle": compute_event_lifecycle(event),
+        "event_start_date": start,
+        "event_end_date": end,
         "gross_revenue": gross_revenue,
         "platform_fee": platform_fee,
         "gst_fee": gst_fee,
@@ -3566,14 +3573,101 @@ def get_reports_summary(
         "attendance_rate": attendance_rate,
         "conversion_rate": conversion_rate,
         "registrations_count": live["total_registrations"],
+        "pending_registrations": live.get("pending_registrations", 0),
         "tickets_sold": sold,
+        "tickets_available": live.get("tickets_available", 0),
         "ticket_capacity": capacity,
         "checkins_count": checked,
+        "checked_in": checked,
+        "yet_to_checkin": live.get("yet_to_checkin", 0),
         "communications_count": len(communications),
         "exhibitors_count": len(exhibitors),
         "top_cities": _audience_top_cities(db, event),
         "ticket_fee_rows": fees["ticket_fee_rows"],
     }
+
+
+def _require_owned_history_event(
+    db: Session,
+    event_id: str,
+    current_user: User,
+) -> EventManagement:
+    email_clean = _bound_email(None, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
+    event = _lookup_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    if not _event_owned(event, email_clean, customer_id, host_id, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not own this event.")
+    return event
+
+
+# ── Reports Endpoint ───────────────────────────────────────────────────────
+@router.get("/reports")
+def get_reports_summary(
+    email: str = Query(..., description="Organizer email address"),
+    event_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Return financial and engagement metrics for the reports tab."""
+    event, _, _ = resolve_or_create_event(db, email, event_id, current_user, create_if_missing=False)
+    if not event:
+        return _empty_event_report_payload()
+    return _event_report_payload(db, event)
+
+
+@router.get("/history")
+def list_host_event_history(
+    email: str = Query(..., description="Organizer email address"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Past events for this host only — ended or cancelled, never another organizer."""
+    email_clean = _bound_email(email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
+    events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
+        EventManagement.event_start_date.desc(),
+        EventManagement.created_at.desc(),
+    ).all()
+    rows = []
+    for ev in events:
+        life = compute_event_lifecycle(ev)
+        if life not in ("ended", "cancelled"):
+            continue
+        report = _event_report_payload(db, ev)
+        rows.append({
+            "event_id": str(ev.event_id),
+            "event_title": ev.event_title or "Untitled event",
+            "venue": ev.venue or "Venue TBD",
+            "lifecycle": life,
+            "event_start_date": report["event_start_date"],
+            "event_end_date": report["event_end_date"],
+            "tickets_sold": report["tickets_sold"],
+            "registrations_count": report["registrations_count"],
+            "gross_revenue": report["gross_revenue"],
+            "net_earnings": report["net_earnings"],
+        })
+    return {"events": rows, "count": len(rows)}
+
+
+@router.get("/history/{event_id}")
+def get_host_event_history_detail(
+    event_id: str,
+    email: str = Query(..., description="Organizer email address"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Full report + pie stats for one past event owned by this host."""
+    _bound_email(email, current_user)
+    event = _require_owned_history_event(db, event_id, current_user)
+    life = compute_event_lifecycle(event)
+    if life not in ("ended", "cancelled"):
+        raise HTTPException(
+            status_code=400,
+            detail="This event is still current. Open Reports for the live event.",
+        )
+    return _event_report_payload(db, event)
 
 
 # ── Dashboard Dynamic Statistics Endpoint ────────────────────────────────────
