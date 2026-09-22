@@ -206,6 +206,13 @@ class PrettyHTMLHandler(SimpleHTTPRequestHandler):
 				return self._serve_event_details_og(event_id)
 		return SimpleHTTPRequestHandler.do_GET(self)
 
+	def copyfile(self, source, outputfile):
+		"""Video players abort unused byte ranges; don't crash the thread."""
+		try:
+			return SimpleHTTPRequestHandler.copyfile(self, source, outputfile)
+		except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, TimeoutError):
+			return
+
 	def do_HEAD(self) -> None:
 		try:
 			self._map_pretty_path()
