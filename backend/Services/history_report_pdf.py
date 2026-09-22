@@ -127,8 +127,18 @@ def _is_paper(r: int, g: int, b: int) -> bool:
     return False
 
 
+def _is_logo_ink(r: int, g: int, b: int) -> bool:
+    """Keep the orange knot and dark wordmark; drop paper and the blue wash."""
+    if _is_paper(r, g, b):
+        return False
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+    if lum <= 220:
+        return True
+    return r >= 170 and r >= g + 12 and r >= b + 20
+
+
 def _prepare_watermark() -> Optional[Tuple[bytes, float, float]]:
-    """Crop to logo ink, wipe the pale box, and fade onto white — no ExtGState."""
+    """Crop the full JOD mark first, then fade it onto white so the knot stays visible."""
     logo = _load_jod_logo_image()
     if not logo:
         return None
@@ -142,24 +152,12 @@ def _prepare_watermark() -> Optional[Tuple[bytes, float, float]]:
     if width < 8 or height < 8 or len(rgb) != width * height * 3:
         return None
 
-    faded = bytearray(len(rgb))
-    strength = 0.18
-    for i in range(0, len(rgb), 3):
-        r, g, b = rgb[i], rgb[i + 1], rgb[i + 2]
-        if _is_paper(r, g, b):
-            faded[i : i + 3] = b"\xff\xff\xff"
-            continue
-        faded[i] = 255 - int((255 - r) * strength)
-        faded[i + 1] = 255 - int((255 - g) * strength)
-        faded[i + 2] = 255 - int((255 - b) * strength)
-    rgb = bytes(faded)
-
     min_x, min_y, max_x, max_y = width, height, -1, -1
     for y in range(height):
         row = y * width * 3
         for x in range(width):
             i = row + x * 3
-            if rgb[i] < 252 or rgb[i + 1] < 252 or rgb[i + 2] < 252:
+            if _is_logo_ink(rgb[i], rgb[i + 1], rgb[i + 2]):
                 if x < min_x:
                     min_x = x
                 if y < min_y:
@@ -171,18 +169,27 @@ def _prepare_watermark() -> Optional[Tuple[bytes, float, float]]:
     if max_x < min_x:
         return None
 
-    pad = 2
+    pad = 6
     min_x = max(0, min_x - pad)
     min_y = max(0, min_y - pad)
     max_x = min(width - 1, max_x + pad)
     max_y = min(height - 1, max_y + pad)
     new_w = max_x - min_x + 1
     new_h = max_y - min_y + 1
+
+    strength = 0.36
     cropped = bytearray(new_w * new_h * 3)
     for y in range(new_h):
-        src = ((min_y + y) * width + min_x) * 3
-        dst = y * new_w * 3
-        cropped[dst : dst + new_w * 3] = rgb[src : src + new_w * 3]
+        for x in range(new_w):
+            src = ((min_y + y) * width + (min_x + x)) * 3
+            dst = (y * new_w + x) * 3
+            r, g, b = rgb[src], rgb[src + 1], rgb[src + 2]
+            if not _is_logo_ink(r, g, b):
+                cropped[dst : dst + 3] = b"\xff\xff\xff"
+                continue
+            cropped[dst] = 255 - int((255 - r) * strength)
+            cropped[dst + 1] = 255 - int((255 - g) * strength)
+            cropped[dst + 2] = 255 - int((255 - b) * strength)
 
     return _image_xobject(zlib.compress(bytes(cropped), 9), new_w, new_h, "FlateDecode"), float(new_w), float(new_h)
 
@@ -233,9 +240,9 @@ def build_history_report_pdf_bytes(
     watermark = _prepare_watermark()
     if watermark:
         image_obj, iw, ih = watermark
-        wm_w = 300.0
+        wm_w = 360.0
         wm_h = wm_w * (ih / max(iw, 1.0))
-        ops.append(_draw_image("Wm", (PAGE_W - wm_w) / 2.0, (PAGE_H - wm_h) / 2.0 - 10.0, wm_w, wm_h))
+        ops.append(_draw_image("Wm", (PAGE_W - wm_w) / 2.0, (PAGE_H - wm_h) / 2.0 + 24.0, wm_w, wm_h))
 
     ops.append(_rect(0, PAGE_H - 48, PAGE_W, 48, NAVY))
     ops.append(_rect(0, PAGE_H - 51, PAGE_W, 3, (0.98, 0.52, 0.12)))
@@ -269,8 +276,8 @@ def build_history_report_pdf_bytes(
 
     def money_row(label: str, value: str, *, rgb=INK, size: int = 10, bold: bool = True) -> None:
         nonlocal y
-        ops.append(_text(LEFT + 12, y, label, 8, False, MUTED))
-        ops.append(_text_right(RIGHT - 12, y, value, size, bold, rgb))
+        ops.append(_text(LEFT, y, label, 8, False, MUTED))
+        ops.append(_text_right(RIGHT, y, value, size, bold, rgb))
         y -= 17
 
     section("1.  EVENT DETAILS")
@@ -286,17 +293,13 @@ def build_history_report_pdf_bytes(
     pair("Attendance rate", att_rate, "Conversion rate", conv_rate)
 
     section("3.  REVENUE AND PAYOUT")
-    box_top = y + 10
-    box_h = 86
-    ops.append(_rect(LEFT, box_top - box_h, RIGHT - LEFT, box_h, (0.96, 0.97, 0.99)))
-    y = box_top - 16
     money_row("Gross ticket sales", gross)
     money_row(f"Platform service fee ({platform_pct}%)", f"- {platform}", rgb=RED)
     money_row(f"Taxes and statutory GST ({gst_pct}%)", f"- {gst}", rgb=RED)
-    ops.append(_rule(LEFT + 12, y + 8, RIGHT - LEFT - 24, (0.80, 0.84, 0.89), 0.6))
+    ops.append(_rule(LEFT, y + 8, RIGHT - LEFT, (0.80, 0.84, 0.89), 0.6))
     y -= 4
     money_row("Net host payout", net, rgb=GREEN, size=12, bold=True)
-    y = box_top - box_h - 8
+    y -= 6
 
     if cities:
         section("4.  AUDIENCE TOP CITIES")
