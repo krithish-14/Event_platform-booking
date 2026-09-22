@@ -1,0 +1,65 @@
+"""History report downloads as a professional one-page PDF, not CSV."""
+
+from Services.history_report_pdf import (
+    build_history_report_pdf_bytes,
+    history_report_pdf_filename,
+)
+
+
+def _sample_report():
+    return {
+        "event_id": "evt-history-demo-001",
+        "event_title": "JOD Marathon 2026",
+        "venue": "Marina Beach, Chennai",
+        "lifecycle": "ended",
+        "event_start_date": "2026-03-08T00:30:00+00:00",
+        "event_end_date": "2026-03-08T10:30:00+00:00",
+        "gross_revenue": 124000,
+        "platform_fee": 6200,
+        "gst_fee": 22320,
+        "net_earnings": 95480,
+        "platform_fee_pct": 5,
+        "gst_fee_pct": 18,
+        "attendance_rate": 86.5,
+        "conversion_rate": 72.0,
+        "registrations_count": 180,
+        "pending_registrations": 4,
+        "tickets_sold": 160,
+        "tickets_available": 40,
+        "ticket_capacity": 200,
+        "checkins_count": 138,
+        "checked_in": 138,
+        "communications_count": 3,
+        "exhibitors_count": 2,
+        "top_cities": [
+            {"city": "Chennai", "count": 90, "percent": 50},
+            {"city": "Bengaluru", "count": 40, "percent": 22},
+        ],
+    }
+
+
+def test_history_report_is_pdf_document():
+    pdf = build_history_report_pdf_bytes(_sample_report(), host_email="host@example.com")
+    assert pdf is not None
+    assert pdf.startswith(b"%PDF-1.4")
+    assert b"EVENT HISTORY REPORT" in pdf
+    assert b"JOD Marathon 2026" in pdf
+    assert b"Net host payout" in pdf
+    assert b"Rs. 95,480" in pdf
+    assert b"/ExtGState" in pdf
+    assert b"/GS1" in pdf
+    assert b"CONFIDENTIAL HOST REPORT" in pdf
+    assert b"%%EOF" in pdf
+
+
+def test_history_report_filename_is_pdf():
+    name = history_report_pdf_filename("JOD Marathon 2026")
+    assert name.startswith("JOD-Event-History-")
+    assert name.endswith(".pdf")
+    assert "," not in name
+
+
+if __name__ == "__main__":
+    test_history_report_is_pdf_document()
+    test_history_report_filename_is_pdf()
+    print("history report pdf ok")

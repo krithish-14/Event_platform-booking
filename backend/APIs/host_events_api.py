@@ -12,6 +12,7 @@ import uuid as uuid_mod
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy import or_, and_, String, cast, func, text
 from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
@@ -49,6 +50,7 @@ from Utils.categories import (
 )
 from Utils.text_sanitize import sanitize_text, sanitize_rich_text
 from Services.ticket_templates import list_templates_public
+from Services.history_report_pdf import build_history_report_pdf_bytes, history_report_pdf_filename
 
 try:
     from Utils.text_sanitize import pick_attendee_identity
@@ -3668,6 +3670,37 @@ def get_host_event_history_detail(
             detail="This event is still current. Open Reports for the live event.",
         )
     return _event_report_payload(db, event)
+
+
+@router.get("/history/{event_id}/pdf")
+def download_host_event_history_pdf(
+    event_id: str,
+    email: str = Query(..., description="Organizer email address"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Professional one-page PDF of a past event's details and revenue."""
+    email_clean = _bound_email(email, current_user)
+    event = _require_owned_history_event(db, event_id, current_user)
+    life = compute_event_lifecycle(event)
+    if life not in ("ended", "cancelled"):
+        raise HTTPException(
+            status_code=400,
+            detail="This event is still current. Open Reports for the live event.",
+        )
+    report = _event_report_payload(db, event)
+    pdf = build_history_report_pdf_bytes(report, host_email=email_clean)
+    if not pdf:
+        raise HTTPException(status_code=500, detail="Could not generate the history PDF.")
+    filename = history_report_pdf_filename(report.get("event_title") or "event")
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 # ── Dashboard Dynamic Statistics Endpoint ────────────────────────────────────

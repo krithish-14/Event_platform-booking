@@ -2149,52 +2149,43 @@ async function initOrganizerDashboard() {
 		], "No attendance recorded", "attendees");
 	}
 
-	function csvCell(value) {
-		const text = String(value == null ? "" : value);
-		if (/[",\n]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
-		return text;
-	}
-
-	function downloadHistoryReport() {
-		const data = historyDetailCache;
-		if (!data || !data.event_id) {
+	async function downloadHistoryReport() {
+		const id = historySelectedId || (historyDetailCache && historyDetailCache.event_id);
+		if (!email || !id) {
 			showNotification("Open a past event first.");
 			return;
 		}
-		const rows = [
-			["Field", "Value"],
-			["Event", data.event_title || ""],
-			["Event ID", data.event_id || ""],
-			["Status", data.lifecycle || ""],
-			["Start date", data.event_start_date || ""],
-			["End date", data.event_end_date || ""],
-			["Venue", data.venue || ""],
-			["Registrations", data.registrations_count || 0],
-			["Tickets sold", data.tickets_sold || 0],
-			["Ticket capacity", data.ticket_capacity || 0],
-			["Checked in", data.checkins_count || data.checked_in || 0],
-			["Attendance rate %", data.attendance_rate || 0],
-			["Conversion rate %", data.conversion_rate || 0],
-			["Gross revenue (INR)", data.gross_revenue || 0],
-			["Platform fee (INR)", data.platform_fee || 0],
-			["GST (INR)", data.gst_fee || 0],
-			["Net earnings (INR)", data.net_earnings || 0]
-		];
-		(data.top_cities || []).forEach(function (city) {
-			rows.push(["City: " + (city.city || "Unknown"), (city.count || 0) + " (" + (city.percent || 0) + "%)"]);
-		});
-		const csv = rows.map(function (row) {
-			return row.map(csvCell).join(",");
-		}).join("\r\n");
-		const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-		const a = document.createElement("a");
-		const safeName = String(data.event_title || "event").replace(/[^\w\-]+/g, "_").slice(0, 40);
-		a.href = URL.createObjectURL(blob);
-		a.download = "jod-event-history-" + safeName + ".csv";
-		document.body.appendChild(a);
-		a.click();
-		a.remove();
-		setTimeout(function () { URL.revokeObjectURL(a.href); }, 500);
+		const btn = document.getElementById("historyDownloadBtn");
+		if (btn) btn.disabled = true;
+		try {
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/history/${encodeURIComponent(id)}/pdf?email=${encodeURIComponent(email)}`, {
+				headers: getAuthHeaders()
+			});
+			if (!res.ok) {
+				const data = (res.headers.get("content-type") || "").includes("json")
+					? await res.json().catch(() => ({}))
+					: {};
+				showNotification(apiErrorMessage(data, "Could not download the PDF."));
+				return;
+			}
+			const blob = await res.blob();
+			const header = res.headers.get("Content-Disposition") || "";
+			const named = /filename="([^"]+)"/.exec(header);
+			const safeName = String((historyDetailCache && historyDetailCache.event_title) || "event")
+				.replace(/[^\w\-]+/g, "-")
+				.slice(0, 40);
+			const a = document.createElement("a");
+			a.href = URL.createObjectURL(blob);
+			a.download = (named && named[1]) || ("JOD-Event-History-" + safeName + ".pdf");
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			setTimeout(function () { URL.revokeObjectURL(a.href); }, 500);
+		} catch (err) {
+			showNotification("Could not download the PDF.");
+		} finally {
+			if (btn) btn.disabled = false;
+		}
 	}
 
 	async function openHistoryEvent(eventId) {
