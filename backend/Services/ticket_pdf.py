@@ -578,6 +578,89 @@ def _resolve_per_ticket_context(booking, qr_token: str = "", db=None) -> dict:
     }
 
 
+def _event_id_lookup_candidates(event_id) -> list:
+    candidates = []
+    if event_id is None:
+        return candidates
+    candidates.append(event_id)
+    text_id = str(event_id).strip()
+    if text_id and text_id not in {str(c) for c in candidates}:
+        candidates.append(text_id)
+    try:
+        import uuid as _uuid
+        parsed = _uuid.UUID(text_id)
+        if parsed not in candidates:
+            candidates.append(parsed)
+    except Exception:
+        pass
+    return candidates
+
+
+def _published_ticket_layout_for_event(db, event_id) -> Optional[dict]:
+    """Load the published ticket canvas for this event only.
+
+    Never falls back to another host or another event's design.
+    """
+    if db is None or event_id is None:
+        return None
+    try:
+        from Models.event_design import EventDesign
+        from Models.event_management import EventManagement
+        from Models.organizer_accounts import OrganizerAccount
+        from Services.ticket_templates import is_premium_tier, normalize_ticket_layout
+    except Exception:
+        return None
+
+    design = None
+    host_event = None
+    for cand in _event_id_lookup_candidates(event_id):
+        try:
+            design = db.query(EventDesign).filter(EventDesign.event_id == cand).first()
+        except Exception:
+            design = None
+        if design:
+            break
+        try:
+            host_event = db.query(EventManagement).filter(EventManagement.event_id == cand).first()
+        except Exception:
+            host_event = None
+        if host_event:
+            try:
+                design = db.query(EventDesign).filter(EventDesign.event_id == host_event.event_id).first()
+            except Exception:
+                design = None
+            if design:
+                break
+
+    if not design or not (design.ticket_layout_json or design.ticket_template_id):
+        return None
+
+    premium = False
+    try:
+        em = host_event
+        if em is None:
+            for cand in _event_id_lookup_candidates(getattr(design, "event_id", None) or event_id):
+                try:
+                    em = db.query(EventManagement).filter(EventManagement.event_id == cand).first()
+                except Exception:
+                    em = None
+                if em:
+                    break
+        email = (getattr(em, "organizer_email", None) or "").strip().lower()
+        org = None
+        if email:
+            org = db.query(OrganizerAccount).filter(OrganizerAccount.email == email).first()
+        premium = is_premium_tier(getattr(org, "subscription_tier", None) if org else None)
+    except Exception:
+        premium = False
+
+    return normalize_ticket_layout(
+        design.ticket_layout_json if isinstance(design.ticket_layout_json, dict) else {},
+        template_id=design.ticket_template_id,
+        is_premium=premium,
+    )
+
+
 def build_mticket_pdf_bytes(
     *,
     booking_id,
@@ -960,44 +1043,7 @@ def build_mticket_pdf_from_booking(
         except Exception:
             event_date = public_start
 
-    ticket_layout = None
-    if db is not None:
-        try:
-            from Models.event_design import EventDesign
-            from Models.event_management import EventManagement
-            from Models.organizer_accounts import OrganizerAccount
-            from Services.ticket_templates import is_premium_tier, normalize_ticket_layout
-            from sqlalchemy import or_
-
-            event_id = getattr(booking, "event_id", None)
-            design = None
-            if event_id:
-                design = db.query(EventDesign).filter(EventDesign.event_id == event_id).first()
-            if design and (design.ticket_layout_json or design.ticket_template_id):
-                premium = False
-                try:
-                    em = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
-                    email = (getattr(em, "organizer_email", None) or "").strip().lower()
-                    org = None
-                    if email:
-                        org = db.query(OrganizerAccount).filter(OrganizerAccount.email == email).first()
-                    if not org and em is not None:
-                        org = db.query(OrganizerAccount).filter(
-                            or_(
-                                OrganizerAccount.customer_id == getattr(em, "customer_id", None),
-                                OrganizerAccount.host_id == getattr(em, "host_id", None),
-                            )
-                        ).first()
-                    premium = is_premium_tier(getattr(org, "subscription_tier", None) if org else None)
-                except Exception:
-                    premium = False
-                ticket_layout = normalize_ticket_layout(
-                    design.ticket_layout_json if isinstance(design.ticket_layout_json, dict) else {},
-                    template_id=design.ticket_template_id,
-                    is_premium=premium,
-                )
-        except Exception:
-            ticket_layout = None
+    ticket_layout = _published_ticket_layout_for_event(db, getattr(booking, "event_id", None))
 
     return build_mticket_pdf_bytes(
         booking_id=getattr(booking, "booking_id", ""),
@@ -1500,48 +1546,9 @@ def build_admin_mticket_pdf_from_booking(
         # Host-form / booking receiver only — never profile full_name.
         guest = (getattr(booking, "receiver_name", None) or "").strip() or "Guest"
 
-    # ── Load host-designed ticket layout from EventDesign ──────────────────────
-    ticket_layout = None
-    has_host_design = False
-    if db is not None:
-        try:
-            from Models.event_design import EventDesign
-            from Models.event_management import EventManagement
-            from Models.organizer_accounts import OrganizerAccount
-            from Services.ticket_templates import is_premium_tier, normalize_ticket_layout
-            from sqlalchemy import or_
-
-            event_id = getattr(booking, "event_id", None)
-            design = None
-            if event_id:
-                design = db.query(EventDesign).filter(EventDesign.event_id == event_id).first()
-            if design and (design.ticket_layout_json or design.ticket_template_id):
-                has_host_design = True
-                premium = False
-                try:
-                    em = db.query(EventManagement).filter(EventManagement.event_id == event_id).first()
-                    email = (getattr(em, "organizer_email", None) or "").strip().lower()
-                    org = None
-                    if email:
-                        org = db.query(OrganizerAccount).filter(OrganizerAccount.email == email).first()
-                    if not org and em is not None:
-                        org = db.query(OrganizerAccount).filter(
-                            or_(
-                                OrganizerAccount.customer_id == getattr(em, "customer_id", None),
-                                OrganizerAccount.host_id == getattr(em, "host_id", None),
-                            )
-                        ).first()
-                    premium = is_premium_tier(getattr(org, "subscription_tier", None) if org else None)
-                except Exception:
-                    premium = False
-                ticket_layout = normalize_ticket_layout(
-                    design.ticket_layout_json if isinstance(design.ticket_layout_json, dict) else {},
-                    template_id=design.ticket_template_id,
-                    is_premium=premium,
-                )
-        except Exception:
-            ticket_layout = None
-            has_host_design = False
+    # ── Load this event's published ticket layout only ─────────────────────────
+    ticket_layout = _published_ticket_layout_for_event(db, getattr(booking, "event_id", None))
+    has_host_design = bool(ticket_layout)
 
     # ── Use host-designed M-ticket renderer when a design is available ─────────
     if has_host_design:

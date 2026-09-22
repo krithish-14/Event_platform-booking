@@ -139,11 +139,20 @@ def _organizer_subscription_tier(db: Session, email_clean: str, customer_id: Opt
 
 
 def _host_events_query(db: Session, email_clean: str, customer_id: Optional[str], host_id: Optional[str]):
-    clauses = [EventManagement.organizer_email == email_clean]
-    if customer_id:
+    """List only this host's events.
+
+    A single shared customer_id or host_id must not pull in another organizer's
+    rows. Email is the primary key; both IDs together are a fallback for older
+    rows whose organizer_email was blank or later changed.
+    """
+    clauses = [func.lower(EventManagement.organizer_email) == email_clean]
+    if customer_id and host_id:
+        clauses.append(and_(
+            EventManagement.customer_id == customer_id,
+            EventManagement.host_id == host_id,
+        ))
+    elif customer_id:
         clauses.append(EventManagement.customer_id == customer_id)
-    if host_id:
-        clauses.append(EventManagement.host_id == host_id)
     return db.query(EventManagement).filter(or_(*clauses))
 
 
@@ -154,19 +163,32 @@ def _event_owned(
     host_id: Optional[str],
     current_user: Optional[User] = None,
 ) -> bool:
-    if event.organizer_email and event.organizer_email.lower() == email_clean:
-        return True
-    if customer_id and event.customer_id == customer_id:
-        return True
-    if host_id and event.host_id == host_id:
+    event_email = (event.organizer_email or "").lower().strip()
+    if event_email and event_email == email_clean:
         return True
     if current_user:
-        user_email = (current_user.email or "").lower()
-        if event.organizer_email and event.organizer_email.lower() == user_email:
+        user_email = (current_user.email or "").lower().strip()
+        if event_email and event_email == user_email:
             return True
-        if current_user.customer_id and event.customer_id == current_user.customer_id:
-            return True
+    # Dual identity only — a colliding customer_id or host_id alone is not enough.
+    if customer_id and host_id and event.customer_id == customer_id and event.host_id == host_id:
+        return True
     return False
+
+
+def _event_design_row(db: Session, event: EventManagement) -> Optional[EventDesign]:
+    """Return the design row for this event only — never another host's event."""
+    rows = db.query(EventDesign).filter(EventDesign.event_id == event.event_id).all()
+    if not rows:
+        return None
+    if len(rows) == 1:
+        return rows[0]
+    host_id = getattr(event, "host_id", None)
+    if host_id:
+        owned = [row for row in rows if row.host_id == host_id]
+        if owned:
+            rows = owned
+    return max(rows, key=lambda row: row.updated_at or datetime.min)
 
 
 def _reject_foreign_event(
@@ -1980,37 +2002,54 @@ def save_event_design(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """UPSERT endpoint for Event Design step."""
+    """UPSERT endpoint for Event Design step.
+
+    Ticket draft / publish writes are bound to the requested event_id. They
+    must never fall back to another host's (or even this host's other) event.
+    """
     customer_id, host_id = resolve_host_identifiers(db, payload.organizer_email, current_user)
     email_clean = _bound_email(payload.organizer_email, current_user)
+    ticket_write = bool(
+        payload.ticket_layout_draft_json is not None
+        or payload.ticket_layout_json is not None
+        or payload.publish_ticket_layout
+    )
+    requested_id = str(payload.event_id or "").strip()
 
-    event = _lookup_event_by_id(db, payload.event_id)
+    event = _lookup_event_by_id(db, payload.event_id) if requested_id else None
+    if requested_id and event is None:
+        raise HTTPException(status_code=404, detail="Event not found.")
     if event and not _event_owned(event, email_clean, customer_id, host_id, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not own this event.")
     if event and is_cleared_host_event(event):
-        event = None
+        raise HTTPException(status_code=404, detail="This event is no longer available for design edits.")
     if not event:
+        if ticket_write:
+            raise HTTPException(
+                status_code=400,
+                detail="event_id is required to save this event's ticket design.",
+            )
         event = find_working_event(db, email_clean, customer_id, host_id)
-    if event and is_cleared_host_event(event):
-        event = None
+        if event and is_cleared_host_event(event):
+            event = None
     if not event:
         raise HTTPException(
             status_code=404,
             detail="Save Manage details first before saving Design. No event exists for this host.",
         )
 
-    design = db.query(EventDesign).filter(EventDesign.event_id == event.event_id).first()
+    design = _event_design_row(db, event)
     if not design:
         design = EventDesign(
             design_id=uuid.uuid4(),
             event_id=event.event_id,
-            customer_id=customer_id,
-            host_id=host_id
+            customer_id=event.customer_id or customer_id,
+            host_id=event.host_id or host_id
         )
         db.add(design)
 
-    design.customer_id = customer_id
-    design.host_id = host_id
+    design.customer_id = event.customer_id or customer_id
+    design.host_id = event.host_id or host_id
     if payload.banner_image: design.banner_image = payload.banner_image
     if payload.card_image is not None: design.card_image = payload.card_image or None
     if payload.logo: design.logo = payload.logo
@@ -2256,6 +2295,7 @@ def save_registration_form(
 @router.get("/current")
 def get_current_host_event(
     email: str = Query(..., description="Organizer email address"),
+    event_id: Optional[str] = Query(None, description="Load this host's event when provided"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -2263,7 +2303,18 @@ def get_current_host_event(
     email_clean = _bound_email(email, current_user)
     customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
 
-    event = find_working_event(db, email_clean, customer_id, host_id)
+    event = None
+    requested = _lookup_event_by_id(db, event_id) if event_id else None
+    if requested:
+        if not _event_owned(requested, email_clean, customer_id, host_id, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not own this event.",
+            )
+        if not is_cleared_host_event(requested):
+            event = requested
+    if event is None:
+        event = find_working_event(db, email_clean, customer_id, host_id)
     if event and is_cleared_host_event(event):
         event = None
     any_active = find_blocking_active_event(db, email_clean, customer_id, host_id)
@@ -2286,7 +2337,7 @@ def get_current_host_event(
             "ticket_templates": list_templates_public(),
         }
 
-    design = db.query(EventDesign).filter(EventDesign.event_id == event.event_id).first()
+    design = _event_design_row(db, event)
     reg_form = db.query(EventRegistrationForm).filter(EventRegistrationForm.event_id == event.event_id).first()
     life = _lifecycle_payload(event, db, email_clean, customer_id, host_id)
     start_local = life.get("event_start_date_local")

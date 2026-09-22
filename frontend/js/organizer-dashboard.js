@@ -257,6 +257,7 @@ async function initOrganizerDashboard() {
 	let ticketTemplatesCatalog = [];
 	let ticketLayoutState = null;
 	let ticketPublishedLayoutState = null;
+	let ticketLayoutEventId = null;
 	let ticketDraftDirty = false;
 	let ticketDraftSaveTimer = null;
 	let ticketCanvasCtrl = null;
@@ -1575,10 +1576,7 @@ async function initOrganizerDashboard() {
 		pendingManageEvent = null;
 		pendingHostDesignData = null;
 		pendingRegistrationForm = null;
-		ticketLayoutState = null;
-		ticketPublishedLayoutState = null;
-		ticketDraftDirty = false;
-		ticketCanvasCtrl = null;
+		resetTicketLayoutState();
 		bannerImageUrl = null;
 		cardImageUrl = null;
 		galleryImageUrls = [];
@@ -3169,7 +3167,10 @@ async function initOrganizerDashboard() {
 
 	// Fetch Current Host Event, Customer ID, & Host ID from API
 	try {
-		const hostRes = await fetch(`${HOST_EVENTS_API_BASE}/current?email=${encodeURIComponent(email)}`, {
+		const storedEventId = sessionStorage.getItem(`active_event_id_${email}`) || "";
+		const currentQs = new URLSearchParams({ email });
+		if (storedEventId) currentQs.set("event_id", storedEventId);
+		const hostRes = await fetch(`${HOST_EVENTS_API_BASE}/current?${currentQs.toString()}`, {
 			headers: getAuthHeaders()
 		});
 		if (hostRes.ok) {
@@ -3243,10 +3244,12 @@ async function initOrganizerDashboard() {
 			if (hostData.has_event && currentLifecycle !== "cancelled" && currentLifecycle !== "unpublished") {
 			if (hostData.design) {
 				pendingHostDesignData = hostData.design;
-				hydrateTicketLayoutFromDesign(hostData.design);
+				hydrateTicketLayoutFromDesign(hostData.design, hostData.event && hostData.event.event_id);
 				if (hostData.design.about_event) {
 					writeAboutEventHtml(hostData.design.about_event);
 				}
+			} else if (hostData.event && hostData.event.event_id) {
+				hydrateTicketLayoutFromDesign({}, hostData.event.event_id);
 			}
 			if (hostData.registration_form) {
 				pendingRegistrationForm = hostData.registration_form;
@@ -3344,32 +3347,61 @@ async function initOrganizerDashboard() {
 	}
 
 
-	function hydrateTicketLayoutFromDesign(d) {
-		if (!d) return;
-		const published = (d.ticket_layout_json && typeof d.ticket_layout_json === "object")
+	function cloneTicketLayout(src) {
+		if (window.JodTicketCanvas && typeof window.JodTicketCanvas.cloneLayout === "function") {
+			return window.JodTicketCanvas.cloneLayout(src);
+		}
+		try {
+			return JSON.parse(JSON.stringify(src || {}));
+		} catch (_) {
+			return Object.assign({}, src || {});
+		}
+	}
+
+	function resetTicketCanvasDom() {
+		ticketCanvasCtrl = null;
+		const ticketStudio = document.getElementById("ticketDesignStudioHost");
+		if (ticketStudio) ticketStudio.innerHTML = "";
+	}
+
+	function resetTicketLayoutState() {
+		ticketLayoutState = null;
+		ticketPublishedLayoutState = null;
+		ticketLayoutEventId = null;
+		ticketDraftDirty = false;
+		if (ticketDraftSaveTimer) {
+			clearTimeout(ticketDraftSaveTimer);
+			ticketDraftSaveTimer = null;
+		}
+		resetTicketCanvasDom();
+	}
+
+	function sameTicketEvent(a, b) {
+		return !!(a && b && String(a) === String(b));
+	}
+
+	function hydrateTicketLayoutFromDesign(d, eventId) {
+		const eid = eventId || activeEventId || null;
+		if (ticketLayoutEventId && eid && !sameTicketEvent(ticketLayoutEventId, eid)) {
+			resetTicketCanvasDom();
+		}
+		ticketLayoutEventId = eid;
+		const published = (d && d.ticket_layout_json && typeof d.ticket_layout_json === "object")
 			? d.ticket_layout_json
 			: null;
-		const draft = (d.ticket_layout_draft_json && typeof d.ticket_layout_draft_json === "object")
+		const draft = (d && d.ticket_layout_draft_json && typeof d.ticket_layout_draft_json === "object")
 			? d.ticket_layout_draft_json
 			: null;
 		const source = draft || published || {};
-		const tid = d.ticket_template_id || source.template_id || "classic";
-		if (published || draft || d.ticket_template_id) {
-			ticketLayoutState = Object.assign(
-				{},
-				(window.JodTicketCanvas && window.JodTicketCanvas.DEFAULT_LAYOUT) || {},
-				source,
-				{ template_id: tid }
-			);
-			ticketPublishedLayoutState = published
-				? Object.assign({}, (window.JodTicketCanvas && window.JodTicketCanvas.DEFAULT_LAYOUT) || {}, published, {
-					template_id: published.template_id || tid
-				})
-				: null;
-			ticketDraftDirty = !!(draft && published && JSON.stringify(draft) !== JSON.stringify(published));
-			if (draft && !published) ticketDraftDirty = true;
-			updateTicketPublishUi();
-		}
+		const tid = (d && d.ticket_template_id) || source.template_id || "classic";
+		ticketLayoutState = cloneTicketLayout(Object.assign({}, source, { template_id: tid }));
+		ticketPublishedLayoutState = published
+			? cloneTicketLayout(Object.assign({}, published, { template_id: published.template_id || tid }))
+			: null;
+		ticketDraftDirty = !!(draft && published && JSON.stringify(draft) !== JSON.stringify(published));
+		if (draft && !published) ticketDraftDirty = true;
+		if (!draft && !published) ticketDraftDirty = false;
+		updateTicketPublishUi();
 	}
 
 	function setTicketSaveStatus(text, mode) {
@@ -3392,10 +3424,10 @@ async function initOrganizerDashboard() {
 
 	function collectTicketLayoutPayload() {
 		if (ticketCanvasCtrl && typeof ticketCanvasCtrl.getLayout === "function") {
-			ticketLayoutState = ticketCanvasCtrl.getLayout();
+			ticketLayoutState = cloneTicketLayout(ticketCanvasCtrl.getLayout());
 		}
 		if (!ticketLayoutState && window.JodTicketCanvas) {
-			ticketLayoutState = Object.assign({}, window.JodTicketCanvas.DEFAULT_LAYOUT);
+			ticketLayoutState = cloneTicketLayout(window.JodTicketCanvas.DEFAULT_LAYOUT);
 		}
 		return ticketLayoutState || { template_id: "classic", show_jod_logo: true };
 	}
@@ -3436,6 +3468,15 @@ async function initOrganizerDashboard() {
 	function ensureTicketCanvas() {
 		const host = document.getElementById("ticketDesignStudioHost");
 		if (!host || !window.JodTicketCanvas) return;
+		if (ticketLayoutEventId && activeEventId && !sameTicketEvent(ticketLayoutEventId, activeEventId)) {
+			resetTicketCanvasDom();
+			ticketLayoutState = cloneTicketLayout(window.JodTicketCanvas.DEFAULT_LAYOUT);
+			ticketPublishedLayoutState = null;
+			ticketDraftDirty = false;
+			ticketLayoutEventId = activeEventId;
+		} else if (!ticketLayoutEventId && activeEventId) {
+			ticketLayoutEventId = activeEventId;
+		}
 		const sampleTitle = (eventTitleInput && eventTitleInput.value.trim()) || "Your Event Title";
 		let sampleVenue = (document.getElementById("eventLocationInput") && document.getElementById("eventLocationInput").value.trim()) || "Venue TBA";
 		if (sampleVenue.length > 90) sampleVenue = sampleVenue.slice(0, 87).trim() + "…";
@@ -3449,7 +3490,10 @@ async function initOrganizerDashboard() {
 				formFields: formFields,
 				sample: { title: sampleTitle, venue: sampleVenue },
 				onChange: function (layout) {
-					ticketLayoutState = layout;
+					if (ticketLayoutEventId && activeEventId && !sameTicketEvent(ticketLayoutEventId, activeEventId)) {
+						return;
+					}
+					ticketLayoutState = cloneTicketLayout(layout);
 					ticketDraftDirty = true;
 					updateTicketPublishUi();
 					setTicketSaveStatus("Saving draft…", "is-saving");
@@ -3496,14 +3540,20 @@ async function initOrganizerDashboard() {
 			const manageSaved = await autoSaveManageEvent(notifyError);
 			if (!manageSaved || !activeEventId) return false;
 		}
+		if (ticketLayoutEventId && !sameTicketEvent(ticketLayoutEventId, activeEventId)) {
+			setTicketSaveStatus("Draft not saved — switch to this event first", "is-dirty");
+			return false;
+		}
+		ticketLayoutEventId = activeEventId;
 		const ticketLayout = collectTicketLayoutPayload();
+		const saveEventId = activeEventId;
 		setTicketSaveStatus("Saving draft…", "is-saving");
 		try {
 			const res = await fetch(`${HOST_EVENTS_API_BASE}/design`, {
 				method: "POST",
 				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
 				body: JSON.stringify({
-					event_id: activeEventId,
+					event_id: saveEventId,
 					organizer_email: email,
 					ticket_template_id: (ticketLayout && ticketLayout.template_id) || "classic",
 					ticket_layout_draft_json: ticketLayout || undefined
@@ -3511,7 +3561,11 @@ async function initOrganizerDashboard() {
 			});
 			const data = await res.json().catch(() => ({}));
 			if (res.ok) {
-				if (data.event_id) activeEventId = data.event_id;
+				if (data.event_id && !sameTicketEvent(data.event_id, saveEventId)) {
+					setTicketSaveStatus("Draft save blocked — event mismatch", "is-dirty");
+					return false;
+				}
+				ticketLayoutEventId = saveEventId;
 				ticketDraftDirty = true;
 				updateTicketPublishUi();
 				setTicketSaveStatus("Draft saved — click Update tickets for attendees", "is-dirty");
@@ -3533,8 +3587,14 @@ async function initOrganizerDashboard() {
 			const manageSaved = await autoSaveManageEvent(true);
 			if (!manageSaved || !activeEventId) return false;
 		}
+		if (ticketLayoutEventId && !sameTicketEvent(ticketLayoutEventId, activeEventId)) {
+			if (notifyError) showNotification("Open this event's ticket studio before updating live tickets.");
+			return false;
+		}
+		ticketLayoutEventId = activeEventId;
 		await autoSaveTicketDraft(false);
 		const ticketLayout = collectTicketLayoutPayload();
+		const publishEventId = activeEventId;
 		const btn = document.getElementById("ticketPublishBtn");
 		if (btn) btn.disabled = true;
 		setTicketSaveStatus("Updating attendee tickets…", "is-saving");
@@ -3543,7 +3603,7 @@ async function initOrganizerDashboard() {
 				method: "POST",
 				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
 				body: JSON.stringify({
-					event_id: activeEventId,
+					event_id: publishEventId,
 					organizer_email: email,
 					ticket_template_id: (ticketLayout && ticketLayout.template_id) || "classic",
 					ticket_layout_draft_json: ticketLayout || undefined,
@@ -3552,11 +3612,17 @@ async function initOrganizerDashboard() {
 			});
 			const data = await res.json().catch(() => ({}));
 			if (res.ok) {
-				ticketPublishedLayoutState = Object.assign({}, ticketLayout);
+				if (data.event_id && !sameTicketEvent(data.event_id, publishEventId)) {
+					updateTicketPublishUi();
+					if (notifyError) showNotification("Live update blocked — this design belongs to a different event.");
+					return false;
+				}
+				ticketLayoutEventId = publishEventId;
+				ticketPublishedLayoutState = cloneTicketLayout(ticketLayout);
 				ticketDraftDirty = false;
 				updateTicketPublishUi();
 				setTicketSaveStatus("Attendee tickets updated", "is-saved");
-				if (notifyError) showNotification("Ticket layout updated for attendees.");
+				if (notifyError) showNotification("Ticket layout updated for attendees of this event only.");
 				return true;
 			}
 			updateTicketPublishUi();
@@ -4487,6 +4553,7 @@ async function initOrganizerDashboard() {
 			}
 			hostEventCancelled = false;
 			activeEventId = null;
+			resetTicketLayoutState();
 			currentLifecycle = "draft";
 			hasEvent = false;
 			sessionStorage.removeItem(`active_event_id_${email}`);
@@ -5362,7 +5429,7 @@ async function initOrganizerDashboard() {
 			}
 			populateDesignRows(d.sponsor_details || [], d.speaker_details || []);
 			applyPerformersTitle(d.performers_title || "");
-			hydrateTicketLayoutFromDesign(d);
+			hydrateTicketLayoutFromDesign(d, activeEventId);
 			pendingHostDesignData = null;
 		}
 		applyPendingHostDesign();
@@ -5373,7 +5440,7 @@ async function initOrganizerDashboard() {
 			pendingHostDesignData.sponsor_details || [],
 			pendingHostDesignData.speaker_details || []
 		);
-		hydrateTicketLayoutFromDesign(pendingHostDesignData);
+		hydrateTicketLayoutFromDesign(pendingHostDesignData, activeEventId);
 		pendingHostDesignData = null;
 		ensureTicketCanvas();
 	} else {

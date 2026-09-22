@@ -1144,6 +1144,7 @@
 		FALLBACK_TEMPLATES: FALLBACK_TEMPLATES,
 		ELEMENT_DEFS: ELEMENT_DEFS,
 		SHAPE_DEFS: SHAPE_DEFS,
+		cloneLayout: cloneLayout,
 		create: function (opts) {
 			return new TicketCanvasController(opts || {});
 		},
