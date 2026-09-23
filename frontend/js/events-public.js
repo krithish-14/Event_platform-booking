@@ -269,7 +269,13 @@
 			throw err;
 		}
 		if (!res.ok) throw new Error("Unable to load event details.");
-		return res.json();
+		const data = await res.json();
+		if (!isEventCurrentlyVisible(data)) {
+			const err = new Error("This event is currently unavailable.");
+			err.code = "UNAVAILABLE";
+			throw err;
+		}
+		return data;
 	}
 
 	function wishlistHeartButton(eventId) {

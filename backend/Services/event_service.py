@@ -77,13 +77,20 @@ def is_ticket_on_sale(ticket, now=None) -> bool:
     return True
 
 
+def _valid_event_end(event):
+    """Return a usable end datetime, or None when end is missing/invalid."""
+    start = getattr(event, "start_date", None)
+    end = getattr(event, "end_date", None)
+    if start and end and end <= start:
+        return None
+    return end
+
+
 def _event_has_ended(event, now=None) -> bool:
     """Ended only after a valid end (end after start). Upcoming start is never ended."""
     now = now or datetime.utcnow()
     start = getattr(event, "start_date", None)
-    end = getattr(event, "end_date", None)
-    if start and end and end <= start:
-        end = None
+    end = _valid_event_end(event)
     if start and now < start:
         return False
     if end and now >= end:
@@ -163,6 +170,8 @@ def assert_ticket_sales_open(db: Session, event_id: str) -> None:
 
 def event_currently_visible(event, now=None) -> bool:
     now = now or datetime.utcnow()
+    if getattr(event, "is_cancelled", False) or getattr(event, "is_published", True) is False:
+        return False
     if _event_has_ended(event, now):
         return False
     start = getattr(event, "start_date", None)
@@ -289,8 +298,8 @@ def get_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
 
 
 def get_public_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
-    """Return a published, non-cancelled event for public pages."""
-    return (
+    """Return a published, non-cancelled event that has not ended yet."""
+    event = (
         db.query(Event)
         .filter(
             _event_id_matches(event_id),
@@ -299,6 +308,9 @@ def get_public_event_by_id(db: Session, event_id: UUID) -> Optional[Event]:
         )
         .first()
     )
+    if event is None or _event_has_ended(event):
+        return None
+    return event
 
 
 def create_event(db: Session, payload, customer_id: str, organizer_id=None) -> Event:

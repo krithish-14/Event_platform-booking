@@ -16,6 +16,7 @@ from Models.base import get_db
 from Models.event import Event
 from Models.user import User
 from Models.wishlist import WishlistItem
+from Services.event_service import _event_has_ended
 
 router = APIRouter()
 
@@ -87,7 +88,7 @@ def list_wishlist(
     items = []
     for row in rows:
         event = row.event
-        if event and (event.is_cancelled or not event.is_published):
+        if event and (event.is_cancelled or not event.is_published or _event_has_ended(event)):
             continue
         items.append(
             WishlistItemResponse(
@@ -120,7 +121,7 @@ def toggle_wishlist(
 ):
     event_id = _parse_event_id(payload.event_id)
     event = db.query(Event).filter(Event.id == event_id).first()
-    if not event or not event.is_published or event.is_cancelled:
+    if not event or not event.is_published or event.is_cancelled or _event_has_ended(event):
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
 
     existing = (

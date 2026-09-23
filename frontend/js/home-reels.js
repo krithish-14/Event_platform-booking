@@ -46,8 +46,8 @@
 		{
 			id: "marathon2",
 			shortcode: "DbGVVoVP28i",
-			title: "Singapenn Marathon",
-			caption: "A glimpse of Singapenn Marathon 2026",
+			title: "RunChennai Marathon",
+			caption: "A glimpse of RunChennai Marathon 2026",
 			instagram: "https://www.instagram.com/reel/DbGVVoVP28i/",
 			poster: asset("images/video/DbGVVoVP28i.jpg")
 		},

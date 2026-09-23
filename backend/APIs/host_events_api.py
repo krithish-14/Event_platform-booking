@@ -83,6 +83,7 @@ ACTIVE_EVENT_BLOCK_MESSAGE = (
     "only after your current event has ended."
 )
 ACTIVE_LIFECYCLE_STATES = ("published", "live")
+ENDED_DASHBOARD_GRACE = timedelta(hours=48)
 IST = timezone(timedelta(hours=5, minutes=30))
 UTC = timezone.utc
 
@@ -461,11 +462,26 @@ def is_event_active(event: EventManagement) -> bool:
     return compute_event_lifecycle(event) in ACTIVE_LIFECYCLE_STATES
 
 
+def is_ended_dashboard_expired(event: Optional[EventManagement], now=None) -> bool:
+    """True when an ended event should leave the host dashboard (48 hours after end)."""
+    if not event:
+        return False
+    if compute_event_lifecycle(event) != "ended":
+        return False
+    end = _effective_end_datetime(event)
+    if not end:
+        return True
+    now = now or datetime.utcnow()
+    return now >= end + ENDED_DASHBOARD_GRACE
+
+
 def is_cleared_host_event(event: Optional[EventManagement]) -> bool:
-    """Cancelled/unpublished events must not stay on the host dashboard."""
+    """Cancelled/unpublished events, and ended events older than 48 hours, leave the dashboard."""
     if not event:
         return True
-    return compute_event_lifecycle(event) in ("cancelled", "unpublished")
+    if compute_event_lifecycle(event) in ("cancelled", "unpublished"):
+        return True
+    return is_ended_dashboard_expired(event)
 
 
 def resolve_working_host_event(
@@ -548,7 +564,7 @@ def find_working_event(
     customer_id: Optional[str],
     host_id: Optional[str],
 ) -> Optional[EventManagement]:
-    """Prefer live/published, then draft/ready, then ended. Skip cancelled."""
+    """Prefer live/published, then draft/ready, then ended (48h). Skip cancelled."""
     events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
         EventManagement.created_at.desc()
     ).all()
@@ -579,8 +595,8 @@ def find_registrations_display_event(
 ) -> Optional[EventManagement]:
     """Event whose registrations appear in Submissions & Analytics.
 
-    Prefer published/live. Until a new event is hosted live, keep the last ended
-    event's data. Never use a draft — drafting a new event must not wipe the table.
+    Prefer published/live. Keep the last ended event for 48 hours so the host
+    dashboard still shows it. After that, History holds the record. Never use a draft.
     """
     events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
         EventManagement.created_at.desc()
@@ -3612,7 +3628,7 @@ def get_reports_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Return financial and engagement metrics for the reports tab."""
+    """Return financial and engagement metrics. Ready as soon as the event ends."""
     event, _, _ = resolve_or_create_event(db, email, event_id, current_user, create_if_missing=False)
     if not event:
         return _empty_event_report_payload()
@@ -3625,7 +3641,7 @@ def list_host_event_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Past events for this host only — ended or cancelled, never another organizer."""
+    """Past events for this host only — appears as soon as the event ends or is cancelled."""
     email_clean = _bound_email(email, current_user)
     customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
     events = _host_events_query(db, email_clean, customer_id, host_id).order_by(

@@ -3009,6 +3009,9 @@ async function initOrganizerDashboard() {
 		if (endedBanner) {
 			endedBanner.style.display = currentLifecycle === "ended" ? "block" : "none";
 		}
+		if (currentLifecycle === "ended") {
+			loadHistoryList();
+		}
 		if (blockBanner) {
 			const showBlock = isPublishedLifecycle() && !canPublishNew;
 			blockBanner.style.display = showBlock ? "block" : "none";
