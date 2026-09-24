@@ -459,6 +459,11 @@ def compute_event_lifecycle(event: EventManagement) -> str:
     return "draft"
 
 
+def is_overview_lifecycle(event: EventManagement) -> bool:
+    """Overview / public catalog only after OTP publish (or live / ended)."""
+    return compute_event_lifecycle(event) in ("published", "live", "ended")
+
+
 def is_event_active(event: EventManagement) -> bool:
     return compute_event_lifecycle(event) in ACTIVE_LIFECYCLE_STATES
 
@@ -511,6 +516,7 @@ def resolve_working_host_event(
 def empty_dashboard_summary(customer_id: Optional[str], host_id: Optional[str]) -> dict:
     return {
         "has_event": False,
+        "overview_ready": False,
         "event_id": None,
         "event_title": None,
         "event_status": None,
@@ -1978,25 +1984,25 @@ def save_manage_event(
     db.refresh(event)
 
     status_lower = (event.event_status or "draft").lower()
-    catalog_synced = False
+    catalog_synced = True
     catalog_sync_error = None
     if status_lower in ("draft", "cancelled", "unpublished"):
         try:
             sync_unpublished_event_from_catalog(db, event)
-            catalog_synced = True
         except Exception as exc:
+            catalog_synced = False
             catalog_sync_error = str(exc)
             print(f"[EVENT PUBLISH] unpublish catalog sync failed event_id={event.event_id}: {exc}", flush=True)
-    elif (event.event_status or "").lower() == "published":
+    elif requested_publish:
         try:
             sync_published_event_to_public_catalog(db, event)
-            catalog_synced = True
             print(
                 f"[EVENT PUBLISH] catalog synced event_id={event.event_id} "
                 f"title={event.event_title!r} status={event.event_status}",
                 flush=True,
             )
         except Exception as exc:
+            catalog_synced = False
             catalog_sync_error = str(exc)
             print(f"[EVENT PUBLISH] catalog sync failed event_id={event.event_id}: {exc}", flush=True)
 
@@ -2176,12 +2182,6 @@ def save_event_design(
     db.commit()
     db.refresh(design)
 
-    if (event.event_status or "").lower() == "published":
-        try:
-            sync_published_event_to_public_catalog(db, event)
-        except Exception as exc:
-            print(f"[EVENT DESIGN] catalog resync failed event_id={event.event_id}: {exc}", flush=True)
-
     premium = _organizer_is_premium(db, email_clean, customer_id, host_id)
     return {
         "status": "success",
@@ -2306,12 +2306,6 @@ def save_registration_form(
 
     db.commit()
     db.refresh(reg_form)
-
-    if (event.event_status or "").lower() == "published":
-        try:
-            sync_published_event_to_public_catalog(db, event)
-        except Exception:
-            pass
 
     return {
         "status": "success",
@@ -3759,6 +3753,19 @@ def get_dashboard_summary(
     if not event:
         return empty_dashboard_summary(customer_id, host_id)
 
+    if not is_overview_lifecycle(event):
+        summary = empty_dashboard_summary(
+            event.customer_id or customer_id,
+            event.host_id or host_id,
+        )
+        summary["event_id"] = str(event.event_id)
+        summary["event_title"] = event.event_title
+        summary["event_status"] = event.event_status
+        summary["lifecycle"] = compute_event_lifecycle(event)
+        summary["has_event"] = False
+        summary["overview_ready"] = False
+        return summary
+
     # Calculate days to event start
     days_left = 0
     if event.event_start_date:
@@ -3801,6 +3808,7 @@ def get_dashboard_summary(
 
     return {
         "has_event": True,
+        "overview_ready": True,
         "event_id": str(event.event_id),
         "event_title": event.event_title,
         "event_status": event.event_status,

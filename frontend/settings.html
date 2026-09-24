@@ -39,7 +39,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 </style>
 <link rel="preload" as="image" href="/images/JOD%20Events%20Logo.png" fetchpriority="high" />
 <link rel="stylesheet" href="css/fonts.css?v=2" />
-<script src="js/theme.js?v=27"></script> <script src="js/api-config.js?v=4"></script> <link rel="stylesheet" href="css/style.css?v=72" /> <link rel="stylesheet" href="css/responsive.css?v=63" /> <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /> <style> .page-hero {
+<script src="js/theme.js?v=27"></script> <script src="js/api-config.js?v=4"></script> <link rel="stylesheet" href="css/style.css?v=72" /> <link rel="stylesheet" href="css/responsive.css?v=63" /> <style> .page-hero {
 			background: linear-gradient(135deg, var(--dark) 0%, var(--dark-soft) 60%, #3d2a14 100%);
 			padding: 4.5rem 0 2.5rem;
 			color: #fff;
@@ -459,22 +459,59 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 			color: var(--foreground);
 			font-weight: 600;
 		}
-		.venue-pin-wrap {
-			background: none !important;
-			border: none !important;
-			cursor: grab;
+		.venue-search-wrap {
+			position: relative;
 		}
-		.leaflet-dragging .venue-pin-wrap {
-			cursor: grabbing;
+		.venue-search-icon {
+			position: absolute;
+			left: 0.85rem;
+			top: 50%;
+			transform: translateY(-50%);
+			font-size: 0.95rem;
+			pointer-events: none;
+			z-index: 1;
 		}
-		.venue-pin {
-			width: 22px;
-			height: 22px;
-			background: #2563eb;
-			border: 3px solid #fff;
-			border-radius: 50% 50% 50% 0;
-			transform: rotate(-45deg);
-			box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+		.venue-search-input {
+			padding-left: 2.4rem !important;
+		}
+		.venue-map-actions {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 0.75rem;
+			padding: 0.55rem 0.85rem 0.7rem;
+			background: var(--card);
+			border-top: 1px solid var(--border);
+		}
+		.venue-map-status {
+			margin: 0;
+			font-size: 0.78rem;
+			font-weight: 600;
+			color: #166534;
+		}
+		.venue-adjust-btn {
+			flex-shrink: 0;
+			background: #fff;
+			border: 1.5px solid #cbd5e1;
+			color: #334155;
+			border-radius: 8px;
+			padding: 0.4rem 0.75rem;
+			font-size: 0.8rem;
+			font-weight: 700;
+			cursor: pointer;
+		}
+		.venue-adjust-btn:hover,
+		.venue-adjust-btn:focus-visible {
+			border-color: #2563eb;
+			color: #2563eb;
+		}
+		.pac-container {
+			z-index: 10060 !important;
+			border-radius: 10px;
+			border: 1px solid #e2e8f0;
+			box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+			font-family: inherit;
+			margin-top: 4px;
 		}
 		@media (max-width: 700px) {
 			#settingsAvatar.settings-avatar,
@@ -490,7 +527,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) --> <canvas class="bg-canvas" id="bgCanvas"></canvas> <div class="bg-gradient-layer"></div> <div class="site-shell" id="top"> <div id="header"></div> <main> <section class="page-hero"> <div class="container"> <div class="hero-content"> <div class="settings-hero-kicker">Your account</div> <h1>Account Settings</h1> <p>Update your photo, personal details, location, password, and notification alerts.</p> </div> </div> </section> <section class="settings-section"> <div class="container"> <div class="settings-grid"> <!-- Sidebar --> <div class="settings-nav"> <button class="snav-item is-active" type="button" onclick="scrollToSection('profileSection')">&#128100; Profile & Photo</button> <button class="snav-item" type="button" onclick="scrollToSection('securitySection')">&#128274; Security & Password</button> <button class="snav-item" type="button" onclick="scrollToSection('notificationSettingsSection')">&#128276; Notification Settings</button> </div> <!-- Content Area --> <div> <!-- Profile Settings --> <div class="settings-card" id="profileSection"> <div class="settings-card-head"> <h2>Profile & Photo</h2> <p class="settings-card-sub">This is how you appear on tickets, bookings, and the host dashboard.</p> </div> <div class="settings-avatar-flex"> <div class="settings-avatar" id="settingsAvatar"></div> <div> <div class="avatar-btns"> <label class="button button-sm button-primary" for="settingsPhotoInput" style="cursor:pointer;">Upload Picture</label> <input type="file" id="settingsPhotoInput" accept="image/*" style="display:none;" /> <button class="button button-sm button-ghost" type="button" id="settingsRemovePhotoBtn">Remove</button> </div> <p class="avatar-hint">Use a square JPG, PNG, or WEBP. A clear face photo works best.</p> </div> </div> <form id="profileForm"> <div class="form-grid"> <div class="form-group"> <label for="setFullName">Full Name</label> <input type="text" id="setFullName" class="form-input" placeholder="Your Full Name" /> </div> <div class="form-group"> <label for="setUsername">Username</label> <input type="text" id="setUsername" class="form-input" placeholder="Username" readonly style="background:var(--cream);" /> </div> <div class="form-group"> <label for="setEmail">Email Address</label> <input type="email" id="setEmail" class="form-input" placeholder="your.email@example.com" /> </div> </div> <div class="form-group" style="margin-top:1.25rem;"> <label for="setLocationCity">Venue / Location Address</label> <input type="text" id="setLocationCity" class="form-input" placeholder="Street, area, pincode &#8212; or drag the pin on the map" /> <input type="hidden" id="settingsVenueLat" /> <input type="hidden" id="settingsVenueLon" /> <div class="venue-map-panel" id="settingsVenueMapPanel"> <div id="settingsVenueMap" class="venue-map" role="img" aria-label="Your location map"></div> <p class="venue-map-hint" id="settingsVenueMapHint">Search a place, then drag the pin. Street, area, and pincode fill in automatically.</p> </div> </div> <div style="margin-top:1.5rem;"> <button class="button button-primary" type="submit">Save Changes</button> </div> <div class="toast-msg toast-success" id="profileToast">&#10003; Profile details updated successfully!</div> </form> </div> <!-- Security Section --> <div class="settings-card" id="securitySection"> <h2>Security & Password</h2> <form id="securityForm" novalidate> <div class="form-group" style="margin-bottom:1.25rem;"> <label for="currentPw">Current Password</label> <div class="pw-input-wrap"> <input type="password" id="currentPw" class="form-input" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required /> <button type="button" class="pw-toggle-btn" onclick="togglePwVisibility('currentPw', this)" aria-label="Toggle password visibility">&#128065;</button> </div> </div> <div class="form-grid"> <div class="form-group"> <label for="newPw">New Password</label> <div class="pw-input-wrap"> <input type="password" id="newPw" class="form-input" placeholder="Enter new password" required /> <button type="button" class="pw-toggle-btn" onclick="togglePwVisibility('newPw', this)" aria-label="Toggle password visibility">&#128065;</button> </div> <!-- Strength Meter --> <div class="pw-strength-wrap"> <div class="pw-strength-meter"> <div class="pw-meter-bar" id="pwMeterBar"></div> </div> <div class="pw-strength-text" id="pwStrengthText">Strength: <span>Enter password</span></div> </div> </div> <div class="form-group"> <label for="confirmNewPw">Confirm New Password</label> <div class="pw-input-wrap"> <input type="password" id="confirmNewPw" class="form-input" placeholder="Re-enter new password" required /> <button type="button" class="pw-toggle-btn" onclick="togglePwVisibility('confirmNewPw', this)" aria-label="Toggle password visibility">&#128065;</button> </div> <div class="pw-match-status" id="pwMatchStatus"></div> </div> </div> <!-- Password Requirements Checklist --> <div class="pw-rules-card"> <div class="pw-rules-title">Password Requirements:</div> <ul class="pw-rules-list"> <li id="ruleLength" class="pw-rule-item"><span class="rule-icon">&#10006;</span> Minimum 8 characters</li> <li id="ruleUpper" class="pw-rule-item"><span class="rule-icon">&#10006;</span> At least 1 uppercase letter (A-Z)</li> <li id="ruleLower" class="pw-rule-item"><span class="rule-icon">&#10006;</span> At least 1 lowercase letter (a-z)</li> <li id="ruleNumber" class="pw-rule-item"><span class="rule-icon">&#10006;</span> At least 1 number (0-9)</li> <li id="ruleSpecial" class="pw-rule-item"><span class="rule-icon">&#10006;</span> At least 1 special character (!@#$%^&*)</li> </ul> </div> <div style="margin-top:1.5rem;"> <button class="button button-primary" type="submit">Update Password</button> </div> <div class="toast-msg toast-error" id="securityErrorToast"></div> <div class="toast-msg toast-success" id="securityToast">&#10003; Password updated successfully!</div> </form> </div> <div class="settings-card" id="notificationSettingsSection"> <div class="settings-card-head"> <h2>Notification Settings</h2> <p class="settings-card-sub">Choose which alerts you want. Your inbox lives on the <a href="/notifications" style="color:var(--primary);font-weight:600;">Notifications</a> page.</p> </div> <div class="pref-group"> <div class="pref-item"> <div class="pref-info"> <h4>Booking &amp; Ticket Emails</h4> <p>Receive receipts and digital e-tickets when a booking is confirmed.</p> </div> <label class="switch"> <input type="checkbox" id="prefBookingEmails" checked /> <span class="slider"></span> </label> </div> <div class="pref-item"> <div class="pref-info"> <h4>Upcoming Event Reminders</h4> <p>Get notified 24 hours before events you are registered for.</p> </div> <label class="switch"> <input type="checkbox" id="prefEventReminders" checked /> <span class="slider"></span> </label> </div> <div class="pref-item"> <div class="pref-info"> <h4>Special Offers &amp; Recommendations</h4> <p>Receive curated invites and early-bird discount offers.</p> </div> <label class="switch"> <input type="checkbox" id="prefOffers" /> <span class="slider"></span> </label> </div> </div> <div class="toast-msg toast-success" id="notifPrefToast">&#10003; Notification preferences saved.</div> </div> </div> </div> </div> </section> </main> <div id="footer"></div> </div> <script src="js/include.js?v=51"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=43"></script> <script src="js/profile.js?v=12"></script> <script src="js/location.js?v=14"></script> <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> <script src="js/script.js?v=36"></script> <script> // Auth check &#8212; confirm cookie session
+<!-- End Google Tag Manager (noscript) --> <canvas class="bg-canvas" id="bgCanvas"></canvas> <div class="bg-gradient-layer"></div> <div class="site-shell" id="top"> <div id="header"></div> <main> <section class="page-hero"> <div class="container"> <div class="hero-content"> <div class="settings-hero-kicker">Your account</div> <h1>Account Settings</h1> <p>Update your photo, personal details, location, password, and notification alerts.</p> </div> </div> </section> <section class="settings-section"> <div class="container"> <div class="settings-grid"> <!-- Sidebar --> <div class="settings-nav"> <button class="snav-item is-active" type="button" onclick="scrollToSection('profileSection')">&#128100; Profile & Photo</button> <button class="snav-item" type="button" onclick="scrollToSection('securitySection')">&#128274; Security & Password</button> <button class="snav-item" type="button" onclick="scrollToSection('notificationSettingsSection')">&#128276; Notification Settings</button> </div> <!-- Content Area --> <div> <!-- Profile Settings --> <div class="settings-card" id="profileSection"> <div class="settings-card-head"> <h2>Profile & Photo</h2> <p class="settings-card-sub">This is how you appear on tickets, bookings, and the host dashboard.</p> </div> <div class="settings-avatar-flex"> <div class="settings-avatar" id="settingsAvatar"></div> <div> <div class="avatar-btns"> <label class="button button-sm button-primary" for="settingsPhotoInput" style="cursor:pointer;">Upload Picture</label> <input type="file" id="settingsPhotoInput" accept="image/*" style="display:none;" /> <button class="button button-sm button-ghost" type="button" id="settingsRemovePhotoBtn">Remove</button> </div> <p class="avatar-hint">Use a square JPG, PNG, or WEBP. A clear face photo works best.</p> </div> </div> <form id="profileForm"> <div class="form-grid"> <div class="form-group"> <label for="setFullName">Full Name</label> <input type="text" id="setFullName" class="form-input" placeholder="Your Full Name" /> </div> <div class="form-group"> <label for="setUsername">Username</label> <input type="text" id="setUsername" class="form-input" placeholder="Username" readonly style="background:var(--cream);" /> </div> <div class="form-group"> <label for="setEmail">Email Address</label> <input type="email" id="setEmail" class="form-input" placeholder="your.email@example.com" /> </div> </div> <div class="form-group" style="margin-top:1.25rem;"> <label for="setLocationCity">Venue / Location Address</label> <div class="venue-search-wrap"> <span class="venue-search-icon" aria-hidden="true">&#128269;</span> <input type="text" id="setLocationCity" class="form-input venue-search-input" placeholder="Search your area or address" autocomplete="off" /> </div> <input type="hidden" id="settingsVenueLat" /> <input type="hidden" id="settingsVenueLon" /> <input type="hidden" id="settingsVenuePlaceId" /> <div class="venue-map-panel" id="settingsVenueMapPanel"> <div id="settingsVenueMap" class="venue-map" role="application" aria-label="Your location map"></div> <p class="venue-map-hint" id="settingsVenueMapHint">Search a place. The map moves automatically when you select a result.</p> <div class="venue-map-actions"> <p class="venue-map-status" id="settingsVenueMapStatus"></p> <button type="button" class="venue-adjust-btn" id="btnAdjustSettingsVenue">Adjust Location</button> </div> </div> </div> <div style="margin-top:1.5rem;"> <button class="button button-primary" type="submit">Save Changes</button> </div> <div class="toast-msg toast-success" id="profileToast">&#10003; Profile details updated successfully!</div> </form> </div> <!-- Security Section --> <div class="settings-card" id="securitySection"> <h2>Security & Password</h2> <form id="securityForm" novalidate> <div class="form-group" style="margin-bottom:1.25rem;"> <label for="currentPw">Current Password</label> <div class="pw-input-wrap"> <input type="password" id="currentPw" class="form-input" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required /> <button type="button" class="pw-toggle-btn" onclick="togglePwVisibility('currentPw', this)" aria-label="Toggle password visibility">&#128065;</button> </div> </div> <div class="form-grid"> <div class="form-group"> <label for="newPw">New Password</label> <div class="pw-input-wrap"> <input type="password" id="newPw" class="form-input" placeholder="Enter new password" required /> <button type="button" class="pw-toggle-btn" onclick="togglePwVisibility('newPw', this)" aria-label="Toggle password visibility">&#128065;</button> </div> <!-- Strength Meter --> <div class="pw-strength-wrap"> <div class="pw-strength-meter"> <div class="pw-meter-bar" id="pwMeterBar"></div> </div> <div class="pw-strength-text" id="pwStrengthText">Strength: <span>Enter password</span></div> </div> </div> <div class="form-group"> <label for="confirmNewPw">Confirm New Password</label> <div class="pw-input-wrap"> <input type="password" id="confirmNewPw" class="form-input" placeholder="Re-enter new password" required /> <button type="button" class="pw-toggle-btn" onclick="togglePwVisibility('confirmNewPw', this)" aria-label="Toggle password visibility">&#128065;</button> </div> <div class="pw-match-status" id="pwMatchStatus"></div> </div> </div> <!-- Password Requirements Checklist --> <div class="pw-rules-card"> <div class="pw-rules-title">Password Requirements:</div> <ul class="pw-rules-list"> <li id="ruleLength" class="pw-rule-item"><span class="rule-icon">&#10006;</span> Minimum 8 characters</li> <li id="ruleUpper" class="pw-rule-item"><span class="rule-icon">&#10006;</span> At least 1 uppercase letter (A-Z)</li> <li id="ruleLower" class="pw-rule-item"><span class="rule-icon">&#10006;</span> At least 1 lowercase letter (a-z)</li> <li id="ruleNumber" class="pw-rule-item"><span class="rule-icon">&#10006;</span> At least 1 number (0-9)</li> <li id="ruleSpecial" class="pw-rule-item"><span class="rule-icon">&#10006;</span> At least 1 special character (!@#$%^&*)</li> </ul> </div> <div style="margin-top:1.5rem;"> <button class="button button-primary" type="submit">Update Password</button> </div> <div class="toast-msg toast-error" id="securityErrorToast"></div> <div class="toast-msg toast-success" id="securityToast">&#10003; Password updated successfully!</div> </form> </div> <div class="settings-card" id="notificationSettingsSection"> <div class="settings-card-head"> <h2>Notification Settings</h2> <p class="settings-card-sub">Choose which alerts you want. Your inbox lives on the <a href="/notifications" style="color:var(--primary);font-weight:600;">Notifications</a> page.</p> </div> <div class="pref-group"> <div class="pref-item"> <div class="pref-info"> <h4>Booking &amp; Ticket Emails</h4> <p>Receive receipts and digital e-tickets when a booking is confirmed.</p> </div> <label class="switch"> <input type="checkbox" id="prefBookingEmails" checked /> <span class="slider"></span> </label> </div> <div class="pref-item"> <div class="pref-info"> <h4>Upcoming Event Reminders</h4> <p>Get notified 24 hours before events you are registered for.</p> </div> <label class="switch"> <input type="checkbox" id="prefEventReminders" checked /> <span class="slider"></span> </label> </div> <div class="pref-item"> <div class="pref-info"> <h4>Special Offers &amp; Recommendations</h4> <p>Receive curated invites and early-bird discount offers.</p> </div> <label class="switch"> <input type="checkbox" id="prefOffers" /> <span class="slider"></span> </label> </div> </div> <div class="toast-msg toast-success" id="notifPrefToast">&#10003; Notification preferences saved.</div> </div> </div> </div> </div> </section> </main> <div id="footer"></div> </div> <script src="js/include.js?v=51"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=43"></script> <script src="js/profile.js?v=12"></script> <script src="js/location.js?v=14"></script> <script src="js/google-maps.js?v=1"></script> <script src="js/script.js?v=36"></script> <script> // Auth check &#8212; confirm cookie session
 		(async function guardSettingsPage() {
 			const currentTarget = window.location.pathname + window.location.search + window.location.hash;
 			if (!(window.JodAuth && typeof window.JodAuth.requireAuthOrRedirect === "function")) {
@@ -566,11 +603,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			return useful[useful.length - 1] || "";
 		}
 
-		function writeVenueCoords(lat, lon) {
+		function writeVenuePlaceId(placeId) {
+			const el = document.getElementById("settingsVenuePlaceId");
+			if (el) el.value = placeId ? String(placeId) : "";
+		}
+
+		function writeVenueCoords(lat, lon, placeId) {
 			const latEl = document.getElementById("settingsVenueLat");
 			const lonEl = document.getElementById("settingsVenueLon");
 			if (latEl && Number.isFinite(lat)) latEl.value = String(lat);
 			if (lonEl && Number.isFinite(lon)) lonEl.value = String(lon);
+			if (arguments.length >= 3) writeVenuePlaceId(placeId);
 		}
 
 		function readVenueCoord(id) {
@@ -586,145 +629,80 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			hint.classList.toggle("is-address", !!isAddress);
 		}
 
-		function formatStreetAreaPin(address, displayName) {
-			const addr = address || {};
-			const indic = /[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/;
-			const skipState = /^(india|tamil nadu|karnataka|maharashtra|delhi|nct of delhi|west bengal|telangana|kerala|andhra pradesh|gujarat|rajasthan|uttar pradesh|madhya pradesh|bihar|odisha|punjab|haryana|assam)$/i;
-			const adminOnly = /^(cmwssb(\s+division)?(\s+\d+)?|ward\s+\d+|zone\s+\d+|division\s+\d+|circle\s+\d+)$/i;
-			const adminPrefix = /^(cmwssb\b|ward\s+\d+|division\s+\d+|circle\s+\d+)/i;
-			const zonePrefix = /^zone\s+\d+\s+(.+)$/i;
-
-			function cleanAdmin(text) {
-				let s = String(text || "").trim();
-				if (!s) return "";
-				if (adminOnly.test(s) || adminPrefix.test(s)) return "";
-				const zone = s.match(zonePrefix);
-				if (zone) s = String(zone[1] || "").trim();
-				if (skipState.test(s)) return "";
-				return s;
-			}
-
-			function isEnglishPart(text) {
-				const s = String(text || "").trim();
-				if (!s) return false;
-				if (indic.test(s)) return false;
-				if (skipState.test(s)) return false;
-				return true;
-			}
-
-			function pickEnglish() {
-				for (let i = 0; i < arguments.length; i++) {
-					const val = cleanAdmin(arguments[i]);
-					if (isEnglishPart(val)) return val;
-				}
-				return "";
-			}
-
-			function addPart(parts, value) {
-				let val = cleanAdmin(value);
-				const raw = String(value || "").trim();
-				const pin = raw.replace(/\D/g, "");
-				if (!val && pin.length === 6 && pin === raw.replace(/\s/g, "")) val = pin;
-				if (!val) return;
-				if (!(val.length === 6 && /^\d{6}$/.test(val)) && !isEnglishPart(val)) return;
-				const low = val.toLowerCase();
-				for (let i = 0; i < parts.length; i++) {
-					const ex = parts[i].toLowerCase();
-					if (ex === low) return;
-					if (low.length < ex.length && ex.includes(low)) return;
-					if (ex.length < low.length && low.includes(ex)) {
-						parts[i] = val;
-						return;
-					}
-				}
-				parts.push(val);
-			}
-
-			const house = pickEnglish(addr.house_number);
-			const road = pickEnglish(addr.road, addr.pedestrian, addr.residential, addr.street);
-			const poi = pickEnglish(addr.building, addr.amenity, addr.shop, addr.tourism, addr.railway, addr.public_building);
-			const neighbourhood = pickEnglish(addr.neighbourhood, addr.quarter, addr.hamlet, addr.allotments);
-			const suburb = pickEnglish(addr.suburb, addr.village, addr.city_district);
-			const city = pickEnglish(addr.city, addr.town, addr.municipality, addr.county);
-			const pin = String(addr.postcode || "").replace(/\s/g, "");
-			const street = [house, road].filter(Boolean).join(" ");
-
-			const parts = [];
-			addPart(parts, poi);
-			addPart(parts, street);
-			addPart(parts, neighbourhood);
-			addPart(parts, suburb);
-			addPart(parts, city);
-			if (/^\d{6}$/.test(pin)) addPart(parts, pin);
-
-			if (parts.length < 2) {
-				String(displayName || "").split(",").forEach((chunk) => addPart(parts, chunk.trim()));
-			}
-
-			return parts.join(", ") || "";
+		function setVenueStatus(text) {
+			const el = document.getElementById("settingsVenueMapStatus");
+			if (el) el.textContent = text || "";
 		}
 
+		const CHENNAI_CENTER = { lat: 13.0827, lng: 80.2707 };
 		let venueMap = null;
 		let venueMarker = null;
-		let venueMapClickBound = false;
+		let venueAutocomplete = null;
 		let venueFillingFromMap = false;
-		let venueGeocodeTimer = null;
+		let venueAdjustMode = false;
+		let venueInputBound = false;
 
 		function invalidateVenueMap() {
-			if (venueMap && typeof venueMap.invalidateSize === "function") {
-				venueMap.invalidateSize();
+			if (!venueMap || !window.google || !window.google.maps) return;
+			window.google.maps.event.trigger(venueMap, "resize");
+			if (venueMarker && venueMarker.getPosition()) {
+				venueMap.setCenter(venueMarker.getPosition());
 			}
 		}
 
-		function fillVenueAddress(text) {
+		function persistVenueLocal(lat, lon, address, placeId) {
+			try {
+				if (Number.isFinite(lat)) {
+					localStorage.setItem("jod_user_lat", String(lat));
+					sessionStorage.setItem("jod_user_lat", String(lat));
+				}
+				if (Number.isFinite(lon)) {
+					localStorage.setItem("jod_user_lon", String(lon));
+					sessionStorage.setItem("jod_user_lon", String(lon));
+				}
+				if (address) {
+					localStorage.setItem("jod_user_address", address);
+					sessionStorage.setItem("jod_user_address", address);
+					const pin = pinFromAddress(address);
+					if (pin) {
+						localStorage.setItem("jod_user_pincode", pin);
+						sessionStorage.setItem("jod_user_pincode", pin);
+					}
+				}
+				if (placeId) {
+					localStorage.setItem("jod_user_place_id", placeId);
+					sessionStorage.setItem("jod_user_place_id", placeId);
+				}
+			} catch (_) {}
+		}
+
+		function fillVenueAddress(text, opts) {
+			opts = opts || {};
 			const input = document.getElementById("setLocationCity");
 			if (!input || !text) return;
 			venueFillingFromMap = true;
 			input.value = text;
 			delete input.dataset.dirty;
 			venueFillingFromMap = false;
-			setVenueHint("&#128205; " + text + " &#8212; drag the pin to adjust", true);
-			try {
-				localStorage.setItem("jod_user_address", text);
-				sessionStorage.setItem("jod_user_address", text);
-				const pin = pinFromAddress(text);
-				if (pin) {
-					localStorage.setItem("jod_user_pincode", pin);
-					sessionStorage.setItem("jod_user_pincode", pin);
-				}
-			} catch (_) {}
-		}
-
-		function venuePinIcon() {
-			return window.L.divIcon({
-				className: "venue-pin-wrap",
-				html: '<div class="venue-pin"></div>',
-				iconSize: [30, 42],
-				iconAnchor: [15, 40],
-				popupAnchor: [0, -36],
-			});
+			setVenueHint(opts.hint || "Location detected automatically", Boolean(opts.detected));
+			if (opts.status !== undefined) setVenueStatus(opts.status);
+			persistVenueLocal(readVenueCoord("settingsVenueLat"), readVenueCoord("settingsVenueLon"), text, (document.getElementById("settingsVenuePlaceId") || {}).value || "");
 		}
 
 		function ensureVenueMap() {
-			if (!window.L) return null;
+			if (!window.google || !window.google.maps || typeof window.google.maps.Map !== "function") return null;
 			const el = document.getElementById("settingsVenueMap");
 			if (!el) return null;
 			if (!venueMap) {
-				venueMap = window.L.map(el, {
-					zoomControl: true,
-					scrollWheelZoom: true,
-				}).setView([20.5937, 78.9629], 5);
-				window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-					maxZoom: 19,
-					attribution: "&copy; OpenStreetMap",
-				}).addTo(venueMap);
-				if (!venueMapClickBound) {
-					venueMapClickBound = true;
-					venueMap.on("click", (e) => {
-						if (!e || !e.latlng) return;
-						plotVenuePin(e.latlng.lat, e.latlng.lng, { fly: !venueMarker, reverse: true });
-					});
-				}
+				venueMap = new window.google.maps.Map(el, {
+					center: CHENNAI_CENTER,
+					zoom: 12,
+					mapTypeControl: false,
+					streetViewControl: false,
+					fullscreenControl: false,
+					clickableIcons: false,
+					gestureHandling: "greedy",
+				});
 			}
 			setTimeout(() => invalidateVenueMap(), 60);
 			return venueMap;
@@ -734,127 +712,115 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			opts = opts || {};
 			if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 			if (!ensureVenueMap()) return;
-			writeVenueCoords(lat, lon);
-			try {
-				localStorage.setItem("jod_user_lat", String(lat));
-				localStorage.setItem("jod_user_lon", String(lon));
-				sessionStorage.setItem("jod_user_lat", String(lat));
-				sessionStorage.setItem("jod_user_lon", String(lon));
-			} catch (_) {}
+			writeVenueCoords(lat, lon, opts.placeId);
+			persistVenueLocal(lat, lon, null, opts.placeId || "");
+			const position = { lat: lat, lng: lon };
 			if (venueMarker) {
-				venueMarker.setLatLng([lat, lon]);
+				venueMarker.setPosition(position);
 			} else {
-				venueMarker = window.L.marker([lat, lon], {
-					icon: venuePinIcon(),
+				venueMarker = new window.google.maps.Marker({
+					map: venueMap,
+					position: position,
 					draggable: true,
-					autoPan: true,
-					autoPanPadding: [48, 48],
-					riseOnDrag: true,
-					title: "Drag to set your exact location",
-				}).addTo(venueMap);
-				venueMarker.on("dragstart", () => {
-					if (venueMarker.closePopup) venueMarker.closePopup();
-					setVenueHint("Drop the pin on your exact location.");
+					animation: window.google.maps.Animation.DROP,
+					title: "Drag to adjust your exact location",
 				});
-				venueMarker.on("dragend", (e) => {
-					const p = e.target.getLatLng();
-					writeVenueCoords(p.lat, p.lng);
-					reverseGeocodeVenue(p.lat, p.lng);
+				venueMarker.addListener("dragstart", () => {
+					venueAdjustMode = true;
+					setVenueHint("Drag the marker to adjust your exact location.");
+					setVenueStatus("");
+				});
+				venueMarker.addListener("dragend", () => {
+					const pos = venueMarker.getPosition();
+					if (!pos) return;
+					writeVenueCoords(pos.lat(), pos.lng(), "");
+					reverseGeocodeVenue(pos.lat(), pos.lng());
 				});
 			}
 			if (opts.fly !== false) {
-				const zoom = venueMap.getZoom() < 14 ? 16 : Math.max(venueMap.getZoom(), 16);
-				if (typeof venueMap.flyTo === "function") venueMap.flyTo([lat, lon], zoom, { duration: 0.7 });
-				else venueMap.setView([lat, lon], zoom);
+				const zoom = Math.max(venueMap.getZoom() || 12, 16);
+				venueMap.panTo(position);
+				venueMap.setZoom(zoom);
 			}
 			if (opts.reverse) reverseGeocodeVenue(lat, lon);
 			else setTimeout(() => invalidateVenueMap(), 80);
 		}
 
-		async function reverseGeocodeVenue(lat, lon) {
-			setVenueHint("Looking up street, area, and pincode&#8230;");
-			try {
-				let formatted = "";
-				try {
-					const res = await fetch(`${apiBase()}/api/location/venue-reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
-					if (res.ok) {
-						const data = await res.json();
-						formatted = String(data.formatted || "").trim();
-					}
-				} catch (_) {}
-
-				if (!formatted) {
-					const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&namedetails=1&zoom=18&accept-language=en&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
-					const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
-					if (!res.ok) throw new Error("reverse failed");
-					const hit = await res.json();
-					formatted = formatStreetAreaPin(hit.address || {}, hit.display_name || hit.name);
-				}
-
-				if (formatted) {
-					fillVenueAddress(formatted);
-					if (venueMarker) {
-						venueMarker.bindPopup(formatted.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))).openPopup();
-					}
-				} else {
-					setVenueHint("Pin dropped. Drag again if this is not the right spot.");
-				}
-			} catch (_) {
-				setVenueHint("Pin dropped. Street lookup failed &#8212; you can still type the address.");
+		function reverseGeocodeVenue(lat, lon) {
+			if (!window.google || !window.google.maps || !window.google.maps.Geocoder) {
+				setVenueHint("Location updated. Save to keep this pin.");
+				return;
 			}
+			setVenueHint("Updating your exact location\u2026");
+			const geocoder = new window.google.maps.Geocoder();
+			geocoder.geocode({ location: { lat: lat, lng: lon } }, (results, status) => {
+				if (status === "OK" && results && results[0]) {
+					const hit = results[0];
+					if (hit.place_id) writeVenuePlaceId(hit.place_id);
+					fillVenueAddress(hit.formatted_address || "", {
+						detected: true,
+						hint: "Drag the marker to adjust your exact location.",
+						status: "Location updated",
+					});
+				} else {
+					setVenueHint("Location updated. You can still edit the address above.");
+				}
+			});
 		}
 
-		async function geocodeVenueQuery(query) {
+		function geocodeVenueQuery(query) {
 			const q = String(query || "").trim();
-			if (q.length < 3) return;
-			setVenueHint("Finding this place on the map&#8230;");
-			try {
-				let hitLat = NaN;
-				let hitLon = NaN;
-				let formatted = "";
-
-				try {
-					const res = await fetch(`${apiBase()}/api/location/venue-search?q=${encodeURIComponent(q)}`);
-					if (res.ok) {
-						const data = await res.json();
-						hitLat = parseFloat(data.location_lat);
-						hitLon = parseFloat(data.location_lon);
-						formatted = String(data.formatted || "").trim();
-					}
-				} catch (_) {}
-
-				if (!Number.isFinite(hitLat) || !Number.isFinite(hitLon)) {
-					const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&namedetails=1&countrycodes=in&limit=1&accept-language=en&q=${encodeURIComponent(q)}`;
-					const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
-					if (!res.ok) return;
-					const results = await res.json();
-					if (!Array.isArray(results) || !results.length) {
-						setVenueHint("Place not found. Click the map or drag a pin to set the location.");
-						return;
-					}
-					const hit = results[0];
-					hitLat = parseFloat(hit.lat);
-					hitLon = parseFloat(hit.lon);
-					formatted = formatStreetAreaPin(hit.address || {}, hit.display_name || hit.name);
-				}
-
-				if (!Number.isFinite(hitLat) || !Number.isFinite(hitLon)) {
-					setVenueHint("Place not found. Click the map or drag a pin to set the location.");
+			if (q.length < 3 || !window.google || !window.google.maps || !window.google.maps.Geocoder) return;
+			setVenueHint("Finding this place on the map\u2026");
+			const geocoder = new window.google.maps.Geocoder();
+			geocoder.geocode({ address: q, componentRestrictions: { country: "IN" } }, (results, status) => {
+				if (status === "ZERO_RESULTS" || !results || !results.length) {
+					setVenueHint("No matching locations found. Try a more complete address.");
+					setVenueStatus("");
 					return;
 				}
-
-				plotVenuePin(hitLat, hitLon, { fly: true, reverse: false });
-				if (formatted) {
-					const typed = q;
-					const merged = (!formatted.toLowerCase().includes(typed.toLowerCase()) && typed.length <= 48 && !/,/.test(typed) && !/\d{6}/.test(typed))
-						? `${typed}, ${formatted}`
-						: formatted;
-					fillVenueAddress(merged);
-					if (venueMarker) venueMarker.bindPopup(merged.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))).openPopup();
+				if (status !== "OK") {
+					setVenueHint("Unable to find the location. Please try again.");
+					return;
 				}
-			} catch (_) {
-				setVenueHint("Could not search that place. Click the map to drop a pin.");
-			}
+				const hit = results[0];
+				const loc = hit.geometry && hit.geometry.location;
+				if (!loc) {
+					setVenueHint("Unable to find the location. Please try again.");
+					return;
+				}
+				plotVenuePin(loc.lat(), loc.lng(), { fly: true, reverse: false, placeId: hit.place_id || "" });
+				fillVenueAddress(hit.formatted_address || q, {
+					detected: true,
+					hint: "Location detected automatically",
+					status: "Location detected automatically",
+				});
+			});
+		}
+
+		function bindVenueAutocomplete(input) {
+			if (!input || venueAutocomplete || !window.google || !window.google.maps || !window.google.maps.places) return;
+			venueAutocomplete = new window.google.maps.places.Autocomplete(input, {
+				fields: ["place_id", "formatted_address", "name", "geometry"],
+				componentRestrictions: { country: "in" },
+			});
+			if (venueMap) venueAutocomplete.bindTo("bounds", venueMap);
+			venueAutocomplete.addListener("place_changed", () => {
+				const place = venueAutocomplete.getPlace();
+				if (!place || !place.geometry || !place.geometry.location) {
+					setVenueHint("Select a suggestion to set your location.");
+					setVenueStatus("");
+					return;
+				}
+				const loc = place.geometry.location;
+				const label = place.formatted_address || place.name || input.value;
+				plotVenuePin(loc.lat(), loc.lng(), { fly: true, reverse: false, placeId: place.place_id || "" });
+				fillVenueAddress(label, {
+					detected: true,
+					hint: "Location detected automatically",
+					status: "Location detected automatically",
+				});
+			});
 		}
 
 		function fillLocationFields(detail) {
@@ -877,34 +843,76 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			return { city, pin, address: areaLine, lat, lon };
 		}
 
-		function initSettingsVenueMap() {
-			ensureVenueMap();
+		async function initSettingsVenueMap() {
 			const input = document.getElementById("setLocationCity");
 			if (input) {
+				input.setAttribute("autocomplete", "off");
+				input.setAttribute("placeholder", "Search your area or address");
+			}
+			setVenueHint("Loading the map\u2026");
+			if (!window.JodGoogleMaps || typeof window.JodGoogleMaps.load !== "function") {
+				setVenueHint("Unable to load the map. Please refresh and try again.");
+				return;
+			}
+			try {
+				await window.JodGoogleMaps.load("places");
+			} catch (_) {
+				setVenueHint("Unable to load the map. Please refresh and try again.");
+				return;
+			}
+			if (!ensureVenueMap()) {
+				setVenueHint("Unable to load the map. Please refresh and try again.");
+				return;
+			}
+
+			bindVenueAutocomplete(input);
+			if (input && !venueInputBound) {
+				venueInputBound = true;
 				input.addEventListener("input", () => {
 					if (venueFillingFromMap) return;
 					input.dataset.dirty = "1";
-					clearTimeout(venueGeocodeTimer);
-					venueGeocodeTimer = setTimeout(() => geocodeVenueQuery(input.value), 650);
 				});
 				input.addEventListener("keydown", (e) => {
-					if (e.key === "Enter") {
-						e.preventDefault();
-						clearTimeout(venueGeocodeTimer);
-						geocodeVenueQuery(input.value);
-					}
+					if (e.key === "Enter") e.preventDefault();
 				});
+				const adjustBtn = document.getElementById("btnAdjustSettingsVenue");
+				if (adjustBtn) {
+					adjustBtn.addEventListener("click", () => {
+						if (!venueMarker) {
+							setVenueHint("Select a place from the suggestions first.");
+							if (input) input.focus();
+							return;
+						}
+						venueAdjustMode = true;
+						setVenueHint("Drag the marker to adjust your exact location.");
+						setVenueStatus("");
+						invalidateVenueMap();
+						if (venueMarker.getPosition()) venueMap.panTo(venueMarker.getPosition());
+					});
+				}
 			}
+
 			const stored = readStoredLocation();
 			const lat = stored.lat != null ? stored.lat : readVenueCoord("settingsVenueLat");
 			const lon = stored.lon != null ? stored.lon : readVenueCoord("settingsVenueLon");
+			let placeId = "";
+			try { placeId = localStorage.getItem("jod_user_place_id") || sessionStorage.getItem("jod_user_place_id") || ""; } catch (_) {}
 			if (lat != null && lon != null) {
-				plotVenuePin(lat, lon, { fly: true, reverse: true });
+				plotVenuePin(lat, lon, { fly: true, reverse: false, placeId: placeId || "" });
+				if (input && input.value.trim() && !isAdminAddress(input.value)) {
+					setVenueHint("Location detected automatically", true);
+					setVenueStatus("Location detected automatically");
+				} else {
+					reverseGeocodeVenue(lat, lon);
+				}
 			} else if (input && input.value.trim().length >= 3 && !isAdminAddress(input.value)) {
 				geocodeVenueQuery(input.value.trim());
+			} else {
+				setVenueHint("Search a place. The map moves automatically when you select a result.");
+				setVenueStatus("");
 			}
-			setTimeout(() => invalidateVenueMap(), 250);
-			setTimeout(() => invalidateVenueMap(), 800);
+			setTimeout(() => invalidateVenueMap(), 120);
+			setTimeout(() => invalidateVenueMap(), 400);
 		}
 
 		function renderSettingsHeader() {
@@ -1122,6 +1130,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				const city = extractCityFromSavedAddress(address);
 				const lat = readVenueCoord("settingsVenueLat");
 				const lon = readVenueCoord("settingsVenueLon");
+				const placeId = ((document.getElementById("settingsVenuePlaceId") || {}).value || "").trim();
 				let u = getUser() || {};
 				u.full_name = fullName;
 				u.email = email;
@@ -1151,8 +1160,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						localStorage.setItem("jod_user_lon", String(lon));
 						sessionStorage.setItem("jod_user_lon", String(lon));
 					}
+					if (placeId) {
+						localStorage.setItem("jod_user_place_id", placeId);
+						sessionStorage.setItem("jod_user_place_id", placeId);
+					}
 				} catch (_) {}
-				if (address && typeof window.fallbackManualEntry === "function") {
+				if (lat != null && lon != null && typeof window.sendLocationToBackend === "function") {
+					try { await window.sendLocationToBackend(lat, lon); } catch (_) {}
+				} else if (address && typeof window.fallbackManualEntry === "function") {
 					try { await window.fallbackManualEntry(address, pin || undefined); } catch (_) {}
 				} else if (address && window.updateProfileLocation) {
 					window.updateProfileLocation({ city: city || address, location_pincode: pin });

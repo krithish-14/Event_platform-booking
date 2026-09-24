@@ -280,6 +280,16 @@ async function initOrganizerDashboard() {
 		return currentLifecycle === "published" || currentLifecycle === "live";
 	}
 
+	function isOverviewLifecycle(life) {
+		const l = String(life == null ? currentLifecycle : life).toLowerCase();
+		return l === "published" || l === "live" || l === "ended";
+	}
+
+	function setPublishedHeaderTitle(title) {
+		if (!dashEventTitle || !title) return;
+		if (isOverviewLifecycle()) dashEventTitle.textContent = title;
+	}
+
 	function toIstIsoFromDatetimeLocal(value) {
 		if (!value) return undefined;
 		if (value.includes("Z") || value.includes("+")) return value;
@@ -1577,6 +1587,19 @@ async function initOrganizerDashboard() {
 		renderOverviewState();
 	}
 
+	function paintDraftOverview() {
+		hasEvent = false;
+		sessionStorage.removeItem(`has_event_${email}`);
+		if (dashEventTitle) dashEventTitle.textContent = "My Events Dashboard";
+		if (dashEventMeta) dashEventMeta.textContent = "";
+		zeroHostKpis();
+		if (emptyStateCard) emptyStateCard.style.display = "flex";
+		if (populatedOverviewGrid) populatedOverviewGrid.style.display = "none";
+		applyLifecycleStatusBadge();
+		updateLifecycleBanners();
+		applySectionActionLabels();
+	}
+
 	function clearHostWorkspaceForms() {
 		pendingManageEvent = null;
 		pendingHostDesignData = null;
@@ -1640,9 +1663,22 @@ async function initOrganizerDashboard() {
 				const d = await res.json();
 				if (d.customer_id) activeCustomerId = d.customer_id;
 				if (d.host_id) activeHostId = d.host_id;
-				const life = String(d.lifecycle || d.event_status || "").toLowerCase();
-				if (!d.has_event || life === "cancelled" || life === "unpublished") {
+				const life = String(d.lifecycle || d.event_status || currentLifecycle || "").toLowerCase();
+				if (life === "cancelled" || life === "unpublished") {
 					paintEmptyHostDashboard();
+					return;
+				}
+				if (!d.has_event || !isOverviewLifecycle(life)) {
+					if (d.event_id) {
+						activeEventId = d.event_id;
+						sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
+					}
+					if (life) currentLifecycle = life;
+					if (d.event_id || activeEventId) {
+						paintDraftOverview();
+					} else {
+						paintEmptyHostDashboard();
+					}
 					return;
 				}
 				if (d.has_event) {
@@ -3407,7 +3443,7 @@ async function initOrganizerDashboard() {
 				pendingManageEvent = hostData.event;
 				if (hostData.event.event_title && eventTitleInput) {
 					eventTitleInput.value = hostData.event.event_title;
-					if (dashEventTitle) dashEventTitle.textContent = hostData.event.event_title;
+					setPublishedHeaderTitle(hostData.event.event_title);
 				}
 				if (hostData.event.event_category) {
 					const catSel = document.getElementById("eventCategorySelect");
@@ -3953,8 +3989,8 @@ async function initOrganizerDashboard() {
 			metaText += ` \u2022 ${locationInput.value.trim()}`;
 		}
 
-		if (dashEventTitle) dashEventTitle.textContent = title;
-		if (dashEventMeta) dashEventMeta.textContent = metaText;
+		setPublishedHeaderTitle(title);
+		if (dashEventMeta && isOverviewLifecycle()) dashEventMeta.textContent = metaText;
 
 		updateEventPagePreview({
 			event_id: activeEventId,
@@ -4572,7 +4608,7 @@ async function initOrganizerDashboard() {
 		if (!event) return;
 		if (eventTitleInput && event.event_title) {
 			eventTitleInput.value = event.event_title;
-			if (dashEventTitle) dashEventTitle.textContent = event.event_title;
+			setPublishedHeaderTitle(event.event_title);
 		}
 		const catSel = document.getElementById("eventCategorySelect");
 		if (catSel && event.event_category) catSel.value = event.event_category;

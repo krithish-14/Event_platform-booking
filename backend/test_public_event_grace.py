@@ -8,6 +8,7 @@ from APIs.host_events_api import (
     compute_event_lifecycle,
     is_cleared_host_event,
     is_ended_dashboard_expired,
+    is_overview_lifecycle,
 )
 
 
@@ -72,6 +73,29 @@ def test_grace_window_is_48_hours():
     assert ENDED_DASHBOARD_GRACE == timedelta(hours=48)
 
 
+def test_overview_hidden_until_otp_publish():
+    draft = _host_event(4, 8, status="draft")
+    assert compute_event_lifecycle(draft) == "ready_to_publish"
+    assert is_overview_lifecycle(draft) is False
+
+    untitled = SimpleNamespace(
+        event_status="draft",
+        event_start_date=None,
+        event_end_date=None,
+        event_start_time=None,
+        event_end_time=None,
+        event_title="My New Event",
+        event_category=None,
+        venue="Some venue only",
+    )
+    assert compute_event_lifecycle(untitled) == "draft"
+    assert is_overview_lifecycle(untitled) is False
+
+    published = _host_event(4, 8, status="published")
+    assert compute_event_lifecycle(published) in ("published", "live")
+    assert is_overview_lifecycle(published) is True
+
+
 if __name__ == "__main__":
     test_ended_event_leaves_public_immediately()
     test_upcoming_event_stays_public()
@@ -79,4 +103,5 @@ if __name__ == "__main__":
     test_ended_event_leaves_host_dashboard_after_48_hours()
     test_history_lifecycle_is_ended_immediately()
     test_grace_window_is_48_hours()
+    test_overview_hidden_until_otp_publish()
     print("host dashboard grace ok")
