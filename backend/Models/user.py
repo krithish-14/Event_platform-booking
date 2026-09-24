@@ -29,6 +29,8 @@ class User(Base):
     full_name       = Column(String(200), nullable=True)
     phone           = Column(String(15), nullable=True)
     hashed_password = Column(String(255), nullable=False)
+    google_user_id  = Column(String(64), unique=True, nullable=True, index=True)
+    auth_provider   = Column(String(20), nullable=True)
     bio             = Column(Text, nullable=True)
     avatar_url      = Column(String(500), nullable=True)
     notification_read_ids = Column(JSONType, nullable=True)

@@ -536,54 +536,40 @@
 .btn-google-auth.is-loading .btn-google-icon { display: none; }
 .btn-google-auth.is-loading .btn-label { opacity: .7; }
 
-/* --- Google Dev Modal Dialog --- */
-.google-modal-backdrop {
-	position: fixed;
-	inset: 0;
-	z-index: 10000;
-	display: none;
-	align-items: center;
-	justify-content: center;
-	background: rgba(0, 0, 0, 0.75);
-	backdrop-filter: blur(8px);
-	padding: 1rem;
-	animation: fadeIn .25s ease-out;
-}
-
-.google-modal-box {
+.google-auth-wrap {
+	position: relative;
 	width: 100%;
-	max-width: 440px;
-	border-radius: 1.25rem;
-	background: #221e1a;
-	border: 1px solid rgba(255, 255, 255, 0.15);
-	padding: 1.75rem;
-	box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
-	animation: slideUp .3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.google-modal-header {
-	display: flex;
-	align-items: center;
-	gap: 1rem;
-	padding-bottom: 1rem;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.g-chip {
-	padding: .35rem .75rem;
-	border-radius: 2rem;
-	border: 1px solid rgba(255, 255, 255, 0.15);
-	background: rgba(255, 255, 255, 0.06);
-	color: rgba(255, 255, 255, 0.85);
-	font-size: .75rem;
+.google-gsi-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	opacity: 0.01;
+	overflow: hidden;
+	border-radius: .875rem;
 	cursor: pointer;
-	transition: background .2s, border-color .2s;
 }
 
-.g-chip:hover {
-	background: var(--primary);
-	border-color: var(--primary);
-	color: #fff;
+.google-gsi-overlay:empty,
+.google-gsi-overlay.is-blocked {
+	pointer-events: none;
+}
+
+.google-auth-wrap.is-google-ready .btn-google-auth {
+	pointer-events: none;
+}
+
+.google-gsi-overlay > div {
+	position: absolute !important;
+	inset: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+}
+
+.google-gsi-overlay iframe {
+	min-width: 100% !important;
+	height: 100% !important;
 }
 
 .auth-social-row {

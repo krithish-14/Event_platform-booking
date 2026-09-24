@@ -39,23 +39,17 @@ def _rs256_shaped_jwt() -> str:
     return f"{header}.{body}.c2lnbmF0dXJl"
 
 
-def _tokeninfo_ok(**overrides):
+def _google_info_ok(**overrides):
     payload = {
         "email": "User@Example.com",
         "email_verified": True,
         "aud": "jod-client.apps.googleusercontent.com",
         "iss": "https://accounts.google.com",
         "name": "User",
+        "sub": "google-sub-1",
     }
     payload.update(overrides)
-    fake_resp = MagicMock()
-    fake_resp.status_code = 200
-    fake_resp.json.return_value = payload
-    mock_client = AsyncMock()
-    mock_client.get.return_value = fake_resp
-    mock_client.__aenter__.return_value = mock_client
-    mock_client.__aexit__.return_value = False
-    return mock_client
+    return payload
 
 
 class GoogleTokenVerificationTests(unittest.IsolatedAsyncioTestCase):
@@ -63,25 +57,15 @@ class GoogleTokenVerificationTests(unittest.IsolatedAsyncioTestCase):
         from APIs.auth import _verify_google_id_token
 
         with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
-            with patch("APIs.auth.httpx.AsyncClient") as mock_http:
-                with self.assertRaises(HTTPException) as ctx:
-                    await _verify_google_id_token(_unsigned_google_jwt("victim@example.com"))
+            with self.assertRaises(HTTPException) as ctx:
+                await _verify_google_id_token(_unsigned_google_jwt("victim@example.com"))
         self.assertEqual(ctx.exception.status_code, 400)
-        mock_http.assert_not_called()
 
     async def test_google_verify_failure_is_rejected(self):
         from APIs.auth import _verify_google_id_token
 
-        fake_resp = MagicMock()
-        fake_resp.status_code = 400
-        fake_resp.json.return_value = {"error": "invalid_token"}
-        mock_client = AsyncMock()
-        mock_client.get.return_value = fake_resp
-        mock_client.__aenter__.return_value = mock_client
-        mock_client.__aexit__.return_value = False
-
         with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
-            with patch("APIs.auth.httpx.AsyncClient", return_value=mock_client):
+            with patch("google.oauth2.id_token.verify_oauth2_token", side_effect=ValueError("invalid token")):
                 with self.assertRaises(HTTPException) as ctx:
                     await _verify_google_id_token(_rs256_shaped_jwt())
         self.assertEqual(ctx.exception.status_code, 400)
@@ -89,9 +73,8 @@ class GoogleTokenVerificationTests(unittest.IsolatedAsyncioTestCase):
     async def test_wrong_audience_is_rejected(self):
         from APIs.auth import _verify_google_id_token
 
-        mock_client = _tokeninfo_ok(aud="some-other-app.apps.googleusercontent.com")
         with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
-            with patch("APIs.auth.httpx.AsyncClient", return_value=mock_client):
+            with patch("google.oauth2.id_token.verify_oauth2_token", return_value=_google_info_ok(aud="some-other-app.apps.googleusercontent.com")):
                 with self.assertRaises(HTTPException) as ctx:
                     await _verify_google_id_token(_rs256_shaped_jwt())
         self.assertEqual(ctx.exception.status_code, 400)
@@ -99,9 +82,8 @@ class GoogleTokenVerificationTests(unittest.IsolatedAsyncioTestCase):
     async def test_wrong_issuer_is_rejected(self):
         from APIs.auth import _verify_google_id_token
 
-        mock_client = _tokeninfo_ok(iss="https://evil.example")
         with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
-            with patch("APIs.auth.httpx.AsyncClient", return_value=mock_client):
+            with patch("google.oauth2.id_token.verify_oauth2_token", return_value=_google_info_ok(iss="https://evil.example")):
                 with self.assertRaises(HTTPException) as ctx:
                     await _verify_google_id_token(_rs256_shaped_jwt())
         self.assertEqual(ctx.exception.status_code, 400)
@@ -109,9 +91,8 @@ class GoogleTokenVerificationTests(unittest.IsolatedAsyncioTestCase):
     async def test_unverified_email_is_rejected(self):
         from APIs.auth import _verify_google_id_token
 
-        mock_client = _tokeninfo_ok(email_verified=False)
         with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
-            with patch("APIs.auth.httpx.AsyncClient", return_value=mock_client):
+            with patch("google.oauth2.id_token.verify_oauth2_token", return_value=_google_info_ok(email_verified=False)):
                 with self.assertRaises(HTTPException) as ctx:
                     await _verify_google_id_token(_rs256_shaped_jwt())
         self.assertEqual(ctx.exception.status_code, 400)
@@ -119,11 +100,90 @@ class GoogleTokenVerificationTests(unittest.IsolatedAsyncioTestCase):
     async def test_valid_tokeninfo_is_accepted(self):
         from APIs.auth import _verify_google_id_token
 
-        mock_client = _tokeninfo_ok()
         with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
-            with patch("APIs.auth.httpx.AsyncClient", return_value=mock_client):
+            with patch("google.oauth2.id_token.verify_oauth2_token", return_value=_google_info_ok()):
                 info = await _verify_google_id_token(_rs256_shaped_jwt())
         self.assertEqual(info["email"], "user@example.com")
+
+    async def test_expired_token_has_friendly_message(self):
+        from APIs.auth import _verify_google_id_token
+
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
+            with patch("google.oauth2.id_token.verify_oauth2_token", side_effect=ValueError("Token expired")):
+                with self.assertRaises(HTTPException) as ctx:
+                    await _verify_google_id_token(_rs256_shaped_jwt())
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("expired", str(ctx.exception.detail).lower())
+
+
+class GoogleAccountLinkingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from FastAPI.main import app
+        cls.app = app
+
+    def _register(self, email=None):
+        from fastapi.testclient import TestClient
+        email = email or f"link_{uuid.uuid4().hex[:10]}@example.com"
+        username = f"u{uuid.uuid4().hex[:12]}"
+        client = TestClient(self.app)
+        res = client.post(
+            "/api/auth/register",
+            json={
+                "email": email,
+                "username": username,
+                "password": "Passw0rd1",
+                "full_name": "Link Tester",
+                "phone": "9876543210",
+                "accepted_privacy_policy": True,
+            },
+        )
+        return client, email, res
+
+    def _google_post(self, client, email, sub):
+        info = _google_info_ok(email=email, sub=sub, name="Google Name")
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
+            with patch("google.oauth2.id_token.verify_oauth2_token", return_value=info):
+                return client.post("/api/auth/google", json={"credential": _rs256_shaped_jwt()})
+
+    def test_existing_password_user_is_linked_not_duplicated(self):
+        client, email, reg = self._register()
+        if reg.status_code not in (200, 201):
+            self.skipTest(f"register unavailable ({reg.status_code})")
+        customer_id = (reg.json() or {}).get("user", {}).get("customer_id")
+        res = self._google_post(client, email, f"sub-{uuid.uuid4().hex[:12]}")
+        self.assertEqual(res.status_code, 200)
+        body = res.json() or {}
+        self.assertEqual((body.get("user") or {}).get("customer_id"), customer_id)
+        login = client.post("/api/auth/login", data={"username": email, "password": "Passw0rd1"})
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual((login.json() or {}).get("user", {}).get("customer_id"), customer_id)
+
+    def test_repeat_google_login_reuses_same_account(self):
+        email = f"gnew_{uuid.uuid4().hex[:10]}@example.com"
+        from fastapi.testclient import TestClient
+        client = TestClient(self.app)
+        sub = f"sub-{uuid.uuid4().hex[:12]}"
+        first = self._google_post(client, email, sub)
+        if first.status_code != 200:
+            self.skipTest(f"google auth unavailable ({first.status_code})")
+        first_id = (first.json() or {}).get("user", {}).get("customer_id")
+        self.assertTrue(str(first_id or "").startswith("CUST-"))
+        second = self._google_post(client, email, sub)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual((second.json() or {}).get("user", {}).get("customer_id"), first_id)
+        self.assertEqual((second.json() or {}).get("user", {}).get("is_admin"), False)
+
+    def test_roles_are_not_changed_on_google_login(self):
+        client, email, reg = self._register()
+        if reg.status_code not in (200, 201):
+            self.skipTest(f"register unavailable ({reg.status_code})")
+        self.assertFalse((reg.json() or {}).get("user", {}).get("is_admin"))
+        res = self._google_post(client, email, f"sub-{uuid.uuid4().hex[:12]}")
+        self.assertEqual(res.status_code, 200)
+        user = (res.json() or {}).get("user") or {}
+        self.assertFalse(user.get("is_admin"))
+        self.assertEqual(user.get("role"), "attendee")
 
 
 def _sensitive_keys_present(obj) -> bool:

@@ -277,11 +277,5 @@ def validate_production_env() -> None:
         raise RuntimeError("ADMIN_PASSWORD is too weak or still a placeholder.")
 
     google_id = (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
-    if google_id and not _looks_placeholder(google_id):
-        secret = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip()
-        if not secret or _looks_placeholder(secret):
-            raise RuntimeError("GOOGLE_CLIENT_SECRET is required when Google login is enabled.")
-        try:
-            resolve_google_redirect(os.getenv("GOOGLE_REDIRECT_URI"))
-        except ValueError as exc:
-            raise RuntimeError(str(exc)) from exc
+    if google_id and _looks_placeholder(google_id):
+        raise RuntimeError("GOOGLE_CLIENT_ID is still a placeholder.")

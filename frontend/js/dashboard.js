@@ -377,72 +377,102 @@
 		return list;
 	}
 
-	function renderBookingsTable(list) {
-		const container = document.getElementById("recentBookingsContainer");
+	function bookingStatus(b) {
+		if (isCancelled(b)) return { cls: "cancelled", label: "Cancelled" };
+		if (isPending(b)) return { cls: "pending", label: "Awaiting ticket" };
+		if (isCheckedIn(b)) return { cls: "completed", label: "Checked in" };
+		if (isUpcomingRow(b)) return { cls: "upcoming", label: "Upcoming" };
+		return { cls: "completed", label: "Completed" };
+	}
+
+	function formatWhen(iso) {
+		if (!iso) return "Date TBA";
+		try {
+			return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+		} catch (_) {
+			return String(iso);
+		}
+	}
+
+	function renderEventCards(container, list, emptyHtml) {
 		if (!container) return;
 		if (!list.length) {
-			container.innerHTML = `
-				<div class="empty-state">
-					<div class="empty-icon">\ud83c\udf9f\ufe0f</div>
-					<p>You haven't booked any events yet.<br>
-					<a href="index.html#upcoming" style="color:var(--primary);font-weight:600">Explore upcoming events &rarr;</a></p>
-				</div>`;
+			container.innerHTML = emptyHtml;
 			return;
 		}
-
-		const rows = list.slice(0, 8).map((b) => {
-			const cancelled = isCancelled(b);
-			const pending = isPending(b);
-			const upcomingRow = isUpcomingRow(b);
-			let statusClass = "completed";
-			let statusLabel = "Completed";
-			if (cancelled) {
-				statusClass = "cancelled";
-				statusLabel = "Cancelled";
-			} else if (pending) {
-				statusClass = "pending";
-				statusLabel = "Awaiting ticket";
-			} else if (isCheckedIn(b)) {
-				statusClass = "completed";
-				statusLabel = "Checked in";
-			} else if (upcomingRow) {
-				statusClass = "upcoming";
-				statusLabel = "Upcoming";
-			}
-			const eventId = encodeURIComponent(b.event_id || "");
-			const bookingId = encodeURIComponent(b.booking_id || "");
-			const href = b.booking_id
-				? `ticket-details.html?id=${bookingId}`
-				: (eventId ? `event-details.html?id=${eventId}` : "orders.html");
-			const actionLabel = b.booking_id ? "View" : "Open";
-			const hideActions = cancelled || isCheckedIn(b);
-			const actionCell = hideActions
-				? ""
-				: `<a class="view-booking-btn" href="${href}">${actionLabel}</a>`;
-			return `
-				<tr class="${cancelled ? "is-cancelled" : ""}">
-					<td style="font-weight:600;color:var(--foreground);">${escapeHtml(b.event_title || "Event")}</td>
-					<td>${escapeHtml(b.ticket_type || "Ticket")} (x${Number(b.quantity || 1)})</td>
-					<td style="font-weight:700;color:#16a34a;">\u20b9${Number(b.total_price || 0).toLocaleString("en-IN")}</td>
-					<td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
-					<td>${actionCell}</td>
-				</tr>`;
+		container.innerHTML = list.map((b) => {
+			const st = bookingStatus(b);
+			const venue = escapeHtml(b.event_venue || b.venue || "Venue TBA");
+			const when = escapeHtml(formatWhen(b.event_start_date));
+			const ticket = escapeHtml(b.ticket_type || "Ticket");
+			const qty = Number(b.quantity || 1);
+			const amount = Number(b.total_price || 0).toLocaleString("en-IN");
+			return `<article class="profile-event-card">
+				<h3>${escapeHtml(b.event_title || "Event")}</h3>
+				<p>${when} \u00b7 ${venue}</p>
+				<div class="profile-event-meta">
+					<span>${ticket} (x${qty})</span>
+					<span class="profile-event-amount">\u20b9${amount}</span>
+					<span class="status-pill ${st.cls}">${st.label}</span>
+				</div>
+			</article>`;
 		}).join("");
+	}
 
-		container.innerHTML = `
-			<div style="overflow-x:auto;">
-			<table class="bookings-table">
-				<thead>
-					<tr>
-						<th>Event</th>
-						<th>Ticket / Qty</th>
-						<th>Amount</th>
-						<th>Status</th>
-						<th></th>
-					</tr>
-				</thead>
-				<tbody>${rows}</tbody>
-			</table></div>`;
+	function switchProfileTab(name, opts) {
+		const tab = String(name || "settings").toLowerCase();
+		const allowed = { settings: true, bookings: true, attended: true };
+		const next = allowed[tab] ? tab : "settings";
+		document.querySelectorAll("[data-profile-tab]").forEach((btn) => {
+			btn.classList.toggle("is-active", btn.getAttribute("data-profile-tab") === next);
+		});
+		document.querySelectorAll("[data-profile-panel]").forEach((panel) => {
+			panel.classList.toggle("is-active", panel.getAttribute("data-profile-panel") === next);
+		});
+		if (!opts || opts.updateHash !== false) {
+			const hash = "#" + next;
+			if ((window.location.hash || "").toLowerCase() !== hash) {
+				history.replaceState(null, "", hash);
+			}
+		}
+		if (next === "settings") {
+			setTimeout(() => {
+				if (typeof window.invalidateVenueMap === "function") window.invalidateVenueMap();
+				else {
+					try {
+						if (window.google && window.google.maps) {
+							window.google.maps.event.trigger(window, "resize");
+						}
+					} catch (_) {}
+				}
+			}, 80);
+		}
+	}
+
+	function tabFromHash() {
+		const raw = (window.location.hash || "").replace("#", "").toLowerCase();
+		if (raw === "bookings" || raw === "booking" || raw === "totalbookingevents") return "bookings";
+		if (raw === "attended" || raw === "eventsattended") return "attended";
+		if (
+			raw === "settings"
+			|| raw === "profilesection"
+			|| raw === "profile"
+			|| raw === "securitysection"
+			|| raw === "security"
+			|| raw === "notificationsettingssection"
+			|| raw === "notifications"
+		) return "settings";
+		return "settings";
+	}
+
+	function bindProfileTabs() {
+		document.querySelectorAll("[data-profile-tab]").forEach((btn) => {
+			btn.addEventListener("click", () => switchProfileTab(btn.getAttribute("data-profile-tab")));
+		});
+		window.addEventListener("hashchange", () => {
+			switchProfileTab(tabFromHash(), { updateHash: false });
+		});
+		switchProfileTab(tabFromHash(), { updateHash: false });
 	}
 
 	async function loadMyBookings() {
@@ -469,7 +499,16 @@
 
 		if (totalVal) totalVal.textContent = String(uniqueEventCount(active));
 		if (attendedVal) attendedVal.textContent = String(uniqueEventCount(attended));
-		renderBookingsTable(list);
+		renderEventCards(
+			document.getElementById("profileBookingsList"),
+			active,
+			`<div class="empty-state"><div class="empty-icon">\ud83c\udf9f\ufe0f</div><p>You haven't booked any events yet.<br><a href="index.html#upcoming" style="color:var(--primary);font-weight:600">Explore upcoming events &rarr;</a></p></div>`
+		);
+		renderEventCards(
+			document.getElementById("profileAttendedList"),
+			attended,
+			`<div class="empty-state"><div class="empty-icon">\u2705</div><p>You have not attended an event yet.</p></div>`
+		);
 		return list;
 	}
 
@@ -490,7 +529,6 @@
 		paintProfile(freshUser || getUser());
 		renderDashboardAvatar();
 		await Promise.all([
-			loadLiveUpcoming(),
 			loadMyBookings(),
 			loadWishlistCount()
 		]);
@@ -506,6 +544,7 @@
 		const authed = await window.JodAuth.requireAuthOrRedirect({ redirectTo: currentTarget });
 		if (!authed) return;
 		bindAvatarUpload();
+		bindProfileTabs();
 		await hydrate();
 	}
 

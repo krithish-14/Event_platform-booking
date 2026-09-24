@@ -824,10 +824,9 @@
 
  const items = [
  ...(isAdminUser(user) ? [{ label: "Admin", href: "admin-portal.html", icon: adminIcon() }] : []),
- { label: "Dashboard", href: "dashboard.html", icon: dashboardIcon() },
+ { label: "Profile", href: "dashboard.html", icon: dashboardIcon() },
  { label: "Your Orders", href: "orders.html", icon: ordersIcon() },
  { label: "Your Wishlist", href: "wishlist.html", icon: wishlistIcon() },
- { label: "Settings", href: "settings.html", icon: settingsIcon() },
  { label: "Notifications", href: "notifications.html", icon: notificationsIcon(), badge: true },
  { label: "Help & Support", href: "help.html", icon: helpIcon() },
  ];
@@ -849,8 +848,8 @@
  return hash === `#${hrefHash}`;
  }
 
- if (path === "settings.html") {
- return !hash || hash === "#profilesection" || hash === "#profile" || hash === "#securitysection" || hash === "#security";
+ if (path === "dashboard.html" || path === "settings.html") {
+ return hrefFile === "dashboard.html";
  }
 
  return true;

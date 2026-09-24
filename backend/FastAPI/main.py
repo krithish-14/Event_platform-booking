@@ -105,7 +105,9 @@ app = FastAPI(
 
 def _cors_allow_origins() -> list[str]:
     """Public site origins for credentialed browser requests. Apex + www both allowed."""
-    extra = ("https://jodevents.com", "https://www.jodevents.com")
+    extra = ["https://jodevents.com", "https://www.jodevents.com"]
+    if not is_production():
+        extra.extend(["http://127.0.0.1:5500", "http://localhost:5500"])
     seen: set[str] = set()
     out: list[str] = []
     for origin in [*cors_origins(), *extra]:

@@ -1181,6 +1181,58 @@ body.home-page .hero.hero-slide-in .hero-copy {
 	z-index: 0;
 }
 
+.hero:not(.has-live-event) .hero-image {
+	visibility: hidden;
+}
+
+.hero-idle-slideshow {
+	position: absolute;
+	top: var(--hero-header-offset, 140px);
+	left: 0;
+	right: 0;
+	height: var(--hero-banner-height, 530px);
+	z-index: 0;
+	overflow: hidden;
+	pointer-events: none;
+	contain: strict;
+	background: #0a0806;
+}
+
+.hero.has-live-event .hero-idle-slideshow,
+.hero-idle-slideshow[hidden] {
+	display: none !important;
+}
+
+.hero-idle-base,
+.hero-idle-fade {
+	position: absolute;
+	inset: 0;
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.hero-idle-fade {
+	opacity: 1;
+	z-index: 1;
+}
+
+.hero-idle-fade.is-fading {
+	animation: heroIdleFadeOut 0.7s ease-in-out forwards;
+}
+
+@keyframes heroIdleFadeOut {
+	from { opacity: 1; }
+	to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.hero-idle-fade.is-fading {
+		animation: none;
+		opacity: 0;
+	}
+}
+
 .hero-overlay {
 	position: absolute;
 	top: var(--hero-header-offset, 140px);
@@ -1355,6 +1407,22 @@ h2 em {
 	margin: 0 0 .65rem 0;
 	padding: .35rem .9rem;
 	font-size: .75rem;
+}
+
+/* Empty hero: drop leftover featured chrome */
+.hero:not(.has-featured-event) .inline-featured-label,
+.hero:not(.has-featured-event) .hero-category,
+.hero:not(.has-featured-event) .hero-countdown,
+.hero:not(.has-featured-event) .hero-event-meta,
+.hero:not(.has-featured-event) .button-row,
+.hero:not(.has-featured-event) .featured-event {
+	display: none !important;
+}
+
+/* Tag + explore CTA only while the featured event is live */
+.hero:not(.has-live-event) .inline-featured-label,
+.hero:not(.has-live-event) .button-row {
+	display: none !important;
 }
 
 .hero-countdown {

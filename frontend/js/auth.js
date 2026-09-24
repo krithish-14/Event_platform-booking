@@ -1354,28 +1354,42 @@ window.JodAuth = (() => {
 	}
 
 
-	/* \u2500\u2500 Google OAuth Integration \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+	/* \u2500\u2500 Google Identity Services \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+	function googleAlertEl() {
+		return document.querySelector("#signupForm .form-alert, #loginForm .form-alert");
+	}
+
+	function googleButtonEl() {
+		return document.getElementById("googleSignupBtn") || document.getElementById("googleLoginBtn");
+	}
+
+	function googleErrorMessage(data, status) {
+		const detail = data && data.detail;
+		const text = typeof detail === "string"
+			? detail
+			: (Array.isArray(detail) && detail[0] && detail[0].msg) ? String(detail[0].msg) : "";
+		const lower = text.toLowerCase();
+		if (lower.includes("expired")) return "Your Google sign-in session has expired. Please try again.";
+		if (lower.includes("deactivat")) return text;
+		if (text && !/traceback|sql|exception|secret|token/i.test(text)) return text;
+		if (status === 0) return "Unable to connect. Please try again.";
+		return "Google sign-in failed. Please try again.";
+	}
+
 	async function handleGoogleCredentialResponse(response, alertEl, btnEl) {
-		if (!response || (!response.credential && !response.code)) {
-			if (alertEl) showAlert(alertEl, "error", "Google authentication was cancelled or failed.");
+		if (!response || !response.credential) {
+			if (alertEl) showAlert(alertEl, "error", "Google sign-in was cancelled.");
 			return;
 		}
 		if (btnEl) setLoading(btnEl, true);
 		if (alertEl) hideAlert(alertEl);
 
 		try {
-			const payload = {};
-			if (response.credential) payload.credential = response.credential;
-			if (response.code) {
-				payload.code = response.code;
-				payload.redirect_uri = window.location.origin + window.location.pathname;
-			}
-
 			const res = await fetch(`${getApiBase()}/api/auth/google`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				credentials: "include",
-				body: JSON.stringify(payload),
+				body: JSON.stringify({ credential: response.credential }),
 			});
 
 			let data = {};
@@ -1383,74 +1397,121 @@ window.JodAuth = (() => {
 
 			if (!res.ok) {
 				clearAuth();
-				if (alertEl) showAlert(alertEl, "error", data.detail || `Google authentication failed (${res.status}).`);
+				if (alertEl) showAlert(alertEl, "error", googleErrorMessage(data, res.status));
 			} else {
 				persistAuthSession(data.access_token, data.user);
-
-				if (alertEl) showAlert(alertEl, "success", "Google Sign-In successful! Redirecting\u2026");
+				if (alertEl) showAlert(alertEl, "success", "Signed in with Google. Redirecting\u2026");
 				queueLocationPrompt(data.user);
 				queueFeaturedModalAfterLogin();
-
 				setTimeout(() => {
 					redirectAfterAuth(getRedirectTarget()).catch(() => {
 						window.location.replace(homeUrlWithFeaturedPopup());
 					});
-				}, 900);
+				}, 700);
 			}
-		} catch (err) {
-			if (alertEl) showAlert(alertEl, "error", "Unable to complete Google sign-in. Network error.");
+		} catch (_) {
+			if (alertEl) showAlert(alertEl, "error", "Unable to connect. Please try again.");
 		} finally {
 			if (btnEl) setLoading(btnEl, false);
 		}
 	}
 
 	let googleClientConfig = { client_id: "", enabled: false };
+	let googleGsiReady = false;
 
-	async function initGoogleAuth() {
-		// 1. Check if we returned from Google OAuth redirect
+	function rememberGoogleRedirect() {
 		const params = new URLSearchParams(window.location.search);
-		const code = params.get("code");
-		const alertEl = document.querySelector("#signupForm .form-alert, #loginForm .form-alert");
-		const btnEl = document.getElementById("googleSignupBtn") || document.getElementById("googleLoginBtn");
+		const redirect = params.get("redirect");
+		if (redirect) {
+			try { sessionStorage.setItem("jod_redirect_after_login", redirect); } catch (_) {}
+		}
+	}
 
-		if (code) {
-			// Remove the code from the URL so it doesn't linger or get reused
-			window.history.replaceState({}, document.title, window.location.pathname);
-			if (alertEl) showAlert(alertEl, "info", "Finalizing Google authentication...");
-			await handleGoogleCredentialResponse({ code }, alertEl, btnEl);
+	function syncGoogleSignupGate() {
+		const overlay = document.getElementById("googleGsiOverlay");
+		const wrap = overlay && overlay.closest(".google-auth-wrap");
+		const allowed = canStartGoogleSignup(false);
+		if (overlay) overlay.classList.toggle("is-blocked", !allowed);
+		if (wrap) wrap.classList.toggle("is-blocked", !allowed);
+	}
+
+	function initGoogleIdentity() {
+		const alertEl = googleAlertEl();
+		const btnEl = googleButtonEl();
+		const overlay = document.getElementById("googleGsiOverlay");
+		const wrap = overlay && overlay.closest(".google-auth-wrap");
+		if (!googleClientConfig.client_id || !window.google || !window.google.accounts || !window.google.accounts.id) {
 			return;
 		}
+		try {
+			window.google.accounts.id.initialize({
+				client_id: googleClientConfig.client_id,
+				callback: (resp) => handleGoogleCredentialResponse(resp, alertEl, btnEl),
+				auto_select: false,
+				cancel_on_tap_outside: true,
+				ux_mode: "popup",
+				context: document.getElementById("signupForm") ? "signup" : "signin",
+				itp_support: true,
+				use_fedcm_for_prompt: true,
+			});
+			if (overlay) {
+				overlay.innerHTML = "";
+				window.google.accounts.id.renderButton(overlay, {
+					type: "standard",
+					theme: "outline",
+					size: "large",
+					text: "continue_with",
+					shape: "rectangular",
+					width: Math.max(280, Math.floor((wrap && wrap.getBoundingClientRect().width) || overlay.getBoundingClientRect().width || 320)),
+				});
+			}
+			if (wrap) wrap.classList.add("is-google-ready");
+			googleGsiReady = true;
+			syncGoogleSignupGate();
+		} catch (_) {
+			googleGsiReady = false;
+		}
+	}
 
+	async function initGoogleAuth() {
+		const btnEl = googleButtonEl();
 		if (!btnEl) return;
-
 		try {
 			const res = await fetch(`${getApiBase()}/api/auth/google/config`);
 			if (res.ok) googleClientConfig = await res.json();
 		} catch (_) {}
 
-		if (googleClientConfig.client_id && !window.google?.accounts?.id) {
-			const script = document.createElement("script");
-			script.src = "https://accounts.google.com/gsi/client";
-			script.async = true;
-			script.defer = true;
-			script.onload = () => {
-				try {
-					window.google.accounts.id.initialize({
-						client_id: googleClientConfig.client_id,
-						callback: (resp) => {
-							handleGoogleCredentialResponse(resp, alertEl, btnEl);
-						},
-					});
-				} catch (_) {}
-			};
-			document.head.appendChild(script);
+		if (!googleClientConfig.enabled || !googleClientConfig.client_id) {
+			btnEl.disabled = true;
+			btnEl.setAttribute("title", "Google sign-in is not configured on the server.");
+			return;
 		}
+
+		const privacyAgree = document.getElementById("signupPrivacyAgree");
+		if (privacyAgree) privacyAgree.addEventListener("change", syncGoogleSignupGate);
+
+		if (window.google && window.google.accounts && window.google.accounts.id) {
+			initGoogleIdentity();
+			return;
+		}
+		const script = document.createElement("script");
+		script.src = "https://accounts.google.com/gsi/client";
+		script.async = true;
+		script.defer = true;
+		script.onload = initGoogleIdentity;
+		script.onerror = () => {
+			const alertEl = googleAlertEl();
+			if (alertEl) showAlert(alertEl, "error", "Unable to load Google sign-in. Please try again.");
+		};
+		document.head.appendChild(script);
 	}
 
-	async function triggerGoogleFlow(btn, alertElement) {
+	function canStartGoogleSignup(showErrors) {
 		const signupForm = document.getElementById("signupForm");
 		const privacyAgree = document.getElementById("signupPrivacyAgree");
-		if (signupForm && (!privacyAgree || !privacyAgree.checked)) {
+		if (!signupForm) return true;
+		if (privacyAgree && privacyAgree.checked) return true;
+		if (showErrors !== false) {
 			if (privacyAgree) {
 				const wrap = privacyAgree.closest(".form-group");
 				const err = wrap && wrap.querySelector(".field-error");
@@ -1461,136 +1522,63 @@ window.JodAuth = (() => {
 				privacyAgree.classList.add("has-error");
 				privacyAgree.focus();
 			}
-			if (alertElement) showAlert(alertElement, "error", "Please agree to the Privacy Policy to continue.");
+			const alertEl = googleAlertEl();
+			if (alertEl) showAlert(alertEl, "error", "Please agree to the Privacy Policy to continue.");
+		}
+		return false;
+	}
+
+	function triggerGoogleAccountPicker(alertElement) {
+		if (!canStartGoogleSignup()) return;
+		rememberGoogleRedirect();
+		if (!googleClientConfig.enabled || !googleClientConfig.client_id) {
+			if (alertElement) showAlert(alertElement, "error", "Google sign-in is not configured. Please use email and password.");
 			return;
 		}
-
-		if (btn) btn.classList.add("is-loading");
-		
-		// Preserve redirect URI if present
-		const params = new URLSearchParams(window.location.search);
-		const redirect = params.get("redirect");
-		if (redirect) {
-			sessionStorage.setItem("jod_redirect", redirect);
+		if (!googleGsiReady || !window.google || !window.google.accounts || !window.google.accounts.id) {
+			if (alertElement) showAlert(alertElement, "error", "Google sign-in is still loading. Please try again.");
+			return;
 		}
-		
 		try {
-			const res = await fetch(`${getApiBase()}/api/auth/google/url`);
-			if (!res.ok) {
-				throw new Error("Backend rejected Google Auth URL generation");
-			}
-			const data = await res.json();
-			if (data.url) {
-				window.location.href = data.url;
-			} else {
-				throw new Error("No URL returned from backend");
-			}
-		} catch (e) {
-			if (btn) btn.classList.remove("is-loading");
-			console.warn("Falling back to Google Dev Modal:", e.message);
-			openGoogleDevModal(btn, alertElement);
+			// Official Google account chooser for accounts already signed into this browser.
+			window.google.accounts.id.prompt((notification) => {
+				if (!notification) return;
+				if (notification.isNotDisplayed && notification.isNotDisplayed()) {
+					const overlay = document.getElementById("googleGsiOverlay");
+					const officialBtn = overlay && overlay.querySelector("div[role='button'], iframe");
+					if (officialBtn && typeof officialBtn.click === "function") officialBtn.click();
+					return;
+				}
+				if (notification.isSkippedMoment && notification.isSkippedMoment()) return;
+				if (notification.isDismissedMoment && notification.isDismissedMoment()) {
+					if (alertElement) showAlert(alertElement, "error", "Google sign-in was cancelled.");
+				}
+			});
+		} catch (_) {
+			if (alertElement) showAlert(alertElement, "error", "Google sign-in failed. Please try again.");
 		}
 	}
 
-	function openGoogleDevModal(btn, alertElement) {
-		let modal = document.getElementById("googleDevAuthModal");
-		if (!modal) {
-			modal = document.createElement("div");
-			modal.id = "googleDevAuthModal";
-			modal.className = "google-modal-backdrop";
-			modal.innerHTML = `
-				<div class="google-modal-box">
-					<div class="google-modal-header">
-						<svg viewBox="0 0 24 24" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
-							<path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-							<path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-							<path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z"/>
-							<path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-						</svg>
-						<div>
-							<h3 style="margin:0;font-size:1.1rem;color:#fff;font-weight:700;">Google Sign-In</h3>
-							<p style="margin:0;font-size:.8rem;color:rgba(255,255,255,.7);">Sign up or log in with your Google Account</p>
-						</div>
-					</div>
-					<div style="padding:1.25rem 0 0.5rem;">
-						<div style="display:flex;flex-direction:column;gap:.75rem;">
-							<div>
-								<label style="display:block;margin-bottom:.35rem;font-size:.8rem;color:rgba(255,255,255,.8);font-weight:600;">Google Email Address</label>
-								<input type="email" id="gModalEmail" value="user@gmail.com" style="width:100%;padding:.75rem 1rem;border-radius:.75rem;border:1px solid rgba(255,255,255,.2);background:#1a1714;color:#fff;font-size:.9rem;" />
-							</div>
-							<div>
-								<label style="display:block;margin-bottom:.35rem;font-size:.8rem;color:rgba(255,255,255,.8);font-weight:600;">Full Name</label>
-								<input type="text" id="gModalName" value="Google User" style="width:100%;padding:.75rem 1rem;border-radius:.75rem;border:1px solid rgba(255,255,255,.2);background:#1a1714;color:#fff;font-size:.9rem;" />
-							</div>
-							<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.25rem;">
-								<button type="button" class="g-chip" data-email="satheesh.google@gmail.com" data-name="Satheesh Google">satheesh.google@gmail.com</button>
-								<button type="button" class="g-chip" data-email="krithish.events@gmail.com" data-name="Krithish User">krithish.events@gmail.com</button>
-							</div>
-						</div>
-					</div>
-					<div style="display:flex;gap:.75rem;margin-top:1.25rem;">
-						<button type="button" id="gModalCancel" style="flex:1;padding:.75rem;border-radius:.75rem;border:1px solid rgba(255,255,255,.2);background:transparent;color:#fff;cursor:pointer;font-weight:600;">Cancel</button>
-						<button type="button" id="gModalSubmit" style="flex:1;padding:.75rem;border-radius:.75rem;border:none;background:var(--primary);color:#fff;cursor:pointer;font-weight:700;">Continue &rarr;</button>
-					</div>
-				</div>
-			`;
-			document.body.appendChild(modal);
-
-			modal.querySelectorAll(".g-chip").forEach(chip => {
-				chip.addEventListener("click", () => {
-					const em = chip.getAttribute("data-email");
-					const nm = chip.getAttribute("data-name");
-					const emailInp = document.getElementById("gModalEmail");
-					const nameInp = document.getElementById("gModalName");
-					if (emailInp) emailInp.value = em;
-					if (nameInp) nameInp.value = nm;
-				});
-			});
-
-			document.getElementById("gModalCancel")?.addEventListener("click", () => {
-				modal.style.display = "none";
-			});
-		}
-
-		modal.style.display = "flex";
-
-		const submitBtn = document.getElementById("gModalSubmit");
-		if (submitBtn) {
-			const newSubmitBtn = submitBtn.cloneNode(true);
-			submitBtn.parentNode.replaceChild(newSubmitBtn, submitBtn);
-
-			newSubmitBtn.addEventListener("click", () => {
-				const emailInp = document.getElementById("gModalEmail");
-				const nameInp = document.getElementById("gModalName");
-				const email = emailInp ? emailInp.value.trim() : "user@gmail.com";
-				const name = nameInp ? nameInp.value.trim() : "Google User";
-				modal.style.display = "none";
-
-				const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-				const body = btoa(JSON.stringify({
-					iss: "https://accounts.google.com",
-					sub: "google-dev-" + Math.floor(Math.random() * 1000000),
-					email: email || "user@gmail.com",
-					email_verified: true,
-					name: name || "Google User",
-					picture: "https://lh3.googleusercontent.com/a/default-user=s96-c",
-				}));
-				const mockCredential = `${header}.${body}.mock_signature`;
-				handleGoogleCredentialResponse({ credential: mockCredential }, alertElement, btn);
-			});
-		}
-	}
-
-	// Global Event Delegation for Google Auth Buttons
 	document.addEventListener("click", (e) => {
-		const targetBtn = e.target.closest("#googleSignupBtn, #googleLoginBtn, .btn-google-auth");
-		console.log("Global click caught on auth button:", targetBtn);
-		if (targetBtn) {
-			e.preventDefault();
-			e.stopPropagation();
-			const alertEl = document.querySelector("#signupForm .form-alert, #loginForm .form-alert");
-			triggerGoogleFlow(targetBtn, alertEl);
+		if (e.target.closest(".google-gsi-overlay") && !e.target.closest(".google-gsi-overlay.is-blocked")) {
+			if (!canStartGoogleSignup()) {
+				e.preventDefault();
+				e.stopPropagation();
+			} else {
+				rememberGoogleRedirect();
+			}
+			return;
 		}
+		const wrap = e.target.closest(".google-auth-wrap");
+		if (wrap && wrap.classList.contains("is-blocked")) {
+			e.preventDefault();
+			canStartGoogleSignup();
+			return;
+		}
+		const targetBtn = e.target.closest("#googleSignupBtn, #googleLoginBtn, .btn-google-auth");
+		if (!targetBtn) return;
+		e.preventDefault();
+		triggerGoogleAccountPicker(googleAlertEl());
 	});
 
 	if (typeof document !== "undefined") {

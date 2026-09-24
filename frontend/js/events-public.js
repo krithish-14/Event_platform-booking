@@ -374,6 +374,19 @@
 		`;
 	}
 
+	function setHeroEventState(event) {
+		const hero = document.querySelector(".hero");
+		if (!hero) return;
+		const phase = event ? getEventPhase(event) : "";
+		hero.classList.toggle("has-featured-event", !!event);
+		hero.classList.toggle("has-live-event", phase === "live");
+		const idle = global.JodHeroIdleSlideshow;
+		if (idle) {
+			if (phase === "live") idle.stop();
+			else idle.start();
+		}
+	}
+
 	function renderHero(event) {
 		const heroImg = document.querySelector(".hero-image");
 		const heroCategory = document.querySelector(".hero-category");
@@ -385,12 +398,23 @@
 		const featuredLink = document.querySelector(".hero-featured-image a");
 
 		if (!event) {
-			if (heroTitle) heroTitle.innerHTML = "No featured events available";
-			if (heroCategory) heroCategory.textContent = "Featured";
-			if (heroMeta) heroMeta.innerHTML = "<p>Check back later for upcoming events.</p>";
-			if (heroCountdown) heroCountdown.style.display = "none";
+			setHeroEventState(null);
+			if (heroTitle) heroTitle.textContent = "Stay tuned for our upcoming events.";
+			if (heroCategory) heroCategory.textContent = "";
+			if (heroMeta) heroMeta.innerHTML = "";
+			if (heroCountdown) {
+				heroCountdown.style.display = "none";
+				heroCountdown.removeAttribute("data-countdown");
+				delete heroCountdown.dataset.countdownEnd;
+			}
+			if (heroCta) {
+				heroCta.removeAttribute("href");
+				heroCta.onclick = null;
+			}
 			return;
 		}
+
+		setHeroEventState(event);
 
 		const url = eventDetailsUrl(event);
 		const title = escapeHtml(event.title || "Featured Event");

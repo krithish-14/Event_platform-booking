@@ -15,7 +15,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Literal
-import httpx
 
 from Models.base import get_db
 from Models.user import User
@@ -28,7 +27,7 @@ from Services.auth_service import (
 from Services.email import send_email
 from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES, AUTH_COOKIE_NAME
 from Authentication.dependencies import get_current_user
-from Services.runtime_env import cookie_secure, expose_access_token_in_json, resolve_google_redirect, smtp_configured, auth_cookie_domain
+from Services.runtime_env import cookie_secure, expose_access_token_in_json, smtp_configured, auth_cookie_domain
 from Services.rate_limit import limit_login, limit_otp, limit_password_reset, limit_register
 from Services.csrf import clear_csrf_cookie, set_csrf_cookie
 from Services import otp as otp_service
@@ -71,26 +70,32 @@ def _require_signed_google_jwt(token: str) -> None:
         raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
 
 
-async def _verify_google_id_token(token: str) -> dict:
-    """Verify an ID token with Google. Fail closed on signature, aud, iss, or email_verified."""
+def _verify_google_id_token_sync(token: str) -> dict:
+    """Cryptographically verify a Google ID token. Never trust frontend identity claims."""
     token = (token or "").strip()
     client_id = _google_client_id()
     if not token or not client_id or client_id == _GOOGLE_PLACEHOLDER_CLIENT_ID:
         raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
     _require_signed_google_jwt(token)
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                "https://oauth2.googleapis.com/tokeninfo",
-                params={"id_token": token},
-            )
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token as google_id_token
     except Exception:
-        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
-    if resp.status_code != 200:
         raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
     try:
-        info = resp.json()
-    except Exception:
+        info = google_id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            audience=client_id,
+            clock_skew_in_seconds=10,
+        )
+    except Exception as exc:
+        message = str(exc or "").lower()
+        if "expired" in message or "exp" in message:
+            raise HTTPException(
+                status_code=400,
+                detail="Your Google sign-in session has expired. Please try again.",
+            )
         raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
     if not isinstance(info, dict):
         raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
@@ -106,6 +111,11 @@ async def _verify_google_id_token(token: str) -> dict:
         raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
     info["email"] = email
     return info
+
+
+async def _verify_google_id_token(token: str) -> dict:
+    import asyncio
+    return await asyncio.to_thread(_verify_google_id_token_sync, token)
 
 
 def _set_auth_cookie(response: Response, token: str) -> None:
@@ -285,8 +295,6 @@ class UserRegisterRequest(BaseModel):
 class GoogleAuthRequest(BaseModel):
     credential: str | None = None
     id_token: str | None = None
-    code: str | None = None
-    redirect_uri: str | None = None
     city: str | None = None
     location_pincode: str | None = None
 
@@ -364,6 +372,7 @@ def register(payload: UserRegisterRequest, response: Response, request: Request,
         full_name=payload.full_name.strip() if payload.full_name else None,
         phone=payload.phone,
         hashed_password=get_password_hash(payload.password),
+        auth_provider="local",
         avatar_url=payload.avatar_url,
         bio=payload.bio,
         city=payload.city,
@@ -393,7 +402,7 @@ def register(payload: UserRegisterRequest, response: Response, request: Request,
         db.add(signup_log)
         db.commit()
     except Exception:
-        pass
+        db.rollback()
 
     token = create_access_token(
         data={
@@ -464,8 +473,8 @@ def login(response: Response, request: Request, form: OAuth2PasswordRequestForm 
 @router.get("/google/config")
 def google_config():
     """Return public Google OAuth configuration for frontend initialization."""
-    client_id = os.getenv("GOOGLE_CLIENT_ID", "")
-    is_placeholder = not client_id or client_id == "your-google-client-id.apps.googleusercontent.com"
+    client_id = _google_client_id()
+    is_placeholder = not client_id or client_id == _GOOGLE_PLACEHOLDER_CLIENT_ID
     return {
         "client_id": client_id if not is_placeholder else "",
         "enabled": not is_placeholder,
@@ -474,80 +483,53 @@ def google_config():
 
 @router.get("/google/url")
 def google_auth_url():
-    """Generates the Google OAuth 2.0 Authorization URL for browser popup / redirect login."""
-    client_id = os.getenv("GOOGLE_CLIENT_ID", "")
-    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5500/login.html")
-    try:
-        redirect_uri = resolve_google_redirect(redirect_uri)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Google OAuth is not configured on the server.")
-    if not client_id or client_id == "your-google-client-id.apps.googleusercontent.com":
-        raise HTTPException(status_code=400, detail="Google OAuth is not configured on the server.")
-
-    scope = "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid"
-    url = f"https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope={scope}&access_type=offline&prompt=consent"
-    return {"url": url}
+    """Legacy redirect-flow helper. GIS login uses POST /api/auth/google with a credential."""
+    raise HTTPException(
+        status_code=400,
+        detail="Google sign-in uses Google Identity Services on this site. Open Login and choose Continue with Google.",
+    )
 
 
 @router.post("/google", response_model=GoogleTokenResponse)
 async def google_auth(payload: GoogleAuthRequest, response: Response, request: Request, db: Session = Depends(get_db)):
-    """Authenticate or register a user using Google OAuth 2.0 ID Token / Credential or Authorization Code."""
+    """Authenticate with a Google Identity Services ID token, then issue a JOD Events session."""
     limit_login(request)
     token = (payload.credential or payload.id_token or "").strip()
-
-    # 1. If an authorization code was provided, exchange it for an ID token with Google
-    if payload.code and not token:
-        client_id = _google_client_id()
-        client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
-        try:
-            redirect_uri = resolve_google_redirect(payload.redirect_uri)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Google OAuth redirect is not allowed.")
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                token_resp = await client.post(
-                    "https://oauth2.googleapis.com/token",
-                    data={
-                        "code": payload.code,
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                        "redirect_uri": redirect_uri,
-                        "grant_type": "authorization_code",
-                    },
-                )
-        except Exception:
-            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
-        if token_resp.status_code != 200:
-            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
-        try:
-            token_data = token_resp.json()
-        except Exception:
-            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
-        token = (token_data.get("id_token") or "").strip()
-        if not token:
-            raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
-
     if not token:
-        raise HTTPException(status_code=400, detail="Google credential, id_token, or code is required.")
+        raise HTTPException(status_code=400, detail="Google credential is required.")
 
     google_user_info = await _verify_google_id_token(token)
 
     email = google_user_info["email"].strip().lower()
+    google_sub = str(google_user_info.get("sub") or "").strip()
     full_name = google_user_info.get("name") or google_user_info.get("given_name")
     avatar_url = google_user_info.get("picture")
+    if not google_sub:
+        raise HTTPException(status_code=400, detail=_GOOGLE_VERIFY_FAIL)
 
-    # 3. Lookup existing user: If they exist, log them in (Secure account linking).
-    existing_user = db.query(User).filter(func.lower(func.trim(User.email)) == email).first()
+    user = db.query(User).filter(User.google_user_id == google_sub).first()
+    if not user:
+        user = db.query(User).filter(func.lower(func.trim(User.email)) == email).first()
+        if user and getattr(user, "google_user_id", None) and user.google_user_id != google_sub:
+            raise HTTPException(status_code=400, detail="Google sign-in failed. Please try again.")
 
-    if existing_user:
-        user = existing_user
-        # Update avatar if missing
+    if user:
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This account has been deactivated. Please contact support.",
+            )
+        changed = False
+        if not getattr(user, "google_user_id", None):
+            user.google_user_id = google_sub
+            changed = True
         if avatar_url and not user.avatar_url:
             user.avatar_url = avatar_url
+            changed = True
+        if changed:
             db.commit()
             db.refresh(user)
     else:
-        # Generate unique username
         base_username = email.split("@")[0]
         base_username = re.sub(r"[^a-zA-Z0-9_.@-]", "", base_username)
         if len(base_username) < 3:
@@ -564,16 +546,16 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
                 candidate_username = f"user_{secrets.token_hex(4)}"
                 break
 
-        # Generate secure random password for database compliance
         random_password = secrets.token_urlsafe(32) + "A1!"
-        hashed_pw = get_password_hash(random_password)
-
         user = User(
+            customer_id=generate_customer_id(db),
             email=email,
             username=candidate_username,
             full_name=full_name.strip() if full_name else None,
             avatar_url=avatar_url,
-            hashed_password=hashed_pw,
+            hashed_password=get_password_hash(random_password),
+            google_user_id=google_sub,
+            auth_provider="google",
             city=payload.city.strip() if payload.city else None,
             location_pincode=payload.location_pincode.strip() if payload.location_pincode else None,
         )
@@ -585,22 +567,22 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User already exists",
+                detail="Google sign-in failed. Please try again.",
             )
-            
-        # Record User Signup Audit Log for Google Auth
+
         try:
             signup_log = UserSignupLog(
                 customer_id=user.customer_id,
                 email=user.email,
-                registration_method="GOOGLE",
-                status="COMPLETED"
+                username=user.username,
+                full_name=user.full_name,
+                city=user.city,
+                location_pin=user.location_pin,
             )
             db.add(signup_log)
             db.commit()
-        except Exception as e:
-            print(f"Failed to record UserSignupLog: {e}")
-            pass
+        except Exception:
+            db.rollback()
 
     # Record User Login Audit Log
     try:
@@ -612,7 +594,7 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
         db.add(login_log)
         db.commit()
     except Exception:
-        pass
+        db.rollback()
 
     # 4. Generate access token
     token_str = create_access_token(
