@@ -759,6 +759,42 @@ body.category-theme-workshop .performer-avatar {
     pointer-events: none;
 }
 
+.public-venue-map-wrap {
+    margin: 0.85rem 0 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f8fafc;
+}
+
+.public-venue-map {
+    width: 100%;
+    height: 220px;
+    background: #dbeafe;
+}
+
+.public-venue-directions {
+    display: block;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #2563eb;
+    text-decoration: none;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+}
+
+.public-venue-directions:hover,
+.public-venue-directions:focus-visible {
+    text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+    .public-venue-map {
+        height: 200px;
+    }
+}
+
 /* --- Tickets & Pricing Breakdown --- */
 .tickets-section {
     background: #ffffff;
@@ -1617,6 +1653,13 @@ html[data-theme="dark"] .venue-maps-link:hover #infoLocation,
 html[data-theme="dark"] .venue-maps-link:focus-visible #infoVenue,
 html[data-theme="dark"] .venue-maps-link:focus-visible #infoLocation {
     color: #fff8f0 !important;
+}
+
+html[data-theme="dark"] .public-venue-map-wrap,
+html[data-theme="dark"] .public-venue-directions {
+    background: #1c1814;
+    border-color: rgba(255, 138, 31, 0.24);
+    color: #FFA136;
 }
 
 html[data-theme="dark"] .policy-block-title,

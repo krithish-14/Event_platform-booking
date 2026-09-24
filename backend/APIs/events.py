@@ -20,6 +20,7 @@ from Models.organizer import OrganizerAccount
 from APIs.organizers import to_public_verification_status, is_organizer_verified
 
 ORGANIZER_VERIFICATION_REQUIRED = os.getenv("ORGANIZER_VERIFICATION_REQUIRED", "false").lower() in ("1", "true", "yes")
+from Services.geo_validation import parse_venue_coords, sanitize_place_id
 from Services.event_service import (
     create_event,
     get_event_by_id,
@@ -42,6 +43,7 @@ class EventCreateRequest(BaseModel):
     venue: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    place_id: Optional[str] = None
     category: Optional[str] = None
     image_url: Optional[str] = None
     start_date: datetime
@@ -66,6 +68,7 @@ class EventUpdateRequest(BaseModel):
     venue: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    place_id: Optional[str] = None
     category: Optional[str] = None
     image_url: Optional[str] = None
     start_date: Optional[datetime] = None
@@ -91,6 +94,7 @@ class EventResponse(BaseModel):
     venue: Optional[str]
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    place_id: Optional[str] = None
     distance_km: Optional[float] = None
     category: Optional[str]
     image_url: Optional[str]
@@ -440,6 +444,7 @@ def _event_to_response(
         venue=event.venue,
         latitude=event.latitude,
         longitude=event.longitude,
+        place_id=getattr(event, "place_id", None),
         distance_km=round(distance_km, 2) if distance_km is not None else None,
         category=event.category,
         image_url=event.image_url,
@@ -668,6 +673,9 @@ def create_new_event(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Please complete organizer verification before publishing an event."
             )
+    parse_venue_coords(payload.latitude, payload.longitude)
+    if payload.place_id is not None:
+        payload.place_id = sanitize_place_id(payload.place_id)
     event = create_event(
         db, payload,
         customer_id=current_user.customer_id,
@@ -718,6 +726,9 @@ def update_existing_event(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Please complete organizer verification before publishing an event."
             )
+    parse_venue_coords(payload.latitude, payload.longitude)
+    if payload.place_id is not None:
+        payload.place_id = sanitize_place_id(payload.place_id)
     updated = update_event(db, event, payload)
     if transitioning_to_publish:
         try:

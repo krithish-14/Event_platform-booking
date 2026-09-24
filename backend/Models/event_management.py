@@ -29,6 +29,7 @@ class EventManagement(Base):
     address          = Column(Text, nullable=True)
     latitude         = Column(Float, nullable=True)
     longitude        = Column(Float, nullable=True)
+    place_id         = Column(String(255), nullable=True)
     organizer_name   = Column(String(200), nullable=True)
     organizer_email  = Column(String(255), nullable=False)
     organizer_phone  = Column(String(50), nullable=True)

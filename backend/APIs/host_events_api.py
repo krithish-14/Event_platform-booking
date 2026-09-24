@@ -49,6 +49,7 @@ from Utils.categories import (
     normalize_category,
 )
 from Utils.text_sanitize import sanitize_text, sanitize_rich_text
+from Services.geo_validation import parse_venue_coords, sanitize_place_id, sanitize_venue_address
 from Services.ticket_templates import list_templates_public
 from Services.history_report_pdf import build_history_report_pdf_bytes, history_report_pdf_filename
 
@@ -1533,6 +1534,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             venue=event_mgt.venue,
             latitude=getattr(event_mgt, "latitude", None),
             longitude=getattr(event_mgt, "longitude", None),
+            place_id=getattr(event_mgt, "place_id", None),
             category=normalize_category(event_mgt.event_category) or event_mgt.event_category,
             image_url=image_url or "images/hero-event.jpg",
             card_image=card_image,
@@ -1562,6 +1564,8 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             public_event.latitude = event_mgt.latitude
         if getattr(event_mgt, "longitude", None) is not None:
             public_event.longitude = event_mgt.longitude
+        if getattr(event_mgt, "place_id", None):
+            public_event.place_id = event_mgt.place_id
         public_event.category = normalize_category(event_mgt.event_category) or event_mgt.event_category or public_event.category
         public_event.event_format = event_mgt.event_mode or public_event.event_format
         public_event.duration = getattr(event_mgt, "duration", None)
@@ -1624,6 +1628,7 @@ class SaveManageEventRequest(BaseModel):
     address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    place_id: Optional[str] = None
     organizer_name: Optional[str] = None
     organizer_phone: Optional[str] = None
     event_status: Optional[str] = None
@@ -1884,10 +1889,24 @@ def save_manage_event(
         event.event_category = normalize_category(payload.event_category) or payload.event_category
     if payload.event_type: event.event_type = sanitize_text(payload.event_type, max_length=80)
     if payload.event_mode: event.event_mode = sanitize_text(payload.event_mode, max_length=80)
-    if payload.venue: event.venue = sanitize_text(payload.venue, max_length=200)
-    if payload.address: event.address = sanitize_text(payload.address, max_length=400)
-    if payload.latitude is not None: event.latitude = payload.latitude
-    if payload.longitude is not None: event.longitude = payload.longitude
+    if payload.venue:
+        event.venue = sanitize_venue_address(payload.venue, max_length=300) or event.venue
+    if payload.address:
+        event.address = sanitize_venue_address(payload.address, max_length=400) or event.address
+    lat, lon = parse_venue_coords(payload.latitude, payload.longitude)
+    if lat is not None:
+        saved_addr = (
+            sanitize_venue_address(payload.venue, max_length=300)
+            or event.venue
+            or sanitize_venue_address(payload.address, max_length=400)
+            or event.address
+        )
+        if not saved_addr:
+            raise HTTPException(status_code=400, detail="Venue address is required when saving a location.")
+        event.latitude = lat
+        event.longitude = lon
+    if payload.place_id is not None:
+        event.place_id = sanitize_place_id(payload.place_id)
     if payload.organizer_name: event.organizer_name = payload.organizer_name
     if payload.organizer_phone: event.organizer_phone = payload.organizer_phone
     if payload.event_status:
@@ -2004,6 +2023,7 @@ def save_manage_event(
             "venue": event.venue,
             "latitude": getattr(event, "latitude", None),
             "longitude": getattr(event, "longitude", None),
+            "place_id": getattr(event, "place_id", None),
             "event_status": event.event_status,
             "duration": getattr(event, "duration", None),
             "tickets": event.tickets_json,
@@ -2379,6 +2399,7 @@ def get_current_host_event(
             "address": event.address,
             "latitude": event.latitude,
             "longitude": event.longitude,
+            "place_id": getattr(event, "place_id", None),
             "organizer_name": event.organizer_name,
             "organizer_email": event.organizer_email,
             "organizer_phone": event.organizer_phone,

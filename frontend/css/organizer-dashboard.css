@@ -514,7 +514,7 @@ body.dashboard-body {
 .dash-content canvas,
 .dash-content video,
 .dash-content iframe,
-.dash-content .leaflet-container {
+.dash-content .venue-map {
 	max-width: 100%;
 }
 .dash-content .venue-map-panel {
@@ -1664,6 +1664,28 @@ html[data-theme="dark"] .ticket-offer-hint {
 	border: 0;
 }
 
+.venue-location-group {
+	overflow: visible;
+}
+
+.venue-search-wrap {
+	position: relative;
+}
+
+.venue-search-icon {
+	position: absolute;
+	left: 0.85rem;
+	top: 50%;
+	transform: translateY(-50%);
+	font-size: 0.95rem;
+	pointer-events: none;
+	z-index: 1;
+}
+
+.venue-search-input {
+	padding-left: 2.4rem !important;
+}
+
 .venue-map-panel {
 	display: block;
 	margin-top: 0.7rem;
@@ -1671,11 +1693,10 @@ html[data-theme="dark"] .ticket-offer-hint {
 	border-radius: 12px;
 	overflow: hidden;
 	background: #f8fafc;
-	min-height: 320px;
+	min-height: 0;
 }
 
-.venue-map,
-.venue-map.leaflet-container {
+.venue-map {
 	width: 100% !important;
 	height: 280px !important;
 	min-height: 280px !important;
@@ -1697,28 +1718,63 @@ html[data-theme="dark"] .ticket-offer-hint {
 	font-weight: 600;
 }
 
-.venue-pin-wrap {
-	background: none !important;
-	border: none !important;
-	cursor: grab;
+.venue-map-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.55rem 0.85rem 0.7rem;
+	background: #fff;
+	border-top: 1px solid #e2e8f0;
 }
 
-.leaflet-dragging .venue-pin-wrap {
-	cursor: grabbing;
+.venue-map-status {
+	margin: 0;
+	font-size: 0.78rem;
+	font-weight: 600;
+	color: #166534;
 }
 
-.venue-pin {
-	width: 22px;
-	height: 22px;
-	background: #2563eb;
-	border: 3px solid #fff;
-	border-radius: 50% 50% 50% 0;
-	transform: rotate(-45deg);
-	box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+.venue-adjust-btn {
+	flex-shrink: 0;
+	background: #fff;
+	border: 1.5px solid #cbd5e1;
+	color: #334155;
+	border-radius: 8px;
+	padding: 0.4rem 0.75rem;
+	font-size: 0.8rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.venue-adjust-btn:hover,
+.venue-adjust-btn:focus-visible {
+	border-color: #2563eb;
+	color: #2563eb;
 }
 
 .venue-map-panel.is-hidden {
 	display: none;
+}
+
+.pac-container {
+	z-index: 10060 !important;
+	border-radius: 10px;
+	border: 1px solid #e2e8f0;
+	box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+	font-family: inherit;
+	margin-top: 4px;
+}
+
+@media (max-width: 720px) {
+	.venue-map {
+		height: 240px !important;
+		min-height: 240px !important;
+	}
+
+	.venue-map-actions {
+		flex-wrap: wrap;
+	}
 }
 
 /* Custom Format Pill Selectors */

@@ -282,6 +282,64 @@ function googleMapsVenueUrl(event) {
  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
+let publicVenueMap = null;
+let publicVenueMarker = null;
+
+function renderPublicVenueMap(event) {
+ const wrap = document.getElementById('publicVenueMapWrap');
+ const mapEl = document.getElementById('publicVenueMap');
+ const dirEl = document.getElementById('publicVenueDirections');
+ if (!wrap || !mapEl) return;
+ const format = String(event && event.event_format || '').toLowerCase();
+ const isOnline = format === 'online' || format === 'virtual';
+ const lat = Number(event && event.latitude);
+ const lon = Number(event && event.longitude);
+ const mapsUrl = googleMapsVenueUrl(event);
+ if (dirEl) {
+  if (mapsUrl && !isOnline) {
+   dirEl.href = mapsUrl;
+   dirEl.hidden = false;
+  } else {
+   dirEl.removeAttribute('href');
+   dirEl.hidden = true;
+  }
+ }
+ if (isOnline || !Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) {
+  wrap.hidden = true;
+  return;
+ }
+ wrap.hidden = false;
+ if (!window.JodGoogleMaps || typeof window.JodGoogleMaps.load !== 'function') return;
+ window.JodGoogleMaps.load('places').then(() => {
+  const gmaps = window.google && window.google.maps;
+  if (!gmaps) return;
+  const position = { lat: lat, lng: lon };
+  if (!publicVenueMap) {
+   publicVenueMap = new gmaps.Map(mapEl, {
+    center: position,
+    zoom: 16,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
+    clickableIcons: false,
+    gestureHandling: 'cooperative',
+   });
+  } else {
+   publicVenueMap.setCenter(position);
+   publicVenueMap.setZoom(16);
+  }
+  if (!publicVenueMarker) {
+   publicVenueMarker = new gmaps.Marker({ map: publicVenueMap, position: position, title: event.venue || event.location || 'Venue' });
+  } else {
+   publicVenueMarker.setPosition(position);
+  }
+  gmaps.event.trigger(publicVenueMap, 'resize');
+  publicVenueMap.setCenter(position);
+ }).catch(() => {
+  wrap.hidden = true;
+ });
+}
+
 function bindVenueMapsLink(event) {
  const venueLink = document.getElementById('infoVenueLink');
  if (!venueLink) return;
@@ -399,6 +457,7 @@ function renderEventDOM(event) {
 
  const venueLink = document.getElementById('infoVenueLink');
  bindVenueMapsLink(event);
+ renderPublicVenueMap(event);
  if (venueLink && !venueLink.dataset.mapsBound) {
  venueLink.dataset.mapsBound = '1';
  venueLink.addEventListener('click', (evt) => {

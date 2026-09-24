@@ -166,17 +166,15 @@ window.switchTab = window.dashSwitchTab = queueSwitchTab;
 async function initOrganizerDashboard() {
 	let venueMap = null;
 	let venueMarker = null;
-	let venueGeocodeTimer = null;
+	let venueAutocomplete = null;
 	let venueFillingFromMap = false;
-	let venueMapClickBound = false;
+	let venueAdjustMode = false;
 
 	const API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/organizers');
 
 	const HOST_EVENTS_API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/host-events');
 
 	const VOLUNTEERS_API = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/volunteers');
-
-	const LOCATION_API_BASE = (((window.JodHealth && window.JodHealth.getApiBaseUrl && window.JodHealth.getApiBaseUrl()) || (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || (window.JodAuth && window.JodAuth.API_BASE) || (window.JOD_API_BASE_OVERRIDE) || "").replace(/\/$/, '') + '/api/location');
 
 	function getUploadOrigin() {
 		if (HOST_EVENTS_API_BASE.startsWith("http")) {
@@ -1593,7 +1591,7 @@ async function initOrganizerDashboard() {
 		if (eventTitleInput) eventTitleInput.value = "";
 		const catSel = document.getElementById("eventCategorySelect");
 		if (catSel) catSel.value = "";
-		["eventDescInput", "eventDateInput", "eventEndDateInput", "eventLocationInput", "eventDurationInput", "eventVenueLat", "eventVenueLon", "policyEventInput", "policyCancellationInput", "policyRefundInput", "policyTermsInput", "policyPrivacyInput", "policyAgeInput", "ticketPriceNoteInput"].forEach((id) => {
+		["eventDescInput", "eventDateInput", "eventEndDateInput", "eventLocationInput", "eventDurationInput", "eventVenueLat", "eventVenueLon", "eventVenuePlaceId", "policyEventInput", "policyCancellationInput", "policyRefundInput", "policyTermsInput", "policyPrivacyInput", "policyAgeInput", "ticketPriceNoteInput"].forEach((id) => {
 			const el = document.getElementById(id);
 			if (el) el.value = "";
 		});
@@ -3494,6 +3492,7 @@ async function initOrganizerDashboard() {
 			address: document.getElementById("eventLocationInput") ? document.getElementById("eventLocationInput").value : "",
 			latitude: readVenueCoord("eventVenueLat"),
 			longitude: readVenueCoord("eventVenueLon"),
+			place_id: (document.getElementById("eventVenuePlaceId") || {}).value || null,
 			event_start_date: event_start_date,
 			event_end_date: event_end_date,
 			event_start_time: timeFromDatetimeLocal(dateInput && dateInput.value),
@@ -4093,11 +4092,17 @@ async function initOrganizerDashboard() {
 		return Number.isFinite(n) ? n : null;
 	}
 
-	function writeVenueCoords(lat, lon) {
+	function writeVenuePlaceId(placeId) {
+		const el = document.getElementById("eventVenuePlaceId");
+		if (el) el.value = placeId ? String(placeId) : "";
+	}
+
+	function writeVenueCoords(lat, lon, placeId) {
 		const latEl = document.getElementById("eventVenueLat");
 		const lonEl = document.getElementById("eventVenueLon");
 		if (latEl) latEl.value = lat != null ? String(lat) : "";
 		if (lonEl) lonEl.value = lon != null ? String(lon) : "";
+		if (arguments.length >= 3) writeVenuePlaceId(placeId);
 	}
 
 	function setVenueHint(text, isAddress) {
@@ -4105,6 +4110,11 @@ async function initOrganizerDashboard() {
 		if (!el) return;
 		el.textContent = text || "";
 		el.classList.toggle("is-address", Boolean(isAddress));
+	}
+
+	function setVenueStatus(text) {
+		const el = document.getElementById("venueMapStatus");
+		if (el) el.textContent = text || "";
 	}
 
 	function updateVenueMapVisibility() {
@@ -4120,27 +4130,40 @@ async function initOrganizerDashboard() {
 	}
 
 	function invalidateVenueMap() {
-		if (venueMap && typeof venueMap.invalidateSize === "function") {
-			venueMap.invalidateSize();
-			if (venueMarker) {
-				const p = venueMarker.getLatLng();
-				if (p) venueMap.setView(p, Math.max(venueMap.getZoom() || 16, 16), { animate: false });
-			}
+		if (!venueMap || !window.google || !window.google.maps) return;
+		window.google.maps.event.trigger(venueMap, "resize");
+		if (venueMarker && venueMarker.getPosition()) {
+			venueMap.setCenter(venueMarker.getPosition());
 		}
 	}
 
-	const CHENNAI_CENTER = [13.0827, 80.2707];
+	const CHENNAI_CENTER = { lat: 13.0827, lng: 80.2707 };
 
 	function ensureVenueMapMarkup() {
 		const input = document.getElementById("eventLocationInput");
 		if (!input || !input.parentNode) return null;
+
+		input.setAttribute("autocomplete", "off");
+		input.setAttribute("placeholder", "Search venue or enter address");
+		input.classList.add("venue-search-input");
+		if (input.parentNode && !input.parentNode.classList.contains("venue-search-wrap") && !input.parentNode.querySelector(".venue-search-wrap")) {
+			const wrap = document.createElement("div");
+			wrap.className = "venue-search-wrap";
+			input.parentNode.insertBefore(wrap, input);
+			wrap.appendChild(input);
+			const icon = document.createElement("span");
+			icon.className = "venue-search-icon";
+			icon.setAttribute("aria-hidden", "true");
+			icon.textContent = "\ud83d\udd0d";
+			wrap.insertBefore(icon, input);
+		}
 
 		let latEl = document.getElementById("eventVenueLat");
 		if (!latEl) {
 			latEl = document.createElement("input");
 			latEl.type = "hidden";
 			latEl.id = "eventVenueLat";
-			input.insertAdjacentElement("afterend", latEl);
+			input.parentNode.insertAdjacentElement("afterend", latEl);
 		}
 		let lonEl = document.getElementById("eventVenueLon");
 		if (!lonEl) {
@@ -4149,209 +4172,64 @@ async function initOrganizerDashboard() {
 			lonEl.id = "eventVenueLon";
 			latEl.insertAdjacentElement("afterend", lonEl);
 		}
+		let placeEl = document.getElementById("eventVenuePlaceId");
+		if (!placeEl) {
+			placeEl = document.createElement("input");
+			placeEl.type = "hidden";
+			placeEl.id = "eventVenuePlaceId";
+			lonEl.insertAdjacentElement("afterend", placeEl);
+		}
 
 		let panel = document.getElementById("venueMapPanel");
 		if (!panel) {
 			panel = document.createElement("div");
 			panel.className = "venue-map-panel";
 			panel.id = "venueMapPanel";
-			panel.style.cssText = "display:block;margin-top:0.75rem;border:1.5px solid #cbd5e1;border-radius:12px;overflow:hidden;background:#e2e8f0;";
 			panel.innerHTML = `
-				<div class="venue-map" id="venueMap" role="application" aria-label="Venue map" style="width:100%;height:280px;min-height:280px;background:#dbeafe;"></div>
-				<p class="venue-map-hint" id="venueMapHint" style="margin:0;padding:0.6rem 0.9rem;font-size:0.8rem;color:#334155;background:#fff;border-top:1px solid #e2e8f0;">Click the map or drag the pin onto the building. The venue line fills with building name, street, area, and pincode.</p>
+				<div class="venue-map" id="venueMap" role="application" aria-label="Venue map"></div>
+				<p class="venue-map-hint" id="venueMapHint">Search a venue or address. The map moves automatically when you select a result.</p>
+				<div class="venue-map-actions">
+					<p class="venue-map-status" id="venueMapStatus"></p>
+					<button type="button" class="venue-adjust-btn" id="btnAdjustVenue">Adjust Location</button>
+				</div>
 			`;
-			const after = lonEl.nextSibling;
-			if (after) input.parentNode.insertBefore(panel, after);
-			else input.parentNode.appendChild(panel);
+			placeEl.insertAdjacentElement("afterend", panel);
+		} else if (!document.getElementById("btnAdjustVenue")) {
+			const actions = document.createElement("div");
+			actions.className = "venue-map-actions";
+			actions.innerHTML = '<p class="venue-map-status" id="venueMapStatus"></p><button type="button" class="venue-adjust-btn" id="btnAdjustVenue">Adjust Location</button>';
+			panel.appendChild(actions);
 		}
 		return panel;
 	}
 
-	function loadLeafletAssets() {
-		if (window.L && typeof window.L.map === "function") {
-			return Promise.resolve(window.L);
-		}
-		if (loadLeafletAssets._pending) return loadLeafletAssets._pending;
-
-		loadLeafletAssets._pending = new Promise((resolve, reject) => {
-			if (!document.getElementById("jodVenueLeafletCss")) {
-				const link = document.createElement("link");
-				link.id = "jodVenueLeafletCss";
-				link.rel = "stylesheet";
-				link.href = "vendor/leaflet/leaflet.css";
-				document.head.appendChild(link);
-			}
-			const urls = [
-				"vendor/leaflet/leaflet.js",
-				"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
-				"https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
-			];
-			let i = 0;
-			const tryNext = () => {
-				if (window.L && typeof window.L.map === "function") {
-					resolve(window.L);
-					return;
-				}
-				if (i >= urls.length) {
-					reject(new Error("Map library failed to load"));
-					return;
-				}
-				const src = urls[i++];
-				const script = document.createElement("script");
-				script.src = src;
-				script.async = true;
-				script.onload = () => {
-					if (window.L && typeof window.L.map === "function") resolve(window.L);
-					else tryNext();
-				};
-				script.onerror = tryNext;
-				document.head.appendChild(script);
-			};
-			tryNext();
-		});
-		return loadLeafletAssets._pending;
-	}
-
-	function formatStreetAreaPin(address, displayName, namedetails) {
-		const addr = address || {};
-		const indic = /[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/;
-		const skipState = /^(india|tamil nadu|karnataka|maharashtra|delhi|nct of delhi|west bengal|telangana|kerala|andhra pradesh|gujarat|rajasthan|uttar pradesh|madhya pradesh|bihar|odisha|punjab|haryana|assam)$/i;
-		const adminOnly = /^(cmwssb(\s+division)?(\s+\d+)?|ward\s+\d+|zone\s+\d+|division\s+\d+|circle\s+\d+)$/i;
-		const adminPrefix = /^(cmwssb\b|ward\s+\d+|division\s+\d+|circle\s+\d+)/i;
-		const zonePrefix = /^zone\s+\d+\s+(.+)$/i;
-
-		function cleanAdmin(text) {
-			let s = String(text || "").trim();
-			if (!s) return "";
-			if (adminOnly.test(s) || adminPrefix.test(s)) return "";
-			const zone = s.match(zonePrefix);
-			if (zone) s = String(zone[1] || "").trim();
-			if (skipState.test(s)) return "";
-			return s;
-		}
-
-		function isEnglishPart(text) {
-			const s = String(text || "").trim();
-			if (!s) return false;
-			if (indic.test(s)) return false;
-			if (skipState.test(s)) return false;
-			return true;
-		}
-
-		function pickEnglish() {
-			for (let i = 0; i < arguments.length; i++) {
-				const val = cleanAdmin(arguments[i]);
-				if (isEnglishPart(val)) return val;
-			}
-			return "";
-		}
-
-		function addPart(parts, value) {
-			let val = cleanAdmin(value);
-			const raw = String(value || "").trim();
-			const pin = raw.replace(/\D/g, "");
-			if (!val && pin.length === 6 && pin === raw.replace(/\s/g, "")) val = pin;
-			if (!val) return;
-			if (!(val.length === 6 && /^\d{6}$/.test(val)) && !isEnglishPart(val)) return;
-			const low = val.toLowerCase();
-			for (let i = 0; i < parts.length; i++) {
-				const ex = parts[i].toLowerCase();
-				if (ex === low) return;
-				if (low.length < ex.length && ex.includes(low)) return;
-				if (ex.length < low.length && low.includes(ex)) {
-					parts[i] = val;
-					return;
-				}
-			}
-			parts.push(val);
-		}
-
-		const house = pickEnglish(addr.house_number);
-		const road = pickEnglish(addr.road, addr.pedestrian, addr.residential, addr.street, addr.footway, addr.path);
-		const names = namedetails || {};
-		const poi = pickEnglish(
-			names["name:en"],
-			names.name,
-			addr.building,
-			addr.amenity,
-			addr.shop,
-			addr.office,
-			addr.leisure,
-			addr.club,
-			addr.tourism,
-			addr.hotel,
-			addr.university,
-			addr.college,
-			addr.school,
-			addr.hospital,
-			addr.railway,
-			addr.public_building,
-			addr.house_name,
-			addr.place
-		);
-		if (poi && road && poi.toLowerCase() === road.toLowerCase()) poi = "";
-		const neighbourhood = pickEnglish(addr.neighbourhood, addr.quarter, addr.hamlet, addr.allotments);
-		const suburb = pickEnglish(addr.suburb, addr.village, addr.city_district);
-		const city = pickEnglish(addr.city, addr.town, addr.municipality, addr.county);
-		const pin = String(addr.postcode || "").replace(/\s/g, "");
-		const street = [house, road].filter(Boolean).join(" ");
-
-		const parts = [];
-		addPart(parts, poi);
-		addPart(parts, street);
-		addPart(parts, neighbourhood);
-		addPart(parts, suburb);
-		addPart(parts, city);
-		if (/^\d{6}$/.test(pin)) addPart(parts, pin);
-
-		if (parts.length < 2) {
-			String(displayName || "").split(",").forEach((chunk) => addPart(parts, chunk.trim()));
-		}
-
-		return parts.join(", ") || "";
-	}
-
-	function fillVenueAddress(text) {
+	function fillVenueAddress(text, opts) {
+		opts = opts || {};
 		const input = document.getElementById("eventLocationInput");
 		if (!input || !text) return;
 		venueFillingFromMap = true;
 		input.value = text;
 		venueFillingFromMap = false;
-		setVenueHint("\ud83d\udccd " + text + " \u2014 drag the pin to adjust", true);
-		triggerManageAutoSave();
-	}
-
-	function venuePinIcon() {
-		return window.L.divIcon({
-			className: "venue-pin-wrap",
-			html: '<div class="venue-pin"></div>',
-			iconSize: [30, 42],
-			iconAnchor: [15, 40],
-			popupAnchor: [0, -36],
-		});
+		setVenueHint(opts.hint || ("Location detected automatically"), Boolean(opts.detected));
+		if (opts.status !== undefined) setVenueStatus(opts.status);
+		if (opts.save !== false) triggerManageAutoSave();
 	}
 
 	function ensureVenueMap() {
 		ensureVenueMapMarkup();
-		if (!window.L || typeof window.L.map !== "function") return null;
+		if (!window.google || !window.google.maps || typeof window.google.maps.Map !== "function") return null;
 		const el = document.getElementById("venueMap");
 		if (!el) return null;
 		if (!venueMap) {
-			venueMap = window.L.map(el, {
-				zoomControl: true,
-				scrollWheelZoom: true,
-			}).setView(CHENNAI_CENTER, 12);
-			window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-				maxZoom: 19,
-				attribution: "&copy; OpenStreetMap",
-			}).addTo(venueMap);
-			if (!venueMapClickBound) {
-				venueMapClickBound = true;
-				venueMap.on("click", (e) => {
-					if (!e || !e.latlng) return;
-					plotVenuePin(e.latlng.lat, e.latlng.lng, { fly: false, reverse: true });
-				});
-			}
+			venueMap = new window.google.maps.Map(el, {
+				center: CHENNAI_CENTER,
+				zoom: 12,
+				mapTypeControl: false,
+				streetViewControl: false,
+				fullscreenControl: false,
+				clickableIcons: false,
+				gestureHandling: "greedy",
+			});
 		}
 		setTimeout(() => invalidateVenueMap(), 60);
 		return venueMap;
@@ -4361,121 +4239,116 @@ async function initOrganizerDashboard() {
 		opts = opts || {};
 		if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 		if (!ensureVenueMap()) return;
-		writeVenueCoords(lat, lon);
+		writeVenueCoords(lat, lon, opts.placeId);
+		const position = { lat: lat, lng: lon };
 		if (venueMarker) {
-			venueMarker.setLatLng([lat, lon]);
+			venueMarker.setPosition(position);
 		} else {
-			venueMarker = window.L.marker([lat, lon], {
-				icon: venuePinIcon(),
+			venueMarker = new window.google.maps.Marker({
+				map: venueMap,
+				position: position,
 				draggable: true,
-				autoPan: true,
-				autoPanPadding: [48, 48],
-				riseOnDrag: true,
-				title: "Drag to set the exact venue",
-			}).addTo(venueMap);
-			venueMarker.on("dragstart", () => {
-				if (venueMarker.closePopup) venueMarker.closePopup();
-				setVenueHint("Drop the pin on the exact venue.");
+				animation: window.google.maps.Animation.DROP,
+				title: "Drag to adjust the exact venue",
 			});
-			venueMarker.on("dragend", (e) => {
-				const p = e.target.getLatLng();
-				writeVenueCoords(p.lat, p.lng);
-				reverseGeocodeVenue(p.lat, p.lng);
+			venueMarker.addListener("dragstart", () => {
+				venueAdjustMode = true;
+				setVenueHint("Drag the marker to adjust the exact venue location.");
+				setVenueStatus("");
+			});
+			venueMarker.addListener("dragend", () => {
+				const pos = venueMarker.getPosition();
+				if (!pos) return;
+				writeVenueCoords(pos.lat(), pos.lng(), "");
+				reverseGeocodeVenue(pos.lat(), pos.lng());
 			});
 		}
 		if (opts.fly !== false) {
-			const zoom = venueMap.getZoom() < 14 ? 16 : Math.max(venueMap.getZoom(), 16);
-			if (typeof venueMap.flyTo === "function") venueMap.flyTo([lat, lon], zoom, { duration: 0.7 });
-			else venueMap.setView([lat, lon], zoom);
+			const zoom = Math.max(venueMap.getZoom() || 12, 16);
+			venueMap.panTo(position);
+			venueMap.setZoom(zoom);
 		}
 		if (opts.reverse) reverseGeocodeVenue(lat, lon);
 		else setTimeout(() => invalidateVenueMap(), 80);
 	}
 
-	async function reverseGeocodeVenue(lat, lon) {
-		setVenueHint("Looking up street, area, and pincode\u2026");
-		try {
-			let formatted = "";
-			try {
-				const res = await fetch(`${LOCATION_API_BASE}/venue-reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
-				if (res.ok) {
-					const data = await res.json();
-					formatted = String(data.formatted || "").trim();
-				}
-			} catch (_) {}
-
-			if (!formatted) {
-				const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&namedetails=1&zoom=18&accept-language=en&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
-				const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
-				if (!res.ok) throw new Error("reverse failed");
-				const hit = await res.json();
-				formatted = formatStreetAreaPin(hit.address || {}, hit.display_name || hit.name, hit.namedetails || {});
-			}
-
-			if (formatted) {
-				fillVenueAddress(formatted);
-				if (venueMarker) {
-					venueMarker.bindPopup(formatted.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))).openPopup();
-				}
-			} else {
-				setVenueHint("Pin dropped. Drag again if this is not the right spot.");
-			}
-		} catch (_) {
-			setVenueHint("Pin dropped. Street lookup failed \u2014 you can still type the address.");
+	function reverseGeocodeVenue(lat, lon) {
+		if (!window.google || !window.google.maps || !window.google.maps.Geocoder) {
+			setVenueHint("Location updated. Save to keep this pin.");
+			triggerManageAutoSave();
+			return;
 		}
+		setVenueHint("Updating the exact venue location\u2026");
+		const geocoder = new window.google.maps.Geocoder();
+		geocoder.geocode({ location: { lat: lat, lng: lon } }, (results, status) => {
+			if (status === "OK" && results && results[0]) {
+				const hit = results[0];
+				fillVenueAddress(hit.formatted_address || "", {
+					detected: true,
+					hint: "Drag the marker to adjust the exact venue location.",
+					status: "Location updated",
+				});
+				if (hit.place_id) writeVenuePlaceId(hit.place_id);
+			} else {
+				setVenueHint("Location updated. You can still edit the address above.");
+				triggerManageAutoSave();
+			}
+		});
 	}
 
-	async function geocodeVenueQuery(query) {
+	function geocodeVenueQuery(query) {
 		const q = String(query || "").trim();
-		if (q.length < 3) return;
+		if (q.length < 3 || !window.google || !window.google.maps || !window.google.maps.Geocoder) return;
 		setVenueHint("Finding this venue on the map\u2026");
-		try {
-			let hitLat = NaN;
-			let hitLon = NaN;
-			let formatted = "";
-
-			try {
-				const res = await fetch(`${LOCATION_API_BASE}/venue-search?q=${encodeURIComponent(q)}`);
-				if (res.ok) {
-					const data = await res.json();
-					hitLat = parseFloat(data.location_lat);
-					hitLon = parseFloat(data.location_lon);
-					formatted = String(data.formatted || "").trim();
-				}
-			} catch (_) {}
-
-			if (!Number.isFinite(hitLat) || !Number.isFinite(hitLon)) {
-				const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&namedetails=1&countrycodes=in&limit=1&accept-language=en&q=${encodeURIComponent(q)}`;
-				const res = await fetch(url, { headers: { Accept: "application/json", "Accept-Language": "en" } });
-				if (!res.ok) return;
-				const results = await res.json();
-				if (!Array.isArray(results) || !results.length) {
-					setVenueHint("Place not found. Click the map or drag a pin to set the venue.");
-					return;
-				}
-				const hit = results[0];
-				hitLat = parseFloat(hit.lat);
-				hitLon = parseFloat(hit.lon);
-				formatted = formatStreetAreaPin(hit.address || {}, hit.display_name || hit.name, hit.namedetails || {});
-			}
-
-			if (!Number.isFinite(hitLat) || !Number.isFinite(hitLon)) {
-				setVenueHint("Place not found. Click the map or drag a pin to set the venue.");
+		const geocoder = new window.google.maps.Geocoder();
+		geocoder.geocode({ address: q, componentRestrictions: { country: "IN" } }, (results, status) => {
+			if (status === "ZERO_RESULTS" || !results || !results.length) {
+				setVenueHint("No matching locations found. Try entering a more complete address.");
+				setVenueStatus("");
 				return;
 			}
-
-			plotVenuePin(hitLat, hitLon, { fly: true, reverse: false });
-			if (formatted) {
-				const typed = q;
-				const merged = (!formatted.toLowerCase().includes(typed.toLowerCase()) && typed.length <= 48 && !/,/.test(typed) && !/\d{6}/.test(typed))
-					? `${typed}, ${formatted}`
-					: formatted;
-				fillVenueAddress(merged);
-				if (venueMarker) venueMarker.bindPopup(merged.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))).openPopup();
+			if (status !== "OK") {
+				setVenueHint("Unable to find the location. Please try again.");
+				return;
 			}
-		} catch (_) {
-			setVenueHint("Could not search that place. Click the map to drop a pin.");
-		}
+			const hit = results[0];
+			const loc = hit.geometry && hit.geometry.location;
+			if (!loc) {
+				setVenueHint("Unable to find the location. Please try again.");
+				return;
+			}
+			plotVenuePin(loc.lat(), loc.lng(), { fly: true, reverse: false, placeId: hit.place_id || "" });
+			fillVenueAddress(hit.formatted_address || q, {
+				detected: true,
+				hint: "Location detected automatically",
+				status: "Location detected automatically",
+			});
+		});
+	}
+
+	function bindVenueAutocomplete(input) {
+		if (!input || venueAutocomplete || !window.google || !window.google.maps || !window.google.maps.places) return;
+		venueAutocomplete = new window.google.maps.places.Autocomplete(input, {
+			fields: ["place_id", "formatted_address", "name", "geometry"],
+			componentRestrictions: { country: "in" },
+		});
+		if (venueMap) venueAutocomplete.bindTo("bounds", venueMap);
+		venueAutocomplete.addListener("place_changed", () => {
+			const place = venueAutocomplete.getPlace();
+			if (!place || !place.geometry || !place.geometry.location) {
+				setVenueHint("Select a suggestion to set the venue location.");
+				setVenueStatus("");
+				return;
+			}
+			const loc = place.geometry.location;
+			const label = place.formatted_address || place.name || input.value;
+			plotVenuePin(loc.lat(), loc.lng(), { fly: true, reverse: false, placeId: place.place_id || "" });
+			fillVenueAddress(label, {
+				detected: true,
+				hint: "Location detected automatically",
+				status: "Location detected automatically",
+			});
+		});
 	}
 
 	let venueInputBound = false;
@@ -4484,43 +4357,60 @@ async function initOrganizerDashboard() {
 		ensureVenueMapMarkup();
 		updateVenueMapVisibility();
 		setVenueHint("Loading the map\u2026");
+		if (!window.JodGoogleMaps || typeof window.JodGoogleMaps.load !== "function") {
+			setVenueHint("Unable to find the location. Please try again.");
+			return;
+		}
 		try {
-			await loadLeafletAssets();
+			await window.JodGoogleMaps.load("places");
 		} catch (err) {
-			setVenueHint("Map could not load. Type the address, or refresh the page and try again.");
+			if (err && err.code === "MAPS_DISABLED") {
+				setVenueHint("Unable to find the location. Please try again.");
+			} else {
+				setVenueHint("Unable to find the location. Please try again.");
+			}
 			return;
 		}
 		if (!ensureVenueMap()) {
-			setVenueHint("Map could not start. Type the address, or refresh the page and try again.");
+			setVenueHint("Unable to find the location. Please try again.");
 			return;
 		}
 
 		const input = document.getElementById("eventLocationInput");
+		bindVenueAutocomplete(input);
 		if (input && !venueInputBound) {
 			venueInputBound = true;
-			input.addEventListener("input", () => {
-				if (venueFillingFromMap) return;
-				clearTimeout(venueGeocodeTimer);
-				venueGeocodeTimer = setTimeout(() => geocodeVenueQuery(input.value), 650);
-			});
 			input.addEventListener("keydown", (e) => {
-				if (e.key === "Enter") {
-					e.preventDefault();
-					clearTimeout(venueGeocodeTimer);
-					geocodeVenueQuery(input.value);
-				}
+				if (e.key === "Enter") e.preventDefault();
 			});
+			const adjustBtn = document.getElementById("btnAdjustVenue");
+			if (adjustBtn) {
+				adjustBtn.addEventListener("click", () => {
+					if (!venueMarker) {
+						setVenueHint("Select a venue from the suggestions first.");
+						if (input) input.focus();
+						return;
+					}
+					venueAdjustMode = true;
+					setVenueHint("Drag the marker to adjust the exact venue location.");
+					setVenueStatus("");
+					invalidateVenueMap();
+					if (venueMarker.getPosition()) venueMap.panTo(venueMarker.getPosition());
+				});
+			}
 		}
 
 		const lat = readVenueCoord("eventVenueLat");
 		const lon = readVenueCoord("eventVenueLon");
 		if (lat != null && lon != null) {
-			plotVenuePin(lat, lon, { fly: true, reverse: false });
+			plotVenuePin(lat, lon, { fly: true, reverse: false, placeId: (document.getElementById("eventVenuePlaceId") || {}).value || "" });
+			setVenueHint("Location detected automatically", true);
+			setVenueStatus("Location detected automatically");
 		} else if (input && input.value.trim().length >= 3) {
 			geocodeVenueQuery(input.value.trim());
-		} else if (!venueMarker) {
-			plotVenuePin(CHENNAI_CENTER[0], CHENNAI_CENTER[1], { fly: true, reverse: false });
-			setVenueHint("Drag the pin (or click the map) to mark the exact street. Type a pincode such as 600021 to jump there.");
+		} else {
+			setVenueHint("Search a venue or address. The map moves automatically when you select a result.");
+			setVenueStatus("");
 		}
 		setTimeout(() => invalidateVenueMap(), 120);
 		setTimeout(() => invalidateVenueMap(), 400);
@@ -4706,12 +4596,14 @@ async function initOrganizerDashboard() {
 		if (locationInput) locationInput.value = event.venue || event.address || "";
 		const latEl = document.getElementById("eventVenueLat");
 		const lonEl = document.getElementById("eventVenueLon");
+		const placeEl = document.getElementById("eventVenuePlaceId");
 		if (latEl) latEl.value = event.latitude != null ? String(event.latitude) : "";
 		if (lonEl) lonEl.value = event.longitude != null ? String(event.longitude) : "";
+		if (placeEl) placeEl.value = event.place_id || "";
 		setTimeout(() => {
 			updateVenueMapVisibility();
 			if (event.latitude != null && event.longitude != null) {
-				plotVenuePin(Number(event.latitude), Number(event.longitude), { fly: true, reverse: false });
+				plotVenuePin(Number(event.latitude), Number(event.longitude), { fly: true, reverse: false, placeId: event.place_id || "" });
 			} else if (locationInput && locationInput.value.trim()) {
 				geocodeVenueQuery(locationInput.value.trim());
 			} else {
@@ -6582,6 +6474,7 @@ async function initOrganizerDashboard() {
 						address: locationInput ? locationInput.value.trim() : undefined,
 						latitude: readVenueCoord("eventVenueLat"),
 						longitude: readVenueCoord("eventVenueLon"),
+						place_id: (document.getElementById("eventVenuePlaceId") || {}).value || null,
 						event_start_date: toIstIsoFromDatetimeLocal(dateInput && dateInput.value),
 						event_end_date: toIstIsoFromDatetimeLocal(endDateInput && endDateInput.value),
 						event_start_time: timeFromDatetimeLocal(dateInput && dateInput.value),

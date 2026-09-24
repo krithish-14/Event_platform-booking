@@ -20,6 +20,7 @@ class Event(Base):
     venue        = Column(String(300), nullable=True)
     latitude     = Column(Float, nullable=True)
     longitude    = Column(Float, nullable=True)
+    place_id     = Column(String(255), nullable=True)
     category     = Column(String(100), nullable=True)
     image_url    = Column(String(500), nullable=True)
     card_image   = Column(String(500), nullable=True)

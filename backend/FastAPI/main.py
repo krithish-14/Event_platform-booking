@@ -33,6 +33,7 @@ from APIs.auth import router as auth_router
 from APIs.events import router as events_router
 from APIs.users import router as users_router
 from APIs.location import router as location_router
+from APIs.maps import router as maps_router
 from APIs.bookings import router as bookings_router
 from APIs.tickets import router as tickets_router
 from APIs.organizers import router as organizers_router
@@ -196,11 +197,11 @@ _CSP = (
     "form-action 'self'; "
     "frame-ancestors 'self'; "
     "object-src 'none'; "
-    "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; "
-    "style-src 'self' 'unsafe-inline'; "
+    "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://maps.googleapis.com https://maps.gstatic.com; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
     "img-src 'self' data: blob: https:; "
-    "font-src 'self' data:; "
-    "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com; "
+    "font-src 'self' data: https://fonts.gstatic.com; "
+    "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://maps.googleapis.com https://places.googleapis.com https://maps.gstatic.com; "
     "frame-src https://accounts.google.com; "
     "worker-src 'self' blob:"
 )
@@ -239,6 +240,7 @@ app.include_router(auth_router,        prefix="/api/auth",        tags=["Authent
 app.include_router(events_router,      prefix="/api/events",      tags=["Events"])
 app.include_router(users_router,       prefix="/api/users",       tags=["Users"])
 app.include_router(location_router,    prefix="/api/location",    tags=["Location"])
+app.include_router(maps_router,        prefix="/api/maps",        tags=["Maps"])
 app.include_router(bookings_router,    prefix="/api/bookings",    tags=["Bookings"])
 app.include_router(tickets_router,     prefix="/api/tickets",     tags=["Tickets"])
 app.include_router(organizers_router,  prefix="/api/organizers",  tags=["Organizers"])

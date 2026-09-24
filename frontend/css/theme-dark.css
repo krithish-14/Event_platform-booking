@@ -647,11 +647,22 @@ html[data-theme="dark"] body.dashboard-body .doc-dropzone,
 html[data-theme="dark"] body.dashboard-body .locked-bank-section,
 html[data-theme="dark"] body.dashboard-body .avatar-upload-card,
 html[data-theme="dark"] body.dashboard-body .venue-map-panel,
-html[data-theme="dark"] body.dashboard-body .venue-map-hint {
+html[data-theme="dark"] body.dashboard-body .venue-map-hint,
+html[data-theme="dark"] body.dashboard-body .venue-map-actions {
 	background: #1c1814 !important;
 	background-color: #1c1814 !important;
 	color: #f6f0e8 !important;
 	border-color: rgba(255, 138, 31, 0.24) !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .venue-map-status {
+	color: #86efac !important;
+}
+
+html[data-theme="dark"] body.dashboard-body .venue-adjust-btn {
+	background: #1c1814;
+	border-color: rgba(255, 138, 31, 0.32);
+	color: #f6f0e8;
 }
 
 html[data-theme="dark"] body.dashboard-body .dash-ink {
