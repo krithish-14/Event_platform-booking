@@ -15,7 +15,8 @@
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	flex: 1;
-	min-height: calc(100vh - 4.75rem);
+	min-height: 100dvh;
+	max-height: 100dvh;
 }
 
 /* --- Brand / left panel --- */
@@ -196,16 +197,21 @@
 .auth-form-panel {
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
+	justify-content: flex-start;
 	align-items: center;
 	padding: 2rem 2.5rem;
 	background: var(--background);
+	overflow-x: hidden;
 	overflow-y: auto;
+	min-height: 0;
+	-webkit-overflow-scrolling: touch;
 }
 
 .auth-form-box {
 	width: 100%;
 	max-width: 26rem;
+	margin-block: auto;
+	padding-bottom: .25rem;
 }
 
 .auth-form-header {

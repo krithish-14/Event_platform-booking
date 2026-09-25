@@ -128,6 +128,53 @@ class FrontendOriginTests(unittest.TestCase):
             text = fh.read()
         self.assertIn("getApiOrigin", text)
         self.assertIn("isLocalSplitFrontend", text)
+        self.assertIn('var PRODUCTION_API_ORIGIN = "https://api.jodevents.com"', text)
+        self.assertIn('return "http://127.0.0.1:8001"', text)
+
+
+class DatabaseIsolationTests(unittest.TestCase):
+    def test_development_rejects_rds(self):
+        from Services.runtime_env import validate_database_isolation
+
+        with patch.dict(os.environ, {
+            "APP_ENV": "development",
+            "DATABASE_URL": "postgresql+psycopg://jod:pass@prod.abc.ap-south-1.rds.amazonaws.com:5432/jod_events",
+        }, clear=False):
+            with self.assertRaises(RuntimeError):
+                validate_database_isolation()
+
+    def test_development_allows_localhost(self):
+        from Services.runtime_env import validate_database_isolation
+
+        with patch.dict(os.environ, {
+            "APP_ENV": "development",
+            "DATABASE_URL": "postgresql+psycopg://jod:pass@localhost:5432/jod_events",
+        }, clear=False):
+            validate_database_isolation()
+
+    def test_production_rejects_localhost(self):
+        from Services.runtime_env import validate_database_isolation
+
+        with patch.dict(os.environ, {
+            "APP_ENV": "production",
+            "DATABASE_URL": "postgresql+psycopg://jod:pass@localhost:5432/jod_events",
+        }, clear=False):
+            with self.assertRaises(RuntimeError):
+                validate_database_isolation()
+
+    def test_production_allows_rds_and_compose_host(self):
+        from Services.runtime_env import validate_database_isolation
+
+        with patch.dict(os.environ, {
+            "APP_ENV": "production",
+            "DATABASE_URL": "postgresql+psycopg://jod:pass@prod.abc.ap-south-1.rds.amazonaws.com:5432/jod_events",
+        }, clear=False):
+            validate_database_isolation()
+        with patch.dict(os.environ, {
+            "APP_ENV": "production",
+            "DATABASE_URL": "postgresql+psycopg://jod:pass@postgres:5432/jod_events",
+        }, clear=False):
+            validate_database_isolation()
 
 
 class HealthPayloadTests(unittest.TestCase):

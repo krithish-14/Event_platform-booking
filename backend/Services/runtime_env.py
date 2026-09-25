@@ -246,9 +246,41 @@ def _require_https_url(value: str, name: str) -> str:
     return url
 
 
+def database_hostname(db_url: str) -> str:
+    return (urlparse((db_url or "").strip()).hostname or "").strip().lower()
+
+
+def database_is_rds(db_url: str) -> bool:
+    host = database_hostname(db_url)
+    return host.endswith(".rds.amazonaws.com") or host.endswith(".rds.amazonaws.com.cn")
+
+
+def database_is_loopback(db_url: str) -> bool:
+    host = database_hostname(db_url)
+    return host in {"localhost", "127.0.0.1", "::1"} or host.startswith("127.")
+
+
+def validate_database_isolation(db_url: str | None = None) -> None:
+    """Keep local signups off RDS, and keep live signups off localhost Postgres."""
+    url = (db_url if db_url is not None else os.getenv("DATABASE_URL") or "").strip()
+    if not url:
+        return
+    if is_production() or is_staging():
+        if database_is_loopback(url):
+            raise RuntimeError(
+                "Live DATABASE_URL must be RDS (or the compose postgres host), not localhost."
+            )
+        return
+    if database_is_rds(url):
+        raise RuntimeError(
+            "Local development must not use production RDS. Point DATABASE_URL at localhost PostgreSQL."
+        )
+
+
 def validate_production_env() -> None:
     """Fail fast when production is missing required, non-placeholder configuration."""
     if not is_production():
+        validate_database_isolation()
         return
     if debug_enabled():
         raise RuntimeError("DEBUG must be False in production.")
@@ -258,6 +290,7 @@ def validate_production_env() -> None:
         raise RuntimeError("DATABASE_URL must be a PostgreSQL URL in production.")
     if _looks_placeholder(db_url) or any(p in db_url for p in WEAK_PASSWORDS):
         raise RuntimeError("DATABASE_URL still contains a placeholder or weak password.")
+    validate_database_isolation(db_url)
 
     secret_key = require_strong_secret(os.getenv("SECRET_KEY"), "SECRET_KEY")
     file_key = require_strong_secret(os.getenv("FILE_ENCRYPTION_KEY"), "FILE_ENCRYPTION_KEY")

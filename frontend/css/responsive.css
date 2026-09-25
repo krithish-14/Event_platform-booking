@@ -355,7 +355,7 @@
 	.host-modal-body { padding: 2.25rem 1.75rem 2rem; }
 
 	/* Auth: keep a compact brand strip so mobile still feels like desktop */
-	.auth-split { grid-template-columns: 1fr; min-height: auto; }
+	.auth-split { grid-template-columns: 1fr; min-height: auto; max-height: none; }
 	.auth-brand-panel {
 		display: flex;
 		min-height: 0;

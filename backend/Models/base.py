@@ -21,6 +21,8 @@ def get_database_url() -> str:
         raise RuntimeError("SQLite is not supported. Configure PostgreSQL via DATABASE_URL.")
     if "postgresql" not in lowered:
         raise RuntimeError("DATABASE_URL must be a PostgreSQL URL (postgresql+psycopg://...).")
+    from Services.runtime_env import validate_database_isolation
+    validate_database_isolation(url)
     return url
 
 

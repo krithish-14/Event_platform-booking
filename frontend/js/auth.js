@@ -1418,6 +1418,7 @@ window.JodAuth = (() => {
 
 	let googleClientConfig = { client_id: "", enabled: false };
 	let googleGsiReady = false;
+	let googleGsiInitialized = false;
 
 	function rememberGoogleRedirect() {
 		const params = new URLSearchParams(window.location.search);
@@ -1435,6 +1436,37 @@ window.JodAuth = (() => {
 		if (wrap) wrap.classList.toggle("is-blocked", !allowed);
 	}
 
+	function googleOverlayWidth() {
+		const overlay = document.getElementById("googleGsiOverlay");
+		const wrap = overlay && overlay.closest(".google-auth-wrap");
+		const width = Math.floor((wrap && wrap.getBoundingClientRect().width) || (overlay && overlay.getBoundingClientRect().width) || 0);
+		return Math.max(280, width || 320);
+	}
+
+	function renderOfficialGoogleButton() {
+		const overlay = document.getElementById("googleGsiOverlay");
+		if (!overlay || !window.google || !window.google.accounts || !window.google.accounts.id) return false;
+		overlay.innerHTML = "";
+		window.google.accounts.id.renderButton(overlay, {
+			type: "standard",
+			theme: "outline",
+			size: "large",
+			text: "continue_with",
+			shape: "rectangular",
+			width: googleOverlayWidth(),
+		});
+		return Boolean(overlay.children.length);
+	}
+
+	function clickOfficialGoogleButton() {
+		const overlay = document.getElementById("googleGsiOverlay");
+		if (!overlay) return false;
+		const official = overlay.querySelector("div[role='button'], div[tabindex], iframe");
+		if (!official) return false;
+		official.click();
+		return true;
+	}
+
 	function initGoogleIdentity() {
 		const alertEl = googleAlertEl();
 		const btnEl = googleButtonEl();
@@ -1444,54 +1476,66 @@ window.JodAuth = (() => {
 			return;
 		}
 		try {
-			window.google.accounts.id.initialize({
-				client_id: googleClientConfig.client_id,
-				callback: (resp) => handleGoogleCredentialResponse(resp, alertEl, btnEl),
-				auto_select: false,
-				cancel_on_tap_outside: true,
-				ux_mode: "popup",
-				context: document.getElementById("signupForm") ? "signup" : "signin",
-				itp_support: true,
-				use_fedcm_for_prompt: true,
-			});
-			if (overlay) {
-				overlay.innerHTML = "";
-				window.google.accounts.id.renderButton(overlay, {
-					type: "standard",
-					theme: "outline",
-					size: "large",
-					text: "continue_with",
-					shape: "rectangular",
-					width: Math.max(280, Math.floor((wrap && wrap.getBoundingClientRect().width) || overlay.getBoundingClientRect().width || 320)),
+			if (!googleGsiInitialized) {
+				window.google.accounts.id.initialize({
+					client_id: googleClientConfig.client_id,
+					callback: (resp) => handleGoogleCredentialResponse(resp, alertEl, btnEl),
+					auto_select: false,
+					cancel_on_tap_outside: true,
+					ux_mode: "popup",
+					context: document.getElementById("signupForm") ? "signup" : "signin",
+					itp_support: true,
+					use_fedcm_for_prompt: false,
 				});
+				googleGsiInitialized = true;
 			}
-			if (wrap) wrap.classList.add("is-google-ready");
-			googleGsiReady = true;
+			const painted = renderOfficialGoogleButton();
+			if (wrap) wrap.classList.toggle("is-google-ready", painted);
+			googleGsiReady = painted;
 			syncGoogleSignupGate();
+			if (!painted) {
+				window.setTimeout(() => {
+					googleGsiReady = renderOfficialGoogleButton();
+					if (wrap) wrap.classList.toggle("is-google-ready", googleGsiReady);
+				}, 250);
+			}
 		} catch (_) {
 			googleGsiReady = false;
 		}
 	}
 
-	async function initGoogleAuth() {
+	async function initGoogleAuth(attempt) {
 		const btnEl = googleButtonEl();
 		if (!btnEl) return;
+		const tries = Number(attempt) || 0;
 		try {
 			const res = await fetch(`${getApiBase()}/api/auth/google/config`);
 			if (res.ok) googleClientConfig = await res.json();
 		} catch (_) {}
 
 		if (!googleClientConfig.enabled || !googleClientConfig.client_id) {
+			if (tries < 6) {
+				window.setTimeout(() => initGoogleAuth(tries + 1), 700);
+				return;
+			}
 			btnEl.disabled = true;
 			btnEl.setAttribute("title", "Google sign-in is not configured on the server.");
 			return;
 		}
 
+		btnEl.disabled = false;
+		btnEl.removeAttribute("title");
 		const privacyAgree = document.getElementById("signupPrivacyAgree");
-		if (privacyAgree) privacyAgree.addEventListener("change", syncGoogleSignupGate);
+		if (privacyAgree && !privacyAgree.dataset.googleGateBound) {
+			privacyAgree.dataset.googleGateBound = "1";
+			privacyAgree.addEventListener("change", syncGoogleSignupGate);
+		}
 
 		if (window.google && window.google.accounts && window.google.accounts.id) {
 			initGoogleIdentity();
+			return;
+		}
+		if (document.querySelector("script[src='https://accounts.google.com/gsi/client']")) {
 			return;
 		}
 		const script = document.createElement("script");
@@ -1533,30 +1577,19 @@ window.JodAuth = (() => {
 		rememberGoogleRedirect();
 		if (!googleClientConfig.enabled || !googleClientConfig.client_id) {
 			if (alertElement) showAlert(alertElement, "error", "Google sign-in is not configured. Please use email and password.");
+			initGoogleAuth(0);
 			return;
 		}
-		if (!googleGsiReady || !window.google || !window.google.accounts || !window.google.accounts.id) {
+		if (!window.google || !window.google.accounts || !window.google.accounts.id) {
 			if (alertElement) showAlert(alertElement, "error", "Google sign-in is still loading. Please try again.");
+			initGoogleAuth(0);
 			return;
 		}
-		try {
-			// Official Google account chooser for accounts already signed into this browser.
-			window.google.accounts.id.prompt((notification) => {
-				if (!notification) return;
-				if (notification.isNotDisplayed && notification.isNotDisplayed()) {
-					const overlay = document.getElementById("googleGsiOverlay");
-					const officialBtn = overlay && overlay.querySelector("div[role='button'], iframe");
-					if (officialBtn && typeof officialBtn.click === "function") officialBtn.click();
-					return;
-				}
-				if (notification.isSkippedMoment && notification.isSkippedMoment()) return;
-				if (notification.isDismissedMoment && notification.isDismissedMoment()) {
-					if (alertElement) showAlert(alertElement, "error", "Google sign-in was cancelled.");
-				}
-			});
-		} catch (_) {
-			if (alertElement) showAlert(alertElement, "error", "Google sign-in failed. Please try again.");
-		}
+		if (!googleGsiReady) initGoogleIdentity();
+		if (clickOfficialGoogleButton()) return;
+		renderOfficialGoogleButton();
+		if (clickOfficialGoogleButton()) return;
+		if (alertElement) showAlert(alertElement, "error", "Google sign-in failed. Please try again.");
 	}
 
 	document.addEventListener("click", (e) => {

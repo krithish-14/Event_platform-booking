@@ -1,10 +1,10 @@
-/**
- * Single API origin + Cloudflare assets base for every page.
- * Production (Cloudflare frontend): https://api.jodevents.com
- * Local split (:5500): http://127.0.0.1:8001
- * Static images: https://assets.jodevents.com/images/...
- * Override: window.JOD_API_BASE_OVERRIDE / window.JOD_ASSETS_BASE_OVERRIDE
- */
+	/**
+	 * Single API origin + Cloudflare assets base for every page.
+	 * Production (jodevents.com): https://api.jodevents.com → EC2 + RDS
+	 * Local split (:5500): http://127.0.0.1:8001 → local Postgres only
+	 * Static images: https://assets.jodevents.com/images/...
+	 * Override: window.JOD_API_BASE_OVERRIDE / window.JOD_ASSETS_BASE_OVERRIDE
+	 */
 (function (global) {
 	"use strict";
 

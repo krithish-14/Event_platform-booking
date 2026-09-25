@@ -565,10 +565,15 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
             db.refresh(user)
         except IntegrityError:
             db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Google sign-in failed. Please try again.",
+            user = (
+                db.query(User).filter(User.google_user_id == google_sub).first()
+                or db.query(User).filter(func.lower(func.trim(User.email)) == email).first()
             )
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Google sign-in failed. Please try again.",
+                )
 
         try:
             signup_log = UserSignupLog(
@@ -583,6 +588,10 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
             db.commit()
         except Exception:
             db.rollback()
+            try:
+                db.refresh(user)
+            except Exception:
+                pass
 
     # Record User Login Audit Log
     try:
@@ -595,6 +604,14 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
         db.commit()
     except Exception:
         db.rollback()
+        try:
+            db.refresh(user)
+        except Exception:
+            user = (
+                db.query(User).filter(User.google_user_id == google_sub).first()
+                or db.query(User).filter(func.lower(func.trim(User.email)) == email).first()
+                or user
+            )
 
     # 4. Generate access token
     token_str = create_access_token(
