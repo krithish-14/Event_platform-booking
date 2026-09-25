@@ -266,7 +266,7 @@ def _frontend_looks_local() -> bool:
 
 
 def validate_database_isolation(db_url: str | None = None) -> None:
-    """Keep workstation signups off RDS. Never take down EC2 because APP_ENV is unset."""
+    """Keep live off localhost Postgres. Never abort EC2 because APP_ENV is still development."""
     url = (db_url if db_url is not None else os.getenv("DATABASE_URL") or "").strip()
     if not url:
         return
@@ -276,10 +276,11 @@ def validate_database_isolation(db_url: str | None = None) -> None:
                 "Live DATABASE_URL must be RDS (or the compose postgres host), not localhost."
             )
         return
-    env = (os.getenv("APP_ENV") or "").strip().lower()
-    if env in ("development", "dev", "local") and _frontend_looks_local() and database_is_rds(url):
-        raise RuntimeError(
-            "Local development must not use production RDS. Point DATABASE_URL at localhost PostgreSQL."
+    if database_is_rds(url) and _frontend_looks_local():
+        print(
+            "  [WARN] This process is using RDS while APP_ENV is not production. "
+            "Local workstation signups should use localhost PostgreSQL.",
+            flush=True,
         )
 
 

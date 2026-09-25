@@ -133,7 +133,7 @@ class FrontendOriginTests(unittest.TestCase):
 
 
 class DatabaseIsolationTests(unittest.TestCase):
-    def test_development_rejects_rds(self):
+    def test_development_with_rds_does_not_abort_startup(self):
         from Services.runtime_env import validate_database_isolation
 
         with patch.dict(os.environ, {
@@ -142,8 +142,7 @@ class DatabaseIsolationTests(unittest.TestCase):
             "FRONTEND_URL": "http://127.0.0.1:5500",
             "DATABASE_URL": "postgresql+psycopg://jod:pass@prod.abc.ap-south-1.rds.amazonaws.com:5432/jod_events",
         }, clear=False):
-            with self.assertRaises(RuntimeError):
-                validate_database_isolation()
+            validate_database_isolation()
 
     def test_unset_env_allows_rds_so_ec2_stays_up(self):
         from Services.runtime_env import validate_database_isolation
