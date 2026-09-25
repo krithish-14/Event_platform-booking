@@ -2731,7 +2731,11 @@ html[data-theme="dark"] .dash-toast {
 	gap: 0.4rem;
 }
 .ticket-studio-canvas-wrap {
-	display: block !important;
+	display: flex !important;
+	flex-direction: row;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 1.15rem;
 	grid-template-columns: none !important;
 	position: relative;
 	min-width: 0;
@@ -3542,6 +3546,14 @@ html[data-theme="dark"] .ticket-form-fields-title {
 	.ticket-studio-canvas-wrap {
 		position: static;
 		order: 1;
+		flex-direction: column;
+		align-items: center;
+	}
+	.ticket-float-card {
+		position: static;
+		width: min(100%, 380px);
+		flex: 0 0 auto;
+		max-height: none;
 	}
 	.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas {
 		width: min(100%, 340px);
@@ -3591,9 +3603,21 @@ html[data-theme="dark"] .ticket-selected-help {
 	color: #94a3b8;
 }
 
-html[data-theme="dark"] .ticket-selected-panel {
+html[data-theme="dark"] .ticket-selected-panel,
+html[data-theme="dark"] .ticket-float-card {
 	background: color-mix(in srgb, var(--ticket-accent, #2563eb) 10%, #1a1612);
 	border-color: rgba(255, 138, 31, 0.28);
+}
+html[data-theme="dark"] .ticket-float-head {
+	color: #e2e8f0;
+}
+html[data-theme="dark"] .ticket-float-hint {
+	color: #94a3b8;
+}
+html[data-theme="dark"] .ticket-align-btn {
+	background: #0f172a;
+	border-color: #334155;
+	color: #e2e8f0;
 }
 
 html[data-theme="dark"] .ticket-form-fields-block {
@@ -3606,11 +3630,115 @@ html[data-theme="dark"] .ticket-template-chip.is-active {
 }
 
 
-/* Studio canvas is a single column (hint + ticket), not a 2-col workspace */
+/* Preview left, Canva-style tools card right — card never overlays the ticket */
 .ticket-studio-canvas-wrap.ticket-canvas-workspace,
 .ticket-design-studio .ticket-canvas-workspace {
-	display: block !important;
+	display: flex !important;
+	flex-direction: row;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 1.15rem;
 	grid-template-columns: none !important;
+}
+.ticket-float-card {
+	flex: 0 0 272px;
+	width: 272px;
+	position: sticky;
+	top: 0.75rem;
+	z-index: 4;
+	padding: 0.85rem 0.9rem 1rem;
+	border: 1px solid #e2e8f0;
+	border-radius: 16px;
+	background: #fff;
+	box-shadow: 0 14px 36px rgba(15, 23, 42, 0.1);
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	max-height: calc(100vh - 7rem);
+	overflow: auto;
+}
+.ticket-float-head {
+	font-size: 0.92rem;
+	font-weight: 800;
+	color: #0f172a;
+}
+.ticket-float-hint {
+	margin: -0.35rem 0 0;
+	font-size: 0.72rem;
+	line-height: 1.4;
+	color: #64748b;
+}
+.ticket-float-section {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+.ticket-float-add,
+.ticket-float-colors {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.45rem;
+}
+.ticket-float-add .ticket-palette-chip {
+	justify-content: center;
+	text-align: center;
+}
+.ticket-align-row {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 0.35rem;
+}
+.ticket-align-btn {
+	border: 1px solid #cbd5e1;
+	background: #fff;
+	border-radius: 8px;
+	padding: 0.4rem 0.2rem;
+	font-size: 0.72rem;
+	font-weight: 700;
+	color: #334155;
+	cursor: pointer;
+}
+.ticket-align-btn.is-active,
+.ticket-align-btn:hover {
+	border-color: #2563eb;
+	color: #1d4ed8;
+	background: #eff6ff;
+}
+.ticket-float-actions {
+	display: flex;
+	gap: 0.45rem;
+	flex-wrap: wrap;
+}
+.ticket-float-card .ticket-selected-panel {
+	margin: 0;
+	padding: 0.65rem 0.55rem;
+}
+.ticket-live-card.is-canvas-selected {
+	box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18), 0 0 0 2px rgba(37, 99, 235, 0.28);
+}
+.tc-node.is-align-left .tc-node-body > * {
+	text-align: left;
+	align-items: flex-start;
+}
+.tc-node.is-align-center .tc-node-body > * {
+	text-align: center;
+	align-items: center;
+}
+.tc-node.is-align-right .tc-node-body > * {
+	text-align: right;
+	align-items: flex-end;
+}
+.tc-node.is-align-left .tc-el-row,
+.tc-node.is-align-left .tc-el-price {
+	justify-content: flex-start;
+}
+.tc-node.is-align-center .tc-el-row,
+.tc-node.is-align-center .tc-el-price {
+	justify-content: center;
+}
+.tc-node.is-align-right .tc-el-row,
+.tc-node.is-align-right .tc-el-price {
+	justify-content: flex-end;
 }
 .ticket-canvas-hint {
 	flex: 0 0 auto;

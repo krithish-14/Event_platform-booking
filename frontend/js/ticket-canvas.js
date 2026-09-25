@@ -36,13 +36,16 @@
 	];
 
 	const SHAPE_DEFS = [
-		{ type: "line", label: "Solid line", flag: null, w: 70, h: 2, locked: false, shape: true, color: "#38bdf8" },
-		{ type: "dashed_line", label: "Dashed line", flag: null, w: 70, h: 2, locked: false, shape: true, color: "#94a3b8" },
-		{ type: "rectangle", label: "Rectangle", flag: null, w: 40, h: 12, locked: false, shape: true, color: "#38bdf8" },
+		{ type: "line", label: "Line", flag: null, w: 70, h: 2, locked: false, shape: true, color: "#38bdf8" },
+		{ type: "dashed_line", label: "Dashed", flag: null, w: 70, h: 2, locked: false, shape: true, color: "#94a3b8" },
+		{ type: "rectangle", label: "Box", flag: null, w: 40, h: 12, locked: false, shape: true, color: "#38bdf8" },
 		{ type: "circle", label: "Circle", flag: null, w: 16, h: 10, locked: false, shape: true, color: "#22d3ee" },
 	];
+	const CUSTOM_DEFS = [
+		{ type: "text", label: "Text", flag: null, w: 54, h: 6, locked: false, shape: false, repeatable: true },
+	];
 
-	const ELEMENT_DEFS = DATA_DEFS.concat(SHAPE_DEFS);
+	const ELEMENT_DEFS = DATA_DEFS.concat(SHAPE_DEFS).concat(CUSTOM_DEFS);
 	const DEF_BY_TYPE = {};
 	ELEMENT_DEFS.forEach(function (d) { DEF_BY_TYPE[d.type] = d; });
 
@@ -70,6 +73,8 @@
 		template_id: "classic",
 		layout_version: LAYOUT_VERSION,
 		accent_color: "#2563eb",
+		card_color: "",
+		text_color: "",
 		show_jod_logo: true,
 		show_venue: true,
 		show_date: true,
@@ -97,10 +102,32 @@
 		return !!(DEF_BY_TYPE[type] && DEF_BY_TYPE[type].shape);
 	}
 
+	function isRepeatableType(type) {
+		const def = DEF_BY_TYPE[type];
+		return !!(def && (def.shape || def.repeatable));
+	}
+
 	function sanitizeColor(c, fallback) {
 		const v = String(c || fallback || "#38bdf8").trim();
 		if (/^#[0-9a-fA-F]{6}$/.test(v) || /^#[0-9a-fA-F]{3}$/.test(v)) return v;
 		return fallback || "#38bdf8";
+	}
+
+	function optionalColor(c) {
+		const v = String(c || "").trim();
+		if (/^#[0-9a-fA-F]{6}$/.test(v) || /^#[0-9a-fA-F]{3}$/.test(v)) return v;
+		return "";
+	}
+
+	function defaultAlign(type) {
+		if (["qty", "ticket_type", "seat", "booking_id", "footer", "badge"].indexOf(type) >= 0) return "center";
+		return "left";
+	}
+
+	function sanitizeAlign(value, type) {
+		const align = String(value || "").toLowerCase();
+		if (align === "left" || align === "center" || align === "right") return align;
+		return defaultAlign(type);
 	}
 
 	function cloneElements(list) {
@@ -111,8 +138,9 @@
 			const type = String(e.type || "").trim();
 			if (!DEF_BY_TYPE[type]) return;
 			const shape = isShapeType(type);
+			const repeatable = isRepeatableType(type);
 			let id = String(e.id || "").trim();
-			if (!shape) {
+			if (!repeatable) {
 				id = type;
 				if (seenData[type]) return;
 				seenData[type] = true;
@@ -127,7 +155,13 @@
 				w: clampNum(e.w, shape && (type === "line" || type === "dashed_line") ? 8 : 10, 96, 40),
 				h: clampNum(e.h, shape && (type === "line" || type === "dashed_line") ? 1 : 3, 40, 6),
 			};
-			if (shape) item.color = sanitizeColor(e.color, DEF_BY_TYPE[type].color);
+			const savedColor = optionalColor(e.color);
+			if (savedColor) item.color = savedColor;
+			else if (shape) item.color = sanitizeColor(e.color, DEF_BY_TYPE[type].color);
+			if (type === "text" || ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge"].indexOf(type) >= 0) {
+				item.align = sanitizeAlign(e.align, type);
+			}
+			if (type === "text") item.text = String(e.text || "Your text").trim().slice(0, 120) || "Your text";
 			const fs = Number(e.fontScale);
 			if (Number.isFinite(fs)) item.fontScale = clampNum(fs, 0.7, 2.2, 1);
 			out.push(item);
@@ -159,6 +193,8 @@
 
 	function cloneLayout(src) {
 		const out = Object.assign({}, DEFAULT_LAYOUT, src || {});
+		out.card_color = optionalColor(src && src.card_color);
+		out.text_color = optionalColor(src && src.text_color);
 		out.canvas_elements = cloneElements((src && src.canvas_elements) || DEFAULT_ELEMENTS);
 		const prevVer = Number(src && src.layout_version) || 0;
 		/* v2+: one shared alignment for every color format; migrate older drafts once. */
@@ -206,6 +242,7 @@
 		}, opts.sample || {});
 		this.onChange = typeof opts.onChange === "function" ? opts.onChange : function () {};
 		this.selectedId = null;
+		this.canvasSelected = false;
 		this._drag = null;
 		this._didDrag = false;
 		this._bound = false;
@@ -258,6 +295,7 @@
 		}
 		this.applyFlagsToElements();
 		this.selectedId = null;
+		this.canvasSelected = false;
 		this.syncControls();
 		this.renderTemplatePicker();
 		this.renderPalette();
@@ -271,7 +309,7 @@
 		(L.canvas_elements || []).forEach(function (el) {
 			const def = DEF_BY_TYPE[el.type];
 			if (!def) return;
-			if (def.shape) {
+			if (def.shape || def.repeatable) {
 				keep.push(el);
 				return;
 			}
@@ -313,9 +351,9 @@
 	TicketCanvasController.prototype.addElement = function (type, silent) {
 		const def = DEF_BY_TYPE[type];
 		if (!def) return;
-		if (!def.shape && this.hasElement(type)) return;
+		if (!isRepeatableType(type) && this.hasElement(type)) return;
 		const base = DEFAULT_ELEMENTS.find(function (e) { return e.type === type; });
-		const id = def.shape ? (type + "_" + Date.now().toString(36) + "_" + (_shapeSeq++)) : type;
+		const id = isRepeatableType(type) ? (type + "_" + Date.now().toString(36) + "_" + (_shapeSeq++)) : type;
 		const next = Object.assign(
 			{ id: id, type: type, x: 15 + (Math.random() * 10), y: 20 + (Math.random() * 20), w: def.w, h: def.h },
 			base || {},
@@ -328,9 +366,15 @@
 			next.h = 4;
 		}
 		if (def.shape) next.color = def.color || "#38bdf8";
+		if (type === "text") {
+			next.text = "Your text";
+			next.align = "left";
+			next.color = this.layout.text_color || "#111827";
+		}
 		this.layout.canvas_elements = (this.layout.canvas_elements || []).concat([next]);
 		if (def.flag) this.layout[def.flag] = true;
 		this.selectedId = id;
+		this.canvasSelected = false;
 		this.renderPalette();
 		this.renderPreview();
 		this.syncControls();
@@ -359,11 +403,12 @@
 	};
 
 	TicketCanvasController.prototype.clearSelection = function () {
-		if (!this.selectedId && !this._drag && !this._resize) {
+		if (!this.selectedId && !this.canvasSelected && !this._drag && !this._resize) {
 			this.clearGuides();
 			return;
 		}
 		this.selectedId = null;
+		this.canvasSelected = false;
 		this._drag = null;
 		this._resize = null;
 		this._didDrag = false;
@@ -373,42 +418,105 @@
 		this.syncSelectedPanel();
 	};
 
+	TicketCanvasController.prototype.selectCanvas = function () {
+		this.selectedId = null;
+		this.canvasSelected = true;
+		this._drag = null;
+		this._resize = null;
+		this._didDrag = false;
+		this.releasePointer();
+		this.clearGuides();
+		this.updateSelectionStyles();
+		this.syncSelectedPanel();
+	};
+
 	TicketCanvasController.prototype.isTextElement = function (type) {
-		return ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge", "jod_logo"].indexOf(type) >= 0;
+		return ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge", "jod_logo", "text"].indexOf(type) >= 0;
+	};
+
+	TicketCanvasController.prototype.isEditableText = function (type) {
+		return type === "title" || type === "footer" || type === "text";
 	};
 
 	TicketCanvasController.prototype.syncSelectedPanel = function () {
-		const panel = this.root && this.root.querySelector("#ticketSelectedPanel");
-		const label = this.root && this.root.querySelector("#ticketSelectedLabel");
-		const wEl = this.root && this.root.querySelector("#ticketElWidth");
-		const hEl = this.root && this.root.querySelector("#ticketElHeight");
-		const hWrap = this.root && this.root.querySelector("#ticketElHeightWrap");
-		const fEl = this.root && this.root.querySelector("#ticketElFont");
-		const fWrap = this.root && this.root.querySelector("#ticketElFontWrap");
-		const colorWrap = this.root && this.root.querySelector("#ticketShapeColorWrap");
-		const colorInput = this.root && this.root.querySelector("#ticketShapeColor");
-		if (!panel) return;
+		if (!this.root) return;
+		const panel = this.root.querySelector("#ticketSelectedPanel");
+		const label = this.root.querySelector("#ticketSelectedLabel");
+		const help = this.root.querySelector("#ticketSelectedHelp");
+		const wEl = this.root.querySelector("#ticketElWidth");
+		const hEl = this.root.querySelector("#ticketElHeight");
+		const hWrap = this.root.querySelector("#ticketElHeightWrap");
+		const fEl = this.root.querySelector("#ticketElFont");
+		const fWrap = this.root.querySelector("#ticketElFontWrap");
+		const colorInput = this.root.querySelector("#ticketItemColor");
+		const colorLabel = this.root.querySelector("#ticketItemColorLabel");
+		const alignWrap = this.root.querySelector("#ticketAlignSection");
+		const textWrap = this.root.querySelector("#ticketTextEditWrap");
+		const textInput = this.root.querySelector("#ticketItemText");
+		const sizeWrap = this.root.querySelector("#ticketSizeRow");
+		const card = this.root.querySelector("#ticketLiveCard");
 		const item = this.findById(this.selectedId);
+		const tmpl = this.currentTemplate();
+		const preview = (tmpl && tmpl.preview) || {};
+		if (card) card.classList.toggle("is-canvas-selected", !!this.canvasSelected && !item);
+		if (this.canvasSelected && !item) {
+			if (panel) panel.hidden = false;
+			if (label) label.textContent = "Ticket";
+			if (help) help.textContent = "Change the ticket background, accent, or default text color.";
+			if (sizeWrap) sizeWrap.hidden = true;
+			if (alignWrap) alignWrap.hidden = true;
+			if (textWrap) textWrap.hidden = true;
+			if (colorLabel) colorLabel.textContent = "Text";
+			if (colorInput) colorInput.value = sanitizeColor(this.layout.text_color || preview.text, "#111827");
+			const removeBtn = this.root.querySelector("#ticketRemoveSelectedBtn");
+			if (removeBtn) removeBtn.hidden = true;
+			return;
+		}
 		if (!item) {
-			panel.hidden = true;
-			if (colorWrap) colorWrap.hidden = true;
+			if (panel) panel.hidden = true;
+			if (alignWrap) alignWrap.hidden = true;
+			if (textWrap) textWrap.hidden = true;
+			if (sizeWrap) sizeWrap.hidden = true;
+			if (colorLabel) colorLabel.textContent = "Color";
+			if (colorInput) colorInput.value = sanitizeColor(this.layout.accent_color, "#2563eb");
 			return;
 		}
 		const def = DEF_BY_TYPE[item.type] || {};
 		const isLine = item.type === "line" || item.type === "dashed_line";
-		panel.hidden = false;
-		if (label) label.textContent = "· " + (def.label || item.type);
+		const isText = this.isTextElement(item.type);
+		if (panel) panel.hidden = false;
+		if (label) label.textContent = def.label || item.type;
+		if (help) help.textContent = isText
+			? "Change this field’s color, alignment, and size."
+			: "Change this shape’s color or size.";
+		if (sizeWrap) sizeWrap.hidden = false;
 		if (wEl) wEl.value = String(Math.round(item.w));
 		if (hEl) hEl.value = String(Math.round(item.h));
 		if (hWrap) hWrap.hidden = !!isLine;
-		if (fWrap) fWrap.hidden = !this.isTextElement(item.type);
+		if (fWrap) fWrap.hidden = !isText;
 		if (fEl) fEl.value = String(Math.round((item.fontScale || 1) * 100));
-		if (colorWrap && colorInput) {
-			const showColor = isShapeType(item.type);
-			colorWrap.hidden = !showColor;
-			if (showColor) colorInput.value = sanitizeColor(item.color, "#38bdf8");
+		if (alignWrap) {
+			alignWrap.hidden = !isText || item.type === "jod_logo";
+			alignWrap.querySelectorAll("[data-align]").forEach(function (btn) {
+				btn.classList.toggle("is-active", btn.getAttribute("data-align") === sanitizeAlign(item.align, item.type));
+			});
 		}
-		const removeBtn = this.root && this.root.querySelector("#ticketRemoveSelectedBtn");
+		if (textWrap && textInput) {
+			const editable = this.isEditableText(item.type);
+			textWrap.hidden = !editable;
+			if (editable) {
+				if (item.type === "title") textInput.value = this.layout.headline_override || "";
+				else if (item.type === "footer") textInput.value = this.layout.custom_footer || "";
+				else textInput.value = item.text || "";
+				textInput.placeholder = item.type === "title" ? "Leave blank to use event title" : (item.type === "footer" ? "Optional note on ticket" : "Your text");
+			}
+		}
+		if (colorLabel) colorLabel.textContent = isShapeType(item.type) ? "Shape" : "Text";
+		if (colorInput) {
+			const fallback = isShapeType(item.type) ? (def.color || "#38bdf8") : (this.layout.text_color || preview.text || "#111827");
+			colorInput.value = sanitizeColor(item.color || fallback, fallback);
+		}
+		const removeBtn = this.root.querySelector("#ticketRemoveSelectedBtn");
 		if (removeBtn) {
 			const lockedLogo = item.type === "jod_logo" && !this.isPremium;
 			removeBtn.hidden = !!lockedLogo;
@@ -420,7 +528,10 @@
 		if (!this.root) return;
 		const selected = this.selectedId;
 		const card = this.root.querySelector("#ticketLiveCard");
-		if (card) card.classList.toggle("has-selection", !!selected);
+		if (card) {
+			card.classList.toggle("has-selection", !!selected);
+			card.classList.toggle("is-canvas-selected", !!this.canvasSelected && !selected);
+		}
 		this.root.querySelectorAll(".tc-node").forEach(function (node) {
 			const on = node.getAttribute("data-id") === selected;
 			node.classList.toggle("is-selected", on);
@@ -450,27 +561,6 @@
 			'  <div class="ticket-studio-toolbar">',
 			'    <div class="ticket-template-grid" id="ticketTemplateGrid" role="listbox" aria-label="Ticket templates"></div>',
 			'    <div class="ticket-canvas-controls ticket-studio-controls-top">',
-			'      <div class="ticket-ctrl-row">',
-			'        <label class="ticket-ctrl"><span>Accent</span><input type="color" id="ticketAccentColor" value="#2563eb" /></label>',
-			'        <label class="ticket-ctrl ticket-ctrl-grow"><span>Headline override</span><input type="text" id="ticketHeadlineOverride" maxlength="80" placeholder="Leave blank to use event title" /></label>',
-			'        <label class="ticket-ctrl ticket-ctrl-grow"><span>Footer note</span><input type="text" id="ticketCustomFooter" maxlength="120" placeholder="Optional short note on ticket" /></label>',
-			'      </div>',
-			'      <div class="ticket-selected-panel" id="ticketSelectedPanel" hidden>',
-			'        <div class="ticket-palette-title">Selected <span id="ticketSelectedLabel"></span></div>',
-			'        <p class="ticket-selected-help">Drag to move. Pull blue handles to resize. Use Remove to delete from the ticket.</p>',
-			'        <div class="ticket-ctrl-row">',
-			'          <label class="ticket-ctrl"><span>Width</span><input type="range" id="ticketElWidth" min="8" max="96" step="1" /></label>',
-			'          <label class="ticket-ctrl" id="ticketElHeightWrap"><span>Height</span><input type="range" id="ticketElHeight" min="1" max="40" step="1" /></label>',
-			'          <label class="ticket-ctrl" id="ticketElFontWrap" hidden><span>Text size</span><input type="range" id="ticketElFont" min="70" max="220" step="5" /></label>',
-			'          <label class="ticket-ctrl ticket-shape-color-wrap" id="ticketShapeColorWrap" hidden><span>Color</span><input type="color" id="ticketShapeColor" value="#38bdf8" /></label>',
-			'          <button type="button" class="ticket-reset-btn" id="ticketDeselectBtn">Deselect</button>',
-			'          <button type="button" class="ticket-reset-btn ticket-remove-selected-btn" id="ticketRemoveSelectedBtn">Remove</button>',
-			'        </div>',
-			'      </div>',
-			'      <div class="ticket-tool-block">',
-			'        <div class="ticket-palette-title">Shapes</div>',
-			'        <div class="ticket-element-palette" id="ticketShapePalette"></div>',
-			'      </div>',
 			'      <div class="ticket-tool-block">',
 			'        <div class="ticket-palette-title">Add fields</div>',
 			'        <div class="ticket-element-palette" id="ticketElementPalette"></div>',
@@ -496,9 +586,49 @@
 			'  </div>',
 			'  <div class="ticket-canvas-workspace ticket-studio-canvas-wrap">',
 			'    <div class="ticket-canvas-stage" id="ticketCanvasStage">',
-			'      <div class="ticket-canvas-hint">Scroll down for the full ticket. Drag fields to move · blue handles resize · Esc deselects.</div>',
+			'      <div class="ticket-canvas-hint">Click a field to edit it. Click empty ticket for background colors. Drag to move · Esc deselects.</div>',
 			'      <div class="ticket-live-card is-canvas" id="ticketLiveCard" aria-live="polite"></div>',
 			'    </div>',
+			'    <aside class="ticket-float-card" id="ticketFloatCard" aria-label="Ticket editing tools">',
+			'      <div class="ticket-float-head">Tools</div>',
+			'      <p class="ticket-float-hint">Add text or shapes, then click a section to change color and alignment.</p>',
+			'      <div class="ticket-float-section">',
+			'        <div class="ticket-palette-title">Add</div>',
+			'        <div class="ticket-float-add" id="ticketShapePalette"></div>',
+			'      </div>',
+			'      <div class="ticket-float-section">',
+			'        <div class="ticket-palette-title">Ticket colors</div>',
+			'        <div class="ticket-float-colors">',
+			'          <label class="ticket-ctrl"><span>Background</span><input type="color" id="ticketCardColor" value="#ffffff" /></label>',
+			'          <label class="ticket-ctrl"><span>Accent</span><input type="color" id="ticketAccentColor" value="#2563eb" /></label>',
+			'        </div>',
+			'      </div>',
+			'      <div class="ticket-float-section ticket-selected-panel" id="ticketSelectedPanel" hidden>',
+			'        <div class="ticket-palette-title">Selected <span id="ticketSelectedLabel"></span></div>',
+			'        <p class="ticket-selected-help" id="ticketSelectedHelp">Click a field on the ticket to edit it here.</p>',
+			'        <label class="ticket-ctrl" id="ticketTextEditWrap" hidden><span>Text</span><input type="text" id="ticketItemText" maxlength="120" /></label>',
+			'        <div class="ticket-float-colors">',
+			'          <label class="ticket-ctrl"><span id="ticketItemColorLabel">Color</span><input type="color" id="ticketItemColor" value="#111827" /></label>',
+			'        </div>',
+			'        <div class="ticket-float-section" id="ticketAlignSection" hidden>',
+			'          <div class="ticket-palette-title">Align</div>',
+			'          <div class="ticket-align-row" role="group" aria-label="Text alignment">',
+			'            <button type="button" class="ticket-align-btn" data-align="left" title="Left">Left</button>',
+			'            <button type="button" class="ticket-align-btn" data-align="center" title="Center">Center</button>',
+			'            <button type="button" class="ticket-align-btn" data-align="right" title="Right">Right</button>',
+			'          </div>',
+			'        </div>',
+			'        <div class="ticket-ctrl-row" id="ticketSizeRow">',
+			'          <label class="ticket-ctrl"><span>Width</span><input type="range" id="ticketElWidth" min="8" max="96" step="1" /></label>',
+			'          <label class="ticket-ctrl" id="ticketElHeightWrap"><span>Height</span><input type="range" id="ticketElHeight" min="1" max="40" step="1" /></label>',
+			'          <label class="ticket-ctrl" id="ticketElFontWrap" hidden><span>Text size</span><input type="range" id="ticketElFont" min="70" max="220" step="5" /></label>',
+			'        </div>',
+			'        <div class="ticket-float-actions">',
+			'          <button type="button" class="ticket-reset-btn" id="ticketDeselectBtn">Deselect</button>',
+			'          <button type="button" class="ticket-reset-btn ticket-remove-selected-btn" id="ticketRemoveSelectedBtn">Remove</button>',
+			'        </div>',
+			'      </div>',
+			'    </aside>',
 			'  </div>',
 			'</div>',
 		].join("");
@@ -516,8 +646,7 @@
 		const self = this;
 		const map = [
 			["ticketAccentColor", "accent_color", "value"],
-			["ticketHeadlineOverride", "headline_override", "value"],
-			["ticketCustomFooter", "custom_footer", "value"],
+			["ticketCardColor", "card_color", "value"],
 			["ticketShowDate", "show_date", "checked", "date"],
 			["ticketShowVenue", "show_venue", "checked", "venue"],
 			["ticketShowType", "show_ticket_type", "checked", "ticket_type"],
@@ -552,9 +681,6 @@
 						return;
 					}
 				}
-				if (row[1] === "custom_footer" && String(on || "").trim() && !self.hasElement("footer")) {
-					self.addElement("footer", true);
-				}
 				self.renderPreview();
 				self.renderPalette();
 				self.emitChange();
@@ -562,16 +688,50 @@
 			el.addEventListener("change", function () { el.dispatchEvent(new Event("input")); });
 		});
 
-		const shapeColor = this.root.querySelector("#ticketShapeColor");
-		if (shapeColor) {
-			shapeColor.addEventListener("input", function () {
+		const itemColor = this.root.querySelector("#ticketItemColor");
+		if (itemColor) {
+			itemColor.addEventListener("input", function () {
 				const item = self.findById(self.selectedId);
-				if (!item || !isShapeType(item.type)) return;
-				item.color = sanitizeColor(shapeColor.value, item.color);
+				const color = sanitizeColor(itemColor.value, "#111827");
+				if (item) {
+					item.color = color;
+				} else if (self.canvasSelected) {
+					self.layout.text_color = color;
+				} else {
+					return;
+				}
 				self.renderPreview();
 				self.emitChange();
 			});
 		}
+		const itemText = this.root.querySelector("#ticketItemText");
+		if (itemText) {
+			itemText.addEventListener("input", function () {
+				const item = self.findById(self.selectedId);
+				if (!item || !self.isEditableText(item.type)) return;
+				const value = String(itemText.value || "");
+				if (item.type === "title") {
+					self.layout.headline_override = value.slice(0, 80);
+				} else if (item.type === "footer") {
+					self.layout.custom_footer = value.slice(0, 120);
+					if (value.trim() && !self.hasElement("footer")) self.addElement("footer", true);
+				} else {
+					item.text = value.slice(0, 120) || "Your text";
+				}
+				self.renderPreview();
+				self.emitChange();
+			});
+		}
+		this.root.querySelectorAll("[data-align]").forEach(function (btn) {
+			btn.addEventListener("click", function () {
+				const item = self.findById(self.selectedId);
+				if (!item || !self.isTextElement(item.type)) return;
+				item.align = sanitizeAlign(btn.getAttribute("data-align"), item.type);
+				self.renderPreview();
+				self.syncSelectedPanel();
+				self.emitChange();
+			});
+		});
 
 		[["ticketElWidth", "w"], ["ticketElHeight", "h"]].forEach(function (pair) {
 			const el = self.root.querySelector("#" + pair[0]);
@@ -617,12 +777,15 @@
 				const keep = {
 					template_id: self.layout.template_id,
 					accent_color: self.layout.accent_color,
+					card_color: self.layout.card_color,
+					text_color: self.layout.text_color,
 					headline_override: self.layout.headline_override,
 					custom_footer: self.layout.custom_footer,
 				};
 				self.layout = cloneLayout(Object.assign({}, DEFAULT_LAYOUT, keep));
 				if (!self.isPremium) self.layout.show_jod_logo = true;
 				self.selectedId = null;
+				self.canvasSelected = false;
 				self.syncControls();
 				self.renderPalette();
 				self.renderPreview();
@@ -661,7 +824,9 @@
 				if (removeBtn || handle) return;
 				if (!node) {
 					self.onPointerEnd(ev);
-					self.clearSelection();
+					const onCard = ev.target && ev.target.closest ? ev.target.closest("#ticketLiveCard") : null;
+					if (onCard) self.selectCanvas();
+					else self.clearSelection();
 					self.clearGuides();
 				}
 			});
@@ -700,9 +865,10 @@
 			const el = this.root.querySelector("#" + id);
 			if (el) el.checked = !!val;
 		}.bind(this);
-		setVal("ticketAccentColor", L.accent_color || "#2563eb");
-		setVal("ticketHeadlineOverride", L.headline_override || "");
-		setVal("ticketCustomFooter", L.custom_footer || "");
+		const tmpl = this.currentTemplate();
+		const preview = (tmpl && tmpl.preview) || {};
+		setVal("ticketAccentColor", L.accent_color || preview.accent || "#2563eb");
+		setVal("ticketCardColor", L.card_color || preview.card || "#ffffff");
 		setChk("ticketShowDate", this.hasElement("date"));
 		setChk("ticketShowVenue", this.hasElement("venue"));
 		setChk("ticketShowType", this.hasElement("ticket_type"));
@@ -747,8 +913,9 @@
 			});
 		}
 		if (shapeHost) {
-			shapeHost.innerHTML = SHAPE_DEFS.map(function (def) {
-				return '<button type="button" class="ticket-palette-chip ticket-shape-chip" data-add-shape="' + def.type + '">' + escapeHtml(def.label) + " +</button>";
+			const tools = CUSTOM_DEFS.concat(SHAPE_DEFS);
+			shapeHost.innerHTML = tools.map(function (def) {
+				return '<button type="button" class="ticket-palette-chip ticket-shape-chip" data-add-shape="' + def.type + '">' + escapeHtml(def.label) + "</button>";
 			}).join("");
 			shapeHost.querySelectorAll("[data-add-shape]").forEach(function (btn) {
 				btn.addEventListener("click", function () { self.addElement(btn.getAttribute("data-add-shape")); });
@@ -777,7 +944,11 @@
 				const id = btn.getAttribute("data-template-id");
 				const tmpl = self.templates.find(function (x) { return x.id === id; });
 				self.layout.template_id = id;
-				if (tmpl && tmpl.preview && tmpl.preview.accent) self.layout.accent_color = tmpl.preview.accent;
+				if (tmpl && tmpl.preview) {
+					if (tmpl.preview.accent) self.layout.accent_color = tmpl.preview.accent;
+					if (tmpl.preview.card) self.layout.card_color = tmpl.preview.card;
+					if (tmpl.preview.text) self.layout.text_color = tmpl.preview.text;
+				}
 				self.syncControls();
 				self.renderTemplatePicker();
 				self.renderPreview();
@@ -803,17 +974,18 @@
 			case "badge": return '<div class="tc-el-badge">E-Ticket</div>';
 			case "date": return '<div class="tc-el-text">' + escapeHtml(s.date) + "</div>";
 			case "venue": return '<div class="tc-el-text muted">' + escapeHtml(s.venue) + "</div>";
-			case "qty": return '<div class="tc-el-text muted center">1 Ticket</div>';
-			case "ticket_type": return '<div class="tc-el-strong center">' + escapeHtml(s.ticketType) + "</div>";
-			case "seat": return '<div class="tc-el-text muted center">' + escapeHtml(s.seat) + "</div>";
+			case "qty": return '<div class="tc-el-text muted">1 Ticket</div>';
+			case "ticket_type": return '<div class="tc-el-strong">' + escapeHtml(s.ticketType) + "</div>";
+			case "seat": return '<div class="tc-el-text muted">' + escapeHtml(s.seat) + "</div>";
 			case "name": return '<div class="tc-el-row"><span>Name</span><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
 			case "phone": return '<div class="tc-el-row"><span>Phone</span><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>";
 			case "email": return '<div class="tc-el-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>";
 			case "qr": return '<div class="tc-el-qr" aria-hidden="true"></div>';
-			case "booking_id": return '<div class="tc-el-text center strong">BOOKING ID: #' + escapeHtml(s.bookingId) + "</div>";
+			case "booking_id": return '<div class="tc-el-text strong">BOOKING ID: #' + escapeHtml(s.bookingId) + "</div>";
 			case "price": return '<div class="tc-el-price"><span class="tc-price-label">Price</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>";
 			case "jod_logo": return '<div class="tc-el-logo is-watermark" aria-label="JOD Events"><img src="/images/JOD%20Events%20Logo.png" alt="JOD Events" draggable="false" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'/images/jod-logo.png\';}" /></div>';
-			case "footer": return '<div class="tc-el-text muted center">' + escapeHtml(L.custom_footer || "Footer note") + "</div>";
+			case "footer": return '<div class="tc-el-text muted">' + escapeHtml(L.custom_footer || "Footer note") + "</div>";
+			case "text": return '<div class="tc-el-text">' + escapeHtml(el.text || "Your text") + "</div>";
 			case "line": return '<div class="tc-shape-line" style="background:' + color + ';"></div>';
 			case "dashed_line": return '<div class="tc-shape-line is-dashed" style="border-top-color:' + color + ';"></div>';
 			case "rectangle": return '<div class="tc-shape-rect" style="border-color:' + color + ';background:color-mix(in srgb, ' + color + ' 18%, transparent);"></div>';
@@ -834,9 +1006,9 @@
 		const hasSel = !!this.selectedId;
 
 		stage.style.background = p.bg || "#f4f6f8";
-		card.className = "ticket-live-card is-canvas style-" + (tmpl.id || "classic") + (hasSel ? " has-selection" : "");
-		card.style.background = p.card || "#fff";
-		card.style.color = p.text || "#111827";
+		card.className = "ticket-live-card is-canvas style-" + (tmpl.id || "classic") + (hasSel ? " has-selection" : "") + (this.canvasSelected && !hasSel ? " is-canvas-selected" : "");
+		card.style.background = L.card_color || p.card || "#fff";
+		card.style.color = L.text_color || p.text || "#111827";
 		card.style.setProperty("--ticket-accent", accent);
 		card.style.setProperty("--ticket-muted", p.muted || "#6b7280");
 
@@ -850,6 +1022,8 @@
 			const def = DEF_BY_TYPE[el.type] || {};
 			const isLine = el.type === "line" || el.type === "dashed_line";
 			const scale = Number.isFinite(Number(el.fontScale)) ? el.fontScale : 1;
+			const align = self.isTextElement(el.type) ? sanitizeAlign(el.align, el.type) : "";
+			const ownColor = optionalColor(el.color);
 			const handles = isLine
 				? '<span class="tc-handle tc-handle-e" data-resize="e" title="Extend"></span><span class="tc-handle tc-handle-w" data-resize="w" title="Extend"></span><span class="tc-handle tc-handle-s" data-resize="s" title="Thickness"></span>'
 				: '<span class="tc-handle tc-handle-nw" data-resize="nw"></span><span class="tc-handle tc-handle-ne" data-resize="ne"></span><span class="tc-handle tc-handle-sw" data-resize="sw"></span><span class="tc-handle tc-handle-se" data-resize="se"></span><span class="tc-handle tc-handle-n" data-resize="n"></span><span class="tc-handle tc-handle-s" data-resize="s"></span><span class="tc-handle tc-handle-e" data-resize="e"></span><span class="tc-handle tc-handle-w" data-resize="w"></span>';
@@ -864,9 +1038,10 @@
 					(locked ? " is-locked" : "") +
 					(def.shape ? " is-shape" : "") +
 					(isLine ? " is-line" : "") +
+					(align ? " is-align-" + align : "") +
 					'" data-id="' + escapeHtml(el.id) + '" data-type="' + el.type +
 					'" style="left:' + el.x + "%;top:" + el.y + "%;width:" + el.w + "%;height:" + el.h +
-					"%;--tc-font-scale:" + scale + ';">' +
+					"%;--tc-font-scale:" + scale + ";" + (ownColor ? "color:" + ownColor + ";" : "") + '">' +
 				'<div class="tc-node-body">' + self.elementContent(el) + "</div>" +
 				removeCtrl +
 				'<div class="tc-handles" aria-hidden="true">' + handles + "</div>" +
@@ -1009,6 +1184,7 @@
 		if (!item || !card) return;
 		const already = this.selectedId === id;
 		this.selectedId = id;
+		this.canvasSelected = false;
 		this._wasAlreadySelected = already;
 		const rect = card.getBoundingClientRect();
 		this._drag = {

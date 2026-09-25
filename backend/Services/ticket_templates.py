@@ -75,6 +75,8 @@ _TEMPLATE_BY_ID = {t["id"]: t for t in TEMPLATES}
 DEFAULT_LAYOUT: Dict[str, Any] = {
     "template_id": DEFAULT_TEMPLATE_ID,
     "accent_color": "#2563eb",
+    "card_color": "",
+    "text_color": "",
     "show_jod_logo": True,
     "show_venue": True,
     "show_date": True,
@@ -133,6 +135,15 @@ def normalize_ticket_layout(
         accent = get_template(tid)["preview"]["accent"]
     base["accent_color"] = accent
 
+    def _hex(value: Any, fallback: str = "") -> str:
+        color = str(value or "").strip()
+        if color.startswith("#") and len(color) in (4, 7):
+            return color
+        return fallback
+
+    base["card_color"] = _hex(raw.get("card_color"), "")
+    base["text_color"] = _hex(raw.get("text_color"), "")
+
     for key in (
         "show_jod_logo",
         "show_venue",
@@ -155,7 +166,11 @@ def normalize_ticket_layout(
 
     elements = raw.get("canvas_elements")
     cleaned_elements = []
-    shape_types = {"line", "dashed_line", "rectangle", "circle"}
+    repeatable_types = {"line", "dashed_line", "rectangle", "circle", "text"}
+    text_types = {
+        "title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone",
+        "email", "booking_id", "price", "footer", "badge", "text",
+    }
     if isinstance(elements, list):
         seen_data = set()
         seen_ids = set()
@@ -165,9 +180,9 @@ def normalize_ticket_layout(
             etype = str(item.get("type") or "").strip().lower()
             if not etype:
                 continue
-            is_shape = etype in shape_types
+            is_repeatable = etype in repeatable_types
             eid = str(item.get("id") or "").strip()
-            if not is_shape:
+            if not is_repeatable:
                 eid = etype
                 if etype in seen_data:
                     continue
@@ -190,14 +205,17 @@ def normalize_ticket_layout(
                 "type": etype,
                 "x": max(0.0, min(92.0, x)),
                 "y": max(0.0, min(94.0, y)),
-                "w": max(8.0 if is_shape else 10.0, min(96.0, w)),
+                "w": max(8.0 if is_repeatable else 10.0, min(96.0, w)),
                 "h": max(1.0 if etype in {"line", "dashed_line"} else 3.0, min(40.0, h)),
             }
-            if is_shape:
-                color = str(item.get("color") or "#38bdf8").strip()
-                if not (color.startswith("#") and len(color) in (4, 7)):
-                    color = "#38bdf8"
+            color = _hex(item.get("color"), "")
+            if color:
                 entry["color"] = color
+            align = str(item.get("align") or "").strip().lower()
+            if etype in text_types and align in {"left", "center", "right"}:
+                entry["align"] = align
+            if etype == "text":
+                entry["text"] = str(item.get("text") or "Your text").strip()[:120] or "Your text"
             try:
                 font_scale = float(item.get("fontScale", 1))
             except (TypeError, ValueError):

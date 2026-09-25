@@ -1156,9 +1156,19 @@ window.JodAuth = (() => {
 			if (signupTurnstileWidgetId != null) return;
 			signupTurnstileWidgetId = window.turnstile.render(mount, {
 				sitekey: siteKey,
-				theme: "auto",
+				theme: "light",
 				size: "flexible",
 				action: "signup",
+				appearance: "always",
+				callback: function () {
+					setError(mount, "");
+				},
+				"expired-callback": function () {
+					resetSignupTurnstile();
+				},
+				"error-callback": function () {
+					resetSignupTurnstile();
+				},
 			});
 			signupTurnstileEnabled = true;
 		}

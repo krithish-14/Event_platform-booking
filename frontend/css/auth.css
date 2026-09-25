@@ -3,20 +3,37 @@
    ══════════════════════════════════════════════════════════════ */
 
 /* --- Auth shell --- */
+html:has(body.auth-page-body) {
+	height: 100%;
+	overflow: hidden;
+}
+
 .auth-page-body {
-	min-height: 100vh;
+	height: 100dvh;
+	max-height: 100dvh;
+	min-height: 0;
 	display: flex;
 	flex-direction: column;
 	background: var(--background);
+	overflow: hidden;
+}
+
+.auth-page-body #header,
+.auth-page-body #header:empty {
+	display: none !important;
+	min-height: 0 !important;
 }
 
 /* --- Split layout --- */
 .auth-split {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
+	grid-template-rows: minmax(0, 1fr);
 	flex: 1;
-	min-height: 100dvh;
-	max-height: 100dvh;
+	min-height: 0;
+	height: 100%;
+	max-height: 100%;
+	overflow: hidden;
 }
 
 /* --- Brand / left panel --- */
@@ -25,6 +42,8 @@
 	display: flex;
 	flex-direction: column;
 	justify-content: space-between;
+	min-height: 0;
+	max-height: 100%;
 	padding: 3rem;
 	background: linear-gradient(150deg, var(--dark) 0%, #1a1208 50%, var(--dark-soft) 100%);
 	overflow: hidden;
@@ -204,7 +223,13 @@
 	overflow-x: hidden;
 	overflow-y: auto;
 	min-height: 0;
+	max-height: 100%;
 	-webkit-overflow-scrolling: touch;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+}
+.auth-form-panel::-webkit-scrollbar {
+	display: none;
 }
 
 .auth-form-box {
@@ -860,9 +885,63 @@
 	gap: .5rem;
 }
 
+body.auth-signup .auth-form-panel {
+	padding: 1.15rem 2rem 1.25rem;
+}
+body.auth-signup .auth-form-box {
+	max-width: 32rem;
+	margin-block: 0;
+}
+body.auth-signup .auth-form-header {
+	margin-bottom: 0.85rem;
+}
+body.auth-signup .auth-form-header h1 {
+	font-size: 1.55rem;
+}
+body.auth-signup .form-group {
+	margin-bottom: 0.55rem;
+}
+body.auth-signup .privacy-agree-group {
+	margin-bottom: 0.6rem;
+}
+body.auth-signup .signup-turnstile-group {
+	margin-bottom: 0.55rem;
+}
+body.auth-signup .phone-hint {
+	margin-top: 0.25rem;
+}
+body.auth-signup .auth-switch {
+	margin-top: 0.85rem;
+}
+
+@media (min-width: 801px) {
+	#signupForm {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		column-gap: 0.75rem;
+		row-gap: 0.55rem;
+	}
+	#signupForm > * {
+		grid-column: 1 / -1;
+	}
+	#signupForm > .form-group-half {
+		grid-column: span 1;
+		margin-bottom: 0;
+	}
+}
+
 @media (max-width: 800px) {
+	html:has(body.auth-page-body),
 	.auth-page-body {
+		height: auto;
+		max-height: none;
+		overflow: visible;
 		overflow-x: hidden;
+	}
+	.auth-split {
+		height: auto;
+		max-height: none;
+		overflow: visible;
 	}
 
 	.auth-form-header h1 {
