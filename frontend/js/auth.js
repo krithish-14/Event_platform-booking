@@ -1363,6 +1363,10 @@ window.JodAuth = (() => {
 		return document.getElementById("googleSignupBtn") || document.getElementById("googleLoginBtn");
 	}
 
+	function googleAuthIntent() {
+		return document.getElementById("signupForm") ? "signup" : "login";
+	}
+
 	function googleErrorMessage(data, status) {
 		const detail = data && data.detail;
 		const text = typeof detail === "string"
@@ -1370,6 +1374,9 @@ window.JodAuth = (() => {
 			: (Array.isArray(detail) && detail[0] && detail[0].msg) ? String(detail[0].msg) : "";
 		const lower = text.toLowerCase();
 		if (lower.includes("expired")) return "Your Google sign-in session has expired. Please try again.";
+		if (lower.includes("no account") || lower.includes("sign up first") || status === 404) {
+			return "No account found for this email. Please sign up first.";
+		}
 		if (lower.includes("deactivat")) return text;
 		if (text && !/traceback|sql|exception|secret|token/i.test(text)) return text;
 		if (status === 0) return "Unable to connect. Please try again.";
@@ -1389,7 +1396,7 @@ window.JodAuth = (() => {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				credentials: "include",
-				body: JSON.stringify({ credential: response.credential }),
+				body: JSON.stringify({ credential: response.credential, intent: googleAuthIntent() }),
 			});
 
 			let data = {};

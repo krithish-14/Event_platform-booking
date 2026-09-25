@@ -295,6 +295,7 @@ class UserRegisterRequest(BaseModel):
 class GoogleAuthRequest(BaseModel):
     credential: str | None = None
     id_token: str | None = None
+    intent: str | None = "login"
     city: str | None = None
     location_pincode: str | None = None
 
@@ -513,6 +514,10 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
         if user and getattr(user, "google_user_id", None) and user.google_user_id != google_sub:
             raise HTTPException(status_code=400, detail="Google sign-in failed. Please try again.")
 
+    intent = (payload.intent or "login").strip().lower()
+    if intent not in ("login", "signup"):
+        intent = "login"
+
     if user:
         if not user.is_active:
             raise HTTPException(
@@ -529,6 +534,11 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
         if changed:
             db.commit()
             db.refresh(user)
+    elif intent != "signup":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found for this email. Please sign up first.",
+        )
     else:
         base_username = email.split("@")[0]
         base_username = re.sub(r"[^a-zA-Z0-9_.@-]", "", base_username)

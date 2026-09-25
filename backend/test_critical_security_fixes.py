@@ -140,11 +140,14 @@ class GoogleAccountLinkingTests(unittest.TestCase):
         )
         return client, email, res
 
-    def _google_post(self, client, email, sub):
+    def _google_post(self, client, email, sub, intent="login"):
         info = _google_info_ok(email=email, sub=sub, name="Google Name")
         with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
             with patch("google.oauth2.id_token.verify_oauth2_token", return_value=info):
-                return client.post("/api/auth/google", json={"credential": _rs256_shaped_jwt()})
+                return client.post(
+                    "/api/auth/google",
+                    json={"credential": _rs256_shaped_jwt(), "intent": intent},
+                )
 
     def test_existing_password_user_is_linked_not_duplicated(self):
         client, email, reg = self._register()
@@ -164,15 +167,26 @@ class GoogleAccountLinkingTests(unittest.TestCase):
         from fastapi.testclient import TestClient
         client = TestClient(self.app)
         sub = f"sub-{uuid.uuid4().hex[:12]}"
-        first = self._google_post(client, email, sub)
+        first = self._google_post(client, email, sub, intent="signup")
         if first.status_code != 200:
             self.skipTest(f"google auth unavailable ({first.status_code})")
         first_id = (first.json() or {}).get("user", {}).get("customer_id")
         self.assertTrue(str(first_id or "").startswith("CUST-"))
-        second = self._google_post(client, email, sub)
+        second = self._google_post(client, email, sub, intent="login")
         self.assertEqual(second.status_code, 200)
         self.assertEqual((second.json() or {}).get("user", {}).get("customer_id"), first_id)
         self.assertEqual((second.json() or {}).get("user", {}).get("is_admin"), False)
+
+    def test_google_login_without_signup_is_rejected(self):
+        email = f"gnone_{uuid.uuid4().hex[:10]}@example.com"
+        from fastapi.testclient import TestClient
+        client = TestClient(self.app)
+        res = self._google_post(client, email, f"sub-{uuid.uuid4().hex[:12]}", intent="login")
+        if res.status_code in (500, 503):
+            self.skipTest(f"google auth unavailable ({res.status_code})")
+        self.assertEqual(res.status_code, 404)
+        self.assertIn("sign up", str((res.json() or {}).get("detail", "")).lower())
+        self.assertNotIn("access_token", res.json() or {})
 
     def test_roles_are_not_changed_on_google_login(self):
         client, email, reg = self._register()

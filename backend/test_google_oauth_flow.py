@@ -39,7 +39,7 @@ class GoogleOAuthFlowTests(GoogleAccountLinkingTests):
             with patch("google.oauth2.id_token.verify_oauth2_token", return_value=info):
                 res = client.post(
                     "/api/auth/google",
-                    json={"credential": _rs256_shaped_jwt(), "city": "Chennai", "location_pincode": "600001"},
+                    json={"credential": _rs256_shaped_jwt(), "intent": "signup", "city": "Chennai", "location_pincode": "600001"},
                 )
         self.assertEqual(res.status_code, 200)
         body = res.json() or {}
@@ -60,7 +60,7 @@ class GoogleOAuthFlowTests(GoogleAccountLinkingTests):
             info["name"] = "Should Not Overwrite"
             with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "jod-client.apps.googleusercontent.com"}):
                 with patch("google.oauth2.id_token.verify_oauth2_token", return_value=info):
-                    again = client.post("/api/auth/google", json={"credential": _rs256_shaped_jwt()})
+                    again = client.post("/api/auth/google", json={"credential": _rs256_shaped_jwt(), "intent": "login"})
             self.assertEqual(again.status_code, 200)
             db.refresh(row)
             self.assertEqual(row.full_name, saved_name)
