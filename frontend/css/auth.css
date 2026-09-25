@@ -637,6 +637,20 @@
 .privacy-agree-group {
 	margin-bottom: 1.15rem;
 }
+
+.signup-turnstile-group {
+	width: 100%;
+	margin: 0 0 0.85rem;
+}
+
+.signup-turnstile {
+	width: 100%;
+	min-height: 65px;
+}
+
+.signup-turnstile iframe {
+	max-width: 100%;
+}
 .privacy-agree-label {
 	align-items: flex-start;
 	line-height: 1.45;

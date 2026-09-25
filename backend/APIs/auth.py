@@ -30,6 +30,7 @@ from Authentication.dependencies import get_current_user
 from Services.runtime_env import cookie_secure, expose_access_token_in_json, smtp_configured, auth_cookie_domain
 from Services.rate_limit import limit_login, limit_otp, limit_password_reset, limit_register
 from Services.csrf import clear_csrf_cookie, set_csrf_cookie
+from Services.turnstile import require_signup_turnstile, turnstile_public_config
 from Services import otp as otp_service
 import random
 from Models import UserSignup as UserSignupLog, UserLogin as UserLoginLog
@@ -242,6 +243,7 @@ class UserRegisterRequest(BaseModel):
     city: str | None = None
     location_pincode: str | None = None
     accepted_privacy_policy: Literal[True]
+    turnstile_token: str | None = None
 
     @field_validator("full_name")
     @classmethod
@@ -290,6 +292,18 @@ class UserRegisterRequest(BaseModel):
         if not re.search(r"[0-9]", v):
             raise ValueError("Password must contain at least one digit.")
         return v
+
+    @field_validator("turnstile_token")
+    @classmethod
+    def validate_turnstile_token(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        cleaned = str(v).strip()
+        if not cleaned:
+            return None
+        if len(cleaned) > 2048:
+            raise ValueError("Please complete the verification before signing up.")
+        return cleaned
 
 
 class GoogleAuthRequest(BaseModel):
@@ -358,6 +372,7 @@ def _serialize_user(user) -> dict:
 def register(payload: UserRegisterRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     """Register a new user, store credentials in the database, and return an access token."""
     limit_register(request)
+    require_signup_turnstile(payload.turnstile_token, request)
     email_clean = payload.email.strip().lower()
     username_clean = payload.username.strip()
 
@@ -469,6 +484,12 @@ def login(response: Response, request: Request, form: OAuth2PasswordRequestForm 
     )
     _set_auth_cookie(response, token)
     return _auth_payload(token, user)
+
+
+@router.get("/turnstile/config")
+def turnstile_config():
+    """Public Turnstile site key only. The secret never leaves the server."""
+    return turnstile_public_config()
 
 
 @router.get("/google/config")

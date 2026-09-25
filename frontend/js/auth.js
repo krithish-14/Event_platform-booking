@@ -1135,6 +1135,57 @@ window.JodAuth = (() => {
 			if (closeBtn) closeBtn.focus();
 		}
 
+		let signupTurnstileWidgetId = null;
+		let signupTurnstileEnabled = false;
+
+		function resetSignupTurnstile() {
+			if (!window.turnstile || signupTurnstileWidgetId == null) return;
+			try { window.turnstile.reset(signupTurnstileWidgetId); } catch (_) {}
+		}
+
+		function signupTurnstileToken() {
+			const hidden = signupForm.querySelector('[name="cf-turnstile-response"]');
+			return hidden && hidden.value ? String(hidden.value).trim() : "";
+		}
+
+		function renderSignupTurnstile(siteKey) {
+			const mount = document.getElementById("signupTurnstile");
+			const group = document.getElementById("signupTurnstileGroup");
+			if (!mount || !window.turnstile || !siteKey) return;
+			if (group) group.hidden = false;
+			if (signupTurnstileWidgetId != null) return;
+			signupTurnstileWidgetId = window.turnstile.render(mount, {
+				sitekey: siteKey,
+				theme: "auto",
+				size: "flexible",
+				action: "signup",
+			});
+			signupTurnstileEnabled = true;
+		}
+
+		async function initSignupTurnstile() {
+			let config = { site_key: "", enabled: false };
+			try {
+				const res = await fetch(`${getApiBase()}/api/auth/turnstile/config`);
+				if (res.ok) config = await res.json();
+			} catch (_) {}
+			if (!config.enabled || !config.site_key) return;
+
+			if (window.turnstile && typeof window.turnstile.render === "function") {
+				renderSignupTurnstile(config.site_key);
+				return;
+			}
+			if (document.querySelector("script[src^='https://challenges.cloudflare.com/turnstile/v0/api.js']")) {
+				return;
+			}
+			const script = document.createElement("script");
+			script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+			script.async = true;
+			script.defer = true;
+			script.onload = () => renderSignupTurnstile(config.site_key);
+			document.head.appendChild(script);
+		}
+
 		if (privacyAgree) {
 			privacyAgree.addEventListener("change", () => {
 				setError(privacyAgree, privacyAgree.checked ? "" : "");
@@ -1262,6 +1313,13 @@ window.JodAuth = (() => {
 				valid = false;
 			}
 
+			const turnstileToken = signupTurnstileToken();
+			if (signupTurnstileEnabled && !turnstileToken) {
+				setError(document.getElementById("signupTurnstile"), "Please complete the verification before signing up.");
+				showAlert(alertEl, "error", "Please complete the verification before signing up.");
+				valid = false;
+			}
+
 			if (!valid) return;
 
 			signupBusy = true;
@@ -1296,6 +1354,7 @@ window.JodAuth = (() => {
 					full_name: fullName,
 					phone,
 					accepted_privacy_policy: true,
+					turnstile_token: turnstileToken || undefined,
 				};
 
 				const res = await fetch(`${getApiBase()}/api/auth/register`, {
@@ -1311,7 +1370,10 @@ window.JodAuth = (() => {
 				if (!res.ok) {
 					const detail = parseApiErrorMessage(data.detail, `Registration failed (${res.status}). Please try again.`);
 					const lower = detail.toLowerCase();
-					if (isTakenAccountMessage(detail) && lower.includes("username")) {
+					if (lower.includes("verification") || res.status === 403 || res.status === 503) {
+						setError(document.getElementById("signupTurnstile"), detail);
+						resetSignupTurnstile();
+					} else if (isTakenAccountMessage(detail) && lower.includes("username")) {
 						setError(signupForm.querySelector("#signupUsername"), detail);
 						setLiveStatus(usernameInput, false, detail);
 						usernameAvailable = false;
@@ -1340,6 +1402,7 @@ window.JodAuth = (() => {
 					return;
 				}
 				showAlert(alertEl, "error", "Could not complete signup. Please try again.");
+				resetSignupTurnstile();
 			} finally {
 				signupBusy = false;
 				setLoading(submitBtn, false);
@@ -1347,6 +1410,7 @@ window.JodAuth = (() => {
 			}
 		}
 
+		initSignupTurnstile();
 		signupForm.addEventListener("submit", doSignup);
 
 		// Click handler on button (type="button") \u2014 decoupled from form submit entirely

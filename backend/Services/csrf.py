@@ -28,6 +28,7 @@ EXEMPT_PATHS = {
     "/api/auth/google",
     "/api/auth/google/url",
     "/api/auth/google/config",
+    "/api/auth/turnstile/config",
     "/api/auth/forgot-password",
     "/api/auth/check",
     "/api/auth/verify-reset-otp",

@@ -46,8 +46,8 @@
 		{
 			id: "marathon2",
 			shortcode: "DbGVVoVP28i",
-			title: "RunChennai Marathon",
-			caption: "A glimpse of RunChennai Marathon 2026",
+			title: "Chennai Connects Run Marathon",
+			caption: "Chennai Connects Run Marathon : Get your event promoted on our social media.",
 			instagram: "https://www.instagram.com/reel/DbGVVoVP28i/",
 			poster: asset("images/video/DbGVVoVP28i.jpg")
 		},
