@@ -260,8 +260,13 @@ def database_is_loopback(db_url: str) -> bool:
     return host in {"localhost", "127.0.0.1", "::1"} or host.startswith("127.")
 
 
+def _frontend_looks_local() -> bool:
+    public = (os.getenv("PUBLIC_APP_URL") or os.getenv("FRONTEND_URL") or "").strip().lower()
+    return any(marker in public for marker in ("127.0.0.1", "localhost"))
+
+
 def validate_database_isolation(db_url: str | None = None) -> None:
-    """Keep local signups off RDS, and keep live signups off localhost Postgres."""
+    """Keep workstation signups off RDS. Never take down EC2 because APP_ENV is unset."""
     url = (db_url if db_url is not None else os.getenv("DATABASE_URL") or "").strip()
     if not url:
         return
@@ -271,7 +276,8 @@ def validate_database_isolation(db_url: str | None = None) -> None:
                 "Live DATABASE_URL must be RDS (or the compose postgres host), not localhost."
             )
         return
-    if database_is_rds(url):
+    env = (os.getenv("APP_ENV") or "").strip().lower()
+    if env in ("development", "dev", "local") and _frontend_looks_local() and database_is_rds(url):
         raise RuntimeError(
             "Local development must not use production RDS. Point DATABASE_URL at localhost PostgreSQL."
         )
