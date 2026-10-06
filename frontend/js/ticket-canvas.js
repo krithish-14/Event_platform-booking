@@ -5,6 +5,9 @@
 (function (global) {
 	"use strict";
 
+	/* Must match the drawer breakpoint in organizer-dashboard.css */
+	const DRAWER_QUERY = "(max-width: 960px)";
+
 	const FALLBACK_TEMPLATES = [
 		{ id: "classic", name: "Classic Clean", tagline: "Bright white card", preview: { bg: "#f4f6f8", card: "#ffffff", accent: "#2563eb", text: "#111827", muted: "#6b7280" } },
 		{ id: "midnight", name: "Midnight Stage", tagline: "Dark navy nightlife", preview: { bg: "#0b1220", card: "#111827", accent: "#38bdf8", text: "#f8fafc", muted: "#94a3b8" } },
@@ -243,6 +246,7 @@
 		this.onChange = typeof opts.onChange === "function" ? opts.onChange : function () {};
 		this.selectedId = null;
 		this.canvasSelected = false;
+		this.toolsOpen = false;
 		this._drag = null;
 		this._didDrag = false;
 		this._bound = false;
@@ -284,6 +288,7 @@
 	TicketCanvasController.prototype.setTemplates = function (list) {
 		if (Array.isArray(list) && list.length) this.templates = list;
 		this.renderTemplatePicker();
+		this.scrollActiveTemplateIntoView();
 		this.renderPreview();
 	};
 
@@ -298,6 +303,7 @@
 		this.canvasSelected = false;
 		this.syncControls();
 		this.renderTemplatePicker();
+		this.scrollActiveTemplateIntoView();
 		this.renderPalette();
 		this.renderPreview();
 	};
@@ -532,6 +538,8 @@
 			card.classList.toggle("has-selection", !!selected);
 			card.classList.toggle("is-canvas-selected", !!this.canvasSelected && !selected);
 		}
+		const toolsToggle = this.root.querySelector("#ticketToolsToggle");
+		if (toolsToggle) toolsToggle.classList.toggle("has-selection", !!(selected || this.canvasSelected));
 		this.root.querySelectorAll(".tc-node").forEach(function (node) {
 			const on = node.getAttribute("data-id") === selected;
 			node.classList.toggle("is-selected", on);
@@ -559,7 +567,11 @@
 		this.root.innerHTML = [
 			'<div class="ticket-design-studio is-studio-layout">',
 			'  <div class="ticket-studio-toolbar">',
-			'    <div class="ticket-template-grid" id="ticketTemplateGrid" role="listbox" aria-label="Ticket templates"></div>',
+			'    <div class="ticket-template-carousel">',
+			'      <button type="button" class="ticket-carousel-btn is-prev" id="ticketTemplatePrev" aria-label="Previous designs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>',
+			'      <div class="ticket-template-grid" id="ticketTemplateGrid" role="listbox" aria-label="Ticket templates"></div>',
+			'      <button type="button" class="ticket-carousel-btn is-next" id="ticketTemplateNext" aria-label="More designs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></button>',
+			'    </div>',
 			'    <div class="ticket-canvas-controls ticket-studio-controls-top">',
 			'      <div class="ticket-tool-block">',
 			'        <div class="ticket-palette-title">Add fields</div>',
@@ -589,8 +601,13 @@
 			'      <div class="ticket-canvas-hint">Click a field to edit it. Click empty ticket for background colors. Drag to move · Esc deselects.</div>',
 			'      <div class="ticket-live-card is-canvas" id="ticketLiveCard" aria-live="polite"></div>',
 			'    </div>',
+			'    <button type="button" class="ticket-tools-fab" id="ticketToolsToggle" aria-controls="ticketFloatCard" aria-expanded="false" aria-label="Open ticket tools">',
+			'      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
+			'      <span>Tools</span>',
+			'    </button>',
+			'    <div class="ticket-tools-backdrop" id="ticketToolsBackdrop" hidden></div>',
 			'    <aside class="ticket-float-card" id="ticketFloatCard" aria-label="Ticket editing tools">',
-			'      <div class="ticket-float-head">Tools</div>',
+			'      <div class="ticket-float-head"><span>Tools</span><button type="button" class="ticket-float-close" id="ticketToolsClose" aria-label="Close tools">&times;</button></div>',
 			'      <p class="ticket-float-hint">Add text or shapes, then click a section to change color and alignment.</p>',
 			'      <div class="ticket-float-section">',
 			'        <div class="ticket-palette-title">Add</div>',
@@ -633,8 +650,10 @@
 			'</div>',
 		].join("");
 		this.bindEvents();
+		this.placeFieldControls();
 		this.syncControls();
 		this.renderTemplatePicker();
+		this.scrollActiveTemplateIntoView();
 		this.renderPalette();
 		this.renderPreview();
 		this.syncSelectedPanel();
@@ -832,7 +851,46 @@
 			});
 		}
 
+		const toolsToggle = this.root.querySelector("#ticketToolsToggle");
+		if (toolsToggle) {
+			toolsToggle.addEventListener("click", function () {
+				self.setToolsOpen(!self.toolsOpen);
+			});
+		}
+		const toolsClose = this.root.querySelector("#ticketToolsClose");
+		if (toolsClose) toolsClose.addEventListener("click", function () { self.setToolsOpen(false); });
+		const toolsBackdrop = this.root.querySelector("#ticketToolsBackdrop");
+		if (toolsBackdrop) toolsBackdrop.addEventListener("click", function () { self.setToolsOpen(false); });
+		const templateGrid = this.root.querySelector("#ticketTemplateGrid");
+		const templatePrev = this.root.querySelector("#ticketTemplatePrev");
+		const templateNext = this.root.querySelector("#ticketTemplateNext");
+		if (templateGrid) {
+			const step = function (dir) {
+				templateGrid.scrollBy({ left: dir * Math.max(160, templateGrid.clientWidth * 0.85), behavior: "smooth" });
+			};
+			if (templatePrev) templatePrev.addEventListener("click", function () { step(-1); });
+			if (templateNext) templateNext.addEventListener("click", function () { step(1); });
+			templateGrid.addEventListener("scroll", function () { self.syncTemplateCarousel(); }, { passive: true });
+			window.addEventListener("resize", function () { self.syncTemplateCarousel(); });
+		}
+
+		if (window.matchMedia) {
+			const drawerQuery = window.matchMedia(DRAWER_QUERY);
+			const onDrawerChange = function () {
+				if (!drawerQuery.matches) self.setToolsOpen(false);
+				self.placeFieldControls();
+				self.syncTemplateCarousel();
+			};
+			if (drawerQuery.addEventListener) drawerQuery.addEventListener("change", onDrawerChange);
+			else if (drawerQuery.addListener) drawerQuery.addListener(onDrawerChange);
+		}
+
 		document.addEventListener("keydown", function (ev) {
+			if (ev.key === "Escape" && self.toolsOpen) {
+				ev.preventDefault();
+				self.setToolsOpen(false);
+				return;
+			}
 			if (!self.root || !self.selectedId) return;
 			if (ev.key === "Escape") {
 				ev.preventDefault();
@@ -848,6 +906,61 @@
 				self.removeElement(self.selectedId);
 			}
 		});
+	};
+
+	TicketCanvasController.prototype.isDrawerMode = function () {
+		return !!(window.matchMedia && window.matchMedia(DRAWER_QUERY).matches);
+	};
+
+	TicketCanvasController.prototype.placeFieldControls = function () {
+		if (!this.root) return;
+		const controls = this.root.querySelector(".ticket-studio-controls-top");
+		const card = this.root.querySelector("#ticketFloatCard");
+		const toolbar = this.root.querySelector(".ticket-studio-toolbar");
+		if (!controls || !card || !toolbar) return;
+		const target = this.isDrawerMode() ? card : toolbar;
+		if (controls.parentElement !== target) target.appendChild(controls);
+	};
+
+	TicketCanvasController.prototype.syncTemplateCarousel = function () {
+		if (!this.root) return;
+		const grid = this.root.querySelector("#ticketTemplateGrid");
+		const prev = this.root.querySelector("#ticketTemplatePrev");
+		const next = this.root.querySelector("#ticketTemplateNext");
+		if (!grid) return;
+		const maxLeft = grid.scrollWidth - grid.clientWidth;
+		if (prev) prev.disabled = grid.scrollLeft <= 2;
+		if (next) next.disabled = maxLeft <= 2 || grid.scrollLeft >= maxLeft - 2;
+	};
+
+	TicketCanvasController.prototype.scrollActiveTemplateIntoView = function () {
+		if (!this.root) return;
+		const grid = this.root.querySelector("#ticketTemplateGrid");
+		const active = grid && grid.querySelector(".ticket-template-chip.is-active");
+		if (!grid || !active || grid.scrollWidth <= grid.clientWidth) return;
+		grid.scrollLeft = Math.max(0, active.offsetLeft - (grid.clientWidth - active.offsetWidth) / 2);
+		this.syncTemplateCarousel();
+	};
+
+	TicketCanvasController.prototype.setToolsOpen = function (open) {
+		if (!this.root) return;
+		const on = !!open && this.isDrawerMode();
+		this.toolsOpen = on;
+		const card = this.root.querySelector("#ticketFloatCard");
+		const toggle = this.root.querySelector("#ticketToolsToggle");
+		const backdrop = this.root.querySelector("#ticketToolsBackdrop");
+		if (card) card.classList.toggle("is-open", on);
+		if (toggle) {
+			toggle.setAttribute("aria-expanded", String(on));
+			toggle.setAttribute("aria-label", on ? "Close ticket tools" : "Open ticket tools");
+		}
+		if (backdrop) backdrop.hidden = !on;
+		const section = this.root.closest ? this.root.closest(".tab-section") : null;
+		if (section) section.classList.toggle("is-tools-open", on);
+		if (on && card && (this.selectedId || this.canvasSelected)) {
+			const panel = this.root.querySelector("#ticketSelectedPanel");
+			if (panel && !panel.hidden) panel.scrollIntoView({ block: "nearest" });
+		}
 	};
 
 	TicketCanvasController.prototype.syncShapeColorControl = function () {
@@ -914,11 +1027,22 @@
 		}
 		if (shapeHost) {
 			const tools = CUSTOM_DEFS.concat(SHAPE_DEFS);
+			const preview = function (type) {
+				if (type === "text") return '<span class="ticket-tool-preview is-text">text</span>';
+				if (type === "line") return '<span class="ticket-tool-preview is-line" aria-hidden="true"></span>';
+				if (type === "dashed_line") return '<span class="ticket-tool-preview is-dashed">---------</span>';
+				if (type === "rectangle") return '<span class="ticket-tool-preview is-box" aria-hidden="true"></span>';
+				if (type === "circle") return '<span class="ticket-tool-preview is-circle" aria-hidden="true"></span>';
+				return "";
+			};
 			shapeHost.innerHTML = tools.map(function (def) {
-				return '<button type="button" class="ticket-palette-chip ticket-shape-chip" data-add-shape="' + def.type + '">' + escapeHtml(def.label) + "</button>";
+				return '<button type="button" class="ticket-tool-sample" data-add-shape="' + def.type + '" aria-label="Add ' + escapeHtml(def.label) + '">' + preview(def.type) + "</button>";
 			}).join("");
 			shapeHost.querySelectorAll("[data-add-shape]").forEach(function (btn) {
-				btn.addEventListener("click", function () { self.addElement(btn.getAttribute("data-add-shape")); });
+				btn.addEventListener("click", function () {
+					self.addElement(btn.getAttribute("data-add-shape"));
+					if (self.toolsOpen) self.setToolsOpen(false);
+				});
 			});
 		}
 	};
@@ -955,6 +1079,7 @@
 				self.emitChange();
 			});
 		});
+		this.syncTemplateCarousel();
 	};
 
 	TicketCanvasController.prototype.currentTemplate = function () {

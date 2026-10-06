@@ -122,6 +122,120 @@ function capitalize(str) {
 	window.__sidebarPermanentInit = true;
 })();
 
+(function initSidebarTabCarousel() {
+	'use strict';
+
+	// Must match the horizontal tab-bar breakpoint in organizer-dashboard.css
+	const TAB_BAR_QUERY = '(max-width: 900px)';
+
+	function isTabBar() {
+		return !!(window.matchMedia && window.matchMedia(TAB_BAR_QUERY).matches);
+	}
+
+	function makeArrow(dir) {
+		const btn = document.createElement('button');
+		btn.type = 'button';
+		btn.className = 'dash-tabs-arrow ' + (dir < 0 ? 'is-prev' : 'is-next');
+		btn.tabIndex = -1;
+		btn.setAttribute('aria-label', dir < 0 ? 'Scroll tabs left' : 'Scroll tabs right');
+		btn.innerHTML = '<span class="dash-tabs-arrow-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="'
+			+ (dir < 0 ? '15 18 9 12 15 6' : '9 18 15 12 9 6') + '"/></svg></span>';
+		return btn;
+	}
+
+	function setup() {
+		const bar = document.querySelector('.dash-sidebar');
+		if (!bar || bar.dataset.carouselBound === '1') return;
+		bar.dataset.carouselBound = '1';
+
+		const prev = makeArrow(-1);
+		const next = makeArrow(1);
+		bar.insertBefore(prev, bar.firstChild);
+		bar.appendChild(next);
+
+		function sync() {
+			const max = bar.scrollWidth - bar.clientWidth;
+			const on = isTabBar() && max > 2;
+			prev.classList.toggle('is-hidden', !on || bar.scrollLeft <= 2);
+			next.classList.toggle('is-hidden', !on || bar.scrollLeft >= max - 2);
+		}
+
+		function centerActive(smooth) {
+			const item = bar.querySelector('.sidebar-item.active');
+			if (!item || !isTabBar()) return;
+			const left = item.offsetLeft - (bar.clientWidth - item.offsetWidth) / 2;
+			bar.scrollTo({ left: Math.max(0, left), behavior: smooth ? 'smooth' : 'auto' });
+		}
+
+		[[prev, -1], [next, 1]].forEach(function (pair) {
+			pair[0].addEventListener('click', function (e) {
+				e.preventDefault();
+				e.stopPropagation();
+				bar.scrollBy({ left: pair[1] * Math.max(140, bar.clientWidth * 0.7), behavior: 'smooth' });
+			});
+		});
+
+		bar.addEventListener('scroll', sync, { passive: true });
+		window.addEventListener('resize', function () { sync(); centerActive(false); });
+
+		let lastActive = bar.querySelector('.sidebar-item.active');
+		new MutationObserver(function () {
+			const active = bar.querySelector('.sidebar-item.active');
+			if (active && active !== lastActive) {
+				lastActive = active;
+				centerActive(true);
+			}
+		}).observe(bar, { subtree: true, attributes: true, attributeFilter: ['class'] });
+
+		centerActive(false);
+		sync();
+		setTimeout(function () { centerActive(false); sync(); }, 600);
+	}
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', setup, { once: true });
+	} else {
+		setup();
+	}
+})();
+
+(function initStackTables() {
+	'use strict';
+
+	// Phone CSS stacks these tables into labelled rows; labels come from the header cells.
+	function label(table) {
+		const head = table.tHead && table.tHead.rows[0];
+		if (!head) return;
+		const names = Array.prototype.map.call(head.cells, function (th) { return th.textContent.trim(); });
+		Array.prototype.forEach.call(table.tBodies, function (body) {
+			Array.prototype.forEach.call(body.rows, function (row) {
+				const cells = row.cells;
+				const isEmpty = cells.length === 1 && cells[0].colSpan > 1;
+				row.classList.toggle('is-empty-row', isEmpty);
+				if (isEmpty) return;
+				Array.prototype.forEach.call(cells, function (td, i) {
+					if (names[i] && td.getAttribute('data-label') !== names[i]) td.setAttribute('data-label', names[i]);
+				});
+			});
+		});
+	}
+
+	function setup() {
+		document.querySelectorAll('table.dash-stack-table').forEach(function (table) {
+			label(table);
+			Array.prototype.forEach.call(table.tBodies, function (body) {
+				new MutationObserver(function () { label(table); }).observe(body, { childList: true });
+			});
+		});
+	}
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', setup, { once: true });
+	} else {
+		setup();
+	}
+})();
+
 function normalizeTab(tabName) {
 	if (!tabName || typeof tabName !== 'string') return 'overview';
 	const t = tabName.trim().toLowerCase();
@@ -2388,7 +2502,7 @@ async function initOrganizerDashboard() {
 
 		if (!list || list.length === 0) {
 			tableBody.innerHTML = `
-				<tr>
+				<tr class="exh-empty-row">
 					<td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8;">
 						<div style="font-size: 1.5rem; margin-bottom: 0.4rem;">\ud83c\udfaa</div>
 						<div style="font-weight: 700; color: #475569;">No Exhibitors Added Yet</div>
@@ -2400,16 +2514,16 @@ async function initOrganizerDashboard() {
 		}
 
 		tableBody.innerHTML = list.map(ex => `
-			<tr style="border-bottom: 1px solid #f1f5f9;">
-				<td class="dash-ink" style="padding: 0.85rem 1.2rem; font-weight: 700;">${escapeVolunteerHtml(ex.company_name)}</td>
-				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${escapeVolunteerHtml(ex.category)}</td>
-				<td class="dash-muted-text" style="padding: 0.85rem 1.2rem;">${escapeVolunteerHtml(ex.contact_name)} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${escapeVolunteerHtml(ex.contact_email)}</span></td>
-				<td style="padding: 0.85rem 1.2rem;">
+			<tr class="exh-row" style="border-bottom: 1px solid #f1f5f9;">
+				<td class="dash-ink exh-company" style="padding: 0.85rem 1.2rem; font-weight: 700;">${escapeVolunteerHtml(ex.company_name)}</td>
+				<td class="dash-muted-text exh-category" style="padding: 0.85rem 1.2rem;">${escapeVolunteerHtml(ex.category)}</td>
+				<td class="dash-muted-text exh-contact" style="padding: 0.85rem 1.2rem;">${escapeVolunteerHtml(ex.contact_name)} <br/><span class="dash-muted-text" style="font-size: 0.78rem;">${escapeVolunteerHtml(ex.contact_email)}</span></td>
+				<td class="exh-status" style="padding: 0.85rem 1.2rem;">
 					<span style="background: ${ex.status === 'confirmed' ? '#f0fdf4' : '#fffbe6'}; border: 1px solid ${ex.status === 'confirmed' ? '#bbf7d0' : '#ffe58f'}; color: ${ex.status === 'confirmed' ? '#166534' : '#873800'}; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
 						${ex.status === 'confirmed' ? 'Confirmed' : 'Pending Approval'}
 					</span>
 				</td>
-				<td style="padding: 0.85rem 1.2rem; text-align: right;">
+				<td class="exh-action" style="padding: 0.85rem 1.2rem; text-align: right;">
 					<button type="button" class="btn-delete-exhibitor" data-id="${escapeVolunteerHtml(ex.exhibitor_id)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">Remove</button>
 				</td>
 			</tr>

@@ -692,6 +692,7 @@ def create_new_event(
                 address=None,
                 location=event.location,
                 publisher_customer_id=current_user.customer_id,
+                event=event,
             )
         except Exception:
             pass
@@ -741,6 +742,7 @@ def update_existing_event(
                 address=None,
                 location=updated.location,
                 publisher_customer_id=current_user.customer_id,
+                event=updated,
             )
         except Exception:
             pass

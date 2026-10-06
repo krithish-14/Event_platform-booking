@@ -1,9 +1,9 @@
 """
 Inbox notifications for the authenticated user.
-Broadcasts new published events to every signed-in account.
+Broadcasts new published upcoming events to every signed-in account.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends
@@ -16,7 +16,9 @@ from Models.event import Event
 from Models.event_management import EventManagement
 from Models.notification import EventAnnouncement
 from Models.user import User
+from Services.event_service import _event_has_ended, _not_ended_clause
 from Services.notifications import ensure_published_event_announcement, pretty_event_location
+from Utils.datetimes import utc_now
 
 router = APIRouter()
 
@@ -50,12 +52,40 @@ def _as_id_list(value) -> List[str]:
     return []
 
 
+def _as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Expose naive UTC columns as timezone-aware UTC so JSON includes an offset/Z."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _welcome_notification(user: User) -> InboxNotification:
+    name = (getattr(user, "full_name", None) or getattr(user, "username", None) or "").strip()
+    greeting = f"Welcome to JOD Events, {name}!" if name else "Welcome to JOD Events!"
+    customer_id = str(getattr(user, "customer_id", None) or getattr(user, "id", "guest"))
+    return InboxNotification(
+        id=f"welcome-{customer_id}",
+        kind="welcome",
+        event_id=None,
+        title="Welcome to JOD Events",
+        message=f"{greeting} Explore upcoming events, save favourites, and book tickets when something catches your eye.",
+        location=None,
+        href="index.html#upcoming",
+        created_at=_as_utc(getattr(user, "created_at", None) or utc_now()),
+    )
+
+
 def _backfill_published_announcements(db: Session) -> None:
+    """Create missing announcements only for published events that have not ended."""
+    now = utc_now()
     published = (
         db.query(Event, EventManagement)
         .outerjoin(EventManagement, EventManagement.event_id == Event.id)
         .filter(Event.is_published.is_(True))
         .filter((Event.is_cancelled.is_(False)) | (Event.is_cancelled.is_(None)))
+        .filter(_not_ended_clause(now))
         .all()
     )
     for event, mgt in published:
@@ -67,6 +97,7 @@ def _backfill_published_announcements(db: Session) -> None:
             address=(mgt.address if mgt else None),
             location=event.location,
             publisher_customer_id=event.customer_id,
+            event=event,
         )
 
 
@@ -75,23 +106,29 @@ def list_my_notifications(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Published-event announcements for the logged-in user."""
-    _ = current_user
+    """Welcome notice plus published-event announcements for upcoming events only."""
     try:
         _backfill_published_announcements(db)
     except Exception:
         db.rollback()
+
+    items: List[InboxNotification] = [_welcome_notification(current_user)]
+
+    now = utc_now()
     rows = (
         db.query(EventAnnouncement, Event)
         .join(Event, Event.id == EventAnnouncement.event_id)
         .filter(Event.is_published.is_(True))
         .filter((Event.is_cancelled.is_(False)) | (Event.is_cancelled.is_(None)))
+        .filter(_not_ended_clause(now))
         .order_by(EventAnnouncement.created_at.desc())
         .limit(50)
         .all()
     )
-    items = []
     for announcement, event in rows:
+        # Defence in depth — skip anything that ended between filter and response.
+        if _event_has_ended(event, now):
+            continue
         place = announcement.city or pretty_event_location(
             venue=announcement.venue or event.venue,
             address=announcement.location,
@@ -108,7 +145,7 @@ def list_my_notifications(
                 message=f"A new event is upcoming in {place}: {title}",
                 location=place,
                 href=f"event-details.html?id={event_id}",
-                created_at=announcement.created_at or event.updated_at,
+                created_at=_as_utc(announcement.created_at or event.updated_at or event.created_at),
             )
         )
     return items

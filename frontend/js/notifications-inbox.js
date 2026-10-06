@@ -128,24 +128,43 @@ window.JodInbox = (() => {
  }[ch]));
 	}
 
+	function parseInboxDate(iso) {
+ if (!iso) return null;
+ // Naive ISO from older APIs is UTC — append Z so browsers do not treat it as local.
+ let text = String(iso).trim();
+ if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text) && !/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(text)) {
+ text += "Z";
+ }
+ const date = new Date(text);
+ return Number.isNaN(date.getTime()) ? null : date;
+	}
+
 	function timeAgo(iso) {
- if (!iso) return "";
- const date = new Date(iso);
- if (Number.isNaN(date.getTime())) return "";
+ const date = parseInboxDate(iso);
+ if (!date) return "";
  const sec = Math.round((Date.now() - date.getTime()) / 1000);
  if (sec < -86400) return `In ${Math.ceil(Math.abs(sec) / 86400)} days`;
  if (sec < -3600) return `In ${Math.ceil(Math.abs(sec) / 3600)} hours`;
  if (sec < 0) return "Soon";
- if (sec < 60) return "Just now";
- if (sec < 3600) return `${Math.floor(sec / 60)} min ago`;
- if (sec < 86400) return `${Math.floor(sec / 3600)} hours ago`;
- if (sec < 86400 * 7) return `${Math.floor(sec / 86400)} days ago`;
+ if (sec < 45) return "Just now";
+ if (sec < 3600) {
+ const mins = Math.max(1, Math.floor(sec / 60));
+ return mins === 1 ? "1 min ago" : `${mins} min ago`;
+ }
+ if (sec < 86400) {
+ const hours = Math.floor(sec / 3600);
+ return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+ }
+ if (sec < 86400 * 7) {
+ const days = Math.floor(sec / 86400);
+ return days === 1 ? "1 day ago" : `${days} days ago`;
+ }
  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 	}
 
 	function daysUntil(iso) {
- const date = new Date(iso);
- if (Number.isNaN(date.getTime())) return null;
+ const date = parseInboxDate(iso);
+ if (!date) return null;
  return Math.ceil((date.getTime() - Date.now()) / 86400000);
 	}
 
@@ -154,8 +173,9 @@ window.JodInbox = (() => {
 	}
 
 	function sortMillis(iso, extra) {
- const t = new Date(iso || 0).getTime();
- return (Number.isNaN(t) ? 0 : t) + (Number(extra) || 0);
+ const date = parseInboxDate(iso);
+ const t = date ? date.getTime() : 0;
+ return t + (Number(extra) || 0);
 	}
 
 	function ticketHref(bookingId) {
@@ -444,6 +464,9 @@ window.JodInbox = (() => {
  const list = Array.isArray(events) ? events : (events.items || events.events || []);
  list.slice(0, 2).forEach((ev) => {
  if (isFlagTrue(ev.is_cancelled)) return;
+ // Do not recommend events that already started/ended.
+ const startMs = parseInboxDate(ev.start_date || ev.end_date);
+ if (startMs && startMs.getTime() < Date.now() - 6 * 3600 * 1000) return;
  const eventId = ev.id || ev.event_id;
  const id = `offer-${eventId || ev.title}`;
  if (clearedIds.has(id)) return;
@@ -453,12 +476,12 @@ window.JodInbox = (() => {
  kind: "event_offer",
  icon: "🎁",
  title: "Event recommendation",
- time: timeAgo(ev.start_date || ev.created_at),
+ time: timeAgo(ev.created_at || ev.start_date),
  unread: !readIds.has(id),
  href: eventHref(eventId),
  plain: `You might like ${title}.`,
  html: `You might like <strong>${escapeHtml(title)}</strong>${ev.venue ? " at " + escapeHtml(ev.venue) : ""}.`,
- sort: sortMillis(ev.start_date || ev.created_at),
+ sort: sortMillis(ev.created_at || ev.start_date),
  });
  });
  }
@@ -472,22 +495,29 @@ window.JodInbox = (() => {
  (Array.isArray(rows) ? rows : []).forEach((row) => {
  const id = String(row.id || "");
  if (!id || clearedIds.has(id)) return;
+ const kind = row.kind || "event_published";
  const place = row.location || "your city";
- const message = row.message || `A new event is upcoming in ${place}.`;
+ const isWelcome = kind === "welcome" || id.startsWith("welcome-");
+ const message = row.message || (isWelcome
+ ? "Welcome to JOD Events! Explore upcoming events and book tickets."
+ : `A new event is upcoming in ${place}.`);
  items.push({
  id,
- kind: row.kind || "event_published",
- icon: "📍",
- title: row.title || "New upcoming event",
+ kind,
+ icon: isWelcome ? "👋" : "📍",
+ title: row.title || (isWelcome ? "Welcome to JOD Events" : "New upcoming event"),
  time: timeAgo(row.created_at),
  unread: !readIds.has(id),
- href: row.href || eventHref(row.event_id) || "index.html#upcoming",
+ href: row.href || (isWelcome ? "index.html#upcoming" : eventHref(row.event_id) || "index.html#upcoming"),
  plain: message,
- html: escapeHtml(message).replace(
+ html: isWelcome
+ ? escapeHtml(message)
+ : escapeHtml(message).replace(
  escapeHtml(place),
  `<strong>${escapeHtml(place)}</strong>`
  ),
- sort: sortMillis(row.created_at, 5000),
+ // Welcome stays near the top for new accounts without burying live booking alerts.
+ sort: sortMillis(row.created_at, isWelcome ? 8000 : 5000),
  });
  });
  }
@@ -514,6 +544,10 @@ window.JodInbox = (() => {
  const ids = items.map((row) => row.id);
  if (!Array.isArray(known)) {
  writeJson(KNOWN_KEY, ids);
+ // First load seeds known IDs so old announce spam does not toast.
+ // Still toast the personal welcome once so new users see it immediately.
+ const welcome = items.find((row) => row.kind === "welcome" || String(row.id).startsWith("welcome-"));
+ if (welcome && welcome.unread) showToast(welcome);
  } else {
  const knownSet = new Set(known);
  const fresh = items.filter((row) => !knownSet.has(row.id));

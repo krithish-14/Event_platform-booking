@@ -1612,6 +1612,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
                 address=event_mgt.address,
                 location=public_event.location,
                 publisher_customer_id=event_mgt.customer_id,
+                event=public_event,
             )
         except Exception as exc:
             print(f"[EVENT PUBLISH] announcement failed event_id={event_mgt.event_id}: {exc}", flush=True)

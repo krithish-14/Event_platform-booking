@@ -962,3 +962,80 @@ body.auth-signup .auth-switch {
 		min-height: 3rem;
 	}
 }
+
+/* One-time Google signup completion popup */
+.google-complete-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 13000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+	background: rgba(15, 23, 42, 0.62);
+	backdrop-filter: blur(3px);
+}
+.google-complete-backdrop[hidden] {
+	display: none !important;
+}
+.google-complete-card {
+	width: min(440px, 100%);
+	max-height: min(92vh, 720px);
+	overflow: auto;
+	background: #fff;
+	border-radius: 18px;
+	padding: 1.35rem 1.25rem 1.2rem;
+	box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+	border: 1px solid #e2e8f0;
+}
+.google-complete-card h2 {
+	margin: 0 0 0.35rem;
+	font-size: 1.25rem;
+	font-weight: 800;
+	color: #0f172a;
+}
+.google-complete-card .google-complete-lead {
+	margin: 0 0 1.1rem;
+	font-size: 0.88rem;
+	line-height: 1.45;
+	color: #64748b;
+}
+.google-complete-card .form-group {
+	margin-bottom: 0.9rem;
+}
+.google-complete-card .form-label {
+	display: block;
+	font-size: 0.82rem;
+	font-weight: 700;
+	color: #334155;
+	margin-bottom: 0.35rem;
+}
+.google-complete-card .field-error {
+	min-height: 1.1rem;
+	font-size: 0.78rem;
+	color: #dc2626;
+	margin-top: 0.25rem;
+}
+.google-complete-card .form-alert {
+	margin-bottom: 0.85rem;
+}
+.google-complete-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 0.55rem;
+	margin-top: 0.4rem;
+}
+.google-complete-actions .btn-auth-submit {
+	width: 100%;
+}
+html[data-theme="dark"] .google-complete-card {
+	background: #1c1814;
+	border-color: #3a322a;
+}
+html[data-theme="dark"] .google-complete-card h2 {
+	color: #fff8f0;
+}
+html[data-theme="dark"] .google-complete-card .google-complete-lead,
+html[data-theme="dark"] .google-complete-card .form-label {
+	color: #b8aea2;
+}

@@ -9,6 +9,8 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from Models.notification import EventAnnouncement
+from Services.event_service import _event_has_ended
+from Utils.datetimes import utc_now
 
 
 def pretty_event_location(venue: Optional[str] = None, address: Optional[str] = None, location: Optional[str] = None) -> str:
@@ -57,6 +59,7 @@ def ensure_published_event_announcement(
     address: Optional[str] = None,
     location: Optional[str] = None,
     publisher_customer_id: Optional[str] = None,
+    event=None,
 ) -> Optional[EventAnnouncement]:
     """Insert one announcement per event. Republishing the same event does not spam again."""
     if not event_id:
@@ -70,6 +73,10 @@ def ensure_published_event_announcement(
     if existing:
         return existing
 
+    # Never create "upcoming" announcements for events that have already ended.
+    if event is not None and _event_has_ended(event):
+        return None
+
     place = pretty_event_location(venue=venue, address=address, location=location)
     row = EventAnnouncement(
         event_id=event_uuid,
@@ -78,7 +85,7 @@ def ensure_published_event_announcement(
         city=place,
         venue=(venue or "").strip() or None,
         publisher_customer_id=str(publisher_customer_id).strip() if publisher_customer_id else None,
-        created_at=datetime.utcnow(),
+        created_at=utc_now(),
     )
     db.add(row)
     db.commit()

@@ -329,6 +329,9 @@ class UserResponse(BaseModel):
     is_active: bool
     is_admin: bool
     role: str = "attendee"
+    auth_provider: str | None = None
+    google_profile_complete: bool | None = None
+    google_profile_required: bool = False
 
     class Config:
         from_attributes = True
@@ -342,6 +345,36 @@ class TokenResponse(BaseModel):
 
 class GoogleTokenResponse(TokenResponse):
     location_required: bool = False
+    google_profile_required: bool = False
+
+
+class GoogleCompleteProfileRequest(BaseModel):
+    username: str
+    phone: str
+    password: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        return UserRegisterRequest.validate_username(v)
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        return _normalize_phone(v)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return UserRegisterRequest.validate_password(v)
+
+
+def _google_profile_required(user) -> bool:
+    provider = str(getattr(user, "auth_provider", None) or "").strip().lower()
+    if provider != "google":
+        return False
+    # Only explicit False means the one-time Google profile popup is still needed.
+    return getattr(user, "google_profile_complete", None) is False
 
 
 def _serialize_user(user) -> dict:
@@ -349,6 +382,7 @@ def _serialize_user(user) -> dict:
     if user is None:
         return None
     role = "admin" if bool(getattr(user, "is_admin", False)) else "attendee"
+    gpc = getattr(user, "google_profile_complete", None)
     return {
         "id": str(getattr(user, "id", user.customer_id)),
         "customer_id": str(user.customer_id) if user.customer_id else None,
@@ -364,6 +398,9 @@ def _serialize_user(user) -> dict:
         "is_active": bool(getattr(user, "is_active", True)),
         "is_admin": bool(getattr(user, "is_admin", False)),
         "role": role,
+        "auth_provider": getattr(user, "auth_provider", None),
+        "google_profile_complete": gpc if gpc is None else bool(gpc),
+        "google_profile_required": _google_profile_required(user),
     }
 
 
@@ -587,6 +624,7 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
             hashed_password=get_password_hash(random_password),
             google_user_id=google_sub,
             auth_provider="google",
+            google_profile_complete=False,
             city=payload.city.strip() if payload.city else None,
             location_pincode=payload.location_pincode.strip() if payload.location_pincode else None,
         )
@@ -656,12 +694,67 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
     )
 
     location_required = not bool(user.city)
+    google_profile_required = _google_profile_required(user)
 
     _set_auth_cookie(response, token_str)
-    return _auth_payload(token_str, user, extra={"location_required": location_required})
+    return _auth_payload(
+        token_str,
+        user,
+        extra={
+            "location_required": location_required,
+            "google_profile_required": google_profile_required,
+        },
+    )
 
 
+@router.post("/google/complete-profile", response_model=TokenResponse)
+def complete_google_profile(
+    payload: GoogleCompleteProfileRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """One-time Google signup completion: username, phone, and password."""
+    provider = str(getattr(current_user, "auth_provider", None) or "").strip().lower()
+    if provider != "google":
+        raise HTTPException(status_code=400, detail="This step is only for Google sign-up accounts.")
+    if getattr(current_user, "google_profile_complete", None) is True:
+        raise HTTPException(status_code=400, detail="Your Google profile is already complete.")
 
+    username_clean = payload.username.strip()
+    phone_clean = payload.phone
+    taken = (
+        db.query(User)
+        .filter(func.lower(func.trim(User.username)) == username_clean.lower())
+        .filter(User.customer_id != current_user.customer_id)
+        .first()
+    )
+    if taken:
+        raise HTTPException(status_code=400, detail="Username already taken.")
+
+    current_user.username = username_clean
+    current_user.phone = phone_clean
+    current_user.hashed_password = get_password_hash(payload.password)
+    current_user.google_profile_complete = True
+    try:
+        db.commit()
+        db.refresh(current_user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Username already taken.")
+
+    token_str = create_access_token(
+        data={
+            "sub": str(current_user.customer_id),
+            "customer_id": str(current_user.customer_id),
+            "email": current_user.email,
+            "username": current_user.username,
+        },
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    _set_auth_cookie(response, token_str)
+    set_csrf_cookie(response)
+    return _auth_payload(token_str, current_user)
 
 
 @router.get("/me", response_model=UserResponse)

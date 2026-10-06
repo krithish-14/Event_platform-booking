@@ -6,7 +6,7 @@
 (function (global) {
 	"use strict";
 
-	const FILES = ["h1.webp", "h2.webp", "h3.webp", "h4.webp", "h5.webp", "h6.webp"];
+	const FILES = ["h1.webp", "h2.webp", "h3.webp", "h5.webp", "h6.webp"];
 	const HOLD_MS = 3000;
 	const FADE_MS = 700;
 

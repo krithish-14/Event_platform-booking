@@ -532,11 +532,18 @@ window.JodAuth = (() => {
 	}
 
 	function showAlert(alertEl, type, msg) {
+		if (!alertEl) return;
+		alertEl.hidden = false;
 		alertEl.className = `form-alert is-visible alert-${type}`;
-		alertEl.querySelector(".alert-msg").textContent = parseApiErrorMessage(msg, "An error occurred.");
+		const msgEl = alertEl.querySelector(".alert-msg");
+		const text = parseApiErrorMessage(msg, "An error occurred.");
+		if (msgEl) msgEl.textContent = text;
+		else alertEl.textContent = text;
 	}
 	function hideAlert(alertEl) {
+		if (!alertEl) return;
 		alertEl.classList.remove("is-visible");
+		alertEl.hidden = true;
 	}
 	function setLoading(btn, loading) {
 		btn.disabled = loading;
@@ -555,11 +562,11 @@ window.JodAuth = (() => {
 	const strengthLabels = ["", "Weak", "Fair", "Good", "Strong"];
 
 	function initPasswordStrength(pwInput, barEl, labelEl) {
-		if (!pwInput || !barEl || !labelEl) return;
+		if (!pwInput || !barEl) return;
 		pwInput.addEventListener("input", () => {
 			const s = pwInput.value ? calcStrength(pwInput.value) : 0;
 			barEl.className = "pw-strength-bar" + (s ? ` strength-${s}` : "");
-			labelEl.textContent = s ? strengthLabels[s] : "";
+			if (labelEl) labelEl.textContent = s ? strengthLabels[s] : "";
 		});
 	}
 
@@ -588,6 +595,10 @@ window.JodAuth = (() => {
 
 			const identifier = loginForm.querySelector("#loginIdentifier").value.trim();
 			const password = loginForm.querySelector("#loginPassword").value;
+			if (loginForm.querySelector("#loginPassword") && loginForm.querySelector("#loginPassword").dataset.googleFilled === "1") {
+				showAlert(alertEl, "success", "Google verification complete. Signing you in\u2026");
+				return;
+			}
 			let valid = true;
 
 			if (!identifier) { setError(loginForm.querySelector("#loginIdentifier"), "Email or username is required."); valid = false; }
@@ -1441,6 +1452,251 @@ window.JodAuth = (() => {
 		return document.getElementById("signupForm") ? "signup" : "login";
 	}
 
+	function escapeHtml(value) {
+		return String(value == null ? "" : value)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;")
+			.replace(/'/g, "&#39;");
+	}
+
+	function needsGoogleProfile(userOrFlag) {
+		if (userOrFlag === true) return true;
+		if (!userOrFlag || typeof userOrFlag !== "object") return false;
+		if (userOrFlag.google_profile_required === true) return true;
+		return String(userOrFlag.auth_provider || "").toLowerCase() === "google"
+			&& userOrFlag.google_profile_complete === false;
+	}
+
+	function ensureGoogleCompleteStyles() {
+		if (document.getElementById("jod-google-complete-style")) return;
+		const style = document.createElement("style");
+		style.id = "jod-google-complete-style";
+		style.textContent = `
+.google-complete-backdrop{position:fixed;inset:0;z-index:13000;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,.62);backdrop-filter:blur(3px)}
+.google-complete-backdrop[hidden]{display:none!important}
+.google-complete-card{width:min(440px,100%);max-height:min(92vh,720px);overflow:auto;background:#fff;border-radius:18px;padding:1.35rem 1.25rem 1.2rem;box-shadow:0 24px 60px rgba(15,23,42,.28);border:1px solid #e2e8f0}
+.google-complete-card h2{margin:0 0 .35rem;font-size:1.25rem;font-weight:800;color:#0f172a}
+.google-complete-card .google-complete-lead{margin:0 0 1.1rem;font-size:.88rem;line-height:1.45;color:#64748b}
+.google-complete-card .form-group{margin-bottom:.9rem}
+.google-complete-card .form-label{display:block;font-size:.82rem;font-weight:700;color:#334155;margin-bottom:.35rem}
+.google-complete-card .field-error{min-height:1.1rem;font-size:.78rem;color:#dc2626;margin-top:.25rem}
+.google-complete-card .form-alert{margin-bottom:.85rem}
+.google-complete-actions{display:flex;flex-direction:column;gap:.55rem;margin-top:.4rem}
+.google-complete-actions .btn-auth-submit,.google-complete-actions button[type=submit]{width:100%;min-height:2.9rem;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}
+.google-complete-card .phone-input-row{display:flex;gap:.5rem}
+.google-complete-card .phone-country-select{flex:0 0 7.5rem}
+.google-complete-card .phone-national-wrap{flex:1 1 auto;min-width:0}
+.google-complete-card .input-wrap{position:relative}
+.google-complete-card .form-input{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:.7rem .85rem;font:inherit}
+.google-complete-card .toggle-pw{position:absolute;right:.55rem;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer}
+html[data-theme=dark] .google-complete-card{background:#1c1814;border-color:#3a322a}
+html[data-theme=dark] .google-complete-card h2{color:#fff8f0}
+html[data-theme=dark] .google-complete-card .google-complete-lead,html[data-theme=dark] .google-complete-card .form-label{color:#b8aea2}
+html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;border-color:#3a322a;color:#fff8f0}
+`;
+		document.head.appendChild(style);
+	}
+
+	function buildGoogleCompleteModal(user) {
+		ensureGoogleCompleteStyles();
+		let root = document.getElementById("googleCompleteModal");
+		if (root) root.remove();
+		root = document.createElement("div");
+		root.id = "googleCompleteModal";
+		root.className = "google-complete-backdrop";
+		root.setAttribute("role", "dialog");
+		root.setAttribute("aria-modal", "true");
+		root.setAttribute("aria-labelledby", "googleCompleteTitle");
+		const suggested = String((user && user.username) || "").trim();
+		root.innerHTML = `
+<div class="google-complete-card">
+  <h2 id="googleCompleteTitle">Finish your Google signup</h2>
+  <p class="google-complete-lead">Choose a username, add your phone number, and set a password. This is required once for Google accounts.</p>
+  <div class="form-alert" id="googleCompleteAlert" hidden><span class="alert-msg"></span></div>
+  <form id="googleCompleteForm" novalidate>
+    <div class="form-group">
+      <label class="form-label" for="googleCompleteUsername">Username</label>
+      <div class="input-wrap">
+        <input class="form-input" type="text" id="googleCompleteUsername" name="username" autocomplete="username" required value="${escapeHtml(suggested)}" />
+      </div>
+      <div class="field-error" id="googleCompleteUsernameError"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="googleCompletePhone">Phone Number</label>
+      <div class="phone-input-row auth-phone-row">
+        <select id="googleCompletePhoneCountry" class="form-input phone-country-select" aria-label="Country code" required>
+          <option value="91" selected>+91 India</option>
+        </select>
+        <div class="input-wrap phone-national-wrap">
+          <input class="form-input" type="tel" id="googleCompletePhone" name="phone" autocomplete="tel-national" inputmode="numeric" maxlength="10" required placeholder="10-digit number" />
+        </div>
+      </div>
+      <p class="phone-hint" id="googleCompletePhoneHint" style="margin:.35rem 0 0;font-size:.78rem;color:#64748b;">India (+91) requires exactly 10 digits.</p>
+      <div class="field-error" id="googleCompletePhoneError"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="googleCompletePassword">Password</label>
+      <div class="input-wrap">
+        <input class="form-input has-toggle" type="password" id="googleCompletePassword" name="password" autocomplete="new-password" required placeholder="Min. 8 characters" />
+        <button class="toggle-pw" type="button" id="toggleGoogleCompletePw" aria-label="Show password">&#128065;</button>
+      </div>
+      <div class="pw-strength-bar" id="googleCompletePwBar"></div>
+      <div class="field-error" id="googleCompletePasswordError"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="googleCompleteConfirm">Confirm Password</label>
+      <div class="input-wrap">
+        <input class="form-input has-toggle" type="password" id="googleCompleteConfirm" name="confirm" autocomplete="new-password" required />
+        <button class="toggle-pw" type="button" id="toggleGoogleCompleteConfirm" aria-label="Show password">&#128065;</button>
+      </div>
+      <div class="field-error" id="googleCompleteConfirmError"></div>
+    </div>
+    <div class="google-complete-actions">
+      <button type="submit" class="btn-auth-submit" id="googleCompleteSubmit">Save and continue</button>
+    </div>
+  </form>
+</div>`;
+		document.body.appendChild(root);
+		document.body.style.overflow = "hidden";
+		return root;
+	}
+
+	function openGoogleCompleteProfile(user) {
+		return new Promise((resolve) => {
+			const root = buildGoogleCompleteModal(user || {});
+			const form = root.querySelector("#googleCompleteForm");
+			const alertEl = root.querySelector("#googleCompleteAlert");
+			const usernameInput = root.querySelector("#googleCompleteUsername");
+			const phoneInput = root.querySelector("#googleCompletePhone");
+			const phoneCountry = root.querySelector("#googleCompletePhoneCountry");
+			const phoneHint = root.querySelector("#googleCompletePhoneHint");
+			const passwordInput = root.querySelector("#googleCompletePassword");
+			const confirmInput = root.querySelector("#googleCompleteConfirm");
+			const submitBtn = root.querySelector("#googleCompleteSubmit");
+			const contactRules = window.JodContactRules || null;
+
+			function setFieldError(id, msg) {
+				const el = root.querySelector("#" + id);
+				if (el) el.textContent = msg || "";
+			}
+
+			if (contactRules && phoneCountry && phoneInput) {
+				contactRules.bindPhoneField(phoneCountry, phoneInput);
+				const syncHint = () => {
+					const country = contactRules.getCountry(phoneCountry.value);
+					if (phoneHint) phoneHint.textContent = `${country.name} (+${country.dial}) requires exactly ${country.length} digits.`;
+				};
+				syncHint();
+				phoneCountry.addEventListener("change", syncHint);
+			}
+
+			initTogglePw(root.querySelector("#toggleGoogleCompletePw"), passwordInput);
+			initTogglePw(root.querySelector("#toggleGoogleCompleteConfirm"), confirmInput);
+			initPasswordStrength(passwordInput, root.querySelector("#googleCompletePwBar"), null);
+
+			form.addEventListener("submit", async (e) => {
+				e.preventDefault();
+				setFieldError("googleCompleteUsernameError", "");
+				setFieldError("googleCompletePhoneError", "");
+				setFieldError("googleCompletePasswordError", "");
+				setFieldError("googleCompleteConfirmError", "");
+				if (alertEl) hideAlert(alertEl);
+
+				const username = (usernameInput.value || "").trim();
+				const password = passwordInput.value || "";
+				const confirm = confirmInput.value || "";
+				let valid = true;
+
+				if (!username || username.length < 3) {
+					setFieldError("googleCompleteUsernameError", "Username must be at least 3 characters.");
+					valid = false;
+				} else if (!/^[a-zA-Z0-9_.@-]+$/.test(username)) {
+					setFieldError("googleCompleteUsernameError", "Use only letters, numbers, underscores, dots, hyphens, or @.");
+					valid = false;
+				}
+
+				let phoneE164 = "";
+				if (contactRules) {
+					const phoneCheck = contactRules.validatePhone(phoneCountry.value, phoneInput.value);
+					if (!phoneCheck.ok) {
+						setFieldError("googleCompletePhoneError", phoneCheck.message || "Enter a valid phone number.");
+						valid = false;
+					} else {
+						phoneE164 = phoneCheck.e164;
+					}
+				} else {
+					const digits = String(phoneInput.value || "").replace(/\D/g, "");
+					if (digits.length !== 10) {
+						setFieldError("googleCompletePhoneError", "Enter a valid 10-digit phone number.");
+						valid = false;
+					} else {
+						phoneE164 = "+91" + digits;
+					}
+				}
+
+				if (!password || password.length < 8) {
+					setFieldError("googleCompletePasswordError", "Password must be at least 8 characters.");
+					valid = false;
+				} else if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+					setFieldError("googleCompletePasswordError", "Password must include a letter and a number.");
+					valid = false;
+				}
+				if (password !== confirm) {
+					setFieldError("googleCompleteConfirmError", "Passwords do not match.");
+					valid = false;
+				}
+				if (!valid) return;
+
+				setLoading(submitBtn, true);
+				try {
+					const res = await fetch(`${getApiBase()}/api/auth/google/complete-profile`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						credentials: "include",
+						body: JSON.stringify({
+							username,
+							phone: phoneE164,
+							password,
+						}),
+					});
+					let data = {};
+					try { data = await res.json(); } catch (_) {}
+					if (!res.ok) {
+						const detail = typeof data.detail === "string"
+							? data.detail
+							: (Array.isArray(data.detail) && data.detail[0] && data.detail[0].msg)
+								? String(data.detail[0].msg)
+								: "Could not save your details. Please try again.";
+						const lower = detail.toLowerCase();
+						if (lower.includes("username")) setFieldError("googleCompleteUsernameError", detail);
+						else if (lower.includes("phone")) setFieldError("googleCompletePhoneError", detail);
+						else if (lower.includes("password")) setFieldError("googleCompletePasswordError", detail);
+						else if (alertEl) showAlert(alertEl, "error", detail);
+						return;
+					}
+					persistAuthSession(data.access_token, data.user);
+					root.hidden = true;
+					root.remove();
+					document.body.style.overflow = "";
+					resolve(data.user || getUser());
+				} catch (_) {
+					if (alertEl) showAlert(alertEl, "error", "Unable to connect. Please try again.");
+				} finally {
+					setLoading(submitBtn, false);
+				}
+			});
+
+			setTimeout(() => usernameInput && usernameInput.focus(), 50);
+		});
+	}
+
+	async function maybeCompleteGoogleProfile(user, flag) {
+		if (!needsGoogleProfile(flag === true ? true : user)) return user;
+		return openGoogleCompleteProfile(user || getUser());
+	}
+
 	function googleErrorMessage(data, status) {
 		const detail = data && data.detail;
 		const text = typeof detail === "string"
@@ -1457,11 +1713,51 @@ window.JodAuth = (() => {
 		return "Google sign-in failed. Please try again.";
 	}
 
+	function emailFromGoogleCredential(credential) {
+		try {
+			const parts = String(credential || "").split(".");
+			if (parts.length < 2) return "";
+			const padded = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+			const json = JSON.parse(atob(padded));
+			const email = String((json && json.email) || "").trim().toLowerCase();
+			return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+		} catch (_) {
+			return "";
+		}
+	}
+
+	function fillVerifiedGoogleAuthForm(email) {
+		const hiddenEmail = document.getElementById("googleVerifiedEmail");
+		const hiddenPassword = document.getElementById("googleVerifiedPassword");
+		const loginId = document.getElementById("loginIdentifier");
+		const loginPw = document.getElementById("loginPassword");
+		const signupEmail = document.getElementById("signupEmail");
+		if (hiddenEmail) hiddenEmail.value = email || "";
+		if (hiddenPassword) hiddenPassword.value = email ? "google-verified" : "";
+		if (loginId && email) loginId.value = email;
+		if (loginPw && email) {
+			loginPw.value = "google-verified";
+			loginPw.dataset.googleFilled = "1";
+		}
+		if (signupEmail && email) signupEmail.value = email;
+	}
+
+	function clearGoogleFilledPassword() {
+		const loginPw = document.getElementById("loginPassword");
+		const hiddenPassword = document.getElementById("googleVerifiedPassword");
+		if (loginPw && loginPw.dataset.googleFilled === "1") {
+			loginPw.value = "";
+			delete loginPw.dataset.googleFilled;
+		}
+		if (hiddenPassword) hiddenPassword.value = "";
+	}
+
 	async function handleGoogleCredentialResponse(response, alertEl, btnEl) {
 		if (!response || !response.credential) {
 			if (alertEl) showAlert(alertEl, "error", "Google sign-in was cancelled.");
 			return;
 		}
+		fillVerifiedGoogleAuthForm(emailFromGoogleCredential(response.credential));
 		if (btnEl) setLoading(btnEl, true);
 		if (alertEl) hideAlert(alertEl);
 
@@ -1478,11 +1774,16 @@ window.JodAuth = (() => {
 
 			if (!res.ok) {
 				clearAuth();
+				clearGoogleFilledPassword();
 				if (alertEl) showAlert(alertEl, "error", googleErrorMessage(data, res.status));
 			} else {
 				persistAuthSession(data.access_token, data.user);
+				const finishedUser = await maybeCompleteGoogleProfile(
+					data.user,
+					data.google_profile_required === true || (data.user && data.user.google_profile_required)
+				);
 				if (alertEl) showAlert(alertEl, "success", "Signed in with Google. Redirecting\u2026");
-				queueLocationPrompt(data.user);
+				queueLocationPrompt(finishedUser || data.user);
 				queueFeaturedModalAfterLogin();
 				setTimeout(() => {
 					redirectAfterAuth(getRedirectTarget()).catch(() => {
@@ -1991,7 +2292,11 @@ window.JodAuth = (() => {
 
 	if (typeof window !== "undefined") {
 		window.handleGuestOrNavigate = handleGuestOrNavigate;
-		ensureSession();
+		ensureSession().then((user) => {
+			if (needsGoogleProfile(user)) {
+				maybeCompleteGoogleProfile(user).catch(() => {});
+			}
+		}).catch(() => {});
 		const startEventDetailsPrompt = () => {
 			window.setTimeout(maybePromptGuestOnEventDetails, 600);
 		};
@@ -2034,6 +2339,7 @@ window.JodAuth = (() => {
 		requireAuthOrRedirect,
 		initGoogleAuth,
 		handleGoogleCredentialResponse,
+		maybeCompleteGoogleProfile,
 		openGuestAuthModal,
 		closeGuestAuthModal,
 		showGuestModal: openGuestAuthModal,

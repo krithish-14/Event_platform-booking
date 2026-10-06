@@ -379,13 +379,32 @@ html[data-theme="dark"] .reels-strip-nav {
 	.reels-strip-nav {
 		display: grid;
 	}
-	.reels-peek,
-	.reels-nav.prev,
-	.reels-nav.next {
+	/* Peek thumbnails need side room; hide them. Keep prev/next arrows. */
+	.reels-peek {
 		display: none;
 	}
 	.reels-lightbox-stage {
 		width: min(22rem, calc(100vw - 1.5rem));
+	}
+	/* Overlay arrows on the stage edges — outside calc would sit off-screen */
+	.reels-nav.prev,
+	.reels-nav.next {
+		display: grid;
+		place-items: center;
+		width: 2.55rem;
+		height: 2.55rem;
+		font-size: 1.25rem;
+		background: rgba(255, 255, 255, 0.92);
+		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+		z-index: 8;
+	}
+	.reels-nav.prev {
+		left: max(0.45rem, calc(50% - min(22rem, calc(100vw - 1.5rem)) / 2 + 0.35rem));
+		right: auto;
+	}
+	.reels-nav.next {
+		right: max(0.45rem, calc(50% - min(22rem, calc(100vw - 1.5rem)) / 2 + 0.35rem));
+		left: auto;
 	}
 }
 

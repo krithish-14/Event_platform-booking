@@ -227,8 +227,6 @@ function initFormBuilder() {
 	const previewCardContainer = document.getElementById("previewCardContainer");
 	const questionsList = document.getElementById("questionsList");
 	const questionCountLabel = document.getElementById("questionCountLabel");
-	const btnAddQuestion = document.getElementById("btnAddQuestion");
-
 	// Device File Upload Handlers
 	if (btnUploadBannerFile && fileBannerInput) {
 		btnUploadBannerFile.addEventListener("click", () => fileBannerInput.click());
@@ -417,6 +415,66 @@ function initFormBuilder() {
 	}
 
 	// \u2500\u2500 Render Left Builder Questions List \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+	// Must match the single-column builder breakpoint in organizer-dashboard.css
+	const COMPACT_BUILDER_QUERY = "(max-width: 860px)";
+	const PREVIEW_DOCK_KEY = "jod_reg_preview_dock";
+	const QUESTION_TYPE_LABELS = {
+		short_answer: "Short Answer",
+		paragraph: "Paragraph",
+		email: "Email Address",
+		phone: "Phone Number",
+		dropdown: "Dropdown Select",
+		radio: "Multiple Choice",
+		checkbox: "Checkboxes",
+		date: "Date Picker",
+		file_upload: "File Upload",
+		address: "Address Block",
+		terms: "Terms Checkbox"
+	};
+	let expandedQuestionId = null;
+	let focusedPreviewQid = null;
+
+	function isCompactBuilder() {
+		return !!(window.matchMedia && window.matchMedia(COMPACT_BUILDER_QUERY).matches);
+	}
+
+	function questionSummaryMeta(q) {
+		return (QUESTION_TYPE_LABELS[q.type] || q.type) + (q.required ? " \u00b7 Required" : "");
+	}
+
+	function scrollPreviewTo(target) {
+		if (!livePreviewWrapper || !livePreviewWrapper.clientHeight) return;
+		const top = target
+			? livePreviewWrapper.scrollTop + target.getBoundingClientRect().top - livePreviewWrapper.getBoundingClientRect().top - 16
+			: 0;
+		livePreviewWrapper.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+	}
+
+	function focusPreviewQuestion(qid) {
+		focusedPreviewQid = qid;
+		if (!previewRenderedForm) return;
+		let target = null;
+		previewRenderedForm.querySelectorAll("[data-qid]").forEach((group) => {
+			const on = group.dataset.qid === qid;
+			group.classList.toggle("is-preview-focus", on);
+			if (on) target = group;
+		});
+		if (target) scrollPreviewTo(target);
+	}
+
+	function setExpandedQuestion(qid, scrollCard) {
+		expandedQuestionId = qid;
+		const listEl = document.getElementById("questionsList");
+		if (!listEl) return;
+		listEl.querySelectorAll(".builder-question-card").forEach((card) => {
+			const open = card.dataset.qid === qid;
+			card.classList.toggle("is-expanded", open);
+			card.querySelector(".q-card-summary")?.setAttribute("aria-expanded", open ? "true" : "false");
+			if (open && scrollCard && isCompactBuilder()) card.scrollIntoView({ behavior: "smooth", block: "start" });
+		});
+		if (qid) focusPreviewQuestion(qid);
+	}
+
 	function renderBuilderQuestions() {
 		if (!questions || !Array.isArray(questions) || questions.length === 0) {
 			questions = [
@@ -489,16 +547,28 @@ function initFormBuilder() {
 
 				const card = document.createElement("div");
 				card.className = "builder-question-card";
+				card.dataset.qid = q.id;
+				const isExpanded = q.id === expandedQuestionId;
+				card.classList.toggle("is-expanded", isExpanded);
 
 				const titleStr = String(q.title || '').replace(/"/g, '&quot;');
 				const placeholderStr = String(q.placeholder || '').replace(/"/g, '&quot;');
 				const helpStr = String(q.help_text || '').replace(/"/g, '&quot;');
 
 				card.innerHTML = `
-					<div style="display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.6rem;">
+					<button type="button" class="q-card-summary" aria-expanded="${isExpanded ? 'true' : 'false'}">
+						<span class="builder-q-badge">Q${idx + 1}</span>
+						<span class="q-card-summary-text">
+							<span class="q-card-summary-title"></span>
+							<span class="q-card-summary-meta"></span>
+						</span>
+						<span class="q-card-chevron" aria-hidden="true"></span>
+					</button>
+					<div class="q-card-body">
+					<div class="q-card-head" style="display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.6rem;">
 						<span class="builder-q-badge">Q${idx + 1}</span>
 						
-						<div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
+						<div class="q-card-type" style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
 							<select class="setup-select q-type-select" style="padding: 0.4rem 0.7rem; font-size: 0.88rem; font-weight: 700; height: 40px; line-height: 1.3; max-width: 240px; border-radius: 8px;">
 								<option value="short_answer" ${q.type === 'short_answer' ? 'selected' : ''}>Short Answer</option>
 								<option value="paragraph" ${q.type === 'paragraph' ? 'selected' : ''}>Paragraph</option>
@@ -514,9 +584,9 @@ function initFormBuilder() {
 							</select>
 						</div>
 
-						<div style="display: flex; align-items: center; gap: 0.4rem;">
-							<button type="button" class="btn-move-up" title="Move Up" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;">\u2191</button>
-							<button type="button" class="btn-move-down" title="Move Down" ${idx === questions.length - 1 ? 'disabled style="opacity:0.3;"' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;">\u2193</button>
+						<div class="q-card-actions" style="display: flex; align-items: center; gap: 0.4rem;">
+							<button type="button" class="btn-move-up" title="Move Up" ${idx === 0 ? 'disabled' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;${idx === 0 ? ' opacity:0.3;' : ''}">\u2191</button>
+							<button type="button" class="btn-move-down" title="Move Down" ${idx === questions.length - 1 ? 'disabled' : ''} style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:0.25rem 0.5rem; cursor:pointer; font-weight:700;${idx === questions.length - 1 ? ' opacity:0.3;' : ''}">\u2193</button>
 							<button type="button" class="btn-duplicate-q" title="Duplicate Question" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; border-radius:6px; padding:0.25rem 0.65rem; cursor:pointer; font-weight:700; font-size:0.8rem;">Copy</button>
 							<button type="button" class="btn-delete-q" title="Delete Question" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:6px; padding:0.25rem 0.65rem; cursor:pointer; font-weight:700; font-size:0.8rem;">Delete</button>
 						</div>
@@ -533,12 +603,12 @@ function initFormBuilder() {
 						</div>
 					</div>
 
-					<div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+					<div class="q-card-help-row" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
 						<div class="setup-form-group" style="flex: 1;">
 							<label>Help Text / Description (Optional)</label>
 							<input type="text" class="setup-input q-help-input" value="${helpStr}" placeholder="Helper guidance..." style="padding-left: 0.8rem;" />
 						</div>
-						<div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1.2rem;">
+						<div class="q-card-required" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1.2rem;">
 							<label style="font-weight: 700; font-size: 0.85rem; cursor: pointer;">
 								<input type="checkbox" class="q-required-check" ${q.required ? 'checked' : ''} /> Required
 							</label>
@@ -559,7 +629,16 @@ function initFormBuilder() {
 							<button type="button" class="btn-add-option" style="background: #ffffff; border: 1px dashed #3b82f6; color: #2563eb; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.7rem; border-radius: 6px; cursor: pointer; margin-top: 0.5rem;">+ Add Option</button>
 						</div>
 					` : ''}
+					</div>
 				`;
+
+				const summaryTitle = card.querySelector(".q-card-summary-title");
+				const summaryMeta = card.querySelector(".q-card-summary-meta");
+				summaryTitle.textContent = q.title;
+				summaryMeta.textContent = questionSummaryMeta(q);
+				card.querySelector(".q-card-summary").addEventListener("click", () => {
+					setExpandedQuestion(expandedQuestionId === q.id ? null : q.id, true);
+				});
 
 				// Event Listeners for Question Editing (Safely bound)
 				card.querySelector(".q-type-select")?.addEventListener("change", (e) => {
@@ -573,6 +652,7 @@ function initFormBuilder() {
 
 				card.querySelector(".q-title-input")?.addEventListener("input", (e) => {
 					q.title = e.target.value;
+					summaryTitle.textContent = q.title;
 					renderLivePreview();
 				});
 
@@ -588,6 +668,7 @@ function initFormBuilder() {
 
 				card.querySelector(".q-required-check")?.addEventListener("change", (e) => {
 					q.required = e.target.checked;
+					summaryMeta.textContent = questionSummaryMeta(q);
 					renderLivePreview();
 				});
 
@@ -617,12 +698,14 @@ function initFormBuilder() {
 					dup.id = "q_" + Date.now();
 					dup.title += " (Copy)";
 					questions.splice(idx + 1, 0, dup);
+					expandedQuestionId = dup.id;
 					renderBuilderQuestions();
 					renderLivePreview();
 				});
 
 				card.querySelector(".btn-delete-q")?.addEventListener("click", () => {
 					if (questions.length > 1) {
+						if (expandedQuestionId === q.id) expandedQuestionId = null;
 						questions.splice(idx, 1);
 						renderBuilderQuestions();
 						renderLivePreview();
@@ -747,6 +830,8 @@ function initFormBuilder() {
 		questions.forEach((q) => {
 			const group = document.createElement("div");
 			group.className = "setup-form-group";
+			group.dataset.qid = q.id;
+			if (q.id === focusedPreviewQid) group.classList.add("is-preview-focus");
 
 			const reqSpan = q.required ? '<span style="color:#ef4444;">*</span>' : '';
 			const helpHtml = q.help_text ? `<span style="font-size:0.75rem; color:#64748b; margin-top:0.1rem; display:block;">${q.help_text}</span>` : '';
@@ -831,48 +916,83 @@ function initFormBuilder() {
 	if (themeCardBgColor) themeCardBgColor.addEventListener("input", renderLivePreview);
 	if (themeBorderRadius) themeBorderRadius.addEventListener("change", renderLivePreview);
 
-	if (btnAddQuestion) {
-		btnAddQuestion.addEventListener("click", (e) => {
-			e.preventDefault();
-			if (!Array.isArray(questions)) questions = [];
-			questions.push({
-				id: "q_" + Date.now(),
-				type: "short_answer",
-				title: `New Question ${questions.length + 1}`,
-				placeholder: "Enter answer...",
-				help_text: "",
-				required: false
-			});
-			renderBuilderQuestions();
-			renderLivePreview();
-		});
-	}
-
-	// Document-level Click Delegation for Add Question Button
+	// Single handler for Add Question (a second direct listener used to add two per tap)
 	document.addEventListener("click", (e) => {
 		const btn = e.target.closest("#btnAddQuestion");
 		if (btn) {
 			e.preventDefault();
 			e.stopPropagation();
 			if (!Array.isArray(questions)) questions = [];
+			const newId = "q_" + Date.now();
 			questions.push({
-				id: "q_" + Date.now(),
+				id: newId,
 				type: "short_answer",
 				title: `New Question ${questions.length + 1}`,
 				placeholder: "Enter answer...",
 				help_text: "",
 				required: false
 			});
+			expandedQuestionId = newId;
 			renderBuilderQuestions();
 			renderLivePreview();
 			setTimeout(() => {
 				const qList = document.getElementById("questionsList");
 				if (qList && qList.lastElementChild) {
-					qList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+					qList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: isCompactBuilder() ? 'start' : 'nearest' });
 				}
+				focusPreviewQuestion(newId);
 			}, 60);
 		}
 	});
+
+	// Editing a question highlights and scrolls to it in the live preview
+	if (questionsList) {
+		questionsList.addEventListener("focusin", (e) => {
+			const card = e.target.closest(".builder-question-card");
+			if (card && card.dataset.qid && !e.target.closest(".q-card-summary")) focusPreviewQuestion(card.dataset.qid);
+		});
+	}
+	[builderFormTitle, builderFormDesc].forEach((el) => {
+		if (el) el.addEventListener("focus", () => scrollPreviewTo(null));
+	});
+
+	// Phone layout: the preview is a dock pinned to the bottom of the screen
+	const previewDockBar = document.querySelector("#sectionRegistrations .builder-preview-bar");
+	const previewDockToggle = document.getElementById("btnPreviewDockToggle");
+
+	function setPreviewDockOpen(open) {
+		if (!subViewBuilder) return;
+		subViewBuilder.classList.toggle("is-dock-open", open);
+		if (previewDockToggle) {
+			previewDockToggle.setAttribute("aria-expanded", open ? "true" : "false");
+			previewDockToggle.textContent = open ? "Hide" : "Show";
+		}
+		try { localStorage.setItem(PREVIEW_DOCK_KEY, open ? "1" : "0"); } catch (_) {}
+		if (open && focusedPreviewQid) requestAnimationFrame(() => focusPreviewQuestion(focusedPreviewQid));
+	}
+
+	function syncPreviewDockToViewport() {
+		const vv = window.visualViewport;
+		if (!subViewBuilder || !vv) return;
+		// Lift the dock above the on-screen keyboard and keep it to about a third of what's visible
+		const covered = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+		subViewBuilder.style.setProperty("--dock-offset", Math.round(covered) + "px");
+		subViewBuilder.style.setProperty("--dock-max", Math.round(vv.height * 0.36) + "px");
+	}
+
+	if (previewDockBar) {
+		previewDockBar.addEventListener("click", () => {
+			if (isCompactBuilder()) setPreviewDockOpen(!subViewBuilder.classList.contains("is-dock-open"));
+		});
+	}
+	let dockPref = null;
+	try { dockPref = localStorage.getItem(PREVIEW_DOCK_KEY); } catch (_) {}
+	setPreviewDockOpen(dockPref !== "0");
+	if (window.visualViewport) {
+		window.visualViewport.addEventListener("resize", syncPreviewDockToViewport);
+		window.visualViewport.addEventListener("scroll", syncPreviewDockToViewport);
+		syncPreviewDockToViewport();
+	}
 
 	// Save Draft API Handler
 	async function saveDraftForm() {
