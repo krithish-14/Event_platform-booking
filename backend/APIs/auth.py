@@ -31,6 +31,7 @@ from Services.runtime_env import cookie_secure, expose_access_token_in_json, smt
 from Services.rate_limit import limit_login, limit_otp, limit_password_reset, limit_register
 from Services.csrf import clear_csrf_cookie, set_csrf_cookie
 from Services.turnstile import require_signup_turnstile, turnstile_public_config
+from Services.client_meta import request_audit_meta
 from Services import otp as otp_service
 import random
 from Models import UserSignup as UserSignupLog, UserLogin as UserLoginLog
@@ -500,10 +501,14 @@ def login(response: Response, request: Request, form: OAuth2PasswordRequestForm 
 
     # Record User Login Audit Log in user_logins table
     try:
+        meta = request_audit_meta(request)
         login_log = UserLoginLog(
             customer_id=user.customer_id,
             email=user.email,
             status="SUCCESS",
+            ip_address=meta.get("ip_address"),
+            user_agent=meta.get("user_agent"),
+            region=meta.get("region"),
         )
         db.add(login_log)
         db.commit()
@@ -664,10 +669,14 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
 
     # Record User Login Audit Log
     try:
+        meta = request_audit_meta(request)
         login_log = UserLoginLog(
             customer_id=user.customer_id,
             email=user.email,
             status="SUCCESS",
+            ip_address=meta.get("ip_address"),
+            user_agent=meta.get("user_agent"),
+            region=meta.get("region"),
         )
         db.add(login_log)
         db.commit()

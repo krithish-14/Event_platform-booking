@@ -19,6 +19,7 @@ class UserLogin(Base):
     status      = Column(String(50), nullable=True)
     ip_address  = Column(String(50), nullable=True)
     user_agent  = Column(Text, nullable=True)
+    region      = Column(String(160), nullable=True)
     login_at    = Column(DateTime, default=datetime.utcnow, nullable=True)
 
     # Relationships

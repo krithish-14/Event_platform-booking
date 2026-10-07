@@ -291,6 +291,30 @@ def _migrate_tables(engine=None):
 
 
 
+        if "user_logins" in tables:
+            existing_login_cols = {c["name"] for c in inspector.get_columns("user_logins")}
+            login_migrations = [
+                ("ip_address", "VARCHAR(50)"),
+                ("user_agent", "TEXT"),
+                ("region", "VARCHAR(160)"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in login_migrations:
+                    if col_name not in existing_login_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(
+                                    f"ALTER TABLE user_logins ADD COLUMN IF NOT EXISTS {col_name} {col_type};"
+                                ))
+                            else:
+                                conn.execute(text(
+                                    f"ALTER TABLE user_logins ADD COLUMN {col_name} {col_type};"
+                                ))
+                            print(f"  [DB MIGRATION] Added column user_logins.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column user_logins.{col_name}: {e}", flush=True)
+                conn.commit()
+
         if "events" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("events")}
             event_migrations = [

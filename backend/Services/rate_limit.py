@@ -42,12 +42,9 @@ def limit_support(request: Request, email: str | None = None) -> None:
 
 
 def client_ip(request: Request) -> str:
-    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
-    if forwarded:
-        return forwarded
-    if request.client and request.client.host:
-        return request.client.host
-    return "unknown"
+    from Services.client_meta import get_client_ip
+
+    return get_client_ip(request) or "unknown"
 
 
 def allow(key: str, limit: int, window_seconds: int) -> bool:
