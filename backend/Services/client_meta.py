@@ -9,8 +9,10 @@ from __future__ import annotations
 import ipaddress
 import logging
 import time
+from datetime import datetime
 from threading import Lock
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import Request
@@ -21,6 +23,7 @@ _GEO_CACHE: dict[str, tuple[float, Optional[str]]] = {}
 _GEO_LOCK = Lock()
 _GEO_TTL_SECONDS = 6 * 60 * 60
 _GEO_TIMEOUT = 1.5
+_IST = ZoneInfo("Asia/Kolkata")
 
 
 def get_client_ip(request: Request) -> Optional[str]:
@@ -53,11 +56,40 @@ def get_client_ip(request: Request) -> Optional[str]:
     return None
 
 
-def get_user_agent(request: Request, max_len: int = 512) -> Optional[str]:
-    ua = (request.headers.get("user-agent") or "").strip()
-    if not ua:
+def parse_browser_name(ua: str | None) -> Optional[str]:
+    """Return a short browser label (Chrome, Edge, …) instead of the raw UA string."""
+    raw = (ua or "").strip()
+    if not raw:
         return None
-    return ua[:max_len]
+    u = raw.lower()
+    # Order matters: Edge/Opera include "Chrome" in their UA.
+    if "edg/" in u or "edgios/" in u or "edga/" in u:
+        return "Edge"
+    if "opr/" in u or "opera" in u:
+        return "Opera"
+    if "samsungbrowser" in u:
+        return "Samsung Internet"
+    if "firefox/" in u or "fxios/" in u:
+        return "Firefox"
+    if "crios/" in u or "chrome/" in u or "chromium/" in u:
+        return "Chrome"
+    if "safari/" in u:
+        return "Safari"
+    if "msie" in u or "trident/" in u:
+        return "Internet Explorer"
+    if "android" in u:
+        return "Android Browser"
+    return "Unknown"
+
+
+def get_user_agent(request: Request) -> Optional[str]:
+    """Browser name only — stored in user_logins.user_agent for readable audits."""
+    return parse_browser_name(request.headers.get("user-agent"))
+
+
+def login_at_ist() -> datetime:
+    """India local date/time, seconds precision (easy to read in DB tools)."""
+    return datetime.now(_IST).replace(tzinfo=None, microsecond=0)
 
 
 def _is_public_ip(ip: str) -> bool:
@@ -150,4 +182,5 @@ def request_audit_meta(request: Request) -> dict:
         "ip_address": ip,
         "user_agent": get_user_agent(request),
         "region": resolve_region(ip, request),
+        "login_at": login_at_ist(),
     }

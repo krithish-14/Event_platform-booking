@@ -795,6 +795,9 @@ def build_mticket_pdf_bytes(
             f"{_round_rect_path(card_x, card_y, card_w, card_h, 12)} B",
         ]
 
+        # Accent marks clipped to the rounded card so corners stay clean.
+        ops.append("q")
+        ops.append(f"{_round_rect_path(card_x, card_y, card_w, card_h, 12)} W n")
         if style in ("concert", "festival", "neon_night"):
             ops.extend([
                 f"{_rgb(accent_rgb)} rg",
@@ -806,15 +809,17 @@ def build_mticket_pdf_bytes(
                 f"{card_x:.1f} {card_y + card_h - 8:.1f} {card_w:.1f} 8 re f",
             ])
         elif style == "minimal":
+            # Short rule inset past corner radius (matches canvas preview).
             ops.extend([
                 f"{_rgb(accent_rgb)} rg",
-                f"{inner_x:.1f} {card_y + card_h - pad_y - 2:.1f} 48 2.5 re f",
+                f"{inner_x:.1f} {card_y + card_h - pad_y - 4:.1f} 40 2.5 re f",
             ])
         else:
             ops.extend([
                 f"{_rgb(accent_rgb)} rg",
                 f"{card_x:.1f} {card_y:.1f} {card_w:.1f} 4 re f",
             ])
+        ops.append("Q")
 
         xobjects: dict[str, tuple[bytes, int, int, str]] = {}
         poster_box_x, poster_box_y = inner_x, y - poster_h

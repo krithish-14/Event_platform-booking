@@ -53,7 +53,7 @@
 	ELEMENT_DEFS.forEach(function (d) { DEF_BY_TYPE[d.type] = d; });
 
 	/* Shared geometry for every color format — templates only change colors. */
-	const LAYOUT_VERSION = 2;
+	const LAYOUT_VERSION = 3;
 	const DEFAULT_ELEMENTS = [
 		{ id: "poster", type: "poster", x: 4, y: 3, w: 20, h: 16 },
 		{ id: "badge", type: "badge", x: 78, y: 3, w: 18, h: 4 },
@@ -205,14 +205,18 @@
 			out.canvas_elements = snapDataElementsToDefault(out.canvas_elements);
 		}
 		out.layout_version = LAYOUT_VERSION;
-		/* Keep footer from sitting on top of venue (old drafts). */
-		const venue = out.canvas_elements.find(function (e) { return e.type === "venue"; });
+		/* Keep footer below booking / above price — never over venue or title. */
 		const footer = out.canvas_elements.find(function (e) { return e.type === "footer"; });
-		if (venue && footer && Math.abs(footer.y - venue.y) < 8) {
-			footer.y = 75;
-			footer.x = 15;
-			footer.w = 70;
-			footer.h = 4;
+		if (footer) {
+			const venue = out.canvas_elements.find(function (e) { return e.type === "venue"; });
+			const venueBottom = venue ? (Number(venue.y) || 0) + (Number(venue.h) || 0) : 0;
+			const tooHigh = Number(footer.y) < Math.max(70, venueBottom + 4);
+			if (tooHigh || prevVer < 3) {
+				footer.y = 75;
+				footer.x = 15;
+				footer.w = 70;
+				footer.h = 4;
+			}
 		}
 		return out;
 	}
@@ -365,11 +369,17 @@
 			base || {},
 			{ id: id, type: type }
 		);
-		if (type === "footer" && !base) {
-			next.x = 30;
-			next.y = 25;
-			next.w = 58;
+		if (type === "footer") {
+			next.x = 15;
+			next.y = 75;
+			next.w = 70;
 			next.h = 4;
+		}
+		if (type === "line" || type === "dashed_line") {
+			next.x = 15;
+			next.y = 42;
+			next.w = 70;
+			next.h = 2;
 		}
 		if (def.shape) next.color = def.color || "#38bdf8";
 		if (type === "text") {
@@ -1109,7 +1119,11 @@
 			case "booking_id": return '<div class="tc-el-text strong">BOOKING ID: #' + escapeHtml(s.bookingId) + "</div>";
 			case "price": return '<div class="tc-el-price"><span class="tc-price-label">Price</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>";
 			case "jod_logo": return '<div class="tc-el-logo is-watermark" aria-label="JOD Events"><img src="/images/JOD%20Events%20Logo.png" alt="JOD Events" draggable="false" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'/images/jod-logo.png\';}" /></div>';
-			case "footer": return '<div class="tc-el-text muted">' + escapeHtml(L.custom_footer || "Footer note") + "</div>";
+			case "footer": {
+				const note = String(L.custom_footer || "").trim();
+				if (!note) return '<div class="tc-el-text muted tc-el-placeholder">Footer note</div>';
+				return '<div class="tc-el-text muted">' + escapeHtml(note) + "</div>";
+			}
 			case "text": return '<div class="tc-el-text">' + escapeHtml(el.text || "Your text") + "</div>";
 			case "line": return '<div class="tc-shape-line" style="background:' + color + ';"></div>';
 			case "dashed_line": return '<div class="tc-shape-line is-dashed" style="border-top-color:' + color + ';"></div>';
@@ -1138,7 +1152,7 @@
 		card.style.setProperty("--ticket-muted", p.muted || "#6b7280");
 
 		const bits = [
-			'<div class="tlc-accent" aria-hidden="true"></div>',
+			'<div class="tlc-accent-clip" aria-hidden="true"><div class="tlc-accent"></div></div>',
 			'<div class="tc-guides" id="ticketGuides" aria-hidden="true"></div>',
 		];
 		(L.canvas_elements || []).forEach(function (el) {

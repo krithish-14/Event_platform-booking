@@ -509,6 +509,7 @@ def login(response: Response, request: Request, form: OAuth2PasswordRequestForm 
             ip_address=meta.get("ip_address"),
             user_agent=meta.get("user_agent"),
             region=meta.get("region"),
+            login_at=meta.get("login_at"),
         )
         db.add(login_log)
         db.commit()
@@ -677,6 +678,7 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, request: R
             ip_address=meta.get("ip_address"),
             user_agent=meta.get("user_agent"),
             region=meta.get("region"),
+            login_at=meta.get("login_at"),
         )
         db.add(login_log)
         db.commit()

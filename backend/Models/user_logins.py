@@ -4,10 +4,17 @@ UserLogin SQLAlchemy model.
 
 import uuid
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
 
 from Models.base import Base, GUID
+
+_IST = ZoneInfo("Asia/Kolkata")
+
+
+def _default_login_at() -> datetime:
+    return datetime.now(_IST).replace(tzinfo=None, microsecond=0)
 
 
 class UserLogin(Base):
@@ -20,7 +27,7 @@ class UserLogin(Base):
     ip_address  = Column(String(50), nullable=True)
     user_agent  = Column(Text, nullable=True)
     region      = Column(String(160), nullable=True)
-    login_at    = Column(DateTime, default=datetime.utcnow, nullable=True)
+    login_at    = Column(DateTime, default=_default_login_at, nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="user_logins")
