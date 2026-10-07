@@ -809,15 +809,16 @@ def build_mticket_pdf_bytes(
                 f"{card_x:.1f} {card_y + card_h - 8:.1f} {card_w:.1f} 8 re f",
             ])
         elif style == "minimal":
-            # Short rule inset past corner radius (matches canvas preview).
+            # Larger short rule, inset past corner radius (matches canvas preview).
             ops.extend([
                 f"{_rgb(accent_rgb)} rg",
-                f"{inner_x:.1f} {card_y + card_h - pad_y - 4:.1f} 40 2.5 re f",
+                f"{inner_x:.1f} {card_y + card_h - pad_y - 6:.1f} 88 3.5 re f",
             ])
         else:
+            # Classic bottom bar — drawn inside the clipped card.
             ops.extend([
                 f"{_rgb(accent_rgb)} rg",
-                f"{card_x:.1f} {card_y:.1f} {card_w:.1f} 4 re f",
+                f"{card_x:.1f} {card_y:.1f} {card_w:.1f} 5 re f",
             ])
         ops.append("Q")
 

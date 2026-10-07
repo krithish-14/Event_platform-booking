@@ -53,7 +53,7 @@
 	ELEMENT_DEFS.forEach(function (d) { DEF_BY_TYPE[d.type] = d; });
 
 	/* Shared geometry for every color format — templates only change colors. */
-	const LAYOUT_VERSION = 3;
+	const LAYOUT_VERSION = 4;
 	const DEFAULT_ELEMENTS = [
 		{ id: "poster", type: "poster", x: 4, y: 3, w: 20, h: 16 },
 		{ id: "badge", type: "badge", x: 78, y: 3, w: 18, h: 4 },
@@ -205,20 +205,21 @@
 			out.canvas_elements = snapDataElementsToDefault(out.canvas_elements);
 		}
 		out.layout_version = LAYOUT_VERSION;
-		/* Keep footer below booking / above price — never over venue or title. */
-		const footer = out.canvas_elements.find(function (e) { return e.type === "footer"; });
-		if (footer) {
-			const venue = out.canvas_elements.find(function (e) { return e.type === "venue"; });
-			const venueBottom = venue ? (Number(venue.y) || 0) + (Number(venue.h) || 0) : 0;
-			const tooHigh = Number(footer.y) < Math.max(70, venueBottom + 4);
-			if (tooHigh || prevVer < 3) {
-				footer.y = 75;
-				footer.x = 15;
-				footer.w = 70;
-				footer.h = 4;
-			}
-		}
+		repairFooterPlacement(out.canvas_elements);
 		return out;
+	}
+
+	function repairFooterPlacement(elements) {
+		const footer = (elements || []).find(function (e) { return e && e.type === "footer"; });
+		if (!footer) return;
+		const venue = (elements || []).find(function (e) { return e && e.type === "venue"; });
+		const venueBottom = venue ? (Number(venue.y) || 0) + (Number(venue.h) || 0) : 0;
+		if (Number(footer.y) < Math.max(72, venueBottom + 6)) {
+			footer.y = 75;
+			footer.x = 15;
+			footer.w = 70;
+			footer.h = 4;
+		}
 	}
 
 	function escapeHtml(value) {
@@ -1151,8 +1152,12 @@
 		card.style.setProperty("--ticket-accent", accent);
 		card.style.setProperty("--ticket-muted", p.muted || "#6b7280");
 
+		/* Keep footer note off the venue on every paint (old saved layouts). */
+		repairFooterPlacement(L.canvas_elements);
+
 		const bits = [
-			'<div class="tlc-accent-clip" aria-hidden="true"><div class="tlc-accent"></div></div>',
+			/* Face clips accents to rounded corners; nodes stay above so handles can overflow. */
+			'<div class="tlc-face" aria-hidden="true"><div class="tlc-accent"></div></div>',
 			'<div class="tc-guides" id="ticketGuides" aria-hidden="true"></div>',
 		];
 		(L.canvas_elements || []).forEach(function (el) {

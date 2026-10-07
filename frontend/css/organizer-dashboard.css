@@ -3790,7 +3790,11 @@ html[data-theme="dark"] .dash-toast {
 	background-position: 0 0;
 }
 .ticket-live-card.is-canvas.has-selection {
-	box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18), 0 0 0 2px color-mix(in srgb, var(--ticket-accent, #2563eb) 28%, transparent);
+	/* Keep inset accent shadows; add selection ring outside. */
+	box-shadow:
+		var(--ticket-inset-accent, inset 0 0 0 0 transparent),
+		0 18px 40px rgba(15, 23, 42, 0.18),
+		0 0 0 2px color-mix(in srgb, var(--ticket-accent, #2563eb) 28%, transparent);
 }
 .tc-guides {
 	position: absolute;
@@ -4191,62 +4195,67 @@ html[data-theme="dark"] .ticket-reset-btn {
 	from { opacity: 0; transform: translateY(8px) scale(0.98); }
 	to { opacity: 1; transform: translateY(0) scale(1); }
 }
-/* Clip accents to the rounded card while canvas handles may overflow. */
-.ticket-live-card .tlc-accent-clip {
+/*
+ * Template accent bars must stay inside the rounded ticket.
+ * Full-edge styles use inset box-shadow (always clipped to border-radius).
+ * Paper Minimal keeps a short rule on a clipped face layer.
+ */
+.ticket-live-card {
+	/* Use a transparent inset placeholder so box-shadow lists stay valid. */
+	--ticket-drop-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+	--ticket-inset-accent: inset 0 0 0 0 transparent;
+	box-shadow: var(--ticket-inset-accent), var(--ticket-drop-shadow);
+}
+.ticket-live-card .tlc-face {
 	position: absolute;
 	inset: 0;
+	border-radius: 14px;
 	overflow: hidden;
-	border-radius: inherit;
 	pointer-events: none;
-	z-index: 1;
+	z-index: 0;
 }
 .ticket-live-card .tlc-accent {
+	display: none;
 	position: absolute;
-	left: 0;
-	bottom: 0;
-	width: 100%;
-	height: 4px;
-	background: var(--ticket-accent, #2563eb);
 	pointer-events: none;
-	border-radius: 0;
+	background: var(--ticket-accent, #2563eb);
 }
+.ticket-live-card .tc-node,
+.ticket-live-card .tc-guides {
+	z-index: 2;
+}
+
 /* Classic Clean — bottom edge bar */
-.ticket-live-card.style-classic .tlc-accent {
-	left: 0;
-	right: 0;
-	bottom: 0;
-	top: auto;
-	width: 100%;
-	height: 4px;
+.ticket-live-card.style-classic {
+	--ticket-inset-accent: inset 0 -5px 0 0 var(--ticket-accent, #2563eb);
 }
+
 /* Concert / Festival / Neon — left side stripe */
-.ticket-live-card.style-concert .tlc-accent,
-.ticket-live-card.style-festival .tlc-accent,
-.ticket-live-card.style-neon_night .tlc-accent {
-	top: 0;
-	bottom: 0;
-	left: 0;
-	width: 8px;
-	height: auto;
+.ticket-live-card.style-concert,
+.ticket-live-card.style-festival,
+.ticket-live-card.style-neon_night {
+	--ticket-inset-accent: inset 8px 0 0 0 var(--ticket-accent, #dc2626);
 }
+
 /* Sunset / VIP / Midnight — top edge bar */
-.ticket-live-card.style-sunset .tlc-accent,
-.ticket-live-card.style-vip_gold .tlc-accent,
-.ticket-live-card.style-midnight .tlc-accent {
-	top: 0;
-	bottom: auto;
-	left: 0;
-	width: 100%;
-	height: 7px;
+.ticket-live-card.style-sunset,
+.ticket-live-card.style-vip_gold,
+.ticket-live-card.style-midnight {
+	--ticket-inset-accent: inset 0 8px 0 0 var(--ticket-accent, #38bdf8);
 }
-/* Paper Minimal — short rule inset past the corner radius */
+
+/* Paper Minimal — larger short rule, well inside corners */
+.ticket-live-card.style-minimal {
+	--ticket-inset-accent: inset 0 0 0 0 transparent;
+}
 .ticket-live-card.style-minimal .tlc-accent {
-	left: 16px;
-	bottom: auto;
-	top: 16px;
-	width: 40px;
-	height: 3px;
+	display: block;
+	left: 20px;
+	top: 20px;
+	width: 88px;
+	height: 4px;
 	border-radius: 999px;
+	background: var(--ticket-accent, #0f172a);
 }
 .tlc-top {
 	display: flex;
@@ -4752,7 +4761,10 @@ html[data-theme="dark"] .ticket-float-close {
 	padding: 0.65rem 0.55rem;
 }
 .ticket-live-card.is-canvas-selected {
-	box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18), 0 0 0 2px rgba(37, 99, 235, 0.28);
+	box-shadow:
+		var(--ticket-inset-accent, inset 0 0 0 0 transparent),
+		0 18px 40px rgba(15, 23, 42, 0.18),
+		0 0 0 2px rgba(37, 99, 235, 0.28);
 }
 .tc-node.is-align-left .tc-node-body > * {
 	text-align: left;
