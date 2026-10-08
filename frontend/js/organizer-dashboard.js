@@ -3845,6 +3845,7 @@ async function initOrganizerDashboard() {
 				layout: ticketLayoutState,
 				formFields: formFields,
 				sample: { title: sampleTitle, venue: sampleVenue },
+				onUploadImage: function (file) { return uploadDesignAsset(file, "gallery"); },
 				onChange: function (layout) {
 					if (ticketLayoutEventId && activeEventId && !sameTicketEvent(ticketLayoutEventId, activeEventId)) {
 						return;

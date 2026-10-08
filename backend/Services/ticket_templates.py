@@ -22,9 +22,9 @@ TEMPLATES: List[Dict[str, Any]] = [
     {
         "id": "midnight",
         "name": "Midnight Stage",
-        "tagline": "Dark navy card for nightlife & concerts",
-        "preview": {"bg": "#0b1220", "card": "#111827", "accent": "#38bdf8", "text": "#f8fafc", "muted": "#94a3b8"},
-        "pdf": {"page_rgb": (0.05, 0.07, 0.12), "card_rgb": (0.07, 0.09, 0.15), "accent_rgb": (0.22, 0.74, 0.97), "text_rgb": (0.96, 0.97, 0.98), "muted_rgb": (0.58, 0.64, 0.72), "style": "midnight"},
+        "tagline": "Purple concert stub — JOD logo, no barcode",
+        "preview": {"bg": "#1a1033", "card": "#5b21b6", "accent": "#c4b5fd", "text": "#ffffff", "muted": "#ddd6fe"},
+        "pdf": {"page_rgb": (0.07, 0.03, 0.12), "card_rgb": (0.36, 0.16, 0.71), "accent_rgb": (0.77, 0.71, 0.99), "text_rgb": (1, 1, 1), "muted_rgb": (0.87, 0.84, 0.99), "style": "midnight"},
     },
     {
         "id": "sunset",
@@ -89,6 +89,7 @@ DEFAULT_LAYOUT: Dict[str, Any] = {
     "show_attendee_phone": True,
     "custom_footer": "",
     "headline_override": "",
+    "ticket_type_override": "",
 }
 
 
@@ -161,15 +162,17 @@ def normalize_ticket_layout(
 
     footer = str(raw.get("custom_footer") or "").strip()[:120]
     headline = str(raw.get("headline_override") or "").strip()[:80]
+    ticket_name = str(raw.get("ticket_type_override") or "").strip()[:80]
     base["custom_footer"] = footer
     base["headline_override"] = headline
+    base["ticket_type_override"] = ticket_name
 
     elements = raw.get("canvas_elements")
     cleaned_elements = []
-    repeatable_types = {"line", "dashed_line", "rectangle", "circle", "text"}
+    repeatable_types = {"line", "dashed_line", "rectangle", "circle", "text", "image"}
     text_types = {
         "title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone",
-        "email", "booking_id", "price", "footer", "badge", "text",
+        "email", "booking_id", "price", "footer", "badge", "text", "stub",
     }
     if isinstance(elements, list):
         seen_data = set()
@@ -216,6 +219,12 @@ def normalize_ticket_layout(
                 entry["align"] = align
             if etype == "text":
                 entry["text"] = str(item.get("text") or "Your text").strip()[:120] or "Your text"
+            if etype == "stub":
+                entry["text"] = str(item.get("text") or "").strip()[:120]
+            if etype == "image":
+                src = str(item.get("src") or "").strip()
+                if src.startswith(("https://", "http://", "/")) and len(src) <= 500:
+                    entry["src"] = src
             try:
                 font_scale = float(item.get("fontScale", 1))
             except (TypeError, ValueError):

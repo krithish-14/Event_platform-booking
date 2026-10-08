@@ -4209,7 +4209,7 @@ html[data-theme="dark"] .ticket-reset-btn {
 .ticket-live-card .tlc-face {
 	position: absolute;
 	inset: 0;
-	border-radius: 14px;
+	border-radius: inherit;
 	overflow: hidden;
 	pointer-events: none;
 	z-index: 0;
@@ -4237,11 +4237,197 @@ html[data-theme="dark"] .ticket-reset-btn {
 	--ticket-inset-accent: inset 8px 0 0 0 var(--ticket-accent, #dc2626);
 }
 
-/* Sunset / VIP / Midnight — top edge bar */
+/* Sunset / VIP — top edge bar */
 .ticket-live-card.style-sunset,
-.ticket-live-card.style-vip_gold,
-.ticket-live-card.style-midnight {
+.ticket-live-card.style-vip_gold {
 	--ticket-inset-accent: inset 0 8px 0 0 var(--ticket-accent, #38bdf8);
+}
+
+/* Midnight Stage — landscape concert stub (logo replaces barcode) */
+.ticket-live-card.style-midnight,
+.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas.style-midnight {
+	width: min(100%, 760px);
+	height: 280px;
+	border-radius: 22px;
+	--ticket-inset-accent: inset 0 0 0 0 transparent;
+	background-image: none;
+	color: #fff;
+}
+.ticket-live-card.style-midnight .ms-waves {
+	position: absolute;
+	inset: 0;
+	background:
+		radial-gradient(90% 80% at 8% 110%, rgba(76, 29, 149, 0.55), transparent 55%),
+		radial-gradient(70% 90% at 92% -10%, rgba(255, 255, 255, 0.22), transparent 46%),
+		radial-gradient(40% 50% at 62% 100%, rgba(196, 181, 253, 0.28), transparent 60%);
+	pointer-events: none;
+}
+.ticket-live-card.style-midnight .ms-waves::before,
+.ticket-live-card.style-midnight .ms-waves::after {
+	content: "";
+	position: absolute;
+	border-radius: 50%;
+	border: 18px solid rgba(255, 255, 255, 0.08);
+}
+.ticket-live-card.style-midnight .ms-waves::before {
+	width: 280px;
+	height: 180px;
+	right: -40px;
+	top: -70px;
+}
+.ticket-live-card.style-midnight .ms-waves::after {
+	width: 220px;
+	height: 140px;
+	left: 18%;
+	bottom: -80px;
+}
+.ticket-live-card.style-midnight .ms-hole {
+	position: absolute;
+	left: -16px;
+	top: 50%;
+	width: 32px;
+	height: 32px;
+	margin-top: -16px;
+	border-radius: 50%;
+	background: var(--ticket-stage, #12081f);
+}
+.ticket-live-card.style-midnight .ms-perf {
+	position: absolute;
+	top: 14px;
+	bottom: 14px;
+	left: 73%;
+	border-left: 2px dashed rgba(255, 255, 255, 0.72);
+}
+.ticket-live-card.style-midnight .ms-notch {
+	position: absolute;
+	left: 73%;
+	width: 26px;
+	height: 26px;
+	margin-left: -13px;
+	border-radius: 50%;
+	background: var(--ticket-stage, #12081f);
+}
+.ticket-live-card.style-midnight .ms-notch.is-top { top: -13px; }
+.ticket-live-card.style-midnight .ms-notch.is-bot { bottom: -13px; }
+.ticket-live-card:not(.style-midnight) .tc-node[data-type="stub"] {
+	display: none !important;
+}
+.ticket-live-card.style-midnight .tc-node[data-type="stub"] .ms-stub-text {
+	writing-mode: vertical-rl;
+	transform: rotate(180deg);
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.62rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #fff;
+	white-space: nowrap;
+}
+.ticket-live-card.style-midnight .tc-node[data-type="poster"],
+.ticket-live-card.style-midnight .tc-node[data-type="badge"],
+.ticket-live-card.style-midnight .tc-node[data-type="qty"],
+.ticket-live-card.style-midnight .tc-node[data-type="footer"] {
+	display: none !important;
+}
+.ticket-live-card.style-midnight .tc-node[data-type="phone"] .tc-el-row,
+.ticket-live-card.style-midnight .tc-node[data-type="email"] .tc-el-row,
+.ticket-live-card.style-midnight .tc-node[data-type="price"] .tc-el-price {
+	color: #fff;
+	font-size: 0.68rem;
+}
+.ticket-live-card.style-midnight .tc-node[data-type="phone"] .tc-el-row span,
+.ticket-live-card.style-midnight .tc-node[data-type="email"] .tc-el-row span {
+	color: rgba(255, 255, 255, 0.78);
+}
+.ticket-live-card.style-midnight .tc-el-strong {
+	font-size: 1.35rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: #fff;
+}
+.ticket-live-card.style-midnight .tc-el-title {
+	font-size: 0.78rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: rgba(255, 255, 255, 0.88);
+}
+.ticket-live-card.style-midnight .ms-name,
+.ticket-live-card.style-midnight .ms-code,
+.ticket-live-card.style-midnight .ms-meta {
+	display: flex;
+	flex-direction: column;
+	gap: 0.05rem;
+	color: #fff;
+	line-height: 1.15;
+}
+.ticket-live-card.style-midnight .ms-name span,
+.ticket-live-card.style-midnight .ms-code span,
+.ticket-live-card.style-midnight .ms-meta span {
+	font-size: 0.58rem;
+	letter-spacing: 0.14em;
+	opacity: 0.8;
+	font-weight: 700;
+}
+.ticket-live-card.style-midnight .ms-name strong {
+	font-size: 1.15rem;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+.ticket-live-card.style-midnight .ms-code strong,
+.ticket-live-card.style-midnight .ms-meta strong {
+	font-size: 0.72rem;
+	font-weight: 800;
+}
+.ticket-live-card.style-midnight .tc-el-qr {
+	background: #fff;
+	border-radius: 6px;
+	box-shadow: 0 0 0 4px #fff;
+}
+.ticket-live-card.style-midnight .tc-el-logo.is-watermark {
+	background: #ffffff;
+	border-radius: 8px;
+	padding: 3px 6px;
+	box-sizing: border-box;
+	filter: none;
+}
+.ticket-live-card.style-midnight .tc-el-logo.is-watermark img {
+	object-fit: contain;
+	width: 100%;
+	height: 100%;
+	max-height: none;
+	filter: none;
+	opacity: 1;
+}
+.tc-el-image {
+	width: 100%;
+	height: 100%;
+	border-radius: 8px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.16);
+}
+.tc-el-image img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+	pointer-events: none;
+}
+.tc-el-image.is-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1.5px dashed #94a3b8;
+	color: #334155;
+	font-size: 0.72rem;
+	font-weight: 700;
+}
+.ticket-live-card.style-midnight .tc-el-image.is-empty {
+	border-color: rgba(255, 255, 255, 0.75);
+	color: #fff;
 }
 
 /* Paper Minimal — larger short rule, well inside corners */
@@ -4498,6 +4684,10 @@ html[data-theme="dark"] .ticket-form-fields-title {
 	.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas {
 		width: min(100%, 340px);
 		height: 520px;
+	}
+	.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas.style-midnight {
+		width: min(100%, 760px);
+		height: 220px;
 	}
 }
 @media (max-width: 860px) {
@@ -5014,6 +5204,10 @@ html[data-theme="dark"] .ticket-float-close {
 	.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas {
 		width: min(100%, 340px);
 		height: 520px;
+	}
+	.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas.style-midnight {
+		width: min(100%, 760px);
+		height: 200px;
 	}
 }
 /* Ticket studio uses the same shared shell — no special body/shell overrides */

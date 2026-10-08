@@ -10,7 +10,7 @@
 
 	const FALLBACK_TEMPLATES = [
 		{ id: "classic", name: "Classic Clean", tagline: "Bright white card", preview: { bg: "#f4f6f8", card: "#ffffff", accent: "#2563eb", text: "#111827", muted: "#6b7280" } },
-		{ id: "midnight", name: "Midnight Stage", tagline: "Dark navy nightlife", preview: { bg: "#0b1220", card: "#111827", accent: "#38bdf8", text: "#f8fafc", muted: "#94a3b8" } },
+		{ id: "midnight", name: "Midnight Stage", tagline: "Concert stub ticket", preview: { bg: "#1a1033", card: "#5b21b6", accent: "#c4b5fd", text: "#ffffff", muted: "#ddd6fe" } },
 		{ id: "sunset", name: "Sunset Glow", tagline: "Warm festival strip", preview: { bg: "#fff7ed", card: "#fffbeb", accent: "#ea580c", text: "#1c1917", muted: "#78716c" } },
 		{ id: "concert", name: "Concert Stripe", tagline: "Bold side stripe", preview: { bg: "#fafafa", card: "#ffffff", accent: "#dc2626", text: "#0f172a", muted: "#64748b" } },
 		{ id: "minimal", name: "Paper Minimal", tagline: "Quiet editorial", preview: { bg: "#f8fafc", card: "#ffffff", accent: "#0f172a", text: "#0f172a", muted: "#64748b" } },
@@ -35,6 +35,7 @@
 		{ type: "booking_id", label: "Booking ID", flag: null, w: 55, h: 4, locked: false, shape: false },
 		{ type: "price", label: "Price", flag: "show_price", w: 86, h: 5, locked: false, shape: false },
 		{ type: "jod_logo", label: "JOD Events logo", flag: "show_jod_logo", w: 78, h: 12, locked: true, shape: false },
+		{ type: "stub", label: "Side text", flag: null, w: 10, h: 70, locked: false, shape: false },
 		{ type: "footer", label: "Footer note", flag: null, w: 70, h: 4, locked: false, shape: false },
 	];
 
@@ -46,6 +47,7 @@
 	];
 	const CUSTOM_DEFS = [
 		{ type: "text", label: "Text", flag: null, w: 54, h: 6, locked: false, shape: false, repeatable: true },
+		{ type: "image", label: "Image", flag: null, w: 24, h: 22, locked: false, shape: false, repeatable: true },
 	];
 
 	const ELEMENT_DEFS = DATA_DEFS.concat(SHAPE_DEFS).concat(CUSTOM_DEFS);
@@ -53,7 +55,7 @@
 	ELEMENT_DEFS.forEach(function (d) { DEF_BY_TYPE[d.type] = d; });
 
 	/* Shared geometry for every color format — templates only change colors. */
-	const LAYOUT_VERSION = 4;
+	const LAYOUT_VERSION = 5;
 	const DEFAULT_ELEMENTS = [
 		{ id: "poster", type: "poster", x: 4, y: 3, w: 20, h: 16 },
 		{ id: "badge", type: "badge", x: 78, y: 3, w: 18, h: 4 },
@@ -71,6 +73,23 @@
 		{ id: "price", type: "price", x: 7, y: 84, w: 86, h: 5 },
 		{ id: "jod_logo", type: "jod_logo", x: 11, y: 89, w: 78, h: 10 },
 	];
+
+	/* Landscape concert stub — JOD logo sits where a barcode would be. */
+	const MIDNIGHT_GEOMETRY = {
+		ticket_type: { x: 5, y: 6, w: 46, h: 14 },
+		title: { x: 5, y: 20, w: 48, h: 10 },
+		name: { x: 5, y: 32, w: 42, h: 20 },
+		booking_id: { x: 5, y: 54, w: 20, h: 12 },
+		date: { x: 26, y: 54, w: 22, h: 14 },
+		seat: { x: 49, y: 54, w: 18, h: 14 },
+		jod_logo: { x: 5, y: 72, w: 28, h: 18 },
+		qr: { x: 74, y: 18, w: 14, h: 52 },
+		stub: { x: 89, y: 8, w: 10, h: 82 },
+		phone: { x: 5, y: 50, w: 42, h: 8 },
+		email: { x: 5, y: 58, w: 48, h: 8 },
+		price: { x: 50, y: 64, w: 20, h: 8 },
+		venue: { x: 5, y: 66, w: 40, h: 8 },
+	};
 
 	const DEFAULT_LAYOUT = {
 		template_id: "classic",
@@ -90,6 +109,7 @@
 		show_attendee_phone: true,
 		custom_footer: "",
 		headline_override: "",
+		ticket_type_override: "",
 		canvas_elements: DEFAULT_ELEMENTS.map(function (e) { return Object.assign({}, e); }),
 	};
 
@@ -165,6 +185,11 @@
 				item.align = sanitizeAlign(e.align, type);
 			}
 			if (type === "text") item.text = String(e.text || "Your text").trim().slice(0, 120) || "Your text";
+			if (type === "stub") item.text = String(e.text || "").trim().slice(0, 120);
+			if (type === "image") {
+				const src = String(e.src || "").trim();
+				if (/^(https?:\/\/|\/)/.test(src)) item.src = src.slice(0, 500);
+			}
 			const fs = Number(e.fontScale);
 			if (Number.isFinite(fs)) item.fontScale = clampNum(fs, 0.7, 2.2, 1);
 			out.push(item);
@@ -205,8 +230,27 @@
 			out.canvas_elements = snapDataElementsToDefault(out.canvas_elements);
 		}
 		out.layout_version = LAYOUT_VERSION;
+		if (String(out.template_id || "") === "midnight" && prevVer < 5) {
+			applyMidnightGeometry(out.canvas_elements);
+		}
 		repairFooterPlacement(out.canvas_elements);
 		return out;
+	}
+
+	function applyMidnightGeometry(elements) {
+		const list = elements || [];
+		if (!list.some(function (el) { return el && el.type === "stub"; })) {
+			const geo = MIDNIGHT_GEOMETRY.stub;
+			list.push({ id: "stub", type: "stub", x: geo.x, y: geo.y, w: geo.w, h: geo.h, text: "" });
+		}
+		list.forEach(function (el) {
+			const geo = el && MIDNIGHT_GEOMETRY[el.type];
+			if (!geo) return;
+			el.x = geo.x;
+			el.y = geo.y;
+			el.w = geo.w;
+			el.h = geo.h;
+		});
 	}
 
 	function repairFooterPlacement(elements) {
@@ -249,6 +293,7 @@
 			attendeePhone: "+91 91509 04455",
 		}, opts.sample || {});
 		this.onChange = typeof opts.onChange === "function" ? opts.onChange : function () {};
+		this.onUploadImage = typeof opts.onUploadImage === "function" ? opts.onUploadImage : null;
 		this.selectedId = null;
 		this.canvasSelected = false;
 		this.toolsOpen = false;
@@ -388,6 +433,14 @@
 			next.align = "left";
 			next.color = this.layout.text_color || "#111827";
 		}
+		if (type === "stub") next.text = "";
+		if (type === "image") next.src = "";
+		if (this.layout.template_id === "midnight" && MIDNIGHT_GEOMETRY[type]) {
+			next.x = MIDNIGHT_GEOMETRY[type].x;
+			next.y = MIDNIGHT_GEOMETRY[type].y;
+			next.w = MIDNIGHT_GEOMETRY[type].w;
+			next.h = MIDNIGHT_GEOMETRY[type].h;
+		}
 		this.layout.canvas_elements = (this.layout.canvas_elements || []).concat([next]);
 		if (def.flag) this.layout[def.flag] = true;
 		this.selectedId = id;
@@ -448,11 +501,11 @@
 	};
 
 	TicketCanvasController.prototype.isTextElement = function (type) {
-		return ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge", "jod_logo", "text"].indexOf(type) >= 0;
+		return ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge", "jod_logo", "text", "stub"].indexOf(type) >= 0;
 	};
 
 	TicketCanvasController.prototype.isEditableText = function (type) {
-		return type === "title" || type === "footer" || type === "text";
+		return type === "title" || type === "ticket_type" || type === "footer" || type === "text" || type === "stub";
 	};
 
 	TicketCanvasController.prototype.syncSelectedPanel = function () {
@@ -503,9 +556,13 @@
 		const isText = this.isTextElement(item.type);
 		if (panel) panel.hidden = false;
 		if (label) label.textContent = def.label || item.type;
-		if (help) help.textContent = isText
-			? "Change this field’s color, alignment, and size."
-			: "Change this shape’s color or size.";
+		if (help) help.textContent = item.type === "image"
+			? "Upload a picture. Drag it anywhere on the ticket."
+			: (item.type === "stub"
+				? "Type the side text. Leave blank to use the ticket name and event name."
+				: (this.isEditableText(item.type)
+					? "Type the words you want on the ticket. Leave blank to use the event text."
+					: (isText ? "Change this field’s color, alignment, and size." : "Change this shape’s color or size.")));
 		if (sizeWrap) sizeWrap.hidden = false;
 		if (wEl) wEl.value = String(Math.round(item.w));
 		if (hEl) hEl.value = String(Math.round(item.h));
@@ -523,12 +580,20 @@
 			textWrap.hidden = !editable;
 			if (editable) {
 				if (item.type === "title") textInput.value = this.layout.headline_override || "";
+				else if (item.type === "ticket_type") textInput.value = this.layout.ticket_type_override || "";
 				else if (item.type === "footer") textInput.value = this.layout.custom_footer || "";
+				else if (item.type === "stub") textInput.value = item.text || "";
 				else textInput.value = item.text || "";
-				textInput.placeholder = item.type === "title" ? "Leave blank to use event title" : (item.type === "footer" ? "Optional note on ticket" : "Your text");
+				textInput.placeholder = item.type === "title"
+					? "Your event name"
+					: (item.type === "ticket_type"
+						? "Your ticket name"
+						: (item.type === "stub" ? "Side text" : (item.type === "footer" ? "Optional note on ticket" : "Your text")));
 			}
 		}
-		if (colorLabel) colorLabel.textContent = isShapeType(item.type) ? "Shape" : "Text";
+		const imageWrap = this.root.querySelector("#ticketImageEditWrap");
+		if (imageWrap) imageWrap.hidden = item.type !== "image";
+		if (colorLabel) colorLabel.textContent = item.type === "image" ? "Frame" : (isShapeType(item.type) ? "Shape" : "Text");
 		if (colorInput) {
 			const fallback = isShapeType(item.type) ? (def.color || "#38bdf8") : (this.layout.text_color || preview.text || "#111827");
 			colorInput.value = sanitizeColor(item.color || fallback, fallback);
@@ -635,6 +700,7 @@
 			'        <div class="ticket-palette-title">Selected <span id="ticketSelectedLabel"></span></div>',
 			'        <p class="ticket-selected-help" id="ticketSelectedHelp">Click a field on the ticket to edit it here.</p>',
 			'        <label class="ticket-ctrl" id="ticketTextEditWrap" hidden><span>Text</span><input type="text" id="ticketItemText" maxlength="120" /></label>',
+			'        <label class="ticket-ctrl" id="ticketImageEditWrap" hidden><span>Image</span><input type="file" id="ticketItemImage" accept="image/png,image/jpeg,image/webp,image/gif" /></label>',
 			'        <div class="ticket-float-colors">',
 			'          <label class="ticket-ctrl"><span id="ticketItemColorLabel">Color</span><input type="color" id="ticketItemColor" value="#111827" /></label>',
 			'        </div>',
@@ -734,6 +800,27 @@
 				self.emitChange();
 			});
 		}
+		const itemImage = this.root.querySelector("#ticketItemImage");
+		if (itemImage) {
+			itemImage.addEventListener("change", function () {
+				const file = itemImage.files && itemImage.files[0];
+				const item = self.findById(self.selectedId);
+				itemImage.value = "";
+				if (!file || !item || item.type !== "image") return;
+				const applySrc = function (src) {
+					item.src = String(src || "").slice(0, 500);
+					self.renderPreview();
+					self.emitChange();
+				};
+				if (self.onUploadImage) {
+					Promise.resolve(self.onUploadImage(file)).then(applySrc).catch(function () {
+						self.readImageFile(file, applySrc);
+					});
+				} else {
+					self.readImageFile(file, applySrc);
+				}
+			});
+		}
 		const itemText = this.root.querySelector("#ticketItemText");
 		if (itemText) {
 			itemText.addEventListener("input", function () {
@@ -742,6 +829,10 @@
 				const value = String(itemText.value || "");
 				if (item.type === "title") {
 					self.layout.headline_override = value.slice(0, 80);
+				} else if (item.type === "ticket_type") {
+					self.layout.ticket_type_override = value.slice(0, 80);
+				} else if (item.type === "stub") {
+					item.text = value.slice(0, 120);
 				} else if (item.type === "footer") {
 					self.layout.custom_footer = value.slice(0, 120);
 					if (value.trim() && !self.hasElement("footer")) self.addElement("footer", true);
@@ -810,6 +901,7 @@
 					card_color: self.layout.card_color,
 					text_color: self.layout.text_color,
 					headline_override: self.layout.headline_override,
+					ticket_type_override: self.layout.ticket_type_override,
 					custom_footer: self.layout.custom_footer,
 				};
 				self.layout = cloneLayout(Object.assign({}, DEFAULT_LAYOUT, keep));
@@ -1040,6 +1132,7 @@
 			const tools = CUSTOM_DEFS.concat(SHAPE_DEFS);
 			const preview = function (type) {
 				if (type === "text") return '<span class="ticket-tool-preview is-text">text</span>';
+				if (type === "image") return '<span class="ticket-tool-preview is-text">image</span>';
 				if (type === "line") return '<span class="ticket-tool-preview is-line" aria-hidden="true"></span>';
 				if (type === "dashed_line") return '<span class="ticket-tool-preview is-dashed">---------</span>';
 				if (type === "rectangle") return '<span class="ticket-tool-preview is-box" aria-hidden="true"></span>';
@@ -1078,11 +1171,22 @@
 			btn.addEventListener("click", function () {
 				const id = btn.getAttribute("data-template-id");
 				const tmpl = self.templates.find(function (x) { return x.id === id; });
+				const prevId = self.layout.template_id;
 				self.layout.template_id = id;
+				if (id === "midnight") {
+					applyMidnightGeometry(self.layout.canvas_elements);
+				} else if (prevId === "midnight") {
+					self.layout.canvas_elements = snapDataElementsToDefault(self.layout.canvas_elements);
+				}
 				if (tmpl && tmpl.preview) {
 					if (tmpl.preview.accent) self.layout.accent_color = tmpl.preview.accent;
-					if (tmpl.preview.card) self.layout.card_color = tmpl.preview.card;
-					if (tmpl.preview.text) self.layout.text_color = tmpl.preview.text;
+					if (id === "midnight") {
+						self.layout.card_color = "";
+						self.layout.text_color = "";
+					} else {
+						if (tmpl.preview.card) self.layout.card_color = tmpl.preview.card;
+						if (tmpl.preview.text) self.layout.text_color = tmpl.preview.text;
+					}
 				}
 				self.syncControls();
 				self.renderTemplatePicker();
@@ -1103,21 +1207,57 @@
 		const L = this.layout;
 		const s = this.sample;
 		const title = (L.headline_override || "").trim() || s.title;
+		const ticketLabel = (L.ticket_type_override || "").trim() || s.ticketType;
 		const color = sanitizeColor(el.color, "#38bdf8");
 		switch (type) {
 			case "poster": return '<div class="tc-poster-fill" aria-hidden="true"></div>';
+			case "image": {
+				const src = String(el.src || "").trim();
+				if (src) return '<div class="tc-el-image"><img src="' + escapeHtml(src) + '" alt="" draggable="false" /></div>';
+				return '<div class="tc-el-image is-empty">Add image</div>';
+			}
+			case "stub": {
+				const custom = String(el.text || "").trim();
+				const fallback = [ticketLabel, title].filter(Boolean).join(" ");
+				return '<div class="ms-stub-text">' + escapeHtml(custom || fallback) + "</div>";
+			}
 			case "title": return '<div class="tc-el-title">' + escapeHtml(title) + "</div>";
 			case "badge": return '<div class="tc-el-badge">E-Ticket</div>';
-			case "date": return '<div class="tc-el-text">' + escapeHtml(s.date) + "</div>";
+			case "date": {
+				if (L.template_id === "midnight") {
+					const raw = String(s.date || "");
+					const cut = raw.lastIndexOf(",");
+					const datePart = cut > 0 ? raw.slice(0, cut).trim() : raw;
+					const timePart = cut > 0 ? raw.slice(cut + 1).trim() : "";
+					return '<div class="ms-meta"><span>DATE</span><strong>' + escapeHtml(datePart) + "</strong>" +
+						(timePart ? '<span>TIME</span><strong>' + escapeHtml(timePart) + "</strong>" : "") + "</div>";
+				}
+				return '<div class="tc-el-text">' + escapeHtml(s.date) + "</div>";
+			}
 			case "venue": return '<div class="tc-el-text muted">' + escapeHtml(s.venue) + "</div>";
 			case "qty": return '<div class="tc-el-text muted">1 Ticket</div>';
-			case "ticket_type": return '<div class="tc-el-strong">' + escapeHtml(s.ticketType) + "</div>";
-			case "seat": return '<div class="tc-el-text muted">' + escapeHtml(s.seat) + "</div>";
-			case "name": return '<div class="tc-el-row"><span>Name</span><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
+			case "ticket_type": return '<div class="tc-el-strong">' + escapeHtml(ticketLabel) + "</div>";
+			case "seat": {
+				if (L.template_id === "midnight") {
+					return '<div class="ms-meta"><span>SEAT</span><strong>' + escapeHtml(s.seat) + "</strong></div>";
+				}
+				return '<div class="tc-el-text muted">' + escapeHtml(s.seat) + "</div>";
+			}
+			case "name": {
+				if (L.template_id === "midnight") {
+					return '<div class="ms-name"><span>NAME</span><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
+				}
+				return '<div class="tc-el-row"><span>Name</span><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
+			}
 			case "phone": return '<div class="tc-el-row"><span>Phone</span><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>";
 			case "email": return '<div class="tc-el-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>";
 			case "qr": return '<div class="tc-el-qr" aria-hidden="true"></div>';
-			case "booking_id": return '<div class="tc-el-text strong">BOOKING ID: #' + escapeHtml(s.bookingId) + "</div>";
+			case "booking_id": {
+				if (L.template_id === "midnight") {
+					return '<div class="ms-code"><span>ID</span><strong>' + escapeHtml(s.bookingId) + "</strong></div>";
+				}
+				return '<div class="tc-el-text strong">BOOKING ID: #' + escapeHtml(s.bookingId) + "</div>";
+			}
 			case "price": return '<div class="tc-el-price"><span class="tc-price-label">Price</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>";
 			case "jod_logo": return '<div class="tc-el-logo is-watermark" aria-label="JOD Events"><img src="/images/JOD%20Events%20Logo.png" alt="JOD Events" draggable="false" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'/images/jod-logo.png\';}" /></div>';
 			case "footer": {
@@ -1134,6 +1274,15 @@
 		}
 	};
 
+	TicketCanvasController.prototype.readImageFile = function (file, done) {
+		const reader = new FileReader();
+		reader.onload = function () {
+			const src = String(reader.result || "");
+			if (src.indexOf("data:image/") === 0 && src.length < 700000) done(src);
+		};
+		reader.readAsDataURL(file);
+	};
+
 	TicketCanvasController.prototype.renderPreview = function () {
 		const stage = this.root && this.root.querySelector("#ticketCanvasStage");
 		const card = this.root && this.root.querySelector("#ticketLiveCard");
@@ -1145,19 +1294,38 @@
 		const self = this;
 		const hasSel = !!this.selectedId;
 
-		stage.style.background = p.bg || "#f4f6f8";
+		const isMidnight = (tmpl.id || "") === "midnight";
+		stage.style.background = isMidnight ? "#12081f" : (p.bg || "#f4f6f8");
 		card.className = "ticket-live-card is-canvas style-" + (tmpl.id || "classic") + (hasSel ? " has-selection" : "") + (this.canvasSelected && !hasSel ? " is-canvas-selected" : "");
-		card.style.background = L.card_color || p.card || "#fff";
-		card.style.color = L.text_color || p.text || "#111827";
-		card.style.setProperty("--ticket-accent", accent);
-		card.style.setProperty("--ticket-muted", p.muted || "#6b7280");
+		card.style.background = isMidnight
+			? "linear-gradient(118deg, #4c1d95 0%, #6d28d9 46%, #7c3aed 100%)"
+			: (L.card_color || p.card || "#fff");
+		card.style.color = isMidnight ? "#ffffff" : (L.text_color || p.text || "#111827");
+		card.style.setProperty("--ticket-accent", isMidnight ? "#c4b5fd" : accent);
+		card.style.setProperty("--ticket-muted", isMidnight ? "#ddd6fe" : (p.muted || "#6b7280"));
+		card.style.setProperty("--ticket-stage", isMidnight ? "#12081f" : (p.bg || "#f4f6f8"));
 
 		/* Keep footer note off the venue on every paint (old saved layouts). */
-		repairFooterPlacement(L.canvas_elements);
+		if (!isMidnight) repairFooterPlacement(L.canvas_elements);
+		if (isMidnight) {
+			(L.canvas_elements || []).forEach(function (el) {
+				const geo = el && MIDNIGHT_GEOMETRY[el.type];
+				if (!geo || ["phone", "email", "price", "venue"].indexOf(el.type) < 0) return;
+				if (el.w >= 60) {
+					el.x = geo.x;
+					el.y = geo.y;
+					el.w = geo.w;
+					el.h = geo.h;
+				}
+			});
+		}
 
+		const face = isMidnight
+			? '<div class="ms-waves"></div><div class="ms-hole"></div><div class="ms-notch is-top"></div><div class="ms-notch is-bot"></div><div class="ms-perf"></div>'
+			: '<div class="tlc-accent"></div>';
 		const bits = [
 			/* Face clips accents to rounded corners; nodes stay above so handles can overflow. */
-			'<div class="tlc-face" aria-hidden="true"><div class="tlc-accent"></div></div>',
+			'<div class="tlc-face" aria-hidden="true">' + face + "</div>",
 			'<div class="tc-guides" id="ticketGuides" aria-hidden="true"></div>',
 		];
 		(L.canvas_elements || []).forEach(function (el) {

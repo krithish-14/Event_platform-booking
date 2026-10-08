@@ -719,6 +719,7 @@ def build_mticket_pdf_bytes(
         show_attendee_phone = bool(layout.get("show_attendee_phone", True)) and bool(str(attendee_phone or "").strip())
         custom_footer = _ascii_text(layout.get("custom_footer") or "", "")
         headline_override = _ascii_text(layout.get("headline_override") or "", "")
+        ticket_type_override = _ascii_text(layout.get("ticket_type_override") or "", "")
         guest_name = _ascii_text(attendee_name, "") if show_attendee_name else ""
         guest_email = _ascii_text(attendee_email, "") if show_attendee_email else ""
         guest_phone = _ascii_text(attendee_phone, "") if show_attendee_phone else ""
@@ -742,7 +743,7 @@ def build_mticket_pdf_bytes(
             f"{language or 'English'}, {event_format or 'Live Event'}",
             "English, Live Event",
         )
-        type_label = _ascii_text(ticket_type, "Standard Access") if show_ticket_type else ""
+        type_label = _ascii_text(ticket_type_override or ticket_type, "Standard Access") if show_ticket_type else ""
         seat_label = _ascii_text(seat_number, "General Admission") if show_seat else ""
         qty = max(1, int(quantity or 1))
         total = float(total_price or 0)
@@ -803,11 +804,13 @@ def build_mticket_pdf_bytes(
                 f"{_rgb(accent_rgb)} rg",
                 f"{card_x:.1f} {card_y:.1f} 10 {card_h:.1f} re f",
             ])
-        elif style in ("sunset", "vip_gold", "midnight"):
+        elif style in ("sunset", "vip_gold"):
             ops.extend([
                 f"{_rgb(accent_rgb)} rg",
                 f"{card_x:.1f} {card_y + card_h - 8:.1f} {card_w:.1f} 8 re f",
             ])
+        elif style == "midnight":
+            pass
         elif style == "minimal":
             # Larger short rule, inset past corner radius (matches canvas preview).
             ops.extend([
