@@ -799,6 +799,25 @@ def _clamp_purchase_quantity(db: Session, event_id: str, requested) -> int:
     return min(qty, limit)
 
 
+def _bulk_adjusted_amount_paise(db: Session, event_id: str, ticket_type: str, quantity, client_paise: int) -> int:
+    """Charge the catalog price after the host's bulk percentage, when that price is known."""
+    try:
+        unit = _resolve_ticket_unit_price(db, event_id, ticket_type)
+    except HTTPException:
+        return client_paise
+    if unit is None or unit <= 0:
+        return client_paise
+    qty = _clamp_purchase_quantity(db, event_id, quantity)
+    from APIs.events import _host_ticket_purchase_for_event, bulk_offer_percent
+    percent = bulk_offer_percent(_host_ticket_purchase_for_event(db, event_id), qty)
+    percent = max(0, min(int(percent or 0), 90))
+    expected = round(float(unit) * qty * (100 - percent) / 100.0, 2)
+    expected_paise = int(round(expected * 100))
+    if expected_paise < 100:
+        return client_paise
+    return expected_paise
+
+
 @router.post("/proof", status_code=status.HTTP_201_CREATED)
 async def submit_payment_proof(
     request: Request,
@@ -958,6 +977,15 @@ async def create_razorpay_order(
     """Create a Razorpay order. Amount must be in paise (min 100)."""
     limit_payment(request)
     amount_paise = int(payload.amount or 0)
+    event_id = sanitize_text(payload.event_id or "", max_length=255)
+    if event_id:
+        amount_paise = _bulk_adjusted_amount_paise(
+            db,
+            event_id,
+            payload.ticket_type or "",
+            payload.quantity or 1,
+            amount_paise,
+        )
     if amount_paise < 100:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

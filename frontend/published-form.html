@@ -659,7 +659,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					price: String(resolvedTicketPrice || ticketPrice || "0"),
 					quantity: qty,
 					paymentQrUrl: paymentQrForTicket(ticketName),
-					priceNote: prev.priceNote || ""
+					priceNote: prev.priceNote || "",
+					bulkOffers: Array.isArray(prev.bulkOffers) ? prev.bulkOffers : []
 				};
 				try { sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify(bill)); } catch (_) {}
 				return bill;

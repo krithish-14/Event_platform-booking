@@ -321,7 +321,59 @@ def _ticket_purchase_from_raw(raw: Any) -> dict:
     note = str(meta.get("price_note") or "").strip()[:200]
     if note:
         out["price_note"] = note
+    offers = _normalize_bulk_offers(meta.get("bulk_offers"), limit if mode == "multiple" else 1)
+    if offers and mode == "multiple":
+        out["bulk_offers"] = offers
     return out
+
+
+def _normalize_bulk_offers(raw, limit: int) -> list:
+    """Keep up to five bulk groups: ticket count and percent off that count."""
+    cap = max(2, min(int(limit or 20), 20))
+    if not isinstance(raw, list):
+        return []
+    by_count = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            tickets = int(item.get("tickets"))
+            percent = int(item.get("percent"))
+        except (TypeError, ValueError):
+            continue
+        if tickets < 2 or tickets > cap or percent < 1 or percent > 90:
+            continue
+        by_count[tickets] = percent
+    return [
+        {"tickets": tickets, "percent": by_count[tickets]}
+        for tickets in sorted(by_count)[:5]
+    ]
+
+
+def bulk_offer_percent(purchase: dict, quantity: int) -> int:
+    """Percent off for the largest group the buyer has reached."""
+    if not isinstance(purchase, dict):
+        return 0
+    try:
+        qty = int(quantity or 1)
+    except (TypeError, ValueError):
+        qty = 1
+    best_tickets = 0
+    best_percent = 0
+    for item in purchase.get("bulk_offers") or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            tickets = int(item.get("tickets"))
+            percent = int(item.get("percent"))
+        except (TypeError, ValueError):
+            continue
+        if tickets < 2 or percent < 1 or percent > 90:
+            continue
+        if qty >= tickets and tickets >= best_tickets:
+            best_tickets = tickets
+            best_percent = percent
+    return best_percent
 
 
 def _host_ticket_purchase_for_event(db: Session, event_id) -> dict:

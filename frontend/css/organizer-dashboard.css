@@ -2684,6 +2684,70 @@ html[data-theme="dark"] .ticket-offer-hint {
 	border-radius: 12px;
 }
 
+.bulk-offer-block {
+	margin-top: 1.1rem;
+	padding-top: 1rem;
+	border-top: 1px solid #e2e8f0;
+}
+
+.bulk-offer-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+	gap: 0.65rem;
+	align-items: end;
+	margin-top: 0.75rem;
+}
+
+.bulk-offer-row label {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	text-transform: none;
+	letter-spacing: 0;
+	font-size: 0.78rem;
+}
+
+.bulk-offer-remove,
+.bulk-offer-add {
+	border: 1px solid #cbd5e1;
+	background: #fff;
+	color: #0f172a;
+	border-radius: 8px;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.bulk-offer-remove {
+	height: 42px;
+	padding: 0 0.75rem;
+}
+
+.bulk-offer-add {
+	margin-top: 0.75rem;
+	padding: 0.55rem 0.9rem;
+}
+
+.bulk-offer-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 0.35rem;
+	font-size: 0.84rem;
+}
+
+.bulk-offer-table th,
+.bulk-offer-table td {
+	text-align: left;
+	padding: 0.45rem 0.4rem;
+	border-bottom: 1px solid #e2e8f0;
+}
+
+.bulk-offer-table th {
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	color: #64748b;
+}
+
 /* Gradient Publish Button */
 .publish-gradient-btn {
 	background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
@@ -3337,6 +3401,19 @@ html[data-theme="dark"] .ticket-purchase-card label {
 html[data-theme="dark"] .ticket-limit-panel {
 	background: #1a1612;
 	border-color: rgba(255, 138, 31, 0.24);
+}
+
+html[data-theme="dark"] .bulk-offer-block,
+html[data-theme="dark"] .bulk-offer-table th,
+html[data-theme="dark"] .bulk-offer-table td {
+	border-color: rgba(255, 138, 31, 0.24);
+}
+
+html[data-theme="dark"] .bulk-offer-remove,
+html[data-theme="dark"] .bulk-offer-add {
+	background: #241c16;
+	color: #f6f0e8;
+	border-color: rgba(255, 138, 31, 0.32);
 }
 
 html[data-theme="dark"] .dash-card,

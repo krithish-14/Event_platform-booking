@@ -1963,6 +1963,11 @@ def save_manage_event(
         note = sanitize_text(str((raw_purchase or {}).get("price_note") or ""), max_length=200)
         if note:
             purchase["price_note"] = note
+        if mode == "multiple":
+            from APIs.events import _normalize_bulk_offers
+            offers = _normalize_bulk_offers((raw_purchase or {}).get("bulk_offers"), limit)
+            if offers:
+                purchase["bulk_offers"] = offers
         policies["_ticket_purchase"] = purchase
         event.policies_json = policies
     event.updated_at = datetime.utcnow()

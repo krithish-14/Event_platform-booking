@@ -682,6 +682,42 @@ function setBuyTicketEnabled(enabled, label) {
  });
 }
 
+function bulkOffersFromPurchase(purchase) {
+ const list = purchase && Array.isArray(purchase.bulk_offers) ? purchase.bulk_offers : [];
+ return list.filter((item) => {
+ const tickets = Number(item && item.tickets);
+ const percent = Number(item && item.percent);
+ return tickets >= 2 && tickets <= 20 && percent >= 1 && percent <= 90;
+ }).map((item) => ({ tickets: Math.round(Number(item.tickets)), percent: Math.round(Number(item.percent)) }));
+}
+
+function bulkPercentForQty(offers, qty) {
+ let bestTickets = 0;
+ let best = 0;
+ (offers || []).forEach((offer) => {
+ if (qty >= offer.tickets && offer.tickets >= bestTickets) {
+ bestTickets = offer.tickets;
+ best = offer.percent;
+ }
+ });
+ return best;
+}
+
+function paintBulkOffers(event) {
+ const host = document.getElementById("bulkOfferList");
+ if (!host) return;
+ const offers = bulkOffersFromPurchase((event && event.ticket_purchase) || currentTicketPurchase);
+ if (!offers.length || maxTicketsPerPerson(event) <= 1) {
+ host.hidden = true;
+ host.innerHTML = "";
+ return;
+ }
+ host.hidden = false;
+ host.innerHTML = offers.map((offer) => {
+ return "<p>Group of " + offer.tickets + ": " + offer.percent + "% off</p>";
+ }).join("");
+}
+
 function maxTicketsPerPerson(event) {
  const purchase = (event && event.ticket_purchase) || currentTicketPurchase || {};
  const mode = String(purchase.mode || "single").toLowerCase();
@@ -719,6 +755,7 @@ function applyTicketPurchaseFromEvent(event) {
  ? ("You can buy up to " + max + " tickets.")
  : "";
  }
+ paintBulkOffers(event);
  const noteEl = document.getElementById("ticketPriceNote");
  const note = String((currentTicketPurchase && currentTicketPurchase.price_note) || "").trim();
  if (noteEl) {
@@ -889,8 +926,15 @@ function updateQuantityTotalDisplay(unitPrice) {
  const totalEl = document.getElementById('ticketQtyTotalPrice');
  if (!totalEl) return;
  const qty = selectedTicketQty();
- const total = (Number(unitPrice) || 0) * qty;
+ const unit = Number(unitPrice) || 0;
+ const percent = bulkPercentForQty(bulkOffersFromPurchase(currentTicketPurchase), qty);
+ const total = unit * qty * (100 - percent) / 100;
  totalEl.textContent = formatTicketPrice(total);
+ const applied = document.getElementById("bulkOfferApplied");
+ if (applied) {
+ applied.hidden = percent <= 0;
+ applied.textContent = percent > 0 ? (percent + "% bulk offer applied") : "";
+ }
 }
 
 function updateSelectedPriceUI(price, ticketName) {
@@ -1301,6 +1345,7 @@ async function triggerBookingModal() {
  ticket: pendingTicket,
  price: String(pendingPrice),
  quantity: selectedTicketQty(),
+ bulkOffers: bulkOffersFromPurchase(currentTicketPurchase),
  paymentQrUrl: pendingQr,
  priceNote: String((currentTicketPurchase && currentTicketPurchase.price_note)
  || (currentEventData && currentEventData.ticket_purchase && currentEventData.ticket_purchase.price_note)

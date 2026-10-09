@@ -733,15 +733,106 @@ async function initOrganizerDashboard() {
 		}
 	}
 
+	function currentPerPersonLimit() {
+		let limit = Number(document.getElementById("ticketPerPersonLimitInput")?.value || 4);
+		if (!Number.isFinite(limit)) limit = 4;
+		return Math.max(2, Math.min(20, Math.round(limit)));
+	}
+
+	function normalizeBulkOffers(raw, limit) {
+		const cap = Math.max(2, Math.min(20, Number(limit) || 20));
+		const byCount = new Map();
+		(Array.isArray(raw) ? raw : []).forEach((item) => {
+			const tickets = Math.round(Number(item && item.tickets));
+			const percent = Math.round(Number(item && item.percent));
+			if (!Number.isFinite(tickets) || tickets < 2 || tickets > cap) return;
+			if (!Number.isFinite(percent) || percent < 1 || percent > 90) return;
+			byCount.set(tickets, percent);
+		});
+		return Array.from(byCount.entries())
+			.sort((a, b) => a[0] - b[0])
+			.slice(0, 5)
+			.map(([tickets, percent]) => ({ tickets, percent }));
+	}
+
+	function readBulkOfferInputs() {
+		const rows = document.querySelectorAll("#bulkOfferRows .bulk-offer-row");
+		const raw = [];
+		rows.forEach((row) => {
+			raw.push({
+				tickets: row.querySelector(".bulk-offer-tickets")?.value,
+				percent: row.querySelector(".bulk-offer-percent")?.value
+			});
+		});
+		return normalizeBulkOffers(raw, currentPerPersonLimit());
+	}
+
+	function sampleTicketForBulkPreview() {
+		const row = document.querySelector("#ticketTiersRows .ticket-tier-row");
+		if (!row) return null;
+		const name = String(row.querySelector(".ticket-type-input")?.value || "").trim();
+		const price = Number(row.querySelector(".ticket-price-input")?.value);
+		if (!Number.isFinite(price) || price <= 0) return null;
+		return { name: name || "Ticket", price };
+	}
+
+	function formatBulkRupees(amount) {
+		const n = Math.round(Number(amount) || 0);
+		return "\u20b9" + n.toLocaleString("en-IN");
+	}
+
+	function renderBulkOfferPreview() {
+		const host = document.getElementById("bulkOfferPreview");
+		if (!host) return;
+		const offers = readBulkOfferInputs();
+		if (!offers.length) {
+			host.innerHTML = "";
+			return;
+		}
+		const sample = sampleTicketForBulkPreview();
+		const rows = offers.map((offer) => {
+			const total = sample
+				? Math.round(sample.price * offer.tickets * (100 - offer.percent) / 100)
+				: 0;
+			const totalCell = sample
+				? formatBulkRupees(total) + " total"
+				: "Set a ticket price in section 3 to see the total";
+			return "<tr><td>Group of " + offer.tickets + "</td><td>" + offer.percent + "% off</td><td>" + totalCell + "</td></tr>";
+		}).join("");
+		const caption = sample
+			? "Example on " + sample.name + " (" + formatBulkRupees(sample.price) + " per ticket)"
+			: "The highest group the buyer reaches applies to the whole purchase.";
+		host.innerHTML = "<p class=\"ticket-offer-hint\" style=\"margin:0.75rem 0 0.4rem;\">" + caption + "</p>"
+			+ "<table class=\"bulk-offer-table\"><thead><tr><th>Ticket group</th><th>Offer</th><th>Price</th></tr></thead><tbody>"
+			+ rows + "</tbody></table>";
+	}
+
+	function renderBulkOfferRows(offers) {
+		const host = document.getElementById("bulkOfferRows");
+		if (!host) return;
+		const limit = currentPerPersonLimit();
+		const list = normalizeBulkOffers(offers, limit);
+		host.innerHTML = list.map((offer) => {
+			return "<div class=\"bulk-offer-row\">"
+				+ "<label>Number of tickets<input type=\"number\" class=\"setup-input bulk-offer-tickets\" min=\"2\" max=\"" + limit + "\" value=\"" + offer.tickets + "\" /></label>"
+				+ "<label>Percentage off<input type=\"number\" class=\"setup-input bulk-offer-percent\" min=\"1\" max=\"90\" value=\"" + offer.percent + "\" /></label>"
+				+ "<button type=\"button\" class=\"bulk-offer-remove\">Remove</button>"
+				+ "</div>";
+		}).join("");
+		renderBulkOfferPreview();
+	}
+
 	function collectPoliciesJson() {
 		const modeEl = document.getElementById("ticketPurchaseModeInput");
 		const mode = (modeEl && modeEl.value === "multiple") ? "multiple" : "single";
-		let limit = Number(document.getElementById("ticketPerPersonLimitInput")?.value || 4);
-		if (!Number.isFinite(limit)) limit = 4;
+		let limit = currentPerPersonLimit();
 		if (mode === "single") limit = 1;
-		else limit = Math.max(2, Math.min(20, Math.round(limit)));
 		const note = String(document.getElementById("ticketPriceNoteInput")?.value || "").trim().slice(0, 200);
 		const purchase = { mode, per_person_limit: limit };
+		if (mode === "multiple") {
+			const offers = readBulkOfferInputs();
+			if (offers.length) purchase.bulk_offers = offers;
+		}
 		if (note) purchase.price_note = note;
 		return {
 			event_policy: document.getElementById("policyEventInput")?.value?.trim() || "",
@@ -754,7 +845,7 @@ async function initOrganizerDashboard() {
 		};
 	}
 
-	function applyTicketPurchaseMode(mode, limit, priceNote) {
+	function applyTicketPurchaseMode(mode, limit, priceNote, offers) {
 		const normalized = mode === "multiple" ? "multiple" : "single";
 		const modeEl = document.getElementById("ticketPurchaseModeInput");
 		if (modeEl) modeEl.value = normalized;
@@ -768,6 +859,8 @@ async function initOrganizerDashboard() {
 			const n = Number(limit);
 			limitEl.value = String(Number.isFinite(n) && n >= 2 ? Math.min(20, Math.round(n)) : 4);
 		}
+		if (Array.isArray(offers)) renderBulkOfferRows(offers);
+		else if (normalized === "multiple") renderBulkOfferPreview();
 		if (typeof priceNote === "string") {
 			const noteEl = document.getElementById("ticketPriceNoteInput");
 			if (noteEl) noteEl.value = priceNote;
@@ -790,7 +883,7 @@ async function initOrganizerDashboard() {
 		});
 		const purchase = policies._ticket_purchase;
 		if (purchase && typeof purchase === "object") {
-			applyTicketPurchaseMode(purchase.mode || "single", purchase.per_person_limit, purchase.price_note || "");
+			applyTicketPurchaseMode(purchase.mode || "single", purchase.per_person_limit, purchase.price_note || "", purchase.bulk_offers || []);
 		}
 	}
 
@@ -1778,7 +1871,7 @@ async function initOrganizerDashboard() {
 				ticketHost.appendChild(createTicketTierRowHtml("", "", ""));
 			}
 		}
-		if (typeof applyTicketPurchaseMode === "function") applyTicketPurchaseMode("single", 4, "");
+		if (typeof applyTicketPurchaseMode === "function") applyTicketPurchaseMode("single", 4, "", []);
 		const agendaHost = document.getElementById("agendaRows");
 		if (agendaHost) {
 			agendaHost.innerHTML = "";
@@ -4271,8 +4364,49 @@ async function initOrganizerDashboard() {
 			if (!Number.isFinite(n) || n < 2) n = 2;
 			if (n > 20) n = 20;
 			ticketLimitInput.value = String(Math.round(n));
+			renderBulkOfferRows(readBulkOfferInputs());
 			triggerManageAutoSave();
 		});
+	}
+	const bulkOfferRows = document.getElementById("bulkOfferRows");
+	const btnAddBulkOffer = document.getElementById("btnAddBulkOffer");
+	if (bulkOfferRows && !bulkOfferRows.dataset.bound) {
+		bulkOfferRows.dataset.bound = "1";
+		bulkOfferRows.addEventListener("click", (e) => {
+			const btn = e.target.closest(".bulk-offer-remove");
+			if (!btn) return;
+			const row = btn.closest(".bulk-offer-row");
+			if (row) row.remove();
+			renderBulkOfferPreview();
+			triggerManageAutoSave();
+		});
+		bulkOfferRows.addEventListener("input", () => {
+			renderBulkOfferPreview();
+		});
+		bulkOfferRows.addEventListener("change", () => {
+			renderBulkOfferRows(readBulkOfferInputs());
+			triggerManageAutoSave();
+		});
+	}
+	if (btnAddBulkOffer && !btnAddBulkOffer.dataset.bound) {
+		btnAddBulkOffer.dataset.bound = "1";
+		btnAddBulkOffer.addEventListener("click", () => {
+			const limit = currentPerPersonLimit();
+			const current = readBulkOfferInputs();
+			if (current.length >= 5) return;
+			const used = new Set(current.map((offer) => offer.tickets));
+			let tickets = Math.min(3, limit);
+			while (used.has(tickets) && tickets < limit) tickets += 1;
+			if (used.has(tickets)) return;
+			current.push({ tickets, percent: 10 });
+			renderBulkOfferRows(current);
+			triggerManageAutoSave();
+		});
+	}
+	const ticketTiersForBulk = document.getElementById("ticketTiersRows");
+	if (ticketTiersForBulk && !ticketTiersForBulk.dataset.bulkBound) {
+		ticketTiersForBulk.dataset.bulkBound = "1";
+		ticketTiersForBulk.addEventListener("input", () => renderBulkOfferPreview());
 	}
 
 	function readVenueCoord(id) {
@@ -4801,7 +4935,7 @@ async function initOrganizerDashboard() {
 		}, 250);
 		if (event.policies) populatePoliciesFromJson(event.policies);
 		const purchase = (event.policies && event.policies._ticket_purchase) || event.ticket_purchase || {};
-		applyTicketPurchaseMode(purchase.mode || "single", purchase.per_person_limit, purchase.price_note || "");
+		applyTicketPurchaseMode(purchase.mode || "single", purchase.per_person_limit, purchase.price_note || "", purchase.bulk_offers || []);
 		if (ticketTiersRows && Array.isArray(event.tickets) && event.tickets.length) {
 			ticketTiersRows.innerHTML = "";
 			event.tickets.forEach((t) => {
@@ -4855,7 +4989,7 @@ async function initOrganizerDashboard() {
 				ticketTiersRows.innerHTML = "";
 				ticketTiersRows.appendChild(createTicketTierRowHtml("", "", ""));
 			}
-			applyTicketPurchaseMode("single", 4, "");
+			applyTicketPurchaseMode("single", 4, "", []);
 			if (agendaRows) {
 				agendaRows.innerHTML = "";
 				agendaRows.appendChild(createAgendaRowHtml("", "", ""));
