@@ -804,12 +804,7 @@ def build_mticket_pdf_bytes(
                 f"{_rgb(accent_rgb)} rg",
                 f"{card_x:.1f} {card_y:.1f} 10 {card_h:.1f} re f",
             ])
-        elif style in ("sunset", "vip_gold"):
-            ops.extend([
-                f"{_rgb(accent_rgb)} rg",
-                f"{card_x:.1f} {card_y + card_h - 8:.1f} {card_w:.1f} 8 re f",
-            ])
-        elif style == "midnight":
+        elif style in ("midnight", "sunset", "vip_gold"):
             pass
         elif style == "minimal":
             # Larger short rule, inset past corner radius (matches canvas preview).

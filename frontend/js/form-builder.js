@@ -161,9 +161,11 @@ function initFormBuilder() {
 
 	const ALLOWED_IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
 	const ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-	const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 	const IMAGE_TYPE_MSG = "Your image is not in this standard file type. Please use JPG, JPEG, PNG, or WEBP.";
-	const IMAGE_SIZE_MSG = "Your image is not in this standard size. Maximum file size is 5MB.";
+	const FORM_IMAGE_LIMITS = {
+		banner: { min: 500 * 1024, max: 5 * 1024 * 1024, recommended: "500 KB\u20131 MB", maximum: "5 MB" },
+		background: { min: 200 * 1024, max: 3 * 1024 * 1024, recommended: "200\u2013800 KB", maximum: "3 MB" },
+	};
 
 	function hasAllowedImageMagicBytes(bytes) {
 		if (!bytes || bytes.length < 12) return false;
@@ -174,9 +176,12 @@ function initFormBuilder() {
 		return jpeg || png || webp;
 	}
 
-	async function validateImageFile(file) {
+	async function validateImageFile(file, limitKey) {
 		if (!file) throw new Error(IMAGE_TYPE_MSG);
-		if (file.size > MAX_IMAGE_BYTES) throw new Error(IMAGE_SIZE_MSG);
+		const limit = FORM_IMAGE_LIMITS[limitKey] || FORM_IMAGE_LIMITS.background;
+		const range = "Use " + limit.recommended + ", and no larger than " + limit.maximum + ".";
+		if (file.size > limit.max) throw new Error("This file is too large. Maximum is " + limit.maximum + ". " + range);
+		if (file.size < limit.min) throw new Error("This file is too small. " + range);
 		const name = String(file.name || "").toLowerCase();
 		const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
 		const mime = String(file.type || "").toLowerCase();
@@ -200,10 +205,10 @@ function initFormBuilder() {
 		el.style.display = message ? "block" : "none";
 	}
 
-	async function handleThemeImageFile(file, urlInput, uploadBtn, errorHost) {
+	async function handleThemeImageFile(file, urlInput, uploadBtn, errorHost, limitKey) {
 		setInlineUploadError(errorHost, "");
 		try {
-			await validateImageFile(file);
+			await validateImageFile(file, limitKey);
 		} catch (err) {
 			setInlineUploadError(errorHost, err.message);
 			return;
@@ -237,7 +242,8 @@ function initFormBuilder() {
 				file,
 				themeBannerUrl,
 				btnUploadBannerFile,
-				document.getElementById("regBannerUploadHost")
+				document.getElementById("regBannerUploadHost"),
+				"banner"
 			);
 			fileBannerInput.value = "";
 		});
@@ -252,7 +258,8 @@ function initFormBuilder() {
 				file,
 				themePageBgUrl,
 				btnUploadPageBgFile,
-				document.getElementById("regBgUploadHost")
+				document.getElementById("regBgUploadHost"),
+				"background"
 			);
 			filePageBgInput.value = "";
 		});

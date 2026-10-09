@@ -308,8 +308,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 	// ── File Upload Logic ─────────────────────────────────────────────────────
 	async function uploadDocumentFile(file, docType) {
  hideAlert();
- if (file.size > 2 * 1024 * 1024) {
- showAlert("File size should not be greater than 2mb.");
+ if (file.size < 500 * 1024 || file.size > 5 * 1024 * 1024) {
+ showAlert("Verification document must be 500 KB to 5 MB. Recommended 500 KB\u20132 MB.");
  return false;
  }
 

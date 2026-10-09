@@ -11,11 +11,11 @@
 	const FALLBACK_TEMPLATES = [
 		{ id: "classic", name: "Classic Clean", tagline: "Bright white card", preview: { bg: "#f4f6f8", card: "#ffffff", accent: "#2563eb", text: "#111827", muted: "#6b7280" } },
 		{ id: "midnight", name: "Midnight Stage", tagline: "Concert stub ticket", preview: { bg: "#1a1033", card: "#5b21b6", accent: "#c4b5fd", text: "#ffffff", muted: "#ddd6fe" } },
-		{ id: "sunset", name: "Sunset Glow", tagline: "Warm festival strip", preview: { bg: "#fff7ed", card: "#fffbeb", accent: "#ea580c", text: "#1c1917", muted: "#78716c" } },
+		{ id: "sunset", name: "Sunset Glow", tagline: "Sunset concert ticket", preview: { bg: "#2a120c", card: "#ff7a1a", accent: "#e10600", text: "#ffffff", muted: "#fff7ed" } },
 		{ id: "concert", name: "Concert Stripe", tagline: "Bold side stripe", preview: { bg: "#fafafa", card: "#ffffff", accent: "#dc2626", text: "#0f172a", muted: "#64748b" } },
 		{ id: "minimal", name: "Paper Minimal", tagline: "Quiet editorial", preview: { bg: "#f8fafc", card: "#ffffff", accent: "#0f172a", text: "#0f172a", muted: "#64748b" } },
 		{ id: "festival", name: "Festival Teal", tagline: "Outdoor teal frame", preview: { bg: "#ecfdf5", card: "#ffffff", accent: "#0d9488", text: "#134e4a", muted: "#5eead4" } },
-		{ id: "vip_gold", name: "VIP Gold", tagline: "Charcoal + gold", preview: { bg: "#1c1917", card: "#292524", accent: "#d4a017", text: "#fafaf9", muted: "#a8a29e" } },
+		{ id: "vip_gold", name: "VIP Gold", tagline: "Gold details, QR on the black side", preview: { bg: "#1c1917", card: "#e6c15a", accent: "#d4a017", text: "#111111", muted: "#f6e27a" } },
 		{ id: "neon_night", name: "Neon Night", tagline: "Electric cyan", preview: { bg: "#020617", card: "#0f172a", accent: "#22d3ee", text: "#e2e8f0", muted: "#64748b" } },
 	];
 
@@ -55,7 +55,7 @@
 	ELEMENT_DEFS.forEach(function (d) { DEF_BY_TYPE[d.type] = d; });
 
 	/* Shared geometry for every color format — templates only change colors. */
-	const LAYOUT_VERSION = 5;
+	const LAYOUT_VERSION = 10;
 	const DEFAULT_ELEMENTS = [
 		{ id: "poster", type: "poster", x: 4, y: 3, w: 20, h: 16 },
 		{ id: "badge", type: "badge", x: 78, y: 3, w: 18, h: 4 },
@@ -76,19 +76,53 @@
 
 	/* Landscape concert stub — JOD logo sits where a barcode would be. */
 	const MIDNIGHT_GEOMETRY = {
-		ticket_type: { x: 5, y: 6, w: 46, h: 14 },
-		title: { x: 5, y: 20, w: 48, h: 10 },
-		name: { x: 5, y: 32, w: 42, h: 20 },
-		booking_id: { x: 5, y: 54, w: 20, h: 12 },
-		date: { x: 26, y: 54, w: 22, h: 14 },
-		seat: { x: 49, y: 54, w: 18, h: 14 },
-		jod_logo: { x: 5, y: 72, w: 28, h: 18 },
-		qr: { x: 74, y: 18, w: 14, h: 52 },
-		stub: { x: 89, y: 8, w: 10, h: 82 },
-		phone: { x: 5, y: 50, w: 42, h: 8 },
-		email: { x: 5, y: 58, w: 48, h: 8 },
-		price: { x: 50, y: 64, w: 20, h: 8 },
-		venue: { x: 5, y: 66, w: 40, h: 8 },
+		ticket_type: { x: 4, y: 4, w: 48, h: 9 },
+		title: { x: 4, y: 13, w: 46, h: 7 },
+		name: { x: 4, y: 21, w: 40, h: 12 },
+		booking_id: { x: 64, y: 4, w: 22, h: 10 },
+		date: { x: 64, y: 56, w: 22, h: 16 },
+		jod_logo: { x: 4, y: 78, w: 16, h: 14 },
+		qr: { x: 67, y: 16, w: 14, h: 36 },
+		stub: { x: 90, y: 6, w: 8, h: 84 },
+		phone: { x: 4, y: 43, w: 42, h: 7 },
+		email: { x: 4, y: 35, w: 42, h: 7 },
+		price: { x: 64, y: 74, w: 22, h: 8 },
+		venue: { x: 4, y: 52, w: 40, h: 8 },
+		seat: { x: 64, y: 84, w: 22, h: 7 },
+	};
+
+	/* Wide sunset ticket: photo + white details on the left, QR on the right stub. */
+	const SUNSET_GEOMETRY = {
+		ticket_type: { x: 4, y: 7, w: 66, h: 14 },
+		title: { x: 4, y: 24, w: 66, h: 8 },
+		name: { x: 2, y: 63, w: 22, h: 15 },
+		email: { x: 25, y: 63, w: 24, h: 15 },
+		phone: { x: 50, y: 63, w: 22, h: 15 },
+		date: { x: 2, y: 80, w: 34, h: 16 },
+		price: { x: 42, y: 80, w: 20, h: 16 },
+		venue: { x: 64, y: 80, w: 8, h: 16 },
+		seat: { x: 64, y: 80, w: 8, h: 16 },
+		qr: { x: 79, y: 6, w: 16, h: 46 },
+		booking_id: { x: 76, y: 54, w: 22, h: 14 },
+		jod_logo: { x: 80, y: 84, w: 14, h: 12 },
+		stub: { x: 74, y: 8, w: 5, h: 84 },
+	};
+
+	/* Gold left: title on top, name column, date and venue column, logo at the bottom. Black right: QR then booking ID. */
+	const VIP_GEOMETRY = {
+		ticket_type: { x: 0, y: 6, w: 68, h: 14, align: "center" },
+		title: { x: 0, y: 20, w: 68, h: 10, align: "center" },
+		name: { x: 6, y: 42, w: 26, h: 9, align: "left" },
+		email: { x: 6, y: 52, w: 28, h: 9, align: "left" },
+		phone: { x: 6, y: 62, w: 28, h: 9, align: "left" },
+		date: { x: 36, y: 42, w: 30, h: 10, align: "left" },
+		venue: { x: 36, y: 52, w: 30, h: 24, align: "left" },
+		price: { x: 6, y: 74, w: 22, h: 8, align: "left" },
+		seat: { x: 48, y: 78, w: 18, h: 8, align: "left" },
+		jod_logo: { x: 26, y: 86, w: 16, h: 12 },
+		qr: { x: 77, y: 12, w: 12, h: 40 },
+		booking_id: { x: 70, y: 56, w: 26, h: 12, align: "center" },
+		stub: { x: 92, y: 8, w: 6, h: 84 },
 	};
 
 	const DEFAULT_LAYOUT = {
@@ -110,6 +144,7 @@
 		custom_footer: "",
 		headline_override: "",
 		ticket_type_override: "",
+		sunset_hero_src: "",
 		canvas_elements: DEFAULT_ELEMENTS.map(function (e) { return Object.assign({}, e); }),
 	};
 
@@ -119,6 +154,37 @@
 		const n = Number(v);
 		if (!Number.isFinite(n)) return fallback;
 		return Math.max(min, Math.min(max, n));
+	}
+
+	/* Point sizes shown in the text-size list. 12 is the designed size of a normal field. */
+	var FONT_STEPS = [6, 8, 10, 12, 14, 16, 18, 21, 24, 28, 32, 36, 42, 48, 56, 64, 72, 80, 96];
+
+	function nearestFontStep(px) {
+		var n = Number(px);
+		if (!Number.isFinite(n)) return 12;
+		var best = FONT_STEPS[0];
+		var bestDiff = Math.abs(n - best);
+		for (var i = 1; i < FONT_STEPS.length; i++) {
+			var diff = Math.abs(n - FONT_STEPS[i]);
+			if (diff < bestDiff) {
+				best = FONT_STEPS[i];
+				bestDiff = diff;
+			}
+		}
+		return best;
+	}
+
+	function defaultFontPx(type, templateId) {
+		if (templateId === "sunset" && type === "ticket_type") return 28;
+		if (templateId === "sunset" && type === "title") return 10;
+		if (templateId === "vip_gold" && type === "ticket_type") return 28;
+		if (templateId === "vip_gold" && type === "title") return 12;
+		if (templateId === "midnight" && type === "name") return 18;
+		if (templateId === "midnight" && type === "ticket_type") return 16;
+		if (templateId === "midnight" && type === "title") return 12;
+		if (type === "ticket_type" || type === "title" || type === "name") return 16;
+		if (type === "stub" || type === "badge") return 10;
+		return 12;
 	}
 
 	function isShapeType(type) {
@@ -134,6 +200,34 @@
 		const v = String(c || fallback || "#38bdf8").trim();
 		if (/^#[0-9a-fA-F]{6}$/.test(v) || /^#[0-9a-fA-F]{3}$/.test(v)) return v;
 		return fallback || "#38bdf8";
+	}
+
+	function sanitizeMediaSrc(src) {
+		const v = String(src || "").trim();
+		if (/^https?:\/\//.test(v) || v.charAt(0) === "/") return v.slice(0, 800);
+		if (v.indexOf("data:image/") === 0 && v.length < 700000) return v;
+		return "";
+	}
+
+	function ticketApiOrigin() {
+		let origin = "";
+		if (window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
+			origin = window.JodConfig.getApiOrigin();
+		} else if (window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
+			origin = window.JodHealth.getApiBaseUrl();
+		} else if (window.JodAuth && window.JodAuth.API_BASE) {
+			origin = window.JodAuth.API_BASE;
+		}
+		return String(origin || "").replace(/\/$/, "");
+	}
+
+	/* Relative /api/media links must point at the API, or the ticket shows a broken image. */
+	function resolveTicketMediaUrl(src) {
+		const v = sanitizeMediaSrc(src);
+		if (!v || v.indexOf("data:image/") === 0 || /^https?:\/\//.test(v)) return v;
+		const origin = ticketApiOrigin();
+		if (origin && (v.indexOf("/api/media") === 0 || v.indexOf("/uploads/") === 0)) return origin + v;
+		return v;
 	}
 
 	function optionalColor(c) {
@@ -188,10 +282,13 @@
 			if (type === "stub") item.text = String(e.text || "").trim().slice(0, 120);
 			if (type === "image") {
 				const src = String(e.src || "").trim();
-				if (/^(https?:\/\/|\/)/.test(src)) item.src = src.slice(0, 500);
+				if (/^https?:\/\//.test(src) || src.charAt(0) === "/") item.src = src.slice(0, 800);
+				else if (src.indexOf("data:image/") === 0 && src.length < 700000) item.src = src;
 			}
 			const fs = Number(e.fontScale);
-			if (Number.isFinite(fs)) item.fontScale = clampNum(fs, 0.7, 2.2, 1);
+			if (Number.isFinite(fs)) item.fontScale = clampNum(fs, 0.4, 8, 1);
+			const fontSize = Number(e.fontSize);
+			if (FONT_STEPS.indexOf(fontSize) >= 0) item.fontSize = fontSize;
 			out.push(item);
 		});
 		return out;
@@ -223,34 +320,54 @@
 		const out = Object.assign({}, DEFAULT_LAYOUT, src || {});
 		out.card_color = optionalColor(src && src.card_color);
 		out.text_color = optionalColor(src && src.text_color);
+		out.sunset_hero_src = sanitizeMediaSrc(src && src.sunset_hero_src);
 		out.canvas_elements = cloneElements((src && src.canvas_elements) || DEFAULT_ELEMENTS);
 		const prevVer = Number(src && src.layout_version) || 0;
 		/* v2+: one shared alignment for every color format; migrate older drafts once. */
-		if (!src || !Array.isArray(src.canvas_elements) || !src.canvas_elements.length || prevVer < LAYOUT_VERSION) {
+		if (!src || !Array.isArray(src.canvas_elements) || !src.canvas_elements.length || prevVer < 6) {
 			out.canvas_elements = snapDataElementsToDefault(out.canvas_elements);
 		}
 		out.layout_version = LAYOUT_VERSION;
-		if (String(out.template_id || "") === "midnight" && prevVer < 5) {
+		if (String(out.template_id || "") === "midnight" && prevVer < 6) {
 			applyMidnightGeometry(out.canvas_elements);
+		}
+		if (String(out.template_id || "") === "sunset" && prevVer < 8) {
+			applySunsetGeometry(out.canvas_elements);
+		}
+		if (String(out.template_id || "") === "vip_gold" && prevVer < 10) {
+			applyVipGeometry(out.canvas_elements);
 		}
 		repairFooterPlacement(out.canvas_elements);
 		return out;
 	}
 
-	function applyMidnightGeometry(elements) {
+	function applyNamedGeometry(elements, geometry) {
 		const list = elements || [];
-		if (!list.some(function (el) { return el && el.type === "stub"; })) {
-			const geo = MIDNIGHT_GEOMETRY.stub;
+		if (geometry.stub && !list.some(function (el) { return el && el.type === "stub"; })) {
+			const geo = geometry.stub;
 			list.push({ id: "stub", type: "stub", x: geo.x, y: geo.y, w: geo.w, h: geo.h, text: "" });
 		}
 		list.forEach(function (el) {
-			const geo = el && MIDNIGHT_GEOMETRY[el.type];
+			const geo = el && geometry[el.type];
 			if (!geo) return;
 			el.x = geo.x;
 			el.y = geo.y;
 			el.w = geo.w;
 			el.h = geo.h;
+			if (geo.align) el.align = geo.align;
 		});
+	}
+
+	function applyMidnightGeometry(elements) {
+		applyNamedGeometry(elements, MIDNIGHT_GEOMETRY);
+	}
+
+	function applySunsetGeometry(elements) {
+		applyNamedGeometry(elements, SUNSET_GEOMETRY);
+	}
+
+	function applyVipGeometry(elements) {
+		applyNamedGeometry(elements, VIP_GEOMETRY);
 	}
 
 	function repairFooterPlacement(elements) {
@@ -435,11 +552,16 @@
 		}
 		if (type === "stub") next.text = "";
 		if (type === "image") next.src = "";
-		if (this.layout.template_id === "midnight" && MIDNIGHT_GEOMETRY[type]) {
-			next.x = MIDNIGHT_GEOMETRY[type].x;
-			next.y = MIDNIGHT_GEOMETRY[type].y;
-			next.w = MIDNIGHT_GEOMETRY[type].w;
-			next.h = MIDNIGHT_GEOMETRY[type].h;
+		const templateGeo = this.layout.template_id === "midnight"
+			? MIDNIGHT_GEOMETRY
+			: (this.layout.template_id === "sunset"
+				? SUNSET_GEOMETRY
+				: (this.layout.template_id === "vip_gold" ? VIP_GEOMETRY : null));
+		if (templateGeo && templateGeo[type]) {
+			next.x = templateGeo[type].x;
+			next.y = templateGeo[type].y;
+			next.w = templateGeo[type].w;
+			next.h = templateGeo[type].h;
 		}
 		this.layout.canvas_elements = (this.layout.canvas_elements || []).concat([next]);
 		if (def.flag) this.layout[def.flag] = true;
@@ -504,6 +626,45 @@
 		return ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge", "jod_logo", "text", "stub"].indexOf(type) >= 0;
 	};
 
+	TicketCanvasController.prototype.fontPxFor = function (item) {
+		if (!item) return 12;
+		const saved = Number(item.fontSize);
+		if (FONT_STEPS.indexOf(saved) >= 0) return saved;
+		const tmpl = this.currentTemplate();
+		const base = defaultFontPx(item.type, (tmpl && tmpl.id) || "");
+		const scale = Number(item.fontScale);
+		if (Number.isFinite(scale) && Math.abs(scale - 1) > 0.02) return nearestFontStep(base * scale);
+		return base;
+	};
+
+	TicketCanvasController.prototype.hasCustomFont = function (item) {
+		if (!item) return false;
+		if (FONT_STEPS.indexOf(Number(item.fontSize)) >= 0) return true;
+		const scale = Number(item.fontScale);
+		return Number.isFinite(scale) && Math.abs(scale - 1) > 0.02;
+	};
+
+	TicketCanvasController.prototype.markFontMenu = function (px) {
+		const menu = this.root && this.root.querySelector("#ticketElFontMenu");
+		if (!menu) return;
+		menu.querySelectorAll("[data-font-size]").forEach(function (btn) {
+			btn.classList.toggle("is-active", Number(btn.getAttribute("data-font-size")) === Number(px));
+		});
+	};
+
+	TicketCanvasController.prototype.growBoxForFont = function (item, fontPx) {
+		if (!item) return;
+		const card = this.root && this.root.querySelector("#ticketLiveCard");
+		const cardH = card && card.clientHeight ? card.clientHeight : 240;
+		const twoLine = ["name", "email", "phone", "date", "venue", "price", "seat", "booking_id"].indexOf(item.type) >= 0;
+		const lines = twoLine ? 2.2 : 1.3;
+		const needed = Math.ceil((fontPx * lines / cardH) * 100);
+		if (needed > item.h) {
+			item.h = clampNum(needed, 3, 40, item.h);
+			if (item.y + item.h > 100) item.y = Math.max(0, 100 - item.h);
+		}
+	};
+
 	TicketCanvasController.prototype.isEditableText = function (type) {
 		return type === "title" || type === "ticket_type" || type === "footer" || type === "text" || type === "stub";
 	};
@@ -516,7 +677,7 @@
 		const wEl = this.root.querySelector("#ticketElWidth");
 		const hEl = this.root.querySelector("#ticketElHeight");
 		const hWrap = this.root.querySelector("#ticketElHeightWrap");
-		const fEl = this.root.querySelector("#ticketElFont");
+		const fontBtn = this.root.querySelector("#ticketElFontBtn");
 		const fWrap = this.root.querySelector("#ticketElFontWrap");
 		const colorInput = this.root.querySelector("#ticketItemColor");
 		const colorLabel = this.root.querySelector("#ticketItemColorLabel");
@@ -536,6 +697,8 @@
 			if (sizeWrap) sizeWrap.hidden = true;
 			if (alignWrap) alignWrap.hidden = true;
 			if (textWrap) textWrap.hidden = true;
+			const imageWrapCanvas = this.root.querySelector("#ticketImageEditWrap");
+			if (imageWrapCanvas) imageWrapCanvas.hidden = true;
 			if (colorLabel) colorLabel.textContent = "Text";
 			if (colorInput) colorInput.value = sanitizeColor(this.layout.text_color || preview.text, "#111827");
 			const removeBtn = this.root.querySelector("#ticketRemoveSelectedBtn");
@@ -554,6 +717,7 @@
 		const def = DEF_BY_TYPE[item.type] || {};
 		const isLine = item.type === "line" || item.type === "dashed_line";
 		const isText = this.isTextElement(item.type);
+		const showFont = isText && item.type !== "jod_logo";
 		if (panel) panel.hidden = false;
 		if (label) label.textContent = def.label || item.type;
 		if (help) help.textContent = item.type === "image"
@@ -567,8 +731,12 @@
 		if (wEl) wEl.value = String(Math.round(item.w));
 		if (hEl) hEl.value = String(Math.round(item.h));
 		if (hWrap) hWrap.hidden = !!isLine;
-		if (fWrap) fWrap.hidden = !isText;
-		if (fEl) fEl.value = String(Math.round((item.fontScale || 1) * 100));
+		if (fWrap) fWrap.hidden = !showFont;
+		if (fontBtn && showFont) {
+			const px = this.fontPxFor(item);
+			fontBtn.textContent = String(px);
+			this.markFontMenu(px);
+		}
 		if (alignWrap) {
 			alignWrap.hidden = !isText || item.type === "jod_logo";
 			alignWrap.querySelectorAll("[data-align]").forEach(function (btn) {
@@ -633,8 +801,12 @@
 		node.style.top = item.y + "%";
 		node.style.width = item.w + "%";
 		node.style.height = item.h + "%";
-		const scale = item.fontScale || 1;
-		node.style.setProperty("--tc-font-scale", String(scale));
+		const customFont = this.hasCustomFont(item);
+		const px = this.fontPxFor(item);
+		node.classList.toggle("has-font-size", customFont);
+		node.style.setProperty("--tc-font-scale", customFont ? "1" : String(item.fontScale || 1));
+		if (customFont) node.style.setProperty("--tc-font-px", px + "px");
+		else node.style.removeProperty("--tc-font-px");
 	};
 
 	TicketCanvasController.prototype.mount = function () {
@@ -689,6 +861,20 @@
 			'        <div class="ticket-palette-title">Add</div>',
 			'        <div class="ticket-float-add" id="ticketShapePalette"></div>',
 			'      </div>',
+			'      <div class="ticket-float-section" id="ticketHeroUploadSection" hidden>',
+			'        <div class="ticket-palette-title">Ticket photo</div>',
+			'        <p class="ticket-float-hint">Fills the sunset area. The ticket name and event name stay on top.</p>',
+			'        <div class="ticket-hero-upload">',
+			'          <button type="button" class="ticket-hero-upload-btn" id="ticketHeroUploadBtn">Choose photo</button>',
+			'          <input type="file" id="ticketHeroImage" accept="image/png,image/jpeg,image/webp" hidden />',
+			'          <span class="ticket-image-status" id="ticketHeroStatus"></span>',
+			'        </div>',
+			'      </div>',
+			'      <div class="ticket-float-section">',
+			'        <div class="ticket-palette-title">Layers</div>',
+			'        <p class="ticket-float-hint">Top row is in front. Drag a row to change the order, or click it to edit.</p>',
+			'        <div class="ticket-layers" id="ticketLayers" role="list"></div>',
+			'      </div>',
 			'      <div class="ticket-float-section">',
 			'        <div class="ticket-palette-title">Ticket colors</div>',
 			'        <div class="ticket-float-colors">',
@@ -700,7 +886,7 @@
 			'        <div class="ticket-palette-title">Selected <span id="ticketSelectedLabel"></span></div>',
 			'        <p class="ticket-selected-help" id="ticketSelectedHelp">Click a field on the ticket to edit it here.</p>',
 			'        <label class="ticket-ctrl" id="ticketTextEditWrap" hidden><span>Text</span><input type="text" id="ticketItemText" maxlength="120" /></label>',
-			'        <label class="ticket-ctrl" id="ticketImageEditWrap" hidden><span>Image</span><input type="file" id="ticketItemImage" accept="image/png,image/jpeg,image/webp,image/gif" /></label>',
+			'        <label class="ticket-ctrl" id="ticketImageEditWrap" hidden><span>Image</span><input type="file" id="ticketItemImage" accept="image/png,image/jpeg,image/webp" /><span class="ticket-image-status" id="ticketImageStatus"></span></label>',
 			'        <div class="ticket-float-colors">',
 			'          <label class="ticket-ctrl"><span id="ticketItemColorLabel">Color</span><input type="color" id="ticketItemColor" value="#111827" /></label>',
 			'        </div>',
@@ -713,9 +899,9 @@
 			'          </div>',
 			'        </div>',
 			'        <div class="ticket-ctrl-row" id="ticketSizeRow">',
-			'          <label class="ticket-ctrl"><span>Width</span><input type="range" id="ticketElWidth" min="8" max="96" step="1" /></label>',
-			'          <label class="ticket-ctrl" id="ticketElHeightWrap"><span>Height</span><input type="range" id="ticketElHeight" min="1" max="40" step="1" /></label>',
-			'          <label class="ticket-ctrl" id="ticketElFontWrap" hidden><span>Text size</span><input type="range" id="ticketElFont" min="70" max="220" step="5" /></label>',
+			'          <label class="ticket-ctrl"><span>Width</span><input type="number" id="ticketElWidth" min="8" max="96" step="1" /></label>',
+			'          <label class="ticket-ctrl" id="ticketElHeightWrap"><span>Height</span><input type="number" id="ticketElHeight" min="1" max="40" step="1" /></label>',
+			'          <label class="ticket-ctrl" id="ticketElFontWrap" hidden><span>Text size</span><div class="ticket-font-picker"><button type="button" class="ticket-font-picker-btn" id="ticketElFontBtn" aria-haspopup="listbox" aria-expanded="false">12</button><div class="ticket-font-menu" id="ticketElFontMenu" hidden role="listbox" aria-label="Text size"></div></div></label>',
 			'        </div>',
 			'        <div class="ticket-float-actions">',
 			'          <button type="button" class="ticket-reset-btn" id="ticketDeselectBtn">Deselect</button>',
@@ -726,6 +912,12 @@
 			'  </div>',
 			'</div>',
 		].join("");
+		const fontMenu = this.root.querySelector("#ticketElFontMenu");
+		if (fontMenu) {
+			fontMenu.innerHTML = FONT_STEPS.map(function (n) {
+				return '<button type="button" class="ticket-font-option" role="option" data-font-size="' + n + '">' + n + "</button>";
+			}).join("");
+		}
 		this.bindEvents();
 		this.placeFieldControls();
 		this.syncControls();
@@ -789,10 +981,14 @@
 			itemColor.addEventListener("input", function () {
 				const item = self.findById(self.selectedId);
 				const color = sanitizeColor(itemColor.value, "#111827");
+				const textTypes = ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge", "text", "stub"];
 				if (item) {
 					item.color = color;
 				} else if (self.canvasSelected) {
 					self.layout.text_color = color;
+					(self.layout.canvas_elements || []).forEach(function (el) {
+						if (el && textTypes.indexOf(el.type) >= 0) el.color = color;
+					});
 				} else {
 					return;
 				}
@@ -804,21 +1000,136 @@
 		if (itemImage) {
 			itemImage.addEventListener("change", function () {
 				const file = itemImage.files && itemImage.files[0];
-				const item = self.findById(self.selectedId);
-				itemImage.value = "";
-				if (!file || !item || item.type !== "image") return;
-				const applySrc = function (src) {
-					item.src = String(src || "").slice(0, 500);
+				if (!file) return;
+				let item = self.findById(self.selectedId);
+				if (!item || item.type !== "image") {
+					self.addElement("image", true);
+					item = self.findById(self.selectedId);
+				}
+				const status = self.root.querySelector("#ticketImageStatus");
+				if (status) status.textContent = "Uploading…";
+				const applySrc = function (src, note) {
+					if (!item || !src) {
+						if (status) status.textContent = note || "Could not add that image.";
+						return;
+					}
+					const raw = String(src);
+					item.src = raw.indexOf("data:image/") === 0 ? raw.slice(0, 700000) : raw.slice(0, 800);
+					if (status) status.textContent = note || "Image added.";
 					self.renderPreview();
 					self.emitChange();
 				};
+				const readLocal = function (note) {
+					self.readImageFile(file, function (src) { applySrc(src, note); });
+				};
 				if (self.onUploadImage) {
-					Promise.resolve(self.onUploadImage(file)).then(applySrc).catch(function () {
-						self.readImageFile(file, applySrc);
+					Promise.resolve(self.onUploadImage(file)).then(function (url) {
+						if (url) applySrc(url, "Image added.");
+						else readLocal("Upload did not return a link. This preview stays on this screen only.");
+					}).catch(function (err) {
+						const msg = err && err.message ? err.message : "Upload failed.";
+						readLocal(msg + " Showing a local preview only.");
 					});
 				} else {
-					self.readImageFile(file, applySrc);
+					readLocal("Image added on this screen only.");
 				}
+				itemImage.value = "";
+			});
+		}
+		const heroBtn = this.root.querySelector("#ticketHeroUploadBtn");
+		const heroImage = this.root.querySelector("#ticketHeroImage");
+		if (heroBtn && heroImage) {
+			heroBtn.addEventListener("click", function () { heroImage.click(); });
+			heroImage.addEventListener("change", function () {
+				const file = heroImage.files && heroImage.files[0];
+				heroImage.value = "";
+				if (!file) return;
+				const heroStatus = self.root.querySelector("#ticketHeroStatus");
+				const setHeroStatus = function (text) {
+					const el = self.root.querySelector("#ticketHeroStatus");
+					if (el) el.textContent = text || "";
+				};
+				setHeroStatus("Uploading…");
+				const showLocal = function (note) {
+					self.readImageFile(file, function (dataUrl) {
+						if (!sanitizeMediaSrc(dataUrl)) {
+							setHeroStatus(note || "Could not read that image. Use JPG, PNG, or WEBP.");
+							return;
+						}
+						self._heroFailedSrc = "";
+						self.layout.sunset_hero_src = dataUrl;
+						self.layout.template_id = "sunset";
+						self._heroNote = note || "Photo added.";
+						self.syncControls();
+						self.renderPreview();
+					});
+				};
+				if (!self.onUploadImage) {
+					showLocal("Photo added on this screen.");
+					return;
+				}
+				Promise.resolve(self.onUploadImage(file)).then(function (url) {
+					const safe = sanitizeMediaSrc(url);
+					const display = resolveTicketMediaUrl(safe);
+					if (!display) {
+						showLocal("Photo added on this screen.");
+						return;
+					}
+					const probe = new Image();
+					probe.onload = function () {
+						self._heroFailedSrc = "";
+						self.layout.sunset_hero_src = safe;
+						self.layout.template_id = "sunset";
+						self._heroNote = "Photo added.";
+						self.syncControls();
+						self.renderPreview();
+						self.emitChange();
+					};
+					probe.onerror = function () {
+						showLocal("Photo added on this screen.");
+					};
+					probe.src = display;
+				}).catch(function (err) {
+					const msg = err && err.message ? err.message : "Upload failed.";
+					if (heroStatus) heroStatus.textContent = msg;
+					showLocal("Showing the photo on this screen.");
+				});
+			});
+		}
+		const layers = this.root.querySelector("#ticketLayers");
+		if (layers) {
+			layers.addEventListener("click", function (ev) {
+				const row = ev.target && ev.target.closest ? ev.target.closest("[data-layer]") : null;
+				if (!row) return;
+				self.selectedId = row.getAttribute("data-layer");
+				self.canvasSelected = false;
+				self.renderPreview();
+			});
+			layers.addEventListener("dragstart", function (ev) {
+				const row = ev.target && ev.target.closest ? ev.target.closest("[data-layer]") : null;
+				if (!row || !ev.dataTransfer) return;
+				ev.dataTransfer.setData("text/plain", row.getAttribute("data-layer") || "");
+				ev.dataTransfer.effectAllowed = "move";
+			});
+			layers.addEventListener("dragover", function (ev) {
+				ev.preventDefault();
+			});
+			layers.addEventListener("drop", function (ev) {
+				ev.preventDefault();
+				const fromId = ev.dataTransfer ? ev.dataTransfer.getData("text/plain") : "";
+				const row = ev.target && ev.target.closest ? ev.target.closest("[data-layer]") : null;
+				const toId = row ? row.getAttribute("data-layer") : "";
+				if (!fromId || !toId || fromId === toId) return;
+				const list = (self.layout.canvas_elements || []).slice();
+				const visual = list.slice().reverse();
+				const from = visual.findIndex(function (el) { return el.id === fromId; });
+				const to = visual.findIndex(function (el) { return el.id === toId; });
+				if (from < 0 || to < 0) return;
+				const moved = visual.splice(from, 1)[0];
+				visual.splice(to, 0, moved);
+				self.layout.canvas_elements = visual.slice().reverse();
+				self.renderPreview();
+				self.emitChange();
 			});
 		}
 		const itemText = this.root.querySelector("#ticketItemText");
@@ -870,15 +1181,73 @@
 				self.emitChange();
 			});
 		});
-		const fontEl = this.root.querySelector("#ticketElFont");
-		if (fontEl) {
-			fontEl.addEventListener("input", function () {
+		const fontBtn = this.root.querySelector("#ticketElFontBtn");
+		const fontMenuEl = this.root.querySelector("#ticketElFontMenu");
+		if (fontBtn && fontMenuEl) {
+			function placeFontMenu() {
+				const rect = fontBtn.getBoundingClientRect();
+				const menuHeight = 248;
+				const spaceBelow = window.innerHeight - rect.bottom;
+				fontMenuEl.style.position = "fixed";
+				fontMenuEl.style.left = Math.max(8, rect.left) + "px";
+				fontMenuEl.style.width = Math.max(76, rect.width) + "px";
+				fontMenuEl.style.right = "auto";
+				if (spaceBelow < menuHeight && rect.top > spaceBelow) {
+					fontMenuEl.style.top = "auto";
+					fontMenuEl.style.bottom = (window.innerHeight - rect.top + 4) + "px";
+				} else {
+					fontMenuEl.style.bottom = "auto";
+					fontMenuEl.style.top = (rect.bottom + 4) + "px";
+				}
+			}
+			fontBtn.addEventListener("click", function (ev) {
+				ev.preventDefault();
+				ev.stopPropagation();
+				const opening = fontMenuEl.hidden;
+				fontMenuEl.hidden = !opening;
+				fontBtn.setAttribute("aria-expanded", opening ? "true" : "false");
+				if (opening) {
+					placeFontMenu();
+					const current = fontMenuEl.querySelector(".is-active");
+					if (current && current.scrollIntoView) current.scrollIntoView({ block: "center" });
+				}
+			});
+			fontMenuEl.addEventListener("click", function (ev) {
+				ev.stopPropagation();
+				const opt = ev.target && ev.target.closest ? ev.target.closest("[data-font-size]") : null;
+				if (!opt) return;
+				ev.preventDefault();
 				const item = self.findById(self.selectedId);
-				if (!item || !self.isTextElement(item.type)) return;
-				item.fontScale = clampNum(Number(fontEl.value) / 100, 0.7, 2.2, 1);
+				if (!item || !self.isTextElement(item.type) || item.type === "jod_logo") return;
+				const size = Number(opt.getAttribute("data-font-size"));
+				if (FONT_STEPS.indexOf(size) < 0) return;
+				const tmpl = self.currentTemplate();
+				const base = defaultFontPx(item.type, (tmpl && tmpl.id) || "");
+				item.fontSize = size;
+				item.fontScale = clampNum(size / base, 0.4, 8, 1);
+				self.growBoxForFont(item, size);
 				self.applyNodeBox(item);
+				const hEl = self.root.querySelector("#ticketElHeight");
+				if (hEl) hEl.value = String(Math.round(item.h));
+				fontBtn.textContent = String(size);
+				self.markFontMenu(size);
+				fontMenuEl.hidden = true;
+				fontBtn.setAttribute("aria-expanded", "false");
 				self.emitChange();
 			});
+			document.addEventListener("click", function () {
+				if (fontMenuEl.hidden) return;
+				fontMenuEl.hidden = true;
+				fontBtn.setAttribute("aria-expanded", "false");
+			});
+			const floatCard = self.root.querySelector("#ticketFloatCard");
+			if (floatCard) {
+				floatCard.addEventListener("scroll", function () {
+					if (fontMenuEl.hidden) return;
+					fontMenuEl.hidden = true;
+					fontBtn.setAttribute("aria-expanded", "false");
+				});
+			}
 		}
 		const deselectBtn = this.root.querySelector("#ticketDeselectBtn");
 		if (deselectBtn) deselectBtn.addEventListener("click", function () { self.clearSelection(); });
@@ -1109,6 +1478,12 @@
 				? "Premium active - drag or remove the JOD logo on the canvas."
 				: "JOD Events logo stays on free plans. Upgrade to Premium to remove it.";
 		}
+		const heroSection = this.root.querySelector("#ticketHeroUploadSection");
+		const heroBtn = this.root.querySelector("#ticketHeroUploadBtn");
+		const sunsetOn = (L.template_id || "") === "sunset";
+		const heroReady = !!(L.sunset_hero_src && L.sunset_hero_src !== this._heroFailedSrc);
+		if (heroSection) heroSection.hidden = !sunsetOn;
+		if (heroBtn) heroBtn.textContent = heroReady ? "Change photo" : "Choose photo";
 	};
 
 	TicketCanvasController.prototype.syncFormFieldToggles = function () {};
@@ -1144,7 +1519,13 @@
 			}).join("");
 			shapeHost.querySelectorAll("[data-add-shape]").forEach(function (btn) {
 				btn.addEventListener("click", function () {
-					self.addElement(btn.getAttribute("data-add-shape"));
+					const type = btn.getAttribute("data-add-shape");
+					if (type === "image") {
+						const picker = self.root.querySelector("#ticketItemImage");
+						if (picker) picker.click();
+						return;
+					}
+					self.addElement(type);
 					if (self.toolsOpen) self.setToolsOpen(false);
 				});
 			});
@@ -1175,12 +1556,16 @@
 				self.layout.template_id = id;
 				if (id === "midnight") {
 					applyMidnightGeometry(self.layout.canvas_elements);
-				} else if (prevId === "midnight") {
+				} else if (id === "sunset") {
+					applySunsetGeometry(self.layout.canvas_elements);
+				} else if (id === "vip_gold") {
+					applyVipGeometry(self.layout.canvas_elements);
+				} else if (prevId === "midnight" || prevId === "sunset" || prevId === "vip_gold") {
 					self.layout.canvas_elements = snapDataElementsToDefault(self.layout.canvas_elements);
 				}
 				if (tmpl && tmpl.preview) {
 					if (tmpl.preview.accent) self.layout.accent_color = tmpl.preview.accent;
-					if (id === "midnight") {
+					if (id === "midnight" || id === "sunset" || id === "vip_gold") {
 						self.layout.card_color = "";
 						self.layout.text_color = "";
 					} else {
@@ -1209,6 +1594,15 @@
 		const title = (L.headline_override || "").trim() || s.title;
 		const ticketLabel = (L.ticket_type_override || "").trim() || s.ticketType;
 		const color = sanitizeColor(el.color, "#38bdf8");
+		const isSunset = L.template_id === "sunset";
+		const isVip = L.template_id === "vip_gold";
+		const isMidnight = L.template_id === "midnight";
+		const sgDetail = function (_label, value) {
+			return '<div class="sg-detail"><strong>' + escapeHtml(value) + "</strong></div>";
+		};
+		const vgDetail = function (_label, value) {
+			return '<div class="vg-detail"><strong>' + escapeHtml(value) + "</strong></div>";
+		};
 		switch (type) {
 			case "poster": return '<div class="tc-poster-fill" aria-hidden="true"></div>';
 			case "image": {
@@ -1218,47 +1612,72 @@
 			}
 			case "stub": {
 				const custom = String(el.text || "").trim();
-				const fallback = [ticketLabel, title].filter(Boolean).join(" ");
+				const fallback = isSunset ? "YOUR QR CODE" : (isVip ? "ADMIT ONE" : [ticketLabel, title].filter(Boolean).join(" "));
 				return '<div class="ms-stub-text">' + escapeHtml(custom || fallback) + "</div>";
 			}
-			case "title": return '<div class="tc-el-title">' + escapeHtml(title) + "</div>";
+			case "title": return isSunset
+				? '<div class="sg-sub">' + escapeHtml(title) + "</div>"
+				: (isVip
+					? '<div class="vg-sub">' + escapeHtml(title) + "</div>"
+					: '<div class="tc-el-title">' + escapeHtml(title) + "</div>");
 			case "badge": return '<div class="tc-el-badge">E-Ticket</div>';
 			case "date": {
-				if (L.template_id === "midnight") {
-					const raw = String(s.date || "");
-					const cut = raw.lastIndexOf(",");
-					const datePart = cut > 0 ? raw.slice(0, cut).trim() : raw;
-					const timePart = cut > 0 ? raw.slice(cut + 1).trim() : "";
-					return '<div class="ms-meta"><span>DATE</span><strong>' + escapeHtml(datePart) + "</strong>" +
-						(timePart ? '<span>TIME</span><strong>' + escapeHtml(timePart) + "</strong>" : "") + "</div>";
-				}
+				if (isVip) return vgDetail("DATE", s.date);
+				if (isSunset) return sgDetail("DATE", s.date);
+				if (isMidnight) return '<div class="ms-meta"><strong>' + escapeHtml(s.date) + "</strong></div>";
 				return '<div class="tc-el-text">' + escapeHtml(s.date) + "</div>";
 			}
-			case "venue": return '<div class="tc-el-text muted">' + escapeHtml(s.venue) + "</div>";
+			case "venue": return isVip
+				? vgDetail("VENUE", s.venue)
+				: (isSunset
+					? sgDetail("VENUE", s.venue)
+					: '<div class="tc-el-text muted">' + escapeHtml(s.venue) + "</div>");
 			case "qty": return '<div class="tc-el-text muted">1 Ticket</div>';
-			case "ticket_type": return '<div class="tc-el-strong">' + escapeHtml(ticketLabel) + "</div>";
+			case "ticket_type": return isSunset
+				? '<div class="sg-hero">' + escapeHtml(ticketLabel) + "</div>"
+				: (isVip
+					? '<div class="vg-hero">' + escapeHtml(ticketLabel) + "</div>"
+					: '<div class="tc-el-strong">' + escapeHtml(ticketLabel) + "</div>");
 			case "seat": {
-				if (L.template_id === "midnight") {
-					return '<div class="ms-meta"><span>SEAT</span><strong>' + escapeHtml(s.seat) + "</strong></div>";
-				}
+				if (isVip) return vgDetail("SEAT", s.seat);
+				if (isSunset) return sgDetail("SEAT", s.seat);
+				if (isMidnight) return '<div class="ms-meta"><strong>' + escapeHtml(s.seat) + "</strong></div>";
 				return '<div class="tc-el-text muted">' + escapeHtml(s.seat) + "</div>";
 			}
 			case "name": {
-				if (L.template_id === "midnight") {
-					return '<div class="ms-name"><span>NAME</span><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
-				}
+				if (isVip) return vgDetail("NAME", s.attendeeName);
+				if (isSunset) return sgDetail("NAME", s.attendeeName);
+				if (isMidnight) return '<div class="ms-name"><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
 				return '<div class="tc-el-row"><span>Name</span><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
 			}
-			case "phone": return '<div class="tc-el-row"><span>Phone</span><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>";
-			case "email": return '<div class="tc-el-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>";
+			case "phone": return isVip
+				? vgDetail("PHONE", s.attendeePhone)
+				: (isSunset
+					? sgDetail("PHONE", s.attendeePhone)
+					: (isMidnight
+						? '<div class="tc-el-row"><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>"
+						: '<div class="tc-el-row"><span>Phone</span><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>"));
+			case "email": return isVip
+				? vgDetail("EMAIL", s.attendeeEmail)
+				: (isSunset
+					? sgDetail("EMAIL", s.attendeeEmail)
+					: (isMidnight
+						? '<div class="tc-el-row"><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>"
+						: '<div class="tc-el-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>"));
 			case "qr": return '<div class="tc-el-qr" aria-hidden="true"></div>';
 			case "booking_id": {
-				if (L.template_id === "midnight") {
-					return '<div class="ms-code"><span>ID</span><strong>' + escapeHtml(s.bookingId) + "</strong></div>";
-				}
+				if (isVip) return '<div class="vg-id"><strong>' + escapeHtml(s.bookingId) + "</strong></div>";
+				if (isSunset) return sgDetail("ID", s.bookingId);
+				if (isMidnight) return '<div class="ms-code"><strong>' + escapeHtml(s.bookingId) + "</strong></div>";
 				return '<div class="tc-el-text strong">BOOKING ID: #' + escapeHtml(s.bookingId) + "</div>";
 			}
-			case "price": return '<div class="tc-el-price"><span class="tc-price-label">Price</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>";
+			case "price": return isVip
+				? vgDetail("PRICE", s.price)
+				: (isSunset
+					? sgDetail("PRICE", s.price)
+					: (isMidnight
+						? '<div class="tc-el-price"><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"
+						: '<div class="tc-el-price"><span class="tc-price-label">Price</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"));
 			case "jod_logo": return '<div class="tc-el-logo is-watermark" aria-label="JOD Events"><img src="/images/JOD%20Events%20Logo.png" alt="JOD Events" draggable="false" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'/images/jod-logo.png\';}" /></div>';
 			case "footer": {
 				const note = String(L.custom_footer || "").trim();
@@ -1274,13 +1693,72 @@
 		}
 	};
 
+	TicketCanvasController.prototype.renderLayers = function () {
+		const host = this.root && this.root.querySelector("#ticketLayers");
+		if (!host) return;
+		const self = this;
+		const items = (this.layout.canvas_elements || []).slice().reverse();
+		host.innerHTML = items.map(function (el) {
+			const def = DEF_BY_TYPE[el.type] || {};
+			const active = self.selectedId === el.id;
+			return '<button type="button" class="ticket-layer' + (active ? " is-active" : "") + '" data-layer="' + escapeHtml(el.id) + '" draggable="true">' +
+				'<span class="ticket-layer-grip" aria-hidden="true"></span>' +
+				"<span>" + escapeHtml(def.label || el.type) + "</span></button>";
+		}).join("");
+	};
+
 	TicketCanvasController.prototype.readImageFile = function (file, done) {
 		const reader = new FileReader();
 		reader.onload = function () {
 			const src = String(reader.result || "");
 			if (src.indexOf("data:image/") === 0 && src.length < 700000) done(src);
+			else done("");
 		};
+		reader.onerror = function () { done(""); };
 		reader.readAsDataURL(file);
+	};
+
+	TicketCanvasController.prototype.mountHeroPhoto = function (card, heroSrc) {
+		if (!card) return;
+		const status = this.root && this.root.querySelector("#ticketHeroStatus");
+		const setStatus = function (text) {
+			if (status) status.textContent = text || "";
+		};
+		if (!heroSrc || heroSrc === this._heroFailedSrc) {
+			if (heroSrc && heroSrc === this._heroFailedSrc) setStatus("That photo could not be shown. Choose a JPG, PNG, or WEBP.");
+			return;
+		}
+		const display = resolveTicketMediaUrl(heroSrc);
+		if (!display) {
+			this._heroFailedSrc = heroSrc;
+			setStatus("That photo could not be shown. Choose a JPG, PNG, or WEBP.");
+			return;
+		}
+		const self = this;
+		const token = (this._heroToken = (this._heroToken || 0) + 1);
+		const probe = new Image();
+		probe.onload = function () {
+			if (self._heroToken !== token) return;
+			const sky = card.querySelector(".sg-sky");
+			if (!sky) return;
+			const img = document.createElement("img");
+			img.className = "sg-hero-photo";
+			img.alt = "";
+			img.draggable = false;
+			img.src = display;
+			sky.appendChild(img);
+			card.classList.add("has-hero-photo");
+			setStatus(self._heroNote || "Photo added.");
+			self._heroNote = "";
+		};
+		probe.onerror = function () {
+			if (self._heroToken !== token) return;
+			self._heroFailedSrc = heroSrc;
+			card.classList.remove("has-hero-photo");
+			setStatus("That photo could not be shown. Choose a JPG, PNG, or WEBP.");
+			self.syncControls();
+		};
+		probe.src = display;
 	};
 
 	TicketCanvasController.prototype.renderPreview = function () {
@@ -1295,34 +1773,30 @@
 		const hasSel = !!this.selectedId;
 
 		const isMidnight = (tmpl.id || "") === "midnight";
-		stage.style.background = isMidnight ? "#12081f" : (p.bg || "#f4f6f8");
+		const isSunset = (tmpl.id || "") === "sunset";
+		const isVip = (tmpl.id || "") === "vip_gold";
+		stage.style.background = isMidnight ? "#12081f" : (isSunset ? "#2a120c" : (isVip ? "#111111" : (p.bg || "#f4f6f8")));
+		const heroSrc = isSunset ? sanitizeMediaSrc(L.sunset_hero_src) : "";
 		card.className = "ticket-live-card is-canvas style-" + (tmpl.id || "classic") + (hasSel ? " has-selection" : "") + (this.canvasSelected && !hasSel ? " is-canvas-selected" : "");
 		card.style.background = isMidnight
 			? "linear-gradient(118deg, #4c1d95 0%, #6d28d9 46%, #7c3aed 100%)"
-			: (L.card_color || p.card || "#fff");
-		card.style.color = isMidnight ? "#ffffff" : (L.text_color || p.text || "#111827");
+			: (isSunset ? "#ff7a1a" : (isVip ? "#e6c15a" : (L.card_color || p.card || "#fff")));
+		card.style.backgroundImage = (isSunset || isVip) ? "none" : "";
+		card.style.color = L.text_color || (isMidnight || isSunset ? "#ffffff" : (isVip ? "#111111" : (p.text || "#111827")));
 		card.style.setProperty("--ticket-accent", isMidnight ? "#c4b5fd" : accent);
-		card.style.setProperty("--ticket-muted", isMidnight ? "#ddd6fe" : (p.muted || "#6b7280"));
-		card.style.setProperty("--ticket-stage", isMidnight ? "#12081f" : (p.bg || "#f4f6f8"));
+		card.style.setProperty("--ticket-muted", isMidnight ? "#ddd6fe" : (isSunset ? "#78716c" : (isVip ? "#d4a017" : (p.muted || "#6b7280"))));
+		card.style.setProperty("--ticket-stage", isMidnight ? "#12081f" : (isSunset ? "#2a120c" : (isVip ? "#111111" : (p.bg || "#f4f6f8"))));
 
 		/* Keep footer note off the venue on every paint (old saved layouts). */
-		if (!isMidnight) repairFooterPlacement(L.canvas_elements);
-		if (isMidnight) {
-			(L.canvas_elements || []).forEach(function (el) {
-				const geo = el && MIDNIGHT_GEOMETRY[el.type];
-				if (!geo || ["phone", "email", "price", "venue"].indexOf(el.type) < 0) return;
-				if (el.w >= 60) {
-					el.x = geo.x;
-					el.y = geo.y;
-					el.w = geo.w;
-					el.h = geo.h;
-				}
-			});
-		}
+		if (!isMidnight && !isSunset && !isVip) repairFooterPlacement(L.canvas_elements);
 
 		const face = isMidnight
 			? '<div class="ms-waves"></div><div class="ms-hole"></div><div class="ms-notch is-top"></div><div class="ms-notch is-bot"></div><div class="ms-perf"></div>'
-			: '<div class="tlc-accent"></div>';
+			: (isSunset
+				? '<div class="sg-sky"></div><div class="sg-sun"></div><div class="sg-crowd"></div><div class="sg-band"></div><div class="sg-stubbg"></div><div class="sg-notch is-top"></div><div class="sg-notch is-bot"></div><div class="sg-perf"></div>'
+				: (isVip
+					? '<div class="vg-gold"></div><div class="vg-black"></div>'
+					: '<div class="tlc-accent"></div>'));
 		const bits = [
 			/* Face clips accents to rounded corners; nodes stay above so handles can overflow. */
 			'<div class="tlc-face" aria-hidden="true">' + face + "</div>",
@@ -1333,9 +1807,20 @@
 			const selected = self.selectedId === el.id;
 			const def = DEF_BY_TYPE[el.type] || {};
 			const isLine = el.type === "line" || el.type === "dashed_line";
-			const scale = Number.isFinite(Number(el.fontScale)) ? el.fontScale : 1;
+			const customFont = self.hasCustomFont(el);
+			const fontPx = self.fontPxFor(el);
+			const scale = customFont ? 1 : (Number.isFinite(Number(el.fontScale)) ? el.fontScale : 1);
 			const align = self.isTextElement(el.type) ? sanitizeAlign(el.align, el.type) : "";
 			const ownColor = optionalColor(el.color);
+			const ticketText = optionalColor(L.text_color);
+			let paint = ownColor;
+			if (!paint && !ticketText) {
+				if (isSunset && ["name", "email", "phone", "date", "venue", "price", "seat"].indexOf(el.type) >= 0) paint = "#1c1917";
+				else if (isSunset && (el.type === "booking_id" || el.type === "stub")) paint = "#ffffff";
+				else if (isVip && el.type === "booking_id") paint = "#ffffff";
+				else if (isVip && ["name", "email", "phone", "date", "venue", "price", "seat", "title", "ticket_type"].indexOf(el.type) >= 0) paint = "#111111";
+				else if (isVip && el.type === "stub") paint = "#f6e27a";
+			}
 			const handles = isLine
 				? '<span class="tc-handle tc-handle-e" data-resize="e" title="Extend"></span><span class="tc-handle tc-handle-w" data-resize="w" title="Extend"></span><span class="tc-handle tc-handle-s" data-resize="s" title="Thickness"></span>'
 				: '<span class="tc-handle tc-handle-nw" data-resize="nw"></span><span class="tc-handle tc-handle-ne" data-resize="ne"></span><span class="tc-handle tc-handle-sw" data-resize="sw"></span><span class="tc-handle tc-handle-se" data-resize="se"></span><span class="tc-handle tc-handle-n" data-resize="n"></span><span class="tc-handle tc-handle-s" data-resize="s"></span><span class="tc-handle tc-handle-e" data-resize="e"></span><span class="tc-handle tc-handle-w" data-resize="w"></span>';
@@ -1351,9 +1836,10 @@
 					(def.shape ? " is-shape" : "") +
 					(isLine ? " is-line" : "") +
 					(align ? " is-align-" + align : "") +
+					(customFont ? " has-font-size" : "") +
 					'" data-id="' + escapeHtml(el.id) + '" data-type="' + el.type +
 					'" style="left:' + el.x + "%;top:" + el.y + "%;width:" + el.w + "%;height:" + el.h +
-					"%;--tc-font-scale:" + scale + ";" + (ownColor ? "color:" + ownColor + ";" : "") + '">' +
+					"%;--tc-font-scale:" + scale + ";" + (customFont ? "--tc-font-px:" + fontPx + "px;" : "") + (paint ? "color:" + paint + ";" : "") + '">' +
 				'<div class="tc-node-body">' + self.elementContent(el) + "</div>" +
 				removeCtrl +
 				'<div class="tc-handles" aria-hidden="true">' + handles + "</div>" +
@@ -1361,6 +1847,8 @@
 			);
 		});
 		card.innerHTML = bits.join("");
+		this.mountHeroPhoto(card, heroSrc);
+		this.renderLayers();
 		this.syncSelectedPanel();
 
 		card.querySelectorAll(".tc-node").forEach(function (node) {

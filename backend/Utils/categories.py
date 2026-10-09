@@ -29,6 +29,20 @@ INVALID_IMAGE_MESSAGE = INVALID_IMAGE_TYPE_MESSAGE
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
+_KB = 1024
+_MB = 1024 * 1024
+# min bytes, max bytes, message. The window is the recommended start through the maximum upload.
+ASSET_FILE_LIMITS = {
+    "banner": (500 * _KB, 5 * _MB, "Event banner must be 500 KB to 5 MB. Recommended 500 KB-1 MB."),
+    "card_image": (200 * _KB, 2 * _MB, "Event card image must be 200 KB to 2 MB. Recommended 200-500 KB."),
+    "sponsor_logo": (50 * _KB, 1 * _MB, "Sponsor logo must be 50 KB to 1 MB. Recommended 50-200 KB."),
+    "artist_photo": (200 * _KB, 2 * _MB, "Artist photo must be 200 KB to 2 MB. Recommended 200-500 KB."),
+    "gallery": (500 * _KB, 5 * _MB, "Gallery photo must be 500 KB to 5 MB. Recommended 500 KB-1.5 MB."),
+    "ticket": (200 * _KB, 3 * _MB, "Ticket image must be 200 KB to 3 MB. Recommended 200-800 KB."),
+    "logo": (50 * _KB, 1 * _MB, "Logo must be 50 KB to 1 MB. Recommended 50-200 KB."),
+    "payment_qr": (50 * _KB, 1 * _MB, "Payment QR must be 50 KB to 1 MB. Recommended 50-200 KB."),
+    "document": (500 * _KB, 5 * _MB, "Verification document must be 500 KB to 5 MB. Recommended 500 KB-2 MB."),
+}
 
 
 def normalize_category(value):

@@ -43,6 +43,7 @@ from Utils.categories import (
     INVALID_IMAGE_MESSAGE,
     INVALID_IMAGE_TYPE_MESSAGE,
     INVALID_IMAGE_SIZE_MESSAGE,
+    ASSET_FILE_LIMITS,
     MAX_IMAGE_BYTES,
     is_allowed_image_bytes,
     is_allowed_image_filename,
@@ -2223,7 +2224,7 @@ async def upload_design_asset(
     if current_user and current_user.email.lower() != email_clean:
         raise HTTPException(status_code=403, detail="You can only upload assets for your own account.")
 
-    allowed_types = {"banner", "card_image", "sponsor_logo", "artist_photo", "gallery", "logo", "payment_qr"}
+    allowed_types = {"banner", "card_image", "sponsor_logo", "artist_photo", "gallery", "ticket", "logo", "payment_qr"}
     if asset_type not in allowed_types:
         raise HTTPException(status_code=400, detail=f"Invalid asset_type. Allowed: {', '.join(sorted(allowed_types))}")
 
@@ -2231,8 +2232,11 @@ async def upload_design_asset(
         raise HTTPException(status_code=400, detail=INVALID_IMAGE_TYPE_MESSAGE)
 
     contents = await file.read()
-    if len(contents) > MAX_IMAGE_BYTES:
-        raise HTTPException(status_code=400, detail=INVALID_IMAGE_SIZE_MESSAGE)
+    min_bytes, max_bytes, size_message = ASSET_FILE_LIMITS.get(
+        asset_type, (0, MAX_IMAGE_BYTES, INVALID_IMAGE_SIZE_MESSAGE)
+    )
+    if len(contents) < min_bytes or len(contents) > max_bytes:
+        raise HTTPException(status_code=400, detail=size_message)
     if not is_allowed_image_bytes(contents, file.content_type or ""):
         raise HTTPException(status_code=400, detail=INVALID_IMAGE_TYPE_MESSAGE)
 

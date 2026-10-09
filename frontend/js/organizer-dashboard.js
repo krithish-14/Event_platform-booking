@@ -509,12 +509,37 @@ async function initOrganizerDashboard() {
 
 	const ALLOWED_IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
 	const ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-	const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 	const IMAGE_TYPE_MSG = "Your image is not in this standard file type. Please use JPG, JPEG, PNG, or WEBP.";
-	const IMAGE_SIZE_MSG = "Your image is not in this standard size. Maximum file size is 5MB.";
+	const KB = 1024;
+	const MB = 1024 * 1024;
+	/* Recommended band through the maximum upload. Files outside this window are rejected. */
+	const IMAGE_FILE_LIMITS = {
+		banner: { min: 500 * KB, max: 5 * MB, recommended: "500 KB\u20131 MB", maximum: "5 MB" },
+		card_image: { min: 200 * KB, max: 2 * MB, recommended: "200\u2013500 KB", maximum: "2 MB" },
+		profile: { min: 100 * KB, max: 2 * MB, recommended: "100\u2013300 KB", maximum: "2 MB" },
+		gallery: { min: 500 * KB, max: 5 * MB, recommended: "500 KB\u20131.5 MB", maximum: "5 MB" },
+		sponsor_logo: { min: 50 * KB, max: 1 * MB, recommended: "50\u2013200 KB", maximum: "1 MB" },
+		artist_photo: { min: 200 * KB, max: 2 * MB, recommended: "200\u2013500 KB", maximum: "2 MB" },
+		ticket: { min: 200 * KB, max: 3 * MB, recommended: "200\u2013800 KB", maximum: "3 MB" },
+		document: { min: 500 * KB, max: 5 * MB, recommended: "500 KB\u20132 MB", maximum: "5 MB" },
+	};
 	const BANNER_TARGET_W = 1200;
-	const BANNER_TARGET_H = 530;
-	const BANNER_DIM_MSG = "Your image is not in this standard size. Use 1200 \u00d7 530 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
+	const BANNER_TARGET_H = 600;
+	const BANNER_DIM_MSG = "Your image is not in this standard size. Use 1200 \u00d7 600 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
+	const CARD_TARGET_W = 400;
+	const CARD_TARGET_H = 200;
+	const CARD_DIM_MSG = "Your image is not in this standard size. Use 400 \u00d7 200 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
+
+	function imageFileLimit(limitKey) {
+		return IMAGE_FILE_LIMITS[limitKey] || IMAGE_FILE_LIMITS.gallery;
+	}
+
+	function imageFileSizeMessage(fileSize, limit) {
+		const range = "Use " + limit.recommended + ", and no larger than " + limit.maximum + ".";
+		if (fileSize > limit.max) return "This file is too large. Maximum is " + limit.maximum + ". " + range;
+		if (fileSize < limit.min) return "This file is too small. " + range;
+		return "";
+	}
 
 	function hasAllowedImageMagicBytes(bytes) {
 		if (!bytes || bytes.length < 12) return false;
@@ -528,7 +553,6 @@ async function initOrganizerDashboard() {
 	async function validateImageFile(file, options) {
 		const opts = options || {};
 		if (!file) throw new Error(IMAGE_TYPE_MSG);
-		if (file.size > MAX_IMAGE_BYTES) throw new Error(IMAGE_SIZE_MSG);
 
 		const name = String(file.name || "").toLowerCase();
 		const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
@@ -540,26 +564,35 @@ async function initOrganizerDashboard() {
 		const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
 		if (!hasAllowedImageMagicBytes(header)) throw new Error(IMAGE_TYPE_MSG);
 
+		const limit = imageFileLimit(opts.limitKey);
+		const sizeMsg = imageFileSizeMessage(file.size, limit);
+		if (sizeMsg) throw new Error(sizeMsg);
+
 		if (opts.requireBannerSize) {
-			const dims = await new Promise((resolve, reject) => {
-				const url = URL.createObjectURL(file);
-				const img = new Image();
-				img.onload = () => {
-					URL.revokeObjectURL(url);
-					resolve({ width: img.naturalWidth, height: img.naturalHeight });
-				};
-				img.onerror = () => {
-					URL.revokeObjectURL(url);
-					reject(new Error(IMAGE_TYPE_MSG));
-				};
-				img.src = url;
-			});
-			const widthOff = Math.abs(dims.width - BANNER_TARGET_W);
-			const heightOff = Math.abs(dims.height - BANNER_TARGET_H);
-			if (widthOff >= 100 || heightOff >= 100) {
-				throw new Error(BANNER_DIM_MSG);
-			}
+			await assertImagePixelSize(file, BANNER_TARGET_W, BANNER_TARGET_H, BANNER_DIM_MSG);
 		}
+		if (opts.requireCardSize) {
+			await assertImagePixelSize(file, CARD_TARGET_W, CARD_TARGET_H, CARD_DIM_MSG);
+		}
+	}
+
+	function assertImagePixelSize(file, targetW, targetH, message) {
+		return new Promise((resolve, reject) => {
+			const url = URL.createObjectURL(file);
+			const img = new Image();
+			img.onload = () => {
+				URL.revokeObjectURL(url);
+				const widthOff = Math.abs(img.naturalWidth - targetW);
+				const heightOff = Math.abs(img.naturalHeight - targetH);
+				if (widthOff >= 100 || heightOff >= 100) reject(new Error(message));
+				else resolve();
+			};
+			img.onerror = () => {
+				URL.revokeObjectURL(url);
+				reject(new Error(IMAGE_TYPE_MSG));
+			};
+			img.src = url;
+		});
 	}
 
 	function formatDesignUploadError(err) {
@@ -567,10 +600,9 @@ async function initOrganizerDashboard() {
 		if (/standard file type|wrong file type|valid image file|jpg, jpeg, png/i.test(msg)) {
 			return IMAGE_TYPE_MSG;
 		}
-		if (/standard size|too large|5mb|5 mb|1200/i.test(msg)) {
-			if (/1200/.test(msg)) return BANNER_DIM_MSG;
-			return IMAGE_SIZE_MSG;
-		}
+		if (/1200/.test(msg)) return BANNER_DIM_MSG;
+		if (/400/.test(msg) && /200/.test(msg)) return CARD_DIM_MSG;
+		if (/too large|too small|Maximum is/i.test(msg)) return msg;
 		if (/failed to fetch|networkerror|load failed/i.test(msg)) {
 			return "Could not upload the image. Check your connection and try again.";
 		}
@@ -593,7 +625,11 @@ async function initOrganizerDashboard() {
 
 	async function uploadDesignAsset(file, assetType) {
 		if (!file || !email) throw new Error("Missing file or organizer email.");
-		await validateImageFile(file, { requireBannerSize: assetType === "banner" });
+		await validateImageFile(file, {
+			requireBannerSize: assetType === "banner",
+			requireCardSize: assetType === "card_image",
+			limitKey: assetType
+		});
 		const fd = new FormData();
 		fd.append("email", email);
 		fd.append("asset_type", assetType);
@@ -1137,13 +1173,15 @@ async function initOrganizerDashboard() {
 		const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
 		if (allowed.indexOf(ext) < 0) {
 			const err = document.getElementById(docType === "pan_card" ? "kyc_pan_file_error" : "kyc_cheque_file_error");
-			if (err) { err.textContent = "Invalid file format. Please upload .jpg, .png, or .pdf (max 2MB)."; err.style.display = "block"; }
+			if (err) { err.textContent = "Invalid file format. Please upload .jpg, .png, or .pdf (recommended 500 KB\u20132 MB, maximum 5 MB)."; err.style.display = "block"; }
 			throw new Error("Invalid file format");
 		}
-		if (file.size > 2 * 1024 * 1024) {
+		const docLimit = imageFileLimit("document");
+		const docSizeMsg = imageFileSizeMessage(file.size, docLimit);
+		if (docSizeMsg) {
 			const err = document.getElementById(docType === "pan_card" ? "kyc_pan_file_error" : "kyc_cheque_file_error");
-			if (err) { err.textContent = "File too large. Max size is 2MB."; err.style.display = "block"; }
-			throw new Error("File too large");
+			if (err) { err.textContent = docSizeMsg; err.style.display = "block"; }
+			throw new Error(docSizeMsg);
 		}
 		const fd = new FormData();
 		fd.append("email", email);
@@ -3845,7 +3883,7 @@ async function initOrganizerDashboard() {
 				layout: ticketLayoutState,
 				formFields: formFields,
 				sample: { title: sampleTitle, venue: sampleVenue },
-				onUploadImage: function (file) { return uploadDesignAsset(file, "gallery"); },
+				onUploadImage: function (file) { return uploadDesignAsset(file, "ticket"); },
 				onChange: function (layout) {
 					if (ticketLayoutEventId && activeEventId && !sameTicketEvent(ticketLayoutEventId, activeEventId)) {
 						return;
@@ -4919,8 +4957,10 @@ async function initOrganizerDashboard() {
 				showNotification("Please choose a JPG, PNG, or WEBP image.");
 				return;
 			}
-			if (file.size > 5 * 1024 * 1024) {
-				showNotification("Please choose an image under 5MB.");
+			const profileLimit = imageFileLimit("profile");
+			const profileSizeMsg = imageFileSizeMessage(file.size, profileLimit);
+			if (profileSizeMsg) {
+				showNotification(profileSizeMsg);
 				return;
 			}
 			if (window.JodCropModal && typeof window.JodCropModal.open === "function") {
@@ -5375,7 +5415,7 @@ async function initOrganizerDashboard() {
 						<button type="button" class="btn-upload-sponsor-logo" style="background:#fff; border:1.5px solid #cbd5e1; color:#2563eb; font-weight:700; border-radius:8px; padding:0 0.8rem; flex:1; height:44px; font-size:0.85rem; cursor:pointer;">${logoUrl ? "Replace Logo" : "Upload Logo"}</button>
 						<button type="button" class="btn-remove-sponsor" title="Remove Sponsor" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:8px; padding:0 0.8rem; cursor:pointer; font-weight:700; height:44px;">&times;</button>
 					</div>
-					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP \u00b7 Max 5MB</span>
+					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP \u00b7 recommended 50\u2013200 KB, maximum 1 MB</span>
 					${logoUrl ? `<img class="sponsor-preview-img" src="${resolveUploadUrl(logoUrl)}" alt="Sponsor logo" style="display:block; width:100%; max-width:180px; height:72px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; background:#fff; padding:6px;" />` : ""}
 				</div>
 			</div>
@@ -5468,7 +5508,7 @@ async function initOrganizerDashboard() {
 						<button type="button" class="btn-upload-artist-photo" style="background:#fff; border:1.5px solid #cbd5e1; color:#2563eb; font-weight:700; border-radius:8px; padding:0 0.8rem; flex:1; height:44px; font-size:0.85rem; cursor:pointer;">${photoUrl ? "Replace Photo" : "Upload Photo"}</button>
 						<button type="button" class="btn-remove-artist" title="Remove Artist" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:8px; padding:0 0.8rem; cursor:pointer; font-weight:700; height:44px;">&times;</button>
 					</div>
-					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP \u00b7 Max 5MB</span>
+					<span style="font-size:0.74rem; color:#64748b;">JPG, JPEG, PNG, WEBP \u00b7 recommended 200\u2013500 KB, maximum 2 MB</span>
 					${photoUrl ? `<img class="artist-preview-img" src="${resolveUploadUrl(photoUrl)}" alt="Artist photo" style="display:block; width:72px; height:72px; object-fit:cover; border-radius:50%; border:1px solid #e2e8f0; background:#f8fafc;" />` : ""}
 				</div>
 			</div>

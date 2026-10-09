@@ -20,7 +20,7 @@ from Services import otp as otp_service
 from Utils.id_generator import generate_customer_id, generate_host_id_from_customer_id
 from Services.email import send_email
 from Services.runtime_env import smtp_configured
-from Utils.categories import is_allowed_kyc_bytes
+from Utils.categories import ASSET_FILE_LIMITS, is_allowed_kyc_bytes
 
 router = APIRouter()
 
@@ -702,13 +702,12 @@ def upload_document(
             detail=f"Invalid file format '{ext}'. Upload a clear image in .jpg or .pdf format only."
         )
 
-    # Read content to check file size (max 2MB = 2 * 1024 * 1024 bytes)
     contents = file.file.read()
-    max_bytes = 2 * 1024 * 1024
-    if len(contents) > max_bytes:
+    min_bytes, max_bytes, size_message = ASSET_FILE_LIMITS["document"]
+    if len(contents) < min_bytes or len(contents) > max_bytes:
         raise HTTPException(
             status_code=400,
-            detail="File size should not be greater than 2MB."
+            detail=size_message,
         )
     if not is_allowed_kyc_bytes(contents, file.filename or "", file.content_type or ""):
         raise HTTPException(

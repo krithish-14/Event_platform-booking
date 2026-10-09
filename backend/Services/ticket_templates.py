@@ -29,8 +29,8 @@ TEMPLATES: List[Dict[str, Any]] = [
     {
         "id": "sunset",
         "name": "Sunset Glow",
-        "tagline": "Warm coral strip for festivals & parties",
-        "preview": {"bg": "#fff7ed", "card": "#fffbeb", "accent": "#ea580c", "text": "#1c1917", "muted": "#78716c"},
+        "tagline": "Sunset concert ticket — QR on the stub",
+        "preview": {"bg": "#2a120c", "card": "#ff7a1a", "accent": "#e10600", "text": "#ffffff", "muted": "#fff7ed"},
         "pdf": {"page_rgb": (1.0, 0.97, 0.93), "card_rgb": (1.0, 0.98, 0.95), "accent_rgb": (0.92, 0.35, 0.05), "text_rgb": (0.11, 0.10, 0.09), "muted_rgb": (0.47, 0.44, 0.42), "style": "sunset"},
     },
     {
@@ -57,8 +57,8 @@ TEMPLATES: List[Dict[str, Any]] = [
     {
         "id": "vip_gold",
         "name": "VIP Gold",
-        "tagline": "Charcoal + gold for premium seating",
-        "preview": {"bg": "#1c1917", "card": "#292524", "accent": "#d4a017", "text": "#fafaf9", "muted": "#a8a29e"},
+        "tagline": "Gold details, QR on the black side",
+        "preview": {"bg": "#1c1917", "card": "#e6c15a", "accent": "#d4a017", "text": "#111111", "muted": "#f6e27a"},
         "pdf": {"page_rgb": (0.11, 0.10, 0.09), "card_rgb": (0.16, 0.15, 0.14), "accent_rgb": (0.83, 0.63, 0.09), "text_rgb": (0.98, 0.98, 0.96), "muted_rgb": (0.66, 0.64, 0.62), "style": "vip_gold"},
     },
     {
@@ -166,6 +166,9 @@ def normalize_ticket_layout(
     base["custom_footer"] = footer
     base["headline_override"] = headline
     base["ticket_type_override"] = ticket_name
+    hero_src = str(raw.get("sunset_hero_src") or "").strip()
+    if hero_src.startswith(("https://", "http://", "/")) and len(hero_src) <= 800:
+        base["sunset_hero_src"] = hero_src
 
     elements = raw.get("canvas_elements")
     cleaned_elements = []
@@ -223,13 +226,20 @@ def normalize_ticket_layout(
                 entry["text"] = str(item.get("text") or "").strip()[:120]
             if etype == "image":
                 src = str(item.get("src") or "").strip()
-                if src.startswith(("https://", "http://", "/")) and len(src) <= 500:
+                if src.startswith(("https://", "http://", "/")) and len(src) <= 800:
                     entry["src"] = src
+            font_steps = {6, 8, 10, 12, 14, 16, 18, 21, 24, 28, 32, 36, 42, 48, 56, 64, 72, 80, 96}
+            try:
+                font_size = int(round(float(item.get("fontSize", 0))))
+            except (TypeError, ValueError):
+                font_size = 0
+            if font_size in font_steps:
+                entry["fontSize"] = font_size
             try:
                 font_scale = float(item.get("fontScale", 1))
             except (TypeError, ValueError):
                 font_scale = 1.0
-            if 0.7 <= font_scale <= 2.2 and abs(font_scale - 1.0) > 0.01:
+            if 0.4 <= font_scale <= 8 and abs(font_scale - 1.0) > 0.01:
                 entry["fontScale"] = round(font_scale, 2)
             cleaned_elements.append(entry)
     if cleaned_elements:
