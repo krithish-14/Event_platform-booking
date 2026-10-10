@@ -10,6 +10,8 @@ import smtplib
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.policy import SMTP as SMTP_POLICY
+from email.utils import parseaddr
 from typing import List, Optional, Tuple
 
 from Services.runtime_env import smtp_configured
@@ -87,6 +89,25 @@ def wrap_text_body(text_body: str) -> str:
 	return f"{body}{support_footer_text()}"
 
 
+def _env_unquote(value: str) -> str:
+	text = (value or "").strip()
+	if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
+		return text[1:-1]
+	return text
+
+
+def envelope_address(header_value: str) -> str:
+	"""Bare address for SMTP MAIL FROM. Display names are header-only."""
+	_display, addr = parseaddr(header_value or "")
+	return (addr or "").strip()
+
+
+def smtp_message_bytes(msg: MIMEMultipart) -> bytes:
+	"""ASCII-safe SMTP payload. Non-ASCII subjects (em dash) stay in the header encoding."""
+	policy = SMTP_POLICY.clone(cte_type="7bit")
+	return msg.as_bytes(policy=policy)
+
+
 def send_email(
 	to_email: str,
 	subject: str,
@@ -105,9 +126,10 @@ def send_email(
 	host = (os.getenv("SMTP_HOST") or "").strip()
 	port = int(os.getenv("SMTP_PORT") or "587")
 	from Services.runtime_env import smtp_user
-	user = smtp_user()
-	password = os.getenv("SMTP_PASSWORD") or ""
-	from_addr = (os.getenv("SMTP_FROM") or os.getenv("EMAIL_FROM") or user or "noreply@jodevents.local").strip()
+	user = _env_unquote(smtp_user())
+	password = _env_unquote(os.getenv("SMTP_PASSWORD") or "")
+	from_header = _env_unquote(os.getenv("SMTP_FROM") or os.getenv("EMAIL_FROM") or user or "noreply@jodevents.local")
+	from_addr = envelope_address(from_header) or from_header
 	use_tls = (os.getenv("SMTP_TLS") or "1").strip() not in ("0", "false", "False")
 
 	plain = wrap_text_body(text_body or "")
@@ -120,7 +142,7 @@ def send_email(
 
 	msg = MIMEMultipart("mixed")
 	msg["Subject"] = subject
-	msg["From"] = from_addr
+	msg["From"] = from_header if envelope_address(from_header) else from_addr
 	msg["To"] = to_email
 	alt = MIMEMultipart("alternative")
 	alt.attach(MIMEText(plain, "plain", "utf-8"))
@@ -135,14 +157,23 @@ def send_email(
 		msg.attach(part)
 
 	try:
-		with smtplib.SMTP(host, port, timeout=20) as smtp:
-			if use_tls:
+		payload = smtp_message_bytes(msg)
+		if int(port) == 465:
+			client = smtplib.SMTP_SSL(host, port, timeout=20)
+		else:
+			client = smtplib.SMTP(host, port, timeout=20)
+		with client as smtp:
+			smtp.ehlo()
+			if use_tls and int(port) != 465:
 				smtp.starttls()
+				smtp.ehlo()
 			if user:
 				smtp.login(user, password)
-			smtp.sendmail(from_addr, [to_email], msg.as_string())
+			smtp.sendmail(from_addr, [to_email], payload)
 		_safe_print("[EMAIL] delivered")
 		return True
-	except Exception:
-		_safe_print("[EMAIL] SMTP delivery failed")
+	except Exception as exc:
+		code = getattr(exc, "smtp_code", None)
+		detail = f" code={code}" if code else ""
+		_safe_print(f"[EMAIL] SMTP delivery failed: {type(exc).__name__}{detail}")
 		return False
