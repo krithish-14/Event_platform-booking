@@ -501,11 +501,20 @@ def _tj_center(center_x: float, y: float, text: str, char_w: float) -> str:
 
 
 def guest_label_for_index(index: int) -> str:
-    """Primary ticket (index 0) has no label; guests are Guest 1, Guest 2, …"""
+    """The first ticket uses the buyer name. Every other ticket in the order is a guest."""
     idx = int(index or 0)
     if idx <= 0:
         return ""
-    return f"Guest {idx}"
+    return "guest"
+
+
+def attendee_display_name(name: str, index: int) -> str:
+    """Buyer name on ticket 1. Later tickets read 'Buyer name (guest)'."""
+    base = _ascii_text(name, "")
+    label = guest_label_for_index(index)
+    if label and base:
+        return f"{base} ({label})"
+    return base or label
 
 
 def ticket_pdf_filename(booking_id, kind: str = "ticket", *, ticket_index: int = 0) -> str:
@@ -726,9 +735,10 @@ def build_mticket_pdf_bytes(
         guest_sub_label = _ascii_text(attendee_guest_label, "") if attendee_guest_label else ""
         attendee_rows: list[tuple[str, str]] = []
         if guest_name or (guest_sub_label and allow_attendee_name):
-            # Keep the guest label even when no name is on file, so every page of a
-            # multi-ticket PDF stays distinguishable at the gate.
-            name_value = f"{guest_name} ({guest_sub_label})".strip() if guest_sub_label else guest_name
+            if guest_sub_label and guest_name:
+                name_value = f"{guest_name} ({guest_sub_label})"
+            else:
+                name_value = guest_name or guest_sub_label
             attendee_rows.append(("Name", name_value))
         if guest_phone:
             attendee_rows.append(("Phone", guest_phone))
@@ -901,7 +911,7 @@ def build_mticket_pdf_bytes(
                     f"/F2 9 Tf {_rgb(muted_rgb)} rg",
                     f"1 0 0 1 {inner_x:.1f} {cursor_a:.1f} Tm ({_pdf_escape(label)}) Tj",
                     f"/F1 9 Tf {_rgb(text_rgb)} rg",
-                    _tj_right(inner_right, cursor_a, value[:44], 5.0),
+                    _tj_right(inner_right, cursor_a, value[:72], 5.0),
                 ])
                 cursor_a -= 13
             ops.append("ET")

@@ -386,11 +386,15 @@ def download_public_ticket_pdf(qr_token: str, kind: str = "ticket", db: Session 
     booking = _lookup_booking_row(db, ticket.booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+    kind_key = "invoice" if str(kind or "").strip().lower() == "invoice" else "ticket"
+    issued = [item for item in (booking.tickets or []) if (getattr(item, "qr_token", None) or "").strip()]
+    if kind_key == "ticket" and len(issued) > 1:
+        return _ticket_pdf_http_response(booking, db, "", kind=kind_key, combined=True)
     return _ticket_pdf_http_response(
         booking,
         db,
         (ticket.qr_token or qr_token or "").strip(),
-        kind=kind,
+        kind=kind_key,
     )
 
 

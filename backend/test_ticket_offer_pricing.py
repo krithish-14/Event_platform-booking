@@ -137,6 +137,12 @@ class TicketOfferPricingTests(unittest.TestCase):
         self.assertTrue(legacy.legacy)
         self.assertEqual(legacy.total_paise, 36000)
 
+    def test_package_pdf_names_buyer_then_guests(self):
+        from Services.ticket_pdf import attendee_display_name
+        self.assertEqual(attendee_display_name("Asha", 0), "Asha")
+        self.assertEqual(attendee_display_name("Asha", 1), "Asha (guest)")
+        self.assertEqual(attendee_display_name("Asha", 2), "Asha (guest)")
+
     def test_blank_max_per_order_does_not_cap_quantity(self):
         row = offer()
         row.pop("max_per_order")

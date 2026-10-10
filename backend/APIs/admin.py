@@ -1137,7 +1137,11 @@ def _issue_tickets_from_payment(
 
     ticket_type = row.ticket_type or "General Admission"
     price = float(row.amount if row.amount is not None else (event.price or 0))
-    qty = max(1, int(row.quantity or 1))
+    try:
+        attendees = int(getattr(row, "attendee_count", None) or 0)
+    except (TypeError, ValueError):
+        attendees = 0
+    qty = max(1, int(row.quantity or 1), attendees)
     linked_submission_id = submission_id
 
     from Utils.text_sanitize import looks_like_email, looks_like_person_name
@@ -1253,8 +1257,7 @@ def _issue_tickets_from_payment(
         booking.receiver_name = name
         booking.receiver_email = email
         booking.receiver_phone = phone or None
-        if qty > int(booking.quantity or 1):
-            booking.quantity = qty
+        booking.quantity = qty
         if ticket_type and not (booking.ticket_type or "").strip():
             booking.ticket_type = ticket_type
         db.commit()
@@ -1335,7 +1338,7 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
         f"Booking ID: JOD-{(str(booking.booking_id).replace('-', '')[:8] or '00000000').upper()}\n"
         f"Event date: {event_when}\n"
         f"Ticket type: {booking.ticket_type or 'General Admission'}\n"
-        f"{'Your ticket PDFs are attached (' + str(len(tickets)) + ' tickets).' if len(tickets) > 1 else 'Your ticket PDF is attached.'} Open your e-ticket: {ticket_link}\n"
+        f"{'Your ticket PDF is attached with ' + str(len(tickets)) + ' tickets.' if len(tickets) > 1 else 'Your ticket PDF is attached.'} Open your e-ticket: {ticket_link}\n"
         f"{extra_text + chr(10) if extra_text else ''}"
         f"Show the QR code at the gate. Token: {token}\n"
         "This QR is unique to you. Do not share it."
@@ -1344,7 +1347,7 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#201d19;">
       <h2 style="color:#FF7508;">Your ticket is ready</h2>
       <p>Hi {attendee},</p>
-      <p>Your unique QR ticket{'s' if len(tickets) > 1 else ''} for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) {'are' if len(tickets) > 1 else 'is'} ready. {'Separate PDFs for each ticket are attached.' if len(tickets) > 1 else 'A PDF with booking ID, event date, and QR is attached.'}</p>
+      <p>Your unique QR ticket{'s' if len(tickets) > 1 else ''} for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) {'are' if len(tickets) > 1 else 'is'} ready. {'One PDF with a page for each ticket is attached. The first page uses your name. The other pages use your name with (guest).' if len(tickets) > 1 else 'A PDF with booking ID, event date, and QR is attached.'}</p>
       <p style="text-align:center;margin:24px 0;">
         <img src="{image}" alt="Ticket QR" width="220" height="220" style="border:8px solid #fff8f0;border-radius:12px;" />
       </p>
@@ -1357,9 +1360,15 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
     """
     attachments = []
     try:
-        from Services.ticket_pdf import build_all_mticket_pdfs_from_booking
+        from Services.ticket_pdf import build_combined_mticket_pdf_from_booking, ticket_pdf_filename
 
-        attachments = build_all_mticket_pdfs_from_booking(booking, db=db, include_qr=True)
+        pdf = build_combined_mticket_pdf_from_booking(booking, db=db, include_qr=True)
+        if pdf:
+            attachments = [(
+                ticket_pdf_filename(booking.booking_id, ticket_index=-1 if len(tickets) > 1 else 0),
+                pdf,
+                "application/pdf",
+            )]
     except Exception:
         attachments = []
     email_sent = send_email(

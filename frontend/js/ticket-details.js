@@ -757,7 +757,11 @@
  const tickets = Array.isArray(bookingData && bookingData.tickets) ? bookingData.tickets.filter((t) => t && t.qr_token) : [];
  try {
  if (kind === "ticket" && !token && !id) throw new Error("missing");
- if (downloadAll && kind === "ticket" && tickets.length > 1) {
+ const packageCount = Math.max(
+ tickets.length,
+ Number(bookingData && (bookingData.booking_quantity || bookingData.quantity)) || 1
+ );
+ if (kind === "ticket" && (downloadAll || packageCount > 1)) {
  await downloadTicketPdfForToken(bookingData, token, kind, { combined: true });
  return;
  }
