@@ -121,11 +121,11 @@ def normalize_offer(raw: dict, previous: Optional[dict] = None) -> dict:
         # Untyped legacy row. Leave price as stored and do not invent a pricing type.
         out.pop("pricing_type", None)
 
-    max_order = raw.get("max_per_order", previous.get("max_per_order"))
-    if max_order not in (None, ""):
-        limit = _as_int(max_order, 0)
-        if limit < 1 or limit > 20:
-            raise HTTPException(status_code=400, detail=f"{name}: maximum per order must be from 1 to 20.")
+    out.pop("max_per_order", None)
+    if raw.get("max_per_order") not in (None, ""):
+        limit = _as_int(raw.get("max_per_order"), 0)
+        if limit < 1:
+            raise HTTPException(status_code=400, detail=f"{name}: maximum per order must be at least 1.")
         out["max_per_order"] = limit
     return out
 
@@ -211,10 +211,11 @@ def quote_offer(offer: dict, purchase_quantity: int, *, now: Optional[datetime] 
     qty = _as_int(purchase_quantity, 0)
     if qty < 1:
         raise HTTPException(status_code=400, detail="Quantity must be at least 1.")
-    limit = _as_int(offer.get("max_per_order") or 20, 20)
-    limit = max(1, min(limit, 20))
-    if qty > limit:
-        raise HTTPException(status_code=400, detail=f"You can buy at most {limit} in one order.")
+    raw_limit = offer.get("max_per_order")
+    if raw_limit not in (None, ""):
+        limit = _as_int(raw_limit, 0)
+        if limit >= 1 and qty > limit:
+            raise HTTPException(status_code=400, detail=f"You can buy at most {limit} in one order.")
     pricing = str(offer.get("pricing_type") or "").strip().lower()
     name = _offer_name(offer) or "Ticket"
     offer_id = str(offer.get("offer_id") or "")

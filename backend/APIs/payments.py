@@ -114,7 +114,7 @@ class CreateOrderRequest(BaseModel):
     event_id: Optional[str] = Field(default=None, max_length=255)
     ticket_type: Optional[str] = Field(default=None, max_length=100)
     offer_id: Optional[str] = Field(default=None, max_length=64)
-    quantity: Optional[int] = Field(default=1, ge=1, le=20)
+    quantity: Optional[int] = Field(default=1, ge=1, le=100000)
 
 
 class VerifyPaymentRequest(BaseModel):
@@ -124,7 +124,7 @@ class VerifyPaymentRequest(BaseModel):
     event_id: Optional[str] = Field(default=None, max_length=255)
     ticket_type: Optional[str] = Field(default=None, max_length=100)
     offer_id: Optional[str] = Field(default=None, max_length=64)
-    quantity: Optional[int] = Field(default=1, ge=1, le=20)
+    quantity: Optional[int] = Field(default=1, ge=1, le=100000)
     amount: Optional[float] = Field(default=None, description="Amount in rupees for recording")
     attendee_name: Optional[str] = Field(default=None, max_length=120)
     attendee_phone: Optional[str] = Field(default=None, max_length=40)
@@ -134,7 +134,7 @@ class ClaimFreeTicketRequest(BaseModel):
     event_id: str = Field(..., min_length=1, max_length=255)
     ticket_type: Optional[str] = Field(default="General Admission", max_length=100)
     offer_id: Optional[str] = Field(default=None, max_length=64)
-    quantity: Optional[int] = Field(default=1, ge=1, le=20)
+    quantity: Optional[int] = Field(default=1, ge=1, le=100000)
     attendee_name: Optional[str] = Field(default=None, max_length=120)
     attendee_phone: Optional[str] = Field(default=None, max_length=40)
 

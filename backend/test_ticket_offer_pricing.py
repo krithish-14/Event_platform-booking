@@ -137,6 +137,15 @@ class TicketOfferPricingTests(unittest.TestCase):
         self.assertTrue(legacy.legacy)
         self.assertEqual(legacy.total_paise, 36000)
 
+    def test_blank_max_per_order_does_not_cap_quantity(self):
+        row = offer()
+        row.pop("max_per_order")
+        quote = quote_offer(row, 25)
+        self.assertEqual(quote.total_paise, 499 * 100 * 25)
+        self.assertEqual(quote.attendee_count, 25)
+        saved = normalize_offer({"name": "General", "pricing_type": "per_person", "unit_price": 599, "max_per_order": ""})
+        self.assertNotIn("max_per_order", saved)
+
     def test_date_only_end_is_exclusive_next_midnight_ist(self):
         row = offer(sales_start="2026-10-12", sales_end="2026-10-20")
         quote_offer(row, 1, now=datetime(2026, 10, 20, 23, 30, tzinfo=IST))

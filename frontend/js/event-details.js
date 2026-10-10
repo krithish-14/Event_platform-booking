@@ -735,7 +735,8 @@ function maxTicketsPerPerson(event) {
  const meta = selectedOfferMeta();
  if (meta.pricing === "per_person" || meta.pricing === "package") {
  const n = meta.max;
- return Number.isFinite(n) && n >= 1 ? Math.min(20, Math.round(n)) : 20;
+ if (Number.isFinite(n) && n >= 1) return Math.round(n);
+ return 100000;
  }
  const purchase = (event && event.ticket_purchase) || currentTicketPurchase || {};
  const mode = String(purchase.mode || "single").toLowerCase();
@@ -770,7 +771,12 @@ function applyTicketPurchaseFromEvent(event) {
  currentSelectedQty = selectedTicketQty();
  if (hint) {
  const meta = selectedOfferMeta();
- if (meta.pricing === "package") {
+ const openQty = !(meta.max >= 1);
+ if (openQty && (meta.pricing === "package" || meta.pricing === "per_person")) {
+ hint.textContent = meta.pricing === "package"
+ ? "No limit on how many packages you can buy."
+ : "No limit on how many tickets you can buy.";
+ } else if (meta.pricing === "package") {
  hint.textContent = "You can buy up to " + max + (max === 1 ? " package." : " packages.");
  } else if (meta.pricing === "per_person") {
  hint.textContent = "You can buy up to " + max + (max === 1 ? " ticket." : " tickets.");
@@ -858,7 +864,8 @@ function paintTicketTypes(event) {
  const pricing = t.pricing_type === "package" ? "package" : (t.pricing_type === "per_person" ? "per_person" : "");
  const packageQty = Number(t.package_quantity) || 0;
  const price = pricing === "package" ? (Number(t.package_price != null ? t.package_price : t.price) || 0) : (Number(t.unit_price != null ? t.unit_price : t.price) || 0);
- const maxOrder = Number(t.max_per_order) || 0;
+ const maxOrder = Number(t.max_per_order);
+ const maxAttr = Number.isFinite(maxOrder) && maxOrder >= 1 ? String(Math.round(maxOrder)) : "";
  const offerId = escape(t.offer_id || "");
  const qrUrl = escape(t.payment_qr_url || t.qr_url || t.payment_qr || "");
  const priceLabel = price <= 0
@@ -869,7 +876,7 @@ function paintTicketTypes(event) {
  const statusLabel = pricing === "package"
  ? ("Group package \u00b7 " + packageQty + " attendees")
  : (t.availability || (timed ? "Limited-time offer" : "Available"));
- return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" data-offer-id="${offerId}" data-pricing="${pricing}" data-package-qty="${packageQty}" data-max-per-order="${maxOrder}">
+ return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" data-offer-id="${offerId}" data-pricing="${pricing}" data-package-qty="${packageQty}" data-max-per-order="${maxAttr}">
  <div>
  ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${escape(start)}" data-ticket-end="${escape(end)}"></div>` : ""}
  <div class="ticket-name">${name}</div>
@@ -998,6 +1005,15 @@ function updateSelectedPriceUI(price, ticketName) {
  if (qtyInput) {
  qtyInput.max = String(max);
  if (Number(qtyInput.value) > max) qtyInput.value = String(max);
+ }
+ const qtyHint = document.getElementById("ticketQtyHint");
+ if (qtyHint) {
+ const meta = selectedOfferMeta();
+ const openQty = !(meta.max >= 1);
+ if (openQty && meta.pricing === "package") qtyHint.textContent = "No limit on how many packages you can buy.";
+ else if (openQty && meta.pricing === "per_person") qtyHint.textContent = "No limit on how many tickets you can buy.";
+ else if (meta.pricing === "package") qtyHint.textContent = "You can buy up to " + max + (max === 1 ? " package." : " packages.");
+ else if (meta.pricing === "per_person") qtyHint.textContent = "You can buy up to " + max + (max === 1 ? " ticket." : " tickets.");
  }
  // Top "Ticket Starts at" stays on the event's initial lowest price.
  setStartingPriceDisplay(startingTicketPrice);
