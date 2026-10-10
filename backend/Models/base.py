@@ -378,6 +378,29 @@ def _migrate_tables(engine=None):
                             print(f"  [DB MIGRATION WARN] Could not add column bookings.{col_name}: {e}", flush=True)
                 conn.commit()
 
+        if "payment_proofs" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("payment_proofs")}
+            proof_migrations = [
+                ("offer_id", "VARCHAR(64)"),
+                ("pricing_type", "VARCHAR(20)"),
+                ("purchase_quantity", "INTEGER"),
+                ("attendee_count", "INTEGER"),
+                ("total_amount_paise", "INTEGER"),
+                ("currency", "VARCHAR(8)"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in proof_migrations:
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE payment_proofs ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE payment_proofs ADD COLUMN {col_name} {col_type};"))
+                            print(f"  [DB MIGRATION] Added column payment_proofs.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column payment_proofs.{col_name}: {e}", flush=True)
+                conn.commit()
+
         if "form_submissions" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("form_submissions")}
             form_sub_migrations = [

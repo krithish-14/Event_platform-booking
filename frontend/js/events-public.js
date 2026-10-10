@@ -183,9 +183,19 @@
 		return ticket.sales_end || ticket.offer_end || ticket.sale_end || "";
 	}
 
+	function offerBoundaryMs(raw, isEnd) {
+		const text = String(raw || "").trim();
+		if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+			const start = parseEventMs(text + "T00:00:00+05:30");
+			if (!start) return null;
+			return isEnd ? start + 86400000 : start;
+		}
+		return parseEventMs(text);
+	}
+
 	function ticketOfferPhase(ticket) {
-		const startMs = parseEventMs(ticketSaleStart(ticket));
-		const endMs = parseEventMs(ticketSaleEnd(ticket));
+		const startMs = offerBoundaryMs(ticketSaleStart(ticket), false);
+		const endMs = offerBoundaryMs(ticketSaleEnd(ticket), true);
 		const now = Date.now();
 		if (!startMs && !endMs) return "always";
 		if (startMs && endMs && endMs <= startMs) {
@@ -204,7 +214,10 @@
 
 	function visibleTicketTypes(event) {
 		const types = event && Array.isArray(event.ticket_types) ? event.ticket_types : [];
-		return types.filter(isTicketOnSale);
+		return types.filter((ticket) => {
+			if (!ticket || ticket.is_active === false || String(ticket.is_active).toLowerCase() === "false") return false;
+			return isTicketOnSale(ticket);
+		});
 	}
 
 	function isEventCurrentlyVisible(event) {

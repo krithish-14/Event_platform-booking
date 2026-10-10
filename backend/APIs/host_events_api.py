@@ -1943,7 +1943,9 @@ def save_manage_event(
         except Exception:
             pass
     # Do not invent start+4h when end is blank — that prematurely ended live events.
-    if payload.tickets_json is not None: event.tickets_json = payload.tickets_json
+    if payload.tickets_json is not None:
+        from Services.ticket_pricing import normalize_ticket_list
+        event.tickets_json = normalize_ticket_list(payload.tickets_json, event.tickets_json)
     if payload.agenda_json is not None: event.agenda_json = payload.agenda_json
     if payload.policies_json is not None:
         policies = dict(payload.policies_json)

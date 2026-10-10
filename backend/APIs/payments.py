@@ -113,6 +113,7 @@ class CreateOrderRequest(BaseModel):
     receipt: Optional[str] = Field(default=None, max_length=40)
     event_id: Optional[str] = Field(default=None, max_length=255)
     ticket_type: Optional[str] = Field(default=None, max_length=100)
+    offer_id: Optional[str] = Field(default=None, max_length=64)
     quantity: Optional[int] = Field(default=1, ge=1, le=20)
 
 
@@ -122,6 +123,7 @@ class VerifyPaymentRequest(BaseModel):
     razorpay_signature: str = Field(..., min_length=1, max_length=255)
     event_id: Optional[str] = Field(default=None, max_length=255)
     ticket_type: Optional[str] = Field(default=None, max_length=100)
+    offer_id: Optional[str] = Field(default=None, max_length=64)
     quantity: Optional[int] = Field(default=1, ge=1, le=20)
     amount: Optional[float] = Field(default=None, description="Amount in rupees for recording")
     attendee_name: Optional[str] = Field(default=None, max_length=120)
@@ -131,6 +133,7 @@ class VerifyPaymentRequest(BaseModel):
 class ClaimFreeTicketRequest(BaseModel):
     event_id: str = Field(..., min_length=1, max_length=255)
     ticket_type: Optional[str] = Field(default="General Admission", max_length=100)
+    offer_id: Optional[str] = Field(default=None, max_length=64)
     quantity: Optional[int] = Field(default=1, ge=1, le=20)
     attendee_name: Optional[str] = Field(default=None, max_length=120)
     attendee_phone: Optional[str] = Field(default=None, max_length=40)
@@ -424,6 +427,8 @@ def _record_razorpay_payment(
     payment_id: str,
     attendee_name: Optional[str],
     attendee_phone: Optional[str],
+    quote=None,
+    razorpay_order_id: Optional[str] = None,
 ) -> tuple[PaymentProof, Optional[int]]:
     """Record Razorpay payment. Returns (proof, host_form_submission_id)."""
     event_key = sanitize_text(event_id or "", max_length=255) or None
@@ -525,6 +530,17 @@ def _record_razorpay_payment(
     submission_id = getattr(submission, "id", None) if submission is not None else submission_id
     qty = _clamp_purchase_quantity(db, event_key, quantity)
     amount_val = float(amount_rupees or 0)
+    if quote is not None:
+        from Services.ticket_pricing import apply_quote_to_proof
+        qty = int(quote.attendee_count)
+        amount_val = float(quote.total_rupees)
+        ticket = quote.offer_name or ticket
+    else:
+        apply_quote_to_proof = None
+
+    def _stamp_quote(proof_row):
+        if quote is not None and apply_quote_to_proof is not None:
+            apply_quote_to_proof(proof_row, quote)
 
     if payment_id:
         dup = (
@@ -544,6 +560,7 @@ def _record_razorpay_payment(
             dup.customer_id = buyer_cid or dup.customer_id
             dup.event_id = event_key or dup.event_id
             dup.status = "payment_submitted"
+            _stamp_quote(dup)
             db.commit()
             db.refresh(dup)
             try:
@@ -552,6 +569,31 @@ def _record_razorpay_payment(
             except Exception:
                 logger.exception("Could not collapse duplicate FORM payment for submission %s", submission_id)
             return dup, submission_id
+
+    order_key = sanitize_text(razorpay_order_id or "", max_length=120)
+    if order_key:
+        reserved = (
+            db.query(PaymentProof)
+            .filter(PaymentProof.transaction_id == order_key)
+            .order_by(PaymentProof.created_at.desc())
+            .first()
+        )
+        if reserved is not None and (reserved.status or "") == "checkout_reserved":
+            reserved.attendee_name = name
+            reserved.attendee_email = delivery_email
+            reserved.attendee_phone = phone
+            reserved.bank_name = "Razorpay"
+            reserved.ticket_type = ticket
+            reserved.amount = amount_val
+            reserved.quantity = qty
+            reserved.customer_id = buyer_cid or reserved.customer_id
+            reserved.event_id = event_key or reserved.event_id
+            reserved.transaction_id = payment_id
+            reserved.status = "payment_submitted"
+            _stamp_quote(reserved)
+            db.commit()
+            db.refresh(reserved)
+            return reserved, submission_id
 
     # Prefer upgrading the form's existing FORM-* row instead of creating a second payment.
     if submission_id is not None:
@@ -570,6 +612,7 @@ def _record_razorpay_payment(
                 existing_form_proof.event_id = event_key or existing_form_proof.event_id
                 existing_form_proof.transaction_id = payment_id
                 existing_form_proof.status = "payment_submitted"
+                _stamp_quote(existing_form_proof)
                 db.commit()
                 db.refresh(existing_form_proof)
                 _collapse_duplicate_form_payments(db, existing_form_proof, submission_id=submission_id)
@@ -596,6 +639,7 @@ def _record_razorpay_payment(
         status="payment_submitted",
         created_at=utc_now(),
     )
+    _stamp_quote(row)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -644,6 +688,7 @@ def _record_free_payment(
     quantity: Optional[int],
     attendee_name: Optional[str],
     attendee_phone: Optional[str],
+    quote=None,
 ) -> PaymentProof:
     """One free claim / host form => one PaymentProof (keyed to that form when present)."""
     event_key = sanitize_text(event_id or "", max_length=255)
@@ -662,7 +707,11 @@ def _record_free_payment(
         from APIs.admin import _ensure_payment_proof_for_submission
         return _ensure_payment_proof_for_submission(db, submission)
 
-    qty = _clamp_purchase_quantity(db, event_key, quantity)
+    if quote is not None:
+        qty = int(quote.attendee_count)
+        ticket = quote.offer_name or ticket
+    else:
+        qty = _clamp_purchase_quantity(db, event_key, quantity)
     free_txn = f"FREE-{secrets.token_hex(8).upper()}"
     row = PaymentProof(
         customer_id=current_user.customer_id,
@@ -679,6 +728,9 @@ def _record_free_payment(
         status="payment_submitted",
         created_at=utc_now(),
     )
+    if quote is not None:
+        from Services.ticket_pricing import apply_quote_to_proof
+        apply_quote_to_proof(row, quote)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -699,11 +751,15 @@ async def claim_free_ticket(
     from Services.event_service import assert_ticket_sales_open
     assert_ticket_sales_open(db, event_id)
     ticket_type = sanitize_text(payload.ticket_type or "General Admission", max_length=100) or "General Admission"
-    qty = _clamp_purchase_quantity(db, event_id, payload.quantity)
-
-    unit_price = _resolve_ticket_unit_price(db, event_id, ticket_type)
-    total = round(float(unit_price or 0) * qty, 2)
-    if total > 0.009:
+    quote = _checkout_quote(
+        db,
+        event_id,
+        payload.offer_id or "",
+        ticket_type,
+        payload.quantity or 1,
+    )
+    qty = quote.attendee_count
+    if quote.total_paise > 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This ticket is not free. Please complete payment via Razorpay.",
@@ -745,7 +801,13 @@ async def claim_free_ticket(
         quantity=qty,
         attendee_name=payload.attendee_name,
         attendee_phone=payload.attendee_phone,
+        quote=quote,
     )
+    if row is not None and quote.total_paise == 0:
+        from Services.ticket_pricing import apply_quote_to_proof
+        apply_quote_to_proof(row, quote)
+        db.commit()
+        db.refresh(row)
     submission_id = getattr(pending_form, "id", None) if pending_form is not None else None
     if submission_id is None and row is not None:
         # FREE-FORM-{id} txn encodes the submission id.
@@ -799,23 +861,18 @@ def _clamp_purchase_quantity(db: Session, event_id: str, requested) -> int:
     return min(qty, limit)
 
 
-def _bulk_adjusted_amount_paise(db: Session, event_id: str, ticket_type: str, quantity, client_paise: int) -> int:
-    """Charge the catalog price after the host's bulk percentage, when that price is known."""
-    try:
-        unit = _resolve_ticket_unit_price(db, event_id, ticket_type)
-    except HTTPException:
-        return client_paise
-    if unit is None or unit <= 0:
-        return client_paise
-    qty = _clamp_purchase_quantity(db, event_id, quantity)
-    from APIs.events import _host_ticket_purchase_for_event, bulk_offer_percent
-    percent = bulk_offer_percent(_host_ticket_purchase_for_event(db, event_id), qty)
-    percent = max(0, min(int(percent or 0), 90))
-    expected = round(float(unit) * qty * (100 - percent) / 100.0, 2)
-    expected_paise = int(round(expected * 100))
-    if expected_paise < 100:
-        return client_paise
-    return expected_paise
+def _checkout_quote(db, event_id, offer_id, ticket_type, quantity, client_rupees=None, enforce_client=False):
+    from Services.ticket_pricing import assert_client_amount, calculate_order_price
+    quote = calculate_order_price(
+        db,
+        event_id,
+        offer_id=offer_id or "",
+        ticket_name=ticket_type or "",
+        purchase_quantity=int(quantity or 1),
+    )
+    if enforce_client:
+        assert_client_amount(quote, client_rupees)
+    return quote
 
 
 @router.post("/proof", status_code=status.HTTP_201_CREATED)
@@ -823,6 +880,7 @@ async def submit_payment_proof(
     request: Request,
     event_id: str = Form(...),
     ticket_type: str = Form("General Admission"),
+    offer_id: str = Form(""),
     amount: float = Form(0),
     quantity: int = Form(1),
     attendee_name: str = Form(...),
@@ -878,13 +936,23 @@ async def submit_payment_proof(
         owner_email=email,
     )
 
+    from Services.ticket_pricing import apply_quote_to_proof
+    quote = _checkout_quote(
+        db,
+        event_key,
+        offer_id,
+        ticket,
+        quantity,
+        client_rupees=amount,
+        enforce_client=True,
+    )
+
     if submission is not None and getattr(submission, "id", None) is not None:
         from APIs.admin import _ensure_payment_proof_for_submission
         row = _ensure_payment_proof_for_submission(db, submission)
         row.bank_name = bank or row.bank_name
         row.transaction_id = txn
-        row.amount = float(amount or 0)
-        row.quantity = _clamp_purchase_quantity(db, event_key, quantity)
+        apply_quote_to_proof(row, quote)
         row.screenshot_file_id = stored.id
         row.attendee_name = name
         row.attendee_email = email
@@ -920,8 +988,7 @@ async def submit_payment_proof(
         existing.bank_name = bank
         existing.transaction_id = txn
         existing.ticket_type = ticket
-        existing.amount = float(amount or 0)
-        existing.quantity = _clamp_purchase_quantity(db, event_key, quantity)
+        apply_quote_to_proof(existing, quote)
         existing.screenshot_file_id = stored.id
         existing.customer_id = current_user.customer_id
         existing.status = "payment_submitted"
@@ -939,8 +1006,8 @@ async def submit_payment_proof(
             customer_id=current_user.customer_id,
             event_id=str(event_key),
             ticket_type=ticket,
-            amount=float(amount or 0),
-            quantity=_clamp_purchase_quantity(db, event_key, quantity),
+            amount=float(quote.total_rupees),
+            quantity=int(quote.attendee_count),
             attendee_name=name,
             attendee_email=email,
             attendee_phone=phone,
@@ -950,6 +1017,7 @@ async def submit_payment_proof(
             status="payment_submitted",
             created_at=utc_now(),
         )
+        apply_quote_to_proof(row, quote)
         db.add(row)
         db.commit()
         db.refresh(row)
@@ -978,14 +1046,16 @@ async def create_razorpay_order(
     limit_payment(request)
     amount_paise = int(payload.amount or 0)
     event_id = sanitize_text(payload.event_id or "", max_length=255)
+    checkout_quote = None
     if event_id:
-        amount_paise = _bulk_adjusted_amount_paise(
+        checkout_quote = _checkout_quote(
             db,
             event_id,
+            payload.offer_id or "",
             payload.ticket_type or "",
             payload.quantity or 1,
-            amount_paise,
         )
+        amount_paise = int(checkout_quote.total_paise)
     if amount_paise < 100:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1011,7 +1081,9 @@ async def create_razorpay_order(
                 "notes": {
                     "event_id": sanitize_text(payload.event_id or "", max_length=255),
                     "ticket_type": sanitize_text(payload.ticket_type or "", max_length=100),
-                    "quantity": str(payload.quantity or 1),
+                    "quantity": str(checkout_quote.purchase_quantity if checkout_quote else (payload.quantity or 1)),
+                    "attendee_count": str(checkout_quote.attendee_count if checkout_quote else (payload.quantity or 1)),
+                    "offer_id": (checkout_quote.offer_id if checkout_quote else "") or "",
                     "customer_id": getattr(current_user, "customer_id", None) or "",
                 },
             }
@@ -1032,6 +1104,35 @@ async def create_razorpay_order(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not create Razorpay order. Please try again.",
         ) from exc
+
+    if checkout_quote is not None and event_id and order.get("id"):
+        try:
+            buyer_email = sanitize_text(getattr(current_user, "email", "") or "", max_length=255) or "pending@checkout.local"
+            reserved = PaymentProof(
+                customer_id=getattr(current_user, "customer_id", None),
+                event_id=event_id,
+                ticket_type=checkout_quote.offer_name[:100],
+                amount=checkout_quote.total_rupees,
+                quantity=checkout_quote.attendee_count,
+                attendee_name="Pending checkout",
+                attendee_email=buyer_email,
+                attendee_phone="N/A",
+                bank_name="Razorpay",
+                transaction_id=str(order.get("id"))[:120],
+                screenshot_file_id=None,
+                status="checkout_reserved",
+                created_at=utc_now(),
+            )
+            from Services.ticket_pricing import apply_quote_to_proof
+            apply_quote_to_proof(reserved, checkout_quote)
+            db.add(reserved)
+            db.commit()
+        except Exception:
+            logger.exception("Could not store the checkout price snapshot")
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
     return {
         "order_id": order.get("id"),
@@ -1090,6 +1191,43 @@ async def verify_razorpay_payment(
     amount_rupees = payload.amount
     if amount_rupees is None:
         amount_rupees = 0.0
+    event_key = sanitize_text(payload.event_id or "", max_length=255)
+    checkout_quote = None
+    if event_key:
+        reserved = (
+            db.query(PaymentProof)
+            .filter(PaymentProof.transaction_id == order_id)
+            .order_by(PaymentProof.created_at.desc())
+            .first()
+        )
+        if reserved is not None and (reserved.status or "") == "checkout_reserved" and getattr(reserved, "total_amount_paise", None) is not None:
+            from Services.ticket_pricing import assert_client_amount, quote_from_proof
+            checkout_quote = quote_from_proof(reserved)
+            assert_client_amount(checkout_quote, amount_rupees)
+        else:
+            checkout_quote = _checkout_quote(
+                db,
+                event_key,
+                payload.offer_id or "",
+                payload.ticket_type or "",
+                payload.quantity or 1,
+                client_rupees=amount_rupees,
+                enforce_client=True,
+            )
+        amount_rupees = checkout_quote.total_rupees
+        try:
+            remote = client.payment.fetch(payment_id)
+            remote_amount = int(remote.get("amount") or 0)
+            remote_currency = str(remote.get("currency") or "INR").strip().upper()
+            remote_order = str(remote.get("order_id") or "")
+            if remote_order and remote_order != order_id:
+                raise HTTPException(status_code=400, detail="Payment does not belong to this order.")
+            if remote_amount != int(checkout_quote.total_paise) or remote_currency != "INR":
+                raise HTTPException(status_code=400, detail="Payment amount does not match this order.")
+        except HTTPException:
+            raise
+        except Exception:
+            logger.warning("Could not fetch Razorpay payment %s to compare the amount", payment_id)
 
     # Signature OK — money was taken. Always return success so the client reaches thank-you.
     row = None
@@ -1115,6 +1253,8 @@ async def verify_razorpay_payment(
             payment_id=payment_id,
             attendee_name=payload.attendee_name,
             attendee_phone=payload.attendee_phone,
+            quote=checkout_quote,
+            razorpay_order_id=order_id,
         )
         ticket = _auto_issue_and_deliver(db, row, submission_id=submission_id)
     except HTTPException as exc:

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let currentSelectedPrice = 0;
 let currentSelectedTicketType = "General Admission";
+let currentSelectedOfferId = "";
 let currentSelectedPaymentQr = "";
 let currentSelectedQty = 1;
 let currentTicketPurchase = { mode: "single", per_person_limit: 1 };
@@ -718,7 +719,24 @@ function paintBulkOffers(event) {
  }).join("");
 }
 
+function selectedOfferMeta() {
+ const el = document.querySelector(".ticket-type-option.selected");
+ if (!el) return { offerId: "", pricing: "", packageQty: 0, max: 0, price: 0 };
+ return {
+ offerId: el.dataset.offerId || "",
+ pricing: el.dataset.pricing || "",
+ packageQty: Number(el.dataset.packageQty) || 0,
+ max: Number(el.dataset.maxPerOrder) || 0,
+ price: Number(el.dataset.price) || 0
+ };
+}
+
 function maxTicketsPerPerson(event) {
+ const meta = selectedOfferMeta();
+ if (meta.pricing === "per_person" || meta.pricing === "package") {
+ const n = meta.max;
+ return Number.isFinite(n) && n >= 1 ? Math.min(20, Math.round(n)) : 20;
+ }
  const purchase = (event && event.ticket_purchase) || currentTicketPurchase || {};
  const mode = String(purchase.mode || "single").toLowerCase();
  if (mode !== "multiple") return 1;
@@ -751,9 +769,14 @@ function applyTicketPurchaseFromEvent(event) {
  }
  currentSelectedQty = selectedTicketQty();
  if (hint) {
- hint.textContent = max > 1
- ? ("You can buy up to " + max + " tickets.")
- : "";
+ const meta = selectedOfferMeta();
+ if (meta.pricing === "package") {
+ hint.textContent = "You can buy up to " + max + (max === 1 ? " package." : " packages.");
+ } else if (meta.pricing === "per_person") {
+ hint.textContent = "You can buy up to " + max + (max === 1 ? " ticket." : " tickets.");
+ } else {
+ hint.textContent = max > 1 ? ("You can buy up to " + max + " tickets.") : "";
+ }
  }
  paintBulkOffers(event);
  const noteEl = document.getElementById("ticketPriceNote");
@@ -832,15 +855,27 @@ function paintTicketTypes(event) {
  const end = EP && EP.ticketSaleEnd ? EP.ticketSaleEnd(t) : (t.sales_end || "");
  const timed = Boolean(start || end);
  const name = escape(t.name || "Ticket");
- const price = Number(t.price) || 0;
+ const pricing = t.pricing_type === "package" ? "package" : (t.pricing_type === "per_person" ? "per_person" : "");
+ const packageQty = Number(t.package_quantity) || 0;
+ const price = pricing === "package" ? (Number(t.package_price != null ? t.package_price : t.price) || 0) : (Number(t.unit_price != null ? t.unit_price : t.price) || 0);
+ const maxOrder = Number(t.max_per_order) || 0;
+ const offerId = escape(t.offer_id || "");
  const qrUrl = escape(t.payment_qr_url || t.qr_url || t.payment_qr || "");
- return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}">
+ const priceLabel = price <= 0
+ ? "Free"
+ : (pricing === "package"
+ ? ("\u20b9" + Number(price).toLocaleString("en-IN") + " for " + packageQty + " people")
+ : ("\u20b9" + Number(price).toLocaleString("en-IN") + (pricing === "per_person" ? " per person" : "")));
+ const statusLabel = pricing === "package"
+ ? ("Group package \u00b7 " + packageQty + " attendees")
+ : (t.availability || (timed ? "Limited-time offer" : "Available"));
+ return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" data-offer-id="${offerId}" data-pricing="${pricing}" data-package-qty="${packageQty}" data-max-per-order="${maxOrder}">
  <div>
  ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${escape(start)}" data-ticket-end="${escape(end)}"></div>` : ""}
  <div class="ticket-name">${name}</div>
- <div class="ticket-status">${escape(t.availability || (timed ? "Limited-time offer" : "Available"))}</div>
+ <div class="ticket-status">${escape(statusLabel)}</div>
  </div>
- <div class="ticket-price">${price <= 0 ? "Free" : "\u20b9" + Number(price).toLocaleString("en-IN")}</div>
+ <div class="ticket-price">${priceLabel}</div>
  </div>`;
  }).join("");
  tList.querySelectorAll("[data-ticket-option]").forEach((opt) => {
@@ -848,7 +883,8 @@ function paintTicketTypes(event) {
  });
  const first = types[0];
  currentSelectedTicketType = first.name || "General Admission";
- currentSelectedPrice = Number(first.price) || 0;
+ currentSelectedPrice = Number(first.pricing_type === "package" ? (first.package_price != null ? first.package_price : first.price) : (first.unit_price != null ? first.unit_price : first.price)) || 0;
+ currentSelectedOfferId = first.offer_id || "";
  currentSelectedPaymentQr = first.payment_qr_url || first.qr_url || first.payment_qr || "";
  bindTicketQtyControls();
  applyTicketPurchaseFromEvent(event);
@@ -889,6 +925,7 @@ function selectTicketOption(element, price, ticketName) {
  element.classList.add('selected');
 
  currentSelectedPrice = price;
+ currentSelectedOfferId = (element && element.dataset && element.dataset.offerId) || "";
  currentSelectedPaymentQr = (element && element.dataset && element.dataset.paymentQr) || "";
  if (ticketName) {
  currentSelectedTicketType = ticketName;
@@ -927,19 +964,41 @@ function updateQuantityTotalDisplay(unitPrice) {
  if (!totalEl) return;
  const qty = selectedTicketQty();
  const unit = Number(unitPrice) || 0;
- const percent = bulkPercentForQty(bulkOffersFromPurchase(currentTicketPurchase), qty);
- const total = unit * qty * (100 - percent) / 100;
+ const meta = selectedOfferMeta();
+ let percent = 0;
+ let total = unit * qty;
+ if (meta.pricing !== "per_person" && meta.pricing !== "package") {
+ percent = bulkPercentForQty(bulkOffersFromPurchase(currentTicketPurchase), qty);
+ total = unit * qty * (100 - percent) / 100;
+ }
  totalEl.textContent = formatTicketPrice(total);
  const applied = document.getElementById("bulkOfferApplied");
  if (applied) {
+ if (meta.pricing === "package") {
+ const people = (meta.packageQty || 0) * qty;
+ applied.hidden = false;
+ applied.textContent = qty + (qty === 1 ? " package" : " packages") + " \u00b7 " + people + " attendees";
+ } else if (meta.pricing === "per_person") {
+ applied.hidden = false;
+ applied.textContent = qty + (qty === 1 ? " ticket" : " tickets") + " \u00b7 " + qty + " attendees";
+ } else {
  applied.hidden = percent <= 0;
  applied.textContent = percent > 0 ? (percent + "% bulk offer applied") : "";
+ }
  }
 }
 
 function updateSelectedPriceUI(price, ticketName) {
  const unit = Number(price) || 0;
  currentSelectedPrice = unit;
+ const max = maxTicketsPerPerson(currentEventData);
+ const qtyInput = document.getElementById("ticketQtyInput");
+ const qtyWrap = document.getElementById("ticketQtyWrap");
+ if (qtyWrap) qtyWrap.hidden = max <= 1;
+ if (qtyInput) {
+ qtyInput.max = String(max);
+ if (Number(qtyInput.value) > max) qtyInput.value = String(max);
+ }
  // Top "Ticket Starts at" stays on the event's initial lowest price.
  setStartingPriceDisplay(startingTicketPrice);
  updateQuantityTotalDisplay(unit);
@@ -1345,7 +1404,10 @@ async function triggerBookingModal() {
  ticket: pendingTicket,
  price: String(pendingPrice),
  quantity: selectedTicketQty(),
- bulkOffers: bulkOffersFromPurchase(currentTicketPurchase),
+ offerId: (selectedOfferMeta().offerId) || (matchedTicket && matchedTicket.offer_id) || "",
+ pricingType: (selectedOfferMeta().pricing) || (matchedTicket && matchedTicket.pricing_type) || "",
+ packageQuantity: (selectedOfferMeta().packageQty) || Number(matchedTicket && matchedTicket.package_quantity) || 0,
+ bulkOffers: (selectedOfferMeta().pricing === "per_person" || selectedOfferMeta().pricing === "package") ? [] : bulkOffersFromPurchase(currentTicketPurchase),
  paymentQrUrl: pendingQr,
  priceNote: String((currentTicketPurchase && currentTicketPurchase.price_note)
  || (currentEventData && currentEventData.ticket_purchase && currentEventData.ticket_purchase.price_note)

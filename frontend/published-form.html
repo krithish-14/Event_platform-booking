@@ -660,6 +660,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					quantity: qty,
 					paymentQrUrl: paymentQrForTicket(ticketName),
 					priceNote: prev.priceNote || "",
+					offerId: prev.offerId || "",
+					pricingType: prev.pricingType || "",
+					packageQuantity: Number(prev.packageQuantity) || 0,
 					bulkOffers: Array.isArray(prev.bulkOffers) ? prev.bulkOffers : []
 				};
 				try { sessionStorage.setItem("jod_pending_ticket_bill", JSON.stringify(bill)); } catch (_) {}

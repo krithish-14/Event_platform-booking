@@ -466,6 +466,50 @@ async function initOrganizerDashboard() {
 		if (qty) qty.value = "";
 		if (start) start.value = "";
 		if (end) end.value = "";
+		const pricing = row.querySelector(".ticket-pricing-input");
+		if (pricing) pricing.value = "per_person";
+		const people = row.querySelector(".ticket-package-qty-input");
+		const packagePrice = row.querySelector(".ticket-package-price-input");
+		const maxOrder = row.querySelector(".ticket-max-input");
+		const active = row.querySelector(".ticket-active-input");
+		if (people) people.value = "";
+		if (packagePrice) packagePrice.value = "";
+		if (maxOrder) maxOrder.value = "";
+		if (active) active.checked = true;
+		delete row.dataset.offerId;
+		syncTicketPricingFields(row);
+		updateTicketOfferPreview(row);
+	}
+
+	function syncTicketPricingFields(row) {
+		if (!row) return;
+		const pricing = row.querySelector(".ticket-pricing-input")?.value || "per_person";
+		const perPerson = row.querySelector(".ticket-per-person-fields");
+		const packageFields = row.querySelector(".ticket-package-fields");
+		if (perPerson) perPerson.hidden = pricing === "package";
+		if (packageFields) packageFields.hidden = pricing !== "package";
+	}
+
+	function updateTicketOfferPreview(row) {
+		const preview = row && row.querySelector(".ticket-offer-preview");
+		if (!preview) return;
+		const pricing = row.querySelector(".ticket-pricing-input")?.value || "per_person";
+		if (pricing === "package") {
+			const people = Math.round(Number(row.querySelector(".ticket-package-qty-input")?.value) || 0);
+			const packagePrice = Number(row.querySelector(".ticket-package-price-input")?.value);
+			if (people < 2 || !Number.isFinite(packagePrice) || packagePrice < 0) {
+				preview.textContent = "A group package needs at least 2 attendees and a fixed package price.";
+				return;
+			}
+			preview.textContent = "1 package costs \u20b9" + packagePrice.toLocaleString("en-IN") + " and covers " + people + " attendees. 2 packages cost \u20b9" + (packagePrice * 2).toLocaleString("en-IN") + " and cover " + (people * 2) + " attendees.";
+			return;
+		}
+		const unit = Number(row.querySelector(".ticket-price-input")?.value);
+		if (!Number.isFinite(unit) || unit < 0) {
+			preview.textContent = "Enter a price per person. Five tickets cost five times that price.";
+			return;
+		}
+		preview.textContent = "1 ticket costs \u20b9" + unit.toLocaleString("en-IN") + ". 5 tickets cost \u20b9" + (unit * 5).toLocaleString("en-IN") + ". Group packages are not applied to this offer.";
 	}
 
 	function collectTicketsJson() {
@@ -474,14 +518,26 @@ async function initOrganizerDashboard() {
 		rows.forEach((row) => {
 			const name = row.querySelector(".ticket-type-input")?.value?.trim();
 			if (!name) return;
+			const pricing = row.querySelector(".ticket-pricing-input")?.value === "package" ? "package" : "per_person";
+			const maxRaw = row.querySelector(".ticket-max-input")?.value;
 			const item = {
 				name,
-				price: Number(row.querySelector(".ticket-price-input")?.value || 0),
+				pricing_type: pricing,
 				qty: Number(row.querySelector(".ticket-qty-input")?.value || 0),
-				// Always include keys so clearing offer windows updates the public page.
 				sales_start: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-start-input")?.value || "") || null,
-				sales_end: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-end-input")?.value || "") || null
+				sales_end: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-end-input")?.value || "") || null,
+				is_active: row.querySelector(".ticket-active-input") ? row.querySelector(".ticket-active-input").checked : true
 			};
+			if (row.dataset.offerId) item.offer_id = row.dataset.offerId;
+			if (maxRaw !== undefined && String(maxRaw).trim() !== "") item.max_per_order = Number(maxRaw);
+			if (pricing === "package") {
+				item.package_quantity = Number(row.querySelector(".ticket-package-qty-input")?.value || 0);
+				item.package_price = Number(row.querySelector(".ticket-package-price-input")?.value || 0);
+				item.price = item.package_price;
+			} else {
+				item.unit_price = Number(row.querySelector(".ticket-price-input")?.value || 0);
+				item.price = item.unit_price;
+			}
 			out.push(item);
 		});
 		return out;
@@ -807,18 +863,26 @@ async function initOrganizerDashboard() {
 			+ rows + "</tbody></table>";
 	}
 
+	let bulkOfferRendering = false;
+
+	function bulkOfferRowHtml(offer, limit) {
+		const tickets = offer && offer.tickets ? offer.tickets : "";
+		const percent = offer && offer.percent ? offer.percent : "";
+		return "<div class=\"bulk-offer-row\">"
+			+ "<label>Number of tickets<input type=\"number\" class=\"setup-input bulk-offer-tickets\" min=\"2\" max=\"" + limit + "\" value=\"" + tickets + "\" /></label>"
+			+ "<label>Percentage off<input type=\"number\" class=\"setup-input bulk-offer-percent\" min=\"1\" max=\"90\" value=\"" + percent + "\" /></label>"
+			+ "<button type=\"button\" class=\"bulk-offer-remove\">Remove</button>"
+			+ "</div>";
+	}
+
 	function renderBulkOfferRows(offers) {
 		const host = document.getElementById("bulkOfferRows");
-		if (!host) return;
+		if (!host || bulkOfferRendering) return;
+		bulkOfferRendering = true;
 		const limit = currentPerPersonLimit();
 		const list = normalizeBulkOffers(offers, limit);
-		host.innerHTML = list.map((offer) => {
-			return "<div class=\"bulk-offer-row\">"
-				+ "<label>Number of tickets<input type=\"number\" class=\"setup-input bulk-offer-tickets\" min=\"2\" max=\"" + limit + "\" value=\"" + offer.tickets + "\" /></label>"
-				+ "<label>Percentage off<input type=\"number\" class=\"setup-input bulk-offer-percent\" min=\"1\" max=\"90\" value=\"" + offer.percent + "\" /></label>"
-				+ "<button type=\"button\" class=\"bulk-offer-remove\">Remove</button>"
-				+ "</div>";
-		}).join("");
+		host.innerHTML = list.map((offer) => bulkOfferRowHtml(offer, limit)).join("");
+		bulkOfferRendering = false;
 		renderBulkOfferPreview();
 	}
 
@@ -4364,7 +4428,10 @@ async function initOrganizerDashboard() {
 			if (!Number.isFinite(n) || n < 2) n = 2;
 			if (n > 20) n = 20;
 			ticketLimitInput.value = String(Math.round(n));
-			renderBulkOfferRows(readBulkOfferInputs());
+			document.querySelectorAll("#bulkOfferRows .bulk-offer-tickets").forEach((input) => {
+				input.max = String(n);
+			});
+			renderBulkOfferPreview();
 			triggerManageAutoSave();
 		});
 	}
@@ -4381,10 +4448,12 @@ async function initOrganizerDashboard() {
 			triggerManageAutoSave();
 		});
 		bulkOfferRows.addEventListener("input", () => {
+			if (bulkOfferRendering) return;
 			renderBulkOfferPreview();
 		});
 		bulkOfferRows.addEventListener("change", () => {
-			renderBulkOfferRows(readBulkOfferInputs());
+			if (bulkOfferRendering) return;
+			renderBulkOfferPreview();
 			triggerManageAutoSave();
 		});
 	}
@@ -4398,8 +4467,10 @@ async function initOrganizerDashboard() {
 			let tickets = Math.min(3, limit);
 			while (used.has(tickets) && tickets < limit) tickets += 1;
 			if (used.has(tickets)) return;
-			current.push({ tickets, percent: 10 });
-			renderBulkOfferRows(current);
+			const host = document.getElementById("bulkOfferRows");
+			if (!host) return;
+			host.insertAdjacentHTML("beforeend", bulkOfferRowHtml({ tickets: tickets, percent: 10 }, limit));
+			renderBulkOfferPreview();
 			triggerManageAutoSave();
 		});
 	}
@@ -4745,35 +4816,72 @@ async function initOrganizerDashboard() {
 	const ticketTiersRows = document.getElementById("ticketTiersRows");
 	const btnAddTicketTier = document.getElementById("btnAddTicketTier");
 
-	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "") {
+	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "", offer = {}) {
+		const saved = offer || {};
+		const pricing = saved.pricing_type === "package" ? "package" : "per_person";
+		const unitPrice = pricing === "package" ? "" : price;
+		const packagePrice = saved.package_price != null ? saved.package_price : (pricing === "package" ? price : "");
+		const people = saved.package_quantity != null ? saved.package_quantity : "";
+		const maxOrder = saved.max_per_order != null ? saved.max_per_order : "";
+		const active = saved.is_active === false ? "" : "checked";
 		const div = document.createElement("div");
 		div.className = "ticket-tier-row";
+		if (saved.offer_id) div.dataset.offerId = String(saved.offer_id);
 		div.innerHTML = `
 			<div class="setup-grid-3 ticket-tier-main">
 			<div class="setup-form-group">
-				<label>Ticket Type / Name <span style="color: #ef4444;">*</span></label>
+				<label>Offer name <span style="color: #ef4444;">*</span></label>
 				<div class="input-icon-wrap">
 					<span class="input-icon">&#127915;</span>
-						<input type="text" class="setup-input ticket-type-input" placeholder="e.g. VIP Pass, Early Bird, General" required value="${attrEscape(type)}" />
+						<input type="text" class="setup-input ticket-type-input" placeholder="e.g. Early Bird, Group of 6" required value="${attrEscape(type)}" />
 				</div>
 			</div>
 			<div class="setup-form-group">
-				<label>Ticket Price (\u20b9) <span style="color: #ef4444;">*</span></label>
-				<div class="input-icon-wrap">
-					<span class="input-icon">&#8377;</span>
-						<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" required value="${attrEscape(price)}" />
-				</div>
+				<label>Pricing type <span style="color: #ef4444;">*</span></label>
+				<select class="setup-input ticket-pricing-input">
+					<option value="per_person" ${pricing === "per_person" ? "selected" : ""}>Per person</option>
+					<option value="package" ${pricing === "package" ? "selected" : ""}>Group package</option>
+				</select>
 			</div>
 			<div class="setup-form-group">
-				<label>Capacity <span style="color: #ef4444;">*</span></label>
+				<label>Capacity</label>
 				<div style="display: flex; gap: 0.5rem;">
 					<div class="input-icon-wrap" style="flex: 1;">
 						<span class="input-icon">&#128101;</span>
-							<input type="number" class="setup-input ticket-qty-input" placeholder="e.g. 100" min="1" required value="${attrEscape(qty)}" />
+							<input type="number" class="setup-input ticket-qty-input" placeholder="Blank = no cap" min="0" value="${attrEscape(qty)}" />
 					</div>
 					<button type="button" class="btn-remove-ticket" title="Remove Ticket" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0 0.8rem; cursor: pointer; font-weight: 700; height: 44px;">&times;</button>
 				</div>
 			</div>
+			</div>
+			<div class="setup-grid-3 ticket-per-person-fields" ${pricing === "package" ? "hidden" : ""}>
+				<div class="setup-form-group">
+					<label>Price per person (\u20b9) <span style="color: #ef4444;">*</span></label>
+					<div class="input-icon-wrap">
+						<span class="input-icon">&#8377;</span>
+						<input type="number" class="setup-input ticket-price-input" placeholder="e.g. 499" min="0" step="0.01" value="${attrEscape(unitPrice)}" />
+					</div>
+				</div>
+			</div>
+			<div class="setup-grid-3 ticket-package-fields" ${pricing === "package" ? "" : "hidden"}>
+				<div class="setup-form-group">
+					<label>Attendees per package <span style="color: #ef4444;">*</span></label>
+					<input type="number" class="setup-input ticket-package-qty-input" placeholder="e.g. 6" min="2" step="1" value="${attrEscape(people)}" />
+				</div>
+				<div class="setup-form-group">
+					<label>Package price (\u20b9) <span style="color: #ef4444;">*</span></label>
+					<input type="number" class="setup-input ticket-package-price-input" placeholder="e.g. 2499" min="0" step="0.01" value="${attrEscape(packagePrice)}" />
+				</div>
+			</div>
+			<div class="setup-grid-3">
+				<div class="setup-form-group">
+					<label>Max per order</label>
+					<input type="number" class="setup-input ticket-max-input" placeholder="1 to 20" min="1" max="20" value="${attrEscape(maxOrder)}" />
+				</div>
+				<div class="setup-form-group">
+					<label>Offer status</label>
+					<label class="ticket-active-label"><input type="checkbox" class="ticket-active-input" ${active} /> Active</label>
+				</div>
 			</div>
 			<div class="setup-grid-2 ticket-tier-offer">
 				<div class="setup-form-group">
@@ -4783,11 +4891,21 @@ async function initOrganizerDashboard() {
 				<div class="setup-form-group">
 					<label>Offer ends</label>
 					<input type="datetime-local" class="setup-input ticket-offer-end-input" value="${attrEscape(offerEnd)}" />
+					<p class="ticket-offer-hint">Leave the end blank for ongoing sales. Sales stop at the time you set (India time).</p>
 				</div>
 			</div>
-			<p class="ticket-offer-hint">Leave blank to keep this ticket on sale for the whole event. Set dates for a same-day or limited-time offer.</p>
+			<p class="ticket-offer-preview"></p>
 		`;
 
+		syncTicketPricingFields(div);
+		updateTicketOfferPreview(div);
+		div.addEventListener("input", () => updateTicketOfferPreview(div));
+		div.addEventListener("change", (event) => {
+			if (event.target && event.target.classList.contains("ticket-pricing-input")) {
+				syncTicketPricingFields(div);
+			}
+			updateTicketOfferPreview(div);
+		});
 		const removeBtn = div.querySelector(".btn-remove-ticket");
 		removeBtn.addEventListener("click", () => {
 			if (ticketTiersRows.children.length > 1) {
@@ -4944,7 +5062,8 @@ async function initOrganizerDashboard() {
 					t.price != null ? t.price : "",
 					t.qty != null ? t.qty : (t.quantity != null ? t.quantity : ""),
 					isoToDatetimeLocal(t.sales_start || t.offer_start || t.sale_start || ""),
-					isoToDatetimeLocal(t.sales_end || t.offer_end || t.sale_end || "")
+					isoToDatetimeLocal(t.sales_end || t.offer_end || t.sale_end || ""),
+					t
 				));
 			});
 		}
@@ -4959,6 +5078,23 @@ async function initOrganizerDashboard() {
 			});
 		}
 		syncManageWizardPreview();
+	}
+
+	if (ticketTiersRows) {
+		const staleRows = [...ticketTiersRows.querySelectorAll(".ticket-tier-row")].filter((row) => !row.querySelector(".ticket-pricing-input"));
+		if (staleRows.length) {
+			const savedRows = staleRows.map((row) => ({
+				name: row.querySelector(".ticket-type-input")?.value || "",
+				price: row.querySelector(".ticket-price-input")?.value || "",
+				qty: row.querySelector(".ticket-qty-input")?.value || "",
+				start: row.querySelector(".ticket-offer-start-input")?.value || "",
+				end: row.querySelector(".ticket-offer-end-input")?.value || ""
+			}));
+			ticketTiersRows.innerHTML = "";
+			savedRows.forEach((item) => {
+				ticketTiersRows.appendChild(createTicketTierRowHtml(item.name, item.price, item.qty, item.start, item.end));
+			});
+		}
 	}
 
 	if (pendingManageEvent) {

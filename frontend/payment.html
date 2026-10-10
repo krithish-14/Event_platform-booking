@@ -453,6 +453,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  const price = Number(params.get("price") || saved.price || 0);
  const qrFromUrl = params.get("qr") || saved.paymentQrUrl || "";
  const qty = Number(saved.quantity || 1) || 1;
+ const offerId = saved.offerId || "";
+ const pricingType = saved.pricingType || "";
+ const packagePeople = Number(saved.packageQuantity) || 0;
  const bulkOffers = Array.isArray(saved.bulkOffers) ? saved.bulkOffers : [];
  function bulkPercentForQty(offers, count) {
  let bestTickets = 0;
@@ -537,6 +540,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
  function billAmountRupees() {
  const base = Math.max(0, (Number(price) || 0) * (Number(qty) || 1));
+ if (pricingType === "per_person" || pricingType === "package") return base;
  return base * (100 - bulkPercent) / 100;
  }
 
@@ -559,8 +563,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  if (amountEl) amountEl.textContent = formatRupees(parts.gross);
  const offerRow = document.getElementById("bulkOfferRow");
  const offerEl = document.getElementById("payBulkOffer");
- if (offerRow) offerRow.hidden = bulkPercent <= 0;
- if (offerEl) offerEl.textContent = bulkPercent > 0 ? (bulkPercent + "% off") : "";
+ if (offerRow) offerRow.hidden = !(pricingType === "package" || pricingType === "per_person" || bulkPercent > 0);
+ if (offerEl) {
+ if (pricingType === "package") {
+ const people = packagePeople * (Number(qty) || 1);
+ offerEl.textContent = (Number(qty) || 1) + " package(s) \u00b7 " + people + " attendees";
+ } else if (pricingType === "per_person") {
+ offerEl.textContent = (Number(qty) || 1) + " ticket(s) \u00b7 " + (Number(qty) || 1) + " attendees";
+ } else {
+ offerEl.textContent = bulkPercent > 0 ? (bulkPercent + "% off") : "";
+ }
+ }
  return parts;
  }
 
@@ -615,6 +628,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  body: JSON.stringify({
  event_id: eventId,
  ticket_type: ticket,
+ offer_id: offerId,
  quantity: qty || 1,
  attendee_name: user.full_name || user.username || "",
  attendee_phone: user.phone || user.mobile || ""
@@ -680,6 +694,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  receipt: ("evt_" + String(eventId).slice(0, 20) + "_" + Date.now()).slice(0, 40),
  event_id: eventId,
  ticket_type: ticket,
+ offer_id: offerId,
  quantity: qty || 1
  })
  });
@@ -735,6 +750,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  razorpay_signature: response.razorpay_signature,
  event_id: eventId,
  ticket_type: ticket,
+ offer_id: offerId,
  quantity: qty || 1,
  amount: billAmountRupees(),
  attendee_name: user.full_name || user.username || "",
@@ -988,7 +1004,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  const body = new FormData();
  body.append("event_id", eventId);
  body.append("ticket_type", ticket);
- body.append("amount", String((Number(price) || 0) * (qty || 1)));
+ body.append("offer_id", offerId);
+ body.append("amount", String(billAmountRupees()));
  body.append("quantity", String(qty || 1));
  body.append("attendee_name", document.getElementById("payName").value.trim());
  body.append("attendee_email", document.getElementById("payEmail").value.trim());
