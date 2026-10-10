@@ -36,6 +36,13 @@ class EmailDeliveryTests(unittest.TestCase):
         )
         self.assertEqual(smtp_login_users("", "only@gmail.com"), ["only@gmail.com"])
 
+    def test_zepto_signs_in_as_emailapikey(self):
+        self.assertEqual(
+            smtp_login_users("emailapikey", "AKIAYBP4ODGMRVPBBYY5", "smtp.zeptomail.in"),
+            ["emailapikey"],
+        )
+        self.assertEqual(smtp_login_users("", "", "smtp.zeptomail.com"), ["emailapikey"])
+
 
 if __name__ == "__main__":
     unittest.main()

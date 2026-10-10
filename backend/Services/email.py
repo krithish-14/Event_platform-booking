@@ -103,18 +103,23 @@ def smtp_password(value: str) -> str:
 	return text
 
 
-def smtp_login_users(user: str, username: str) -> list:
-	"""Mailboxes to try. SMTP_USER wins; a different SMTP_USERNAME is only a fallback."""
+def smtp_login_users(user: str, username: str, host: str = "") -> list:
+	"""Logins to try. Zepto Mail uses the literal username emailapikey, not an email address."""
 	found = []
 	for item in (user, username):
 		text = _env_unquote(item or "")
-		if "@" not in text:
+		if not text:
 			continue
 		low = text.lower()
 		if "example.com" in low or "yourdomain" in low or "changeme" in low:
 			continue
+		if text.startswith("AKIA"):
+			continue
 		if text not in found:
 			found.append(text)
+	if "zeptomail" in (host or "").lower():
+		zepto = [item for item in found if item.lower() == "emailapikey"]
+		return zepto or ["emailapikey"]
 	return found
 
 
@@ -174,6 +179,7 @@ def send_email(
 	login_users = smtp_login_users(
 		_smtp_setting(file_values, "SMTP_USER"),
 		_smtp_setting(file_values, "SMTP_USERNAME"),
+		host,
 	)
 	user = login_users[0] if login_users else ""
 	from_header = _env_unquote(
