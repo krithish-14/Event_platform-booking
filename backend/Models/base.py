@@ -10,7 +10,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
-load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")))
 
 def get_database_url() -> str:
     url = (os.getenv("DATABASE_URL") or "").strip()

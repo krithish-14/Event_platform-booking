@@ -14,8 +14,6 @@ from email.policy import SMTP as SMTP_POLICY
 from email.utils import parseaddr
 from typing import List, Optional, Tuple
 
-from Services.runtime_env import smtp_configured
-
 SITE_URL = (os.getenv("PUBLIC_SITE_URL") or "https://jodevents.com").rstrip("/")
 LOGO_URL = (
 	os.getenv("EMAIL_LOGO_URL")
@@ -96,6 +94,52 @@ def _env_unquote(value: str) -> str:
 	return text
 
 
+def smtp_password(value: str) -> str:
+	"""Normalize a mailbox password. Gmail app passwords are 16 letters shown with spaces."""
+	text = _env_unquote(value or "")
+	compact = "".join(text.split())
+	if compact.isalnum() and len(compact) >= 8 and compact != text:
+		return compact
+	return text
+
+
+def smtp_login_users(user: str, username: str) -> list:
+	"""Mailboxes to try. SMTP_USER wins; a different SMTP_USERNAME is only a fallback."""
+	found = []
+	for item in (user, username):
+		text = _env_unquote(item or "")
+		if "@" not in text:
+			continue
+		low = text.lower()
+		if "example.com" in low or "yourdomain" in low or "changeme" in low:
+			continue
+		if text not in found:
+			found.append(text)
+	return found
+
+
+def _backend_env_file() -> str:
+	return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
+
+def _smtp_file_values() -> dict:
+	path = _backend_env_file()
+	try:
+		from dotenv import dotenv_values
+		raw = dotenv_values(path) or {}
+	except Exception:
+		raw = {}
+	return {str(key): "" if value is None else str(value) for key, value in raw.items()}
+
+
+def _smtp_setting(values: dict, key: str) -> str:
+	"""backend/.env wins over a stale process environment."""
+	file_value = _env_unquote((values or {}).get(key) or "")
+	if file_value:
+		return file_value
+	return _env_unquote(os.getenv(key) or "")
+
+
 def envelope_address(header_value: str) -> str:
 	"""Bare address for SMTP MAIL FROM. Display names are header-only."""
 	_display, addr = parseaddr(header_value or "")
@@ -119,18 +163,27 @@ def send_email(
 	to_email = (to_email or "").strip()
 	if not to_email:
 		return False
-	if not smtp_configured():
+
+	file_values = _smtp_file_values()
+	host = _smtp_setting(file_values, "SMTP_HOST") or (os.getenv("SMTP_HOST") or "").strip()
+	if not host:
 		_safe_print("[EMAIL] skipped: SMTP_HOST is not configured")
 		return False
-
-	host = (os.getenv("SMTP_HOST") or "").strip()
-	port = int(os.getenv("SMTP_PORT") or "587")
-	from Services.runtime_env import smtp_user
-	user = _env_unquote(smtp_user())
-	password = _env_unquote(os.getenv("SMTP_PASSWORD") or "")
-	from_header = _env_unquote(os.getenv("SMTP_FROM") or os.getenv("EMAIL_FROM") or user or "noreply@jodevents.local")
+	port = int(_smtp_setting(file_values, "SMTP_PORT") or os.getenv("SMTP_PORT") or "587")
+	password = smtp_password(_smtp_setting(file_values, "SMTP_PASSWORD"))
+	login_users = smtp_login_users(
+		_smtp_setting(file_values, "SMTP_USER"),
+		_smtp_setting(file_values, "SMTP_USERNAME"),
+	)
+	user = login_users[0] if login_users else ""
+	from_header = _env_unquote(
+		_smtp_setting(file_values, "SMTP_FROM")
+		or _smtp_setting(file_values, "EMAIL_FROM")
+		or user
+		or "noreply@jodevents.local"
+	)
 	from_addr = envelope_address(from_header) or from_header
-	use_tls = (os.getenv("SMTP_TLS") or "1").strip() not in ("0", "false", "False")
+	use_tls = (_smtp_setting(file_values, "SMTP_TLS") or os.getenv("SMTP_TLS") or "1").strip() not in ("0", "false", "False")
 
 	plain = wrap_text_body(text_body or "")
 	if html_body and html_body.strip():
@@ -156,24 +209,35 @@ def send_email(
 		part.add_header("Content-Disposition", "attachment", filename=filename or "ticket.pdf")
 		msg.attach(part)
 
-	try:
-		payload = smtp_message_bytes(msg)
-		if int(port) == 465:
-			client = smtplib.SMTP_SSL(host, port, timeout=20)
-		else:
-			client = smtplib.SMTP(host, port, timeout=20)
-		with client as smtp:
-			smtp.ehlo()
-			if use_tls and int(port) != 465:
-				smtp.starttls()
+	payload = smtp_message_bytes(msg)
+	attempts = login_users or [""]
+	for login_user in attempts:
+		try:
+			if int(port) == 465:
+				client = smtplib.SMTP_SSL(host, port, timeout=20)
+			else:
+				client = smtplib.SMTP(host, port, timeout=20)
+			with client as smtp:
 				smtp.ehlo()
-			if user:
-				smtp.login(user, password)
-			smtp.sendmail(from_addr, [to_email], payload)
-		_safe_print("[EMAIL] delivered")
-		return True
-	except Exception as exc:
-		code = getattr(exc, "smtp_code", None)
-		detail = f" code={code}" if code else ""
-		_safe_print(f"[EMAIL] SMTP delivery failed: {type(exc).__name__}{detail}")
-		return False
+				if use_tls and int(port) != 465:
+					smtp.starttls()
+					smtp.ehlo()
+				if login_user:
+					smtp.login(login_user, password)
+				smtp.sendmail(from_addr, [to_email], payload)
+			_safe_print("[EMAIL] delivered")
+			return True
+		except smtplib.SMTPAuthenticationError as exc:
+			server_msg = exc.smtp_error.decode("utf-8", "replace") if isinstance(exc.smtp_error, bytes) else str(exc.smtp_error or "")
+			server_msg = " ".join(server_msg.split())[:180]
+			_safe_print(
+				f"[EMAIL] SMTP login rejected user={login_user or '(none)'} host={host} port={port} "
+				f"password_len={len(password)} code={exc.smtp_code} server={server_msg}"
+			)
+			continue
+		except Exception as exc:
+			code = getattr(exc, "smtp_code", None)
+			detail = f" code={code}" if code else ""
+			_safe_print(f"[EMAIL] SMTP delivery failed: {type(exc).__name__}{detail}")
+			return False
+	return False
