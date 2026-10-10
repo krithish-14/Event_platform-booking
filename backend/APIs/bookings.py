@@ -589,13 +589,62 @@ def _apply_active_ticket_fields(payload: dict, tickets: list, active_token: str 
     return payload
 
 
+def _form_attendee_for_booking(db, booking) -> tuple:
+    """Name, email, and phone from the host form for this booking.
+
+    Profile full name, username, and login email are never returned.
+    """
+    if db is None or booking is None:
+        return "", "", ""
+    try:
+        from APIs.admin import _form_guest_identity
+        from Utils.form_submission_query import (
+            fetch_form_submissions,
+            form_submission_booking_id,
+            parse_answers_json,
+        )
+    except Exception:
+        return "", "", ""
+
+    booking_key = str(getattr(booking, "booking_id", None) or "").replace("-", "").lower()
+    event_key = str(getattr(booking, "event_id", None) or "").replace("-", "").lower()
+    receiver_email = (getattr(booking, "receiver_email", None) or "").strip().lower()
+    row = None
+    try:
+        rows = fetch_form_submissions(db)
+    except Exception:
+        rows = []
+    if booking_key:
+        for candidate in rows:
+            stored = form_submission_booking_id(db, getattr(candidate, "id", None)) or ""
+            if str(stored).replace("-", "").lower() == booking_key:
+                row = candidate
+                break
+    if row is None and receiver_email:
+        for candidate in rows:
+            row_email = (getattr(candidate, "user_email", None) or "").strip().lower()
+            if row_email != receiver_email:
+                continue
+            stored_event = str(getattr(candidate, "event_id", None) or "").replace("-", "").lower()
+            if event_key and stored_event and stored_event != event_key:
+                continue
+            row = candidate
+            break
+    if row is None:
+        return "", "", ""
+    answers = parse_answers_json(getattr(row, "answers_json", None))
+    name, email, phone = _form_guest_identity(answers, fallback_email="")
+    return (name or "").strip(), (email or "").strip(), (phone or "").strip()
+
+
 def _serialize_booking(b: Booking, db: Optional[Session] = None, *, active_qr_token: str = "") -> dict:
     event_title = b.event.title if b.event else "Event"
     event_venue = (b.event.venue or b.event.location) if b.event else None
     event_start = b.event.start_date if b.event else None
-    user_name = (b.receiver_name or (b.customer.full_name if b.customer else None) or (b.customer.username if b.customer else None) or "Guest")
-    user_email = (b.receiver_email or (b.customer.email if b.customer else None) or "")
-    user_phone = b.receiver_phone or (getattr(b.customer, "phone", None) if b.customer else None) or ""
+    form_name, form_email, form_phone = _form_attendee_for_booking(db, b)
+    user_name = form_name or (b.receiver_name or "") or "Guest"
+    user_email = form_email or (b.receiver_email or "") or ""
+    user_phone = form_phone or (b.receiver_phone or "") or ""
     user_city = b.customer.city if b.customer else None
 
     pid = getattr(b, "payment_id", None)
@@ -1103,7 +1152,13 @@ def _ticket_pdf_http_response(
 
     kind_key = "invoice" if str(kind or "").strip().lower() == "invoice" else "ticket"
     include_qr = kind_key != "invoice"
-    if combined and kind_key == "ticket":
+    issued = [
+        item for item in _booking_tickets(booking, db=db)
+        if (getattr(item, "qr_token", None) or "").strip()
+    ]
+    # One issued ticket stays a single page, even if the client asked for every page.
+    use_combined = bool(combined) and kind_key == "ticket" and len(issued) > 1
+    if use_combined:
         pdf = build_combined_mticket_pdf_from_booking(booking, db=db, include_qr=include_qr)
         ticket_index = -1
     else:

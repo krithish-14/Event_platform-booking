@@ -347,7 +347,7 @@ def _attendee_from_host_form(
     *,
     event_id: str,
     ticket_type: Optional[str],
-    payload_name: Optional[str] = None,
+    payload_name: Optional[str] = None,  # ignored: ticket name is the host form, never a profile field
     payload_phone: Optional[str] = None,
     unpaid_only: bool = True,
     require_form: bool = True,
@@ -409,7 +409,8 @@ def _attendee_from_host_form(
                 detail="Host form must include the attendee email. Profile email is not used for tickets.",
             )
     else:
-        name = name or sanitize_text(payload_name or "", max_length=120) or "Guest"
+        # A missing form name stays blank here. Callers must not substitute the profile name.
+        name = name or "Guest"
         delivery_email = delivery_email or ""
 
     phone = sanitize_text(form_phone or payload_phone or "N/A", max_length=40) or "N/A"

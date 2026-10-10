@@ -176,10 +176,7 @@ def _lookup_ticket(db: Session, token_str: str, event_id: Optional[str] = None) 
 def _serialize_ticket_success(t: Ticket, message: str = "Ticket is valid for entry.") -> dict:
     b = t.booking
     ev = t.event or (b.event if b else None)
-    cust = t.customer or (b.customer if b else None)
-
-    cust_name = (b.receiver_name if b else None) or (cust.full_name if cust else None) or (cust.username if cust else "Guest Customer")
-    cust_email = (b.receiver_email if b else None) or (cust.email if cust else "customer@jodevents.com")
+    cust_name = (b.receiver_name if b else None) or "Guest"
     event_title = ev.title if ev else "Event Booking"
     event_venue = (ev.venue or ev.location) if ev else "Venue details at location"
     event_start = ev.start_date if ev else None

@@ -143,6 +143,22 @@ class TicketOfferPricingTests(unittest.TestCase):
         self.assertEqual(attendee_display_name("Asha", 1), "Asha (guest)")
         self.assertEqual(attendee_display_name("Asha", 2), "Asha (guest)")
 
+    def test_ticket_name_comes_from_the_form(self):
+        from Services.ticket_pdf import ticket_attendee_name
+        self.assertEqual(ticket_attendee_name("Form Asha", "Saved Asha"), "Form Asha")
+        self.assertEqual(ticket_attendee_name("", "Saved Asha"), "Saved Asha")
+        self.assertEqual(ticket_attendee_name("", ""), "Guest")
+
+    def test_ticket_layout_cannot_belong_to_another_event(self):
+        from Services.ticket_pdf import layout_belongs_to_event
+        this_event = "11111111-1111-1111-1111-111111111111"
+        other_event = "22222222-2222-2222-2222-222222222222"
+        self.assertTrue(layout_belongs_to_event({"event_id": this_event}, this_event))
+        self.assertTrue(layout_belongs_to_event({"event_id": this_event.replace("-", "")}, this_event))
+        self.assertFalse(layout_belongs_to_event({"event_id": other_event}, this_event))
+        self.assertFalse(layout_belongs_to_event({"template_id": "classic"}, this_event))
+        self.assertFalse(layout_belongs_to_event(None, this_event))
+
     def test_blank_max_per_order_does_not_cap_quantity(self):
         row = offer()
         row.pop("max_per_order")

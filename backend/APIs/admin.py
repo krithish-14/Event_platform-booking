@@ -686,16 +686,15 @@ def _resolve_attendee_identity(
     booking_name = getattr(booking, "receiver_name", None) if booking is not None else None
     booking_email = getattr(booking, "receiver_email", None) if booking is not None else None
     booking_phone = getattr(booking, "receiver_phone", None) if booking is not None else None
-    profile_phone = getattr(user, "phone", None) if user is not None else None
-    # Profile name/email are intentionally excluded — tickets track host-form data only.
+    # Profile name, email, and phone are excluded — tickets use the host form only.
     if prefer_form:
         names = (form_name, booking_name)
         emails = (form_email, booking_email)
-        phones = (form_phone, booking_phone, profile_phone)
+        phones = (form_phone, booking_phone)
     else:
         names = (booking_name, form_name)
         emails = (booking_email, form_email)
-        phones = (booking_phone, form_phone, profile_phone)
+        phones = (booking_phone, form_phone)
     return pick_attendee_identity(names=names, emails=emails, phones=phones)
 
 
@@ -1318,8 +1317,16 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
             event_when = str(public_start) if public_start else "TBA"
     ticket_link = public_ticket_url(token)
     image = qr_image_url(token)
-    attendee = booking.receiver_name or "there"
-    email_addr = booking.receiver_email or ""
+    form_name = ""
+    form_email = ""
+    if db is not None:
+        try:
+            from APIs.bookings import _form_attendee_for_booking
+            form_name, form_email, _form_phone = _form_attendee_for_booking(db, booking)
+        except Exception:
+            form_name, form_email = "", ""
+    attendee = (form_name or booking.receiver_name or "there")
+    email_addr = (form_email or booking.receiver_email or "")
     extra_links = ""
     extra_text = ""
     if len(tickets) > 1:

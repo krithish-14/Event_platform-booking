@@ -342,7 +342,7 @@
  nav.innerHTML = `<p class="ticket-multi-nav-title">${tickets.length} tickets in this order — select one to view or download</p><div class="ticket-multi-nav-buttons"></div>`;
  const buttons = nav.querySelector(".ticket-multi-nav-buttons");
  tickets.forEach((ticket, index) => {
- const label = ticket.guest_label ? `${data.receiver_name || data.user_name || "Guest"} (${ticket.guest_label})` : (data.receiver_name || data.user_name || (index === 0 ? "Primary ticket" : `Ticket ${index + 1}`));
+ const label = ticket.guest_label ? `${data.receiver_name || "Guest"} (${ticket.guest_label})` : (data.receiver_name || (index === 0 ? "Primary ticket" : `Ticket ${index + 1}`));
  const btn = document.createElement("button");
  btn.type = "button";
  btn.className = "ticket-multi-nav-btn" + (String(data.qr_token || "") === String(ticket.qr_token || "") ? " is-active" : "");
@@ -486,15 +486,15 @@
  const recEmail = document.getElementById("receiverEmail");
  const recPhone = document.getElementById("receiverPhone");
 
- const attendeeName = data.receiver_name || data.user_name || "Guest Customer";
+ const attendeeName = data.receiver_name || "Guest";
  if (recName) recName.textContent = attendeeName;
- if (recEmail) recEmail.textContent = data.receiver_email || data.user_email || "customer@jodevents.com";
- if (recPhone) recPhone.textContent = data.receiver_phone || "+91 98765 43210";
+ if (recEmail) recEmail.textContent = data.receiver_email || "—";
+ if (recPhone) recPhone.textContent = data.receiver_phone || "—";
  const attendeeNameEl = document.getElementById("ticketAttendeeName");
  const attendeePhoneEl = document.getElementById("ticketAttendeePhone");
  const attendeeEmailEl = document.getElementById("ticketAttendeeEmail");
- const attendeePhone = data.receiver_phone || data.user_phone || "+91 98765 43210";
- const attendeeEmail = data.receiver_email || data.user_email || "customer@jodevents.com";
+ const attendeePhone = data.receiver_phone || "—";
+ const attendeeEmail = data.receiver_email || "—";
  const displayName = data.guest_label ? `${attendeeName} (${data.guest_label})` : attendeeName;
  if (attendeeNameEl) attendeeNameEl.textContent = displayName;
  if (attendeePhoneEl) attendeePhoneEl.textContent = attendeePhone;
@@ -753,15 +753,10 @@
  const kind = (options && options.kind) === "invoice" ? "invoice" : "ticket";
  const token = (bookingData && bookingData.qr_token) || getQueryParam("token") || getQueryParam("qr");
  const id = (bookingData && bookingData.booking_id) || getQueryParam("id") || getQueryParam("booking_id");
- const downloadAll = Boolean(options && options.downloadAll);
  const tickets = Array.isArray(bookingData && bookingData.tickets) ? bookingData.tickets.filter((t) => t && t.qr_token) : [];
  try {
  if (kind === "ticket" && !token && !id) throw new Error("missing");
- const packageCount = Math.max(
- tickets.length,
- Number(bookingData && (bookingData.booking_quantity || bookingData.quantity)) || 1
- );
- if (kind === "ticket" && (downloadAll || packageCount > 1)) {
+ if (kind === "ticket" && tickets.length > 1) {
  await downloadTicketPdfForToken(bookingData, token, kind, { combined: true });
  return;
  }

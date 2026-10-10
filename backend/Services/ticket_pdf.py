@@ -508,6 +508,36 @@ def guest_label_for_index(index: int) -> str:
     return "guest"
 
 
+def ticket_attendee_name(form_name: str = "", receiver_name: str = "") -> str:
+    """Ticket face name. Host-form answer first, then the name saved from that form."""
+    name = str(form_name or "").strip() or str(receiver_name or "").strip()
+    return name or "Guest"
+
+
+def _compact_event_id(value) -> str:
+    return str(value or "").replace("-", "").strip().lower()
+
+
+def layout_belongs_to_event(layout, event_id) -> bool:
+    """True only when a layout was stamped for this exact event."""
+    if not isinstance(layout, dict):
+        return False
+    stamped = _compact_event_id(layout.get("event_id"))
+    wanted = _compact_event_id(event_id)
+    return bool(stamped and wanted and stamped == wanted)
+
+
+def _form_identity_for_booking(booking, db) -> tuple:
+    if db is None or booking is None:
+        return "", "", ""
+    try:
+        from APIs.bookings import _form_attendee_for_booking
+        name, email, phone = _form_attendee_for_booking(db, booking)
+        return (name or "").strip(), (email or "").strip(), (phone or "").strip()
+    except Exception:
+        return "", "", ""
+
+
 def attendee_display_name(name: str, index: int) -> str:
     """Buyer name on ticket 1. Later tickets read 'Buyer name (guest)'."""
     base = _ascii_text(name, "")
@@ -641,7 +671,12 @@ def _published_ticket_layout_for_event(db, event_id) -> Optional[dict]:
             if design:
                 break
 
-    if not design or not (design.ticket_layout_json or design.ticket_template_id):
+    # A design row is usable only when it belongs to this event.
+    # An empty published canvas stays on the generic template, never another event.
+    if not design or not isinstance(design.ticket_layout_json, dict) or not design.ticket_layout_json:
+        if not design or not (design.ticket_template_id and _compact_event_id(getattr(design, "event_id", None)) == _compact_event_id(event_id)):
+            return None
+    if _compact_event_id(getattr(design, "event_id", None)) != _compact_event_id(event_id):
         return None
 
     premium = False
@@ -663,11 +698,15 @@ def _published_ticket_layout_for_event(db, event_id) -> Optional[dict]:
     except Exception:
         premium = False
 
-    return normalize_ticket_layout(
+    layout = normalize_ticket_layout(
         design.ticket_layout_json if isinstance(design.ticket_layout_json, dict) else {},
         template_id=design.ticket_template_id,
         is_premium=premium,
     )
+    layout["event_id"] = str(getattr(design, "event_id", None) or event_id)
+    if not layout_belongs_to_event(layout, event_id):
+        return None
+    return layout
 
 
 def build_mticket_pdf_bytes(
@@ -1057,7 +1096,11 @@ def build_mticket_pdf_from_booking(
         except Exception:
             event_date = public_start
 
-    ticket_layout = _published_ticket_layout_for_event(db, getattr(booking, "event_id", None))
+    event_id = getattr(booking, "event_id", None)
+    ticket_layout = _published_ticket_layout_for_event(db, event_id)
+    if ticket_layout and not layout_belongs_to_event(ticket_layout, event_id):
+        ticket_layout = None
+    form_name, form_email, form_phone = _form_identity_for_booking(booking, db)
 
     return build_mticket_pdf_bytes(
         booking_id=getattr(booking, "booking_id", ""),
@@ -1076,9 +1119,9 @@ def build_mticket_pdf_from_booking(
         payment_mode=getattr(booking, "payment_mode", None) or "",
         include_qr=include_qr,
         ticket_layout=ticket_layout,
-        attendee_name=getattr(booking, "receiver_name", None) or "",
-        attendee_email=getattr(booking, "receiver_email", None) or "",
-        attendee_phone=getattr(booking, "receiver_phone", None) or "",
+        attendee_name=ticket_attendee_name(form_name, getattr(booking, "receiver_name", None)),
+        attendee_email=(form_email or getattr(booking, "receiver_email", None) or ""),
+        attendee_phone=(form_phone or getattr(booking, "receiver_phone", None) or ""),
         attendee_guest_label=guest_label,
         _return_page_chunk=_return_page_chunk,
     )
@@ -1090,9 +1133,11 @@ def build_combined_mticket_pdf_from_booking(
     include_qr: bool = True,
 ) -> Optional[bytes]:
     """One PDF with one page per unique QR ticket (primary + Guest 1, Guest 2, …)."""
-    tickets = _ordered_booking_tickets(booking, db=db)
-    booking_qty = max(1, int(getattr(booking, "quantity", 1) or 1))
-    if not tickets or (len(tickets) == 1 and booking_qty <= 1):
+    tickets = [
+        ticket for ticket in _ordered_booking_tickets(booking, db=db)
+        if (getattr(ticket, "qr_token", None) or "").strip()
+    ]
+    if len(tickets) <= 1:
         result = build_mticket_pdf_from_booking(
             booking,
             qr_token=(tickets[0].qr_token if tickets else ""),
@@ -1555,13 +1600,14 @@ def build_admin_mticket_pdf_from_booking(
         except Exception:
             event_date = public_start
 
-    guest = (attendee_name or "").strip()
-    if not guest:
-        # Host-form / booking receiver only — never profile full_name.
-        guest = (getattr(booking, "receiver_name", None) or "").strip() or "Guest"
+    form_name, _, _ = _form_identity_for_booking(booking, db)
+    guest = ticket_attendee_name(form_name or attendee_name, getattr(booking, "receiver_name", None))
 
     # ── Load this event's published ticket layout only ─────────────────────────
-    ticket_layout = _published_ticket_layout_for_event(db, getattr(booking, "event_id", None))
+    event_id = getattr(booking, "event_id", None)
+    ticket_layout = _published_ticket_layout_for_event(db, event_id)
+    if ticket_layout and not layout_belongs_to_event(ticket_layout, event_id):
+        ticket_layout = None
     has_host_design = bool(ticket_layout)
 
     # ── Use host-designed M-ticket renderer when a design is available ─────────
