@@ -169,20 +169,16 @@ def _read_env_file(path: str) -> dict:
 	return {str(key): "" if value is None else str(value) for key, value in raw.items()}
 
 
+_SMTP_KEYS = ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_TLS", "EMAIL_FROM")
+
+
 def _smtp_file_values() -> dict:
-	"""backend/.env wins, except a Zepto host in .env.production replaces a Gmail host."""
+	"""Use backend/.env when it names an SMTP host. Otherwise use .env.production."""
 	backend_values = _read_env_file(_backend_env_file())
 	production_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env.production"))
 	production_values = _read_env_file(production_path)
-	merged = dict(production_values)
-	merged.update({key: value for key, value in backend_values.items() if str(value or "").strip()})
-	backend_host = (backend_values.get("SMTP_HOST") or "").lower()
-	production_host = (production_values.get("SMTP_HOST") or "").lower()
-	if "zeptomail" in production_host and "zeptomail" not in backend_host:
-		for key in ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_TLS"):
-			if str(production_values.get(key) or "").strip():
-				merged[key] = production_values[key]
-	return merged
+	source = backend_values if str(backend_values.get("SMTP_HOST") or "").strip() else production_values
+	return {key: source.get(key) or "" for key in _SMTP_KEYS}
 
 
 def _smtp_setting(values: dict, key: str) -> str:
