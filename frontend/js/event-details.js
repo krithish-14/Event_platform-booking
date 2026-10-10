@@ -733,14 +733,12 @@ function selectedOfferMeta() {
 
 function maxTicketsPerPerson(event) {
  const meta = selectedOfferMeta();
- if (meta.pricing === "per_person" || meta.pricing === "package") {
- const n = meta.max;
- if (Number.isFinite(n) && n >= 1) return Math.round(n);
- return 100000;
- }
  const purchase = (event && event.ticket_purchase) || currentTicketPurchase || {};
  const mode = String(purchase.mode || "single").toLowerCase();
+ if (meta.max >= 1) return Math.round(meta.max);
+ // A single purchase is one of the tickets above. Quantity opens only for multiple tickets.
  if (mode !== "multiple") return 1;
+ if (meta.pricing === "per_person" || meta.pricing === "package") return 100000;
  const n = Number(purchase.per_person_limit);
  return Number.isFinite(n) && n >= 2 ? Math.min(20, Math.round(n)) : 2;
 }
@@ -934,6 +932,9 @@ function selectTicketOption(element, price, ticketName) {
  currentSelectedPrice = price;
  currentSelectedOfferId = (element && element.dataset && element.dataset.offerId) || "";
  currentSelectedPaymentQr = (element && element.dataset && element.dataset.paymentQr) || "";
+ const qtyInput = document.getElementById("ticketQtyInput");
+ if (qtyInput) qtyInput.value = "1";
+ currentSelectedQty = 1;
  if (ticketName) {
  currentSelectedTicketType = ticketName;
  } else {
@@ -962,8 +963,15 @@ function formatTicketPrice(price) {
 function setStartingPriceDisplay(price) {
  const displayPrice = document.getElementById('displayPrice');
  if (displayPrice) displayPrice.textContent = formatTicketPrice(price);
+}
+
+function setMobileSelectedPrice(total) {
  const mobilePrice = document.getElementById('mobileStickyPrice');
- if (mobilePrice) mobilePrice.textContent = formatTicketPrice(price);
+ if (mobilePrice) mobilePrice.textContent = formatTicketPrice(total);
+ document.querySelectorAll(".sticky-bottom-bar .bar-price-group p").forEach((el) => {
+ if (el.textContent === "Your ticket") return;
+ el.textContent = "Total";
+ });
 }
 
 function updateQuantityTotalDisplay(unitPrice) {
@@ -979,9 +987,14 @@ function updateQuantityTotalDisplay(unitPrice) {
  total = unit * qty * (100 - percent) / 100;
  }
  totalEl.textContent = formatTicketPrice(total);
+ setMobileSelectedPrice(total);
  const applied = document.getElementById("bulkOfferApplied");
+ const showQty = maxTicketsPerPerson(currentEventData) > 1;
  if (applied) {
- if (meta.pricing === "package") {
+ if (!showQty) {
+ applied.hidden = true;
+ applied.textContent = "";
+ } else if (meta.pricing === "package") {
  const people = (meta.packageQty || 0) * qty;
  applied.hidden = false;
  applied.textContent = qty + (qty === 1 ? " package" : " packages") + " \u00b7 " + people + " attendees";
@@ -1022,7 +1035,7 @@ function updateSelectedPriceUI(price, ticketName) {
  document.querySelectorAll(".bar-price-group p").forEach((el) => {
  if (el.textContent === "Your ticket") return;
  el.dataset.defaultLabel = el.dataset.defaultLabel || el.textContent || "Starts from";
- el.textContent = el.dataset.defaultLabel || "Starts from";
+ el.textContent = document.querySelector(".ticket-type-option.selected") ? "Total" : (el.dataset.defaultLabel || "Starts from");
  });
 }
 
@@ -1308,7 +1321,7 @@ function hidePostPurchaseActions() {
  el.hidden = true;
  });
  document.querySelectorAll(".bar-price-group p").forEach((el) => {
- el.textContent = el.dataset.defaultLabel || "Starts from";
+ el.textContent = document.querySelector(".ticket-type-option.selected") ? "Total" : (el.dataset.defaultLabel || "Starts from");
  });
 }
 

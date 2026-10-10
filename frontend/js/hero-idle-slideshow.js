@@ -1,7 +1,7 @@
 /**
  * Home hero idle slideshow.
  * Quiet crossfade only — no shatter, slats, or flare.
- * Plays only when no featured event is live.
+ * Plays only when the home page has no published event to feature.
  */
 (function (global) {
 	"use strict";
@@ -122,7 +122,7 @@
 
 	function boot() {
 		const hero = document.querySelector(".hero");
-		if (!hero || hero.classList.contains("has-live-event")) return;
+		if (!hero || hero.classList.contains("has-featured-event") || hero.classList.contains("has-live-event")) return;
 		start();
 	}
 

@@ -430,6 +430,63 @@ def assert_offer_capacity(db, event_id: str, offer: dict, purchase_quantity: int
         raise HTTPException(status_code=400, detail="Not enough tickets left for this offer.")
 
 
+def seats_for_offer(
+    offer: Optional[dict],
+    *,
+    stored_quantity: int = 1,
+    purchase_quantity: int = 0,
+    attendee_count: int = 0,
+) -> int:
+    """How many QR tickets to issue.
+
+    A group package of 3 is three tickets even when the buyer purchased one package.
+    A per-person ticket stays one ticket per purchased seat.
+    """
+    stored = max(1, _as_int(stored_quantity, 1))
+    attendees = _as_int(attendee_count, 0)
+    purchase = _as_int(purchase_quantity, 0)
+    if not isinstance(offer, dict):
+        return max(stored, attendees)
+    pricing = str(offer.get("pricing_type") or "").strip().lower()
+    people = _as_int(offer.get("package_quantity"), 0)
+    if pricing == "package" and people >= 2:
+        if purchase >= 1:
+            packs = purchase
+        elif attendees >= people and attendees % people == 0:
+            packs = attendees // people
+        elif stored >= people and stored % people == 0:
+            packs = stored // people
+        else:
+            packs = stored if 1 <= stored < people else 1
+        return people * max(1, packs)
+    if attendees >= 1:
+        return attendees
+    return stored
+
+
+def seat_count_for_proof(db, row, event_id, ticket_type: str = "") -> int:
+    """Resolve issued QR count from the payment snapshot, then the event's package size."""
+    stored = _as_int(getattr(row, "quantity", None), 1)
+    attendees = _as_int(getattr(row, "attendee_count", None), 0)
+    purchase = _as_int(getattr(row, "purchase_quantity", None), 0)
+    offer_id = str(getattr(row, "offer_id", "") or "").strip()
+    name = str(getattr(row, "ticket_type", None) or ticket_type or "").strip()
+    offer = None
+    try:
+        _, rows = _load_host_tickets(db, event_id)
+        offer = find_offer(rows, offer_id=offer_id, ticket_name="" if offer_id else name)
+        if offer is None and name:
+            offer = find_offer(rows, ticket_name=name)
+    except Exception:
+        offer = None
+    return max(1, seats_for_offer(
+        offer,
+        stored_quantity=stored,
+        purchase_quantity=purchase,
+        attendee_count=attendees,
+    ))
+
+
 def apply_quote_to_proof(row, quote: PriceQuote) -> None:
     """Snapshot the server price onto a payment row. Quantity stored is the attendee count."""
     row.ticket_type = quote.offer_name[:100]

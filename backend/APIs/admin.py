@@ -1136,11 +1136,10 @@ def _issue_tickets_from_payment(
 
     ticket_type = row.ticket_type or "General Admission"
     price = float(row.amount if row.amount is not None else (event.price or 0))
-    try:
-        attendees = int(getattr(row, "attendee_count", None) or 0)
-    except (TypeError, ValueError):
-        attendees = 0
-    qty = max(1, int(row.quantity or 1), attendees)
+    from Services.ticket_pricing import seat_count_for_proof
+    qty = seat_count_for_proof(db, row, event.id, ticket_type)
+    if hasattr(row, "attendee_count"):
+        row.attendee_count = qty
     linked_submission_id = submission_id
 
     from Utils.text_sanitize import looks_like_email, looks_like_person_name
@@ -1292,7 +1291,44 @@ def _issue_tickets_from_payment(
     return issued
 
 
+def ensure_booking_ticket_seats(db: Session, booking: Optional[Booking]) -> Optional[Booking]:
+    """Mint one QR per person in a group package when an older booking only has one."""
+    if booking is None or db is None:
+        return booking
+    from Services.ticket_pricing import seat_count_for_proof
+
+    proof = _payment_by_booking_id(db, booking.booking_id)
+    if proof is not None:
+        target = seat_count_for_proof(db, proof, booking.event_id, booking.ticket_type or "")
+    else:
+        target = seat_count_for_proof(db, booking, booking.event_id, booking.ticket_type or "")
+    target = max(1, int(target or 1))
+    existing = [
+        ticket for ticket in (getattr(booking, "tickets", None) or [])
+        if (getattr(ticket, "qr_token", None) or "").strip()
+    ]
+    changed = False
+    if target > len(existing):
+        _mint_unique_tickets(db, booking, target, booking.ticket_type or "General Admission")
+        changed = True
+    if int(getattr(booking, "quantity", 1) or 1) != target:
+        booking.quantity = target
+        changed = True
+    if proof is not None and target > 1 and int(getattr(proof, "attendee_count", 0) or 0) != target:
+        proof.attendee_count = target
+        changed = True
+    if changed:
+        try:
+            db.commit()
+        except Exception:
+            _db_safe_rollback(db)
+        return _reload_booking(db, booking.booking_id) or booking
+    return booking
+
+
 def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) -> dict:
+    if db is not None:
+        booking = ensure_booking_ticket_seats(db, booking) or booking
     tickets = [t for t in (booking.tickets or []) if (t.qr_token or "").strip()]
     if not tickets:
         raise HTTPException(status_code=500, detail="No unique QR ticket was issued for this attendee.")

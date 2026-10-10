@@ -1132,6 +1132,14 @@ def get_single_booking(
     if not b:
         raise HTTPException(status_code=404, detail="Booking not found.")
     _assert_booking_owner(b, current_user)
+    try:
+        from APIs.admin import ensure_booking_ticket_seats
+        b = ensure_booking_ticket_seats(db, b) or b
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
     return _serialize_booking(b, db=db)
 
 
@@ -1152,12 +1160,21 @@ def _ticket_pdf_http_response(
 
     kind_key = "invoice" if str(kind or "").strip().lower() == "invoice" else "ticket"
     include_qr = kind_key != "invoice"
+    if kind_key == "ticket":
+        try:
+            from APIs.admin import ensure_booking_ticket_seats
+            booking = ensure_booking_ticket_seats(db, booking) or booking
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
     issued = [
         item for item in _booking_tickets(booking, db=db)
         if (getattr(item, "qr_token", None) or "").strip()
     ]
-    # One issued ticket stays a single page, even if the client asked for every page.
-    use_combined = bool(combined) and kind_key == "ticket" and len(issued) > 1
+    # A group package download is one PDF with a page for every person, named buyer then guests.
+    use_combined = kind_key == "ticket" and len(issued) > 1
     if use_combined:
         pdf = build_combined_mticket_pdf_from_booking(booking, db=db, include_qr=include_qr)
         ticket_index = -1

@@ -415,6 +415,14 @@ def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
     )
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+    try:
+        from APIs.admin import ensure_booking_ticket_seats
+        booking = ensure_booking_ticket_seats(db, booking) or booking
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
     full = _serialize_booking(booking, db=db, active_qr_token=qr_token)
     allowed = {
         "booking_id",

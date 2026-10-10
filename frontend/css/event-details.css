@@ -907,6 +907,11 @@ body.category-theme-workshop .performer-avatar {
     gap: 0.35rem;
 }
 
+.bulk-offer-list[hidden],
+.ticket-qty-wrap[hidden] {
+    display: none !important;
+}
+
 .bulk-offer-list p {
     margin: 0;
     font-size: 0.82rem;

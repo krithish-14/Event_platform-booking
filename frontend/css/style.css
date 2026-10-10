@@ -1181,7 +1181,7 @@ body.home-page .hero.hero-slide-in .hero-copy {
 	z-index: 0;
 }
 
-.hero:not(.has-live-event) .hero-image {
+.hero:not(.has-featured-event) .hero-image {
 	visibility: hidden;
 }
 
@@ -1198,6 +1198,7 @@ body.home-page .hero.hero-slide-in .hero-copy {
 	background: #0a0806;
 }
 
+.hero.has-featured-event .hero-idle-slideshow,
 .hero.has-live-event .hero-idle-slideshow,
 .hero-idle-slideshow[hidden] {
 	display: none !important;
@@ -1419,9 +1420,8 @@ h2 em {
 	display: none !important;
 }
 
-/* Tag + explore CTA only while the featured event is live */
-.hero:not(.has-live-event) .inline-featured-label,
-.hero:not(.has-live-event) .button-row {
+/* Featured tag stays for an in-progress event. Explore stays under the address for every published event. */
+.hero:not(.has-live-event) .inline-featured-label {
 	display: none !important;
 }
 

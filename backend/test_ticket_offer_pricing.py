@@ -137,6 +137,17 @@ class TicketOfferPricingTests(unittest.TestCase):
         self.assertTrue(legacy.legacy)
         self.assertEqual(legacy.total_paise, 36000)
 
+    def test_group_package_issues_one_ticket_per_person(self):
+        from Services.ticket_pricing import seats_for_offer
+        group3 = {"pricing_type": "package", "package_quantity": 3}
+        group6 = {"pricing_type": "package", "package_quantity": 6}
+        self.assertEqual(seats_for_offer(group3, stored_quantity=1), 3)
+        self.assertEqual(seats_for_offer(group6, stored_quantity=1), 6)
+        self.assertEqual(seats_for_offer(group3, stored_quantity=1, purchase_quantity=2), 6)
+        self.assertEqual(seats_for_offer(group3, stored_quantity=3, attendee_count=3), 3)
+        self.assertEqual(seats_for_offer({"pricing_type": "per_person"}, stored_quantity=1), 1)
+        self.assertEqual(seats_for_offer(None, stored_quantity=1), 1)
+
     def test_package_pdf_names_buyer_then_guests(self):
         from Services.ticket_pdf import attendee_display_name
         self.assertEqual(attendee_display_name("Asha", 0), "Asha")

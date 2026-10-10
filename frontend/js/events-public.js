@@ -395,7 +395,7 @@
 		hero.classList.toggle("has-live-event", phase === "live");
 		const idle = global.JodHeroIdleSlideshow;
 		if (idle) {
-			if (phase === "live") idle.stop();
+			if (event) idle.stop();
 			else idle.start();
 		}
 	}

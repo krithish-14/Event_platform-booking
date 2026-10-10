@@ -476,6 +476,9 @@ def _record_razorpay_payment(
                     created_at=utc_now(),
                 )
                 db.add(row)
+                if quote is not None:
+                    from Services.ticket_pricing import apply_quote_to_proof
+                    apply_quote_to_proof(row, quote)
                 db.commit()
                 db.refresh(row)
                 try:
@@ -501,6 +504,9 @@ def _record_razorpay_payment(
             if form_phone:
                 row.attendee_phone = sanitize_text(form_phone, max_length=40) or row.attendee_phone
             row.status = "payment_submitted"
+            if quote is not None:
+                from Services.ticket_pricing import apply_quote_to_proof
+                apply_quote_to_proof(row, quote)
             db.commit()
             db.refresh(row)
             try:
@@ -1312,6 +1318,9 @@ async def verify_razorpay_payment(
                         created_at=utc_now(),
                     )
                     db.add(row)
+                    if checkout_quote is not None:
+                        from Services.ticket_pricing import apply_quote_to_proof
+                        apply_quote_to_proof(row, checkout_quote)
                     db.commit()
                     db.refresh(row)
                     submission_id = getattr(form, "id", None) if form is not None else None
