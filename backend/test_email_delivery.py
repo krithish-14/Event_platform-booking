@@ -2,7 +2,16 @@ import unittest
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from Services.email import envelope_address, smtp_login_users, smtp_message_bytes, smtp_password, wrap_text_body
+from Services.email import (
+    envelope_address,
+    smtp_login_users,
+    smtp_message_bytes,
+    smtp_password,
+    wrap_text_body,
+    zepto_api_url,
+    zepto_authorization,
+    zepto_send_failure,
+)
 
 
 class EmailDeliveryTests(unittest.TestCase):
@@ -42,6 +51,11 @@ class EmailDeliveryTests(unittest.TestCase):
             ["emailapikey"],
         )
         self.assertEqual(smtp_login_users("", "", "smtp.zeptomail.com"), ["emailapikey"])
+
+    def test_zepto_india_api_uses_the_token_prefix(self):
+        self.assertEqual(zepto_api_url("smtp.zeptomail.in"), "https://api.zeptomail.in/v1.1/email")
+        self.assertTrue(zepto_authorization("abc").startswith("Zoho-enczapikey "))
+        self.assertIn("credits", zepto_send_failure(429, '{"error":{"code":"LE_102","message":"Credit exhausted"}}').lower())
 
 
 if __name__ == "__main__":

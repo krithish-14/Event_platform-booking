@@ -5,8 +5,11 @@ Every outbound message ends with the JOD Events logo and Help & Support footer.
 """
 
 import html
+import json
 import os
 import smtplib
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -103,6 +106,36 @@ def smtp_password(value: str) -> str:
 	return text
 
 
+_last_send_detail = ""
+
+
+def last_send_detail() -> str:
+	return _last_send_detail
+
+
+def zepto_authorization(token: str) -> str:
+	"""Zepto's India API accepts the Send Mail token only with this prefix."""
+	text = (token or "").strip()
+	if text.lower().startswith("zoho-enczapikey"):
+		return text
+	return f"Zoho-enczapikey {text}" if text else ""
+
+
+def zepto_api_url(host: str) -> str:
+	if "zeptomail.in" in (host or "").lower():
+		return "https://api.zeptomail.in/v1.1/email"
+	return "https://api.zeptomail.com/v1.1/email"
+
+
+def zepto_send_failure(status_code: int, body: str) -> str:
+	text = body or ""
+	if "LE_102" in text or "Credit exhausted" in text:
+		return "Zepto Mail has no credits left. Add credits in the Zepto Mail agent, then try again."
+	if status_code in (401, 403) or "Invalid API Token" in text:
+		return "Zepto Mail rejected the Send Mail token. Copy a new token from the agent's SMTP/API tab."
+	return "Could not send the verification email. Try again later."
+
+
 def smtp_login_users(user: str, username: str, host: str = "") -> list:
 	"""Logins to try. Zepto Mail uses the literal username emailapikey, not an email address."""
 	found = []
@@ -127,14 +160,29 @@ def _backend_env_file() -> str:
 	return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 
-def _smtp_file_values() -> dict:
-	path = _backend_env_file()
+def _read_env_file(path: str) -> dict:
 	try:
 		from dotenv import dotenv_values
 		raw = dotenv_values(path) or {}
 	except Exception:
 		raw = {}
 	return {str(key): "" if value is None else str(value) for key, value in raw.items()}
+
+
+def _smtp_file_values() -> dict:
+	"""backend/.env wins, except a Zepto host in .env.production replaces a Gmail host."""
+	backend_values = _read_env_file(_backend_env_file())
+	production_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env.production"))
+	production_values = _read_env_file(production_path)
+	merged = dict(production_values)
+	merged.update({key: value for key, value in backend_values.items() if str(value or "").strip()})
+	backend_host = (backend_values.get("SMTP_HOST") or "").lower()
+	production_host = (production_values.get("SMTP_HOST") or "").lower()
+	if "zeptomail" in production_host and "zeptomail" not in backend_host:
+		for key in ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_TLS"):
+			if str(production_values.get(key) or "").strip():
+				merged[key] = production_values[key]
+	return merged
 
 
 def _smtp_setting(values: dict, key: str) -> str:
@@ -155,6 +203,73 @@ def smtp_message_bytes(msg: MIMEMultipart) -> bytes:
 	"""ASCII-safe SMTP payload. Non-ASCII subjects (em dash) stay in the header encoding."""
 	policy = SMTP_POLICY.clone(cte_type="7bit")
 	return msg.as_bytes(policy=policy)
+
+
+def _send_via_zepto(
+	*,
+	host: str,
+	token: str,
+	from_header: str,
+	to_email: str,
+	subject: str,
+	text_body: str,
+	html_body: str,
+	attachments: Optional[List[Tuple[str, bytes, str]]] = None,
+) -> bool:
+	"""Send through Zepto's HTTP API. The India token is rejected by SMTP login."""
+	global _last_send_detail
+	auth = zepto_authorization(token)
+	if not auth:
+		_last_send_detail = "Zepto Mail rejected the Send Mail token. Copy a new token from the agent's SMTP/API tab."
+		_safe_print("[EMAIL] Zepto token missing")
+		return False
+	display, address = parseaddr(from_header or "")
+	address = (address or from_header or "").strip()
+	payload = {
+		"from": {"address": address, "name": display or "JOD Events"},
+		"to": [{"email_address": {"address": to_email}}],
+		"subject": subject or "JOD Events",
+		"textbody": text_body or "",
+		"htmlbody": html_body or "",
+	}
+	files = []
+	for filename, content, mime in attachments or []:
+		if not content:
+			continue
+		import base64
+		files.append({
+			"name": filename or "ticket.pdf",
+			"mime_type": mime or "application/pdf",
+			"content": base64.b64encode(content).decode("ascii"),
+		})
+	if files:
+		payload["attachments"] = files
+	req = Request(zepto_api_url(host), data=json.dumps(payload).encode("utf-8"), method="POST")
+	req.add_header("Accept", "application/json")
+	req.add_header("Content-Type", "application/json")
+	req.add_header("Authorization", auth)
+	try:
+		with urlopen(req, timeout=20) as resp:
+			if 200 <= resp.status < 300:
+				_safe_print("[EMAIL] delivered")
+				return True
+			body = resp.read().decode("utf-8", "replace")
+			_last_send_detail = zepto_send_failure(resp.status, body)
+			_safe_print(f"[EMAIL] Zepto send failed status={resp.status}")
+			return False
+	except HTTPError as exc:
+		body = exc.read().decode("utf-8", "replace")
+		_last_send_detail = zepto_send_failure(exc.code, body)
+		_safe_print(f"[EMAIL] Zepto send failed status={exc.code} detail={_last_send_detail}")
+		return False
+	except URLError as exc:
+		_last_send_detail = "Could not send the verification email. Try again later."
+		_safe_print(f"[EMAIL] Zepto send failed: {type(exc).__name__}")
+		return False
+	except Exception as exc:
+		_last_send_detail = "Could not send the verification email. Try again later."
+		_safe_print(f"[EMAIL] Zepto send failed: {type(exc).__name__}")
+		return False
 
 
 def send_email(
@@ -215,6 +330,20 @@ def send_email(
 		part.add_header("Content-Disposition", "attachment", filename=filename or "ticket.pdf")
 		msg.attach(part)
 
+	global _last_send_detail
+	_last_send_detail = ""
+	if "zeptomail" in host.lower():
+		return _send_via_zepto(
+			host=host,
+			token=password,
+			from_header=msg["From"],
+			to_email=to_email,
+			subject=subject,
+			text_body=plain,
+			html_body=rich,
+			attachments=attachments,
+		)
+
 	payload = smtp_message_bytes(msg)
 	attempts = login_users or [""]
 	for login_user in attempts:
@@ -240,6 +369,7 @@ def send_email(
 				f"[EMAIL] SMTP login rejected user={login_user or '(none)'} host={host} port={port} "
 				f"password_len={len(password)} code={exc.smtp_code} server={server_msg}"
 			)
+			_last_send_detail = "Could not send the verification email. Try again later."
 			continue
 		except Exception as exc:
 			code = getattr(exc, "smtp_code", None)

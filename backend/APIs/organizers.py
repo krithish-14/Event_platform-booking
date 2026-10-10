@@ -377,9 +377,10 @@ def send_otp(
 
     emailed = send_email(email, subject, text_body, html_body)
     if not emailed:
+        from Services.email import last_send_detail
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not send the verification email. Try again later.",
+            detail=last_send_detail() or "Could not send the verification email. Try again later.",
         )
 
     if channel == "phone":
