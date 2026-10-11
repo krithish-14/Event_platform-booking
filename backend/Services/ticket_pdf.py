@@ -373,6 +373,8 @@ def _assemble_pdf_from_page_chunks(page_chunks: list[dict]) -> Optional[bytes]:
     if len(page_chunks) == 1:
         chunk = page_chunks[0]
         stream = "\n".join(chunk["ops"]).encode("latin-1", "replace")
+        page_w = float(chunk.get("page_w") or 595)
+        page_h = float(chunk.get("page_h") or 842)
         xobjects = chunk.get("xobjects") or {}
         xobject_refs = []
         image_objects = []
@@ -387,7 +389,9 @@ def _assemble_pdf_from_page_chunks(page_chunks: list[dict]) -> Optional[bytes]:
         )
         contents_obj = f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
         page_obj = (
-            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources "
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "
+            + f"{page_w:.1f} {page_h:.1f}".encode("ascii")
+            + b"] /Resources "
             + resources
             + b" /Contents 6 0 R >>"
         )
@@ -422,11 +426,15 @@ def _assemble_pdf_from_page_chunks(page_chunks: list[dict]) -> Optional[bytes]:
             image_objects.append(_image_xobject(payload, width, height, pdf_filter))
 
         stream = "\n".join(chunk["ops"]).encode("latin-1", "replace")
+        page_w = float(chunk.get("page_w") or 595)
+        page_h = float(chunk.get("page_h") or 842)
         contents_obj = f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
         xobject_dict = f"/XObject << {' '.join(xobject_refs)} >>" if xobject_refs else ""
         resources = f"<< /Font << /F1 3 0 R /F2 4 0 R >> {xobject_dict} >>".encode("ascii")
         page_obj = (
-            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources "
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "
+            + f"{page_w:.1f} {page_h:.1f}".encode("ascii")
+            + b"] /Resources "
             + resources
             + f" /Contents {contents_obj_id} 0 R >>".encode("ascii")
         )
@@ -737,6 +745,355 @@ def _published_ticket_layout_for_event(db, event_id) -> Optional[dict]:
     return layout
 
 
+_CANVAS_CSS = {
+    "midnight": (760.0, 280.0),
+    "sunset": (820.0, 250.0),
+    "vip_gold": (820.0, 240.0),
+}
+_CANVAS_HIDDEN = {
+    "midnight": {"poster", "badge", "qty", "footer"},
+    "sunset": {"poster", "badge", "qty", "footer"},
+    "vip_gold": {"poster", "badge", "qty", "footer", "stub"},
+}
+_CANVAS_FLAGS = {
+    "date": "show_date",
+    "venue": "show_venue",
+    "ticket_type": "show_ticket_type",
+    "seat": "show_seat",
+    "name": "show_attendee_name",
+    "phone": "show_attendee_phone",
+    "email": "show_attendee_email",
+    "qr": "show_qr",
+    "price": "show_price",
+    "jod_logo": "show_jod_logo",
+}
+_CENTER_TYPES = {"qty", "ticket_type", "seat", "booking_id", "footer", "badge"}
+
+
+def canvas_page_metrics(template_id: str):
+    """Page and card size that keep the host canvas aspect ratio."""
+    css_w, css_h = _CANVAS_CSS.get(str(template_id or ""), (340.0, 520.0))
+    landscape = css_w > css_h
+    page_w, page_h = (842.0, 595.0) if landscape else (595.0, 842.0)
+    margin = 24.0
+    scale = min((page_w - margin * 2.0) / css_w, (page_h - margin * 2.0) / css_h)
+    card_w = css_w * scale
+    card_h = css_h * scale
+    return (
+        page_w,
+        page_h,
+        (page_w - card_w) / 2.0,
+        (page_h - card_h) / 2.0,
+        card_w,
+        card_h,
+        css_h,
+    )
+
+
+def canvas_element_box(el, card_x: float, card_y: float, card_w: float, card_h: float):
+    """Map a canvas percentage box onto PDF points. Canvas y grows downward."""
+    x_pct = float(el.get("x") or 0)
+    y_pct = float(el.get("y") or 0)
+    w_pct = float(el.get("w") or 10)
+    h_pct = float(el.get("h") or 6)
+    x = card_x + (x_pct / 100.0) * card_w
+    w = max(1.0, (w_pct / 100.0) * card_w)
+    h = max(1.0, (h_pct / 100.0) * card_h)
+    top = card_y + card_h - (y_pct / 100.0) * card_h
+    return x, top - h, w, h
+
+
+def _canvas_align(el) -> str:
+    align = str(el.get("align") or "").strip().lower()
+    if align in {"left", "center", "right"}:
+        return align
+    return "center" if str(el.get("type") or "") in _CENTER_TYPES else "left"
+
+
+def _canvas_font_px(el, template_id: str) -> float:
+    try:
+        saved = float(el.get("fontSize") or 0)
+    except (TypeError, ValueError):
+        saved = 0
+    if saved >= 6:
+        return saved
+    etype = str(el.get("type") or "")
+    if template_id == "sunset" and etype == "ticket_type":
+        return 28
+    if template_id == "sunset" and etype == "title":
+        return 10
+    if template_id == "vip_gold" and etype == "ticket_type":
+        return 28
+    if template_id == "vip_gold" and etype == "title":
+        return 12
+    if template_id == "midnight" and etype == "name":
+        return 18
+    if template_id == "midnight" and etype == "ticket_type":
+        return 16
+    if template_id == "midnight" and etype == "title":
+        return 12
+    if etype in {"ticket_type", "title", "name"}:
+        return 16
+    if etype in {"stub", "badge"}:
+        return 10
+    return 12
+
+
+def _draw_text_box(ops, text, x, y, w, h, size, rgb, align, font="/F1"):
+    text = _ascii_text(text, "")
+    if not text or w < 4 or h < 4:
+        return
+    char_w = max(2.2, size * 0.52)
+    max_chars = max(4, int(w / char_w))
+    line_h = max(size * 1.15, 8.0)
+    max_lines = max(1, int(h / line_h))
+    lines = _wrap_text(text, max_chars, max_lines)
+    block = line_h * len(lines)
+    ops.append("BT")
+    ops.append(f"{font} {size:.1f} Tf {rgb} rg")
+    for index, line in enumerate(lines):
+        line_y = y + (h - block) / 2.0 + (len(lines) - 1 - index) * line_h
+        if align == "center":
+            ops.append(_tj_center(x + w / 2.0, line_y, line, char_w))
+        elif align == "right":
+            ops.append(_tj_right(x + w - 1.0, line_y, line, char_w))
+        else:
+            ops.append(f"1 0 0 1 {x + 1.0:.1f} {line_y:.1f} Tm ({_pdf_escape(line)}) Tj")
+    ops.append("ET")
+
+
+def _render_canvas_ticket(
+    *,
+    layout: dict,
+    style: str,
+    page_rgb,
+    card_rgb,
+    accent_rgb,
+    text_rgb,
+    muted_rgb,
+    title: str,
+    date_label: str,
+    venue_label: str,
+    type_label: str,
+    seat_label: str,
+    guest_name: str,
+    guest_email: str,
+    guest_phone: str,
+    qty: int,
+    total: float,
+    booking_label: str,
+    custom_footer: str,
+    qr_jpeg: bytes,
+    poster,
+    logo,
+    show_qr: bool,
+) -> Optional[dict]:
+    """Place every host canvas element on a ticket with the same proportions."""
+    elements = [el for el in (layout.get("canvas_elements") or []) if isinstance(el, dict)]
+    if not elements:
+        return None
+    template_id = str(layout.get("template_id") or "classic")
+    if layout.get("text_color"):
+        text_rgb = hex_to_rgb01_safe(layout.get("text_color"))
+    if layout.get("card_color") and template_id not in {"midnight", "sunset", "vip_gold"}:
+        card_rgb = hex_to_rgb01_safe(layout.get("card_color"))
+    page_w, page_h, card_x, card_y, card_w, card_h, css_h = canvas_page_metrics(template_id)
+    hidden = set(_CANVAS_HIDDEN.get(template_id, set()))
+    if template_id not in {"midnight", "sunset"}:
+        hidden.add("stub")
+
+    def _rgb(rgb):
+        return f"{rgb[0]:.3f} {rgb[1]:.3f} {rgb[2]:.3f}"
+
+    text_paint = _rgb(text_rgb)
+    muted_paint = _rgb(muted_rgb)
+    radius = 16.0 if template_id == "midnight" else (8.0 if template_id == "vip_gold" else 12.0)
+    ops = [
+        f"{_rgb(page_rgb)} rg 0 0 {page_w:.1f} {page_h:.1f} re f",
+        f"{_rgb(card_rgb)} rg",
+        f"{_round_rect_path(card_x, card_y, card_w, card_h, radius)} f",
+    ]
+    if template_id == "vip_gold":
+        gold_w = card_w * 0.68
+        ops.extend([
+            "q",
+            f"{_round_rect_path(card_x, card_y, card_w, card_h, radius)} W n",
+            "0.93 0.78 0.35 rg",
+            f"{card_x:.1f} {card_y:.1f} {gold_w:.1f} {card_h:.1f} re f",
+            "0.04 0.04 0.04 rg",
+            f"{card_x + gold_w:.1f} {card_y:.1f} {card_w - gold_w:.1f} {card_h:.1f} re f",
+            "Q",
+        ])
+    elif template_id == "sunset":
+        stub_w = card_w * 0.26
+        ops.extend([
+            "q",
+            f"{_round_rect_path(card_x, card_y, card_w, card_h, radius)} W n",
+            "1.00 0.48 0.10 rg",
+            f"{card_x:.1f} {card_y:.1f} {card_w:.1f} {card_h:.1f} re f",
+            "0.78 0.18 0.08 rg",
+            f"{card_x + card_w - stub_w:.1f} {card_y:.1f} {stub_w:.1f} {card_h:.1f} re f",
+            "Q",
+        ])
+    elif template_id in {"concert", "festival", "neon_night"}:
+        ops.extend([
+            "q",
+            f"{_round_rect_path(card_x, card_y, card_w, card_h, radius)} W n",
+            f"{_rgb(accent_rgb)} rg",
+            f"{card_x:.1f} {card_y:.1f} {max(8.0, card_w * 0.025):.1f} {card_h:.1f} re f",
+            "Q",
+        ])
+    elif template_id == "minimal":
+        ops.extend([
+            f"{_rgb(accent_rgb)} rg",
+            f"{card_x + 16:.1f} {card_y + card_h - 14:.1f} {min(88.0, card_w * 0.28):.1f} 3.5 re f",
+        ])
+    else:
+        ops.extend([
+            "q",
+            f"{_round_rect_path(card_x, card_y, card_w, card_h, radius)} W n",
+            f"{_rgb(accent_rgb)} rg",
+            f"{card_x:.1f} {card_y:.1f} {card_w:.1f} 5 re f",
+            "Q",
+        ])
+
+    xobjects: dict[str, tuple[bytes, int, int, str]] = {}
+    image_seq = 0
+    name_value = guest_name
+    price_text = _money(total)
+    qty_text = "1 Ticket" if qty == 1 else f"{qty} Tickets"
+    values = {
+        "title": title,
+        "badge": "E-Ticket",
+        "date": date_label,
+        "venue": venue_label,
+        "qty": qty_text,
+        "ticket_type": type_label,
+        "seat": seat_label,
+        "name": name_value,
+        "phone": guest_phone,
+        "email": guest_email,
+        "booking_id": f"BOOKING ID: #{booking_label}" if template_id not in {"midnight", "sunset", "vip_gold"} else booking_label,
+        "price": price_text if template_id in {"midnight", "sunset", "vip_gold"} else f"Price  {price_text}",
+        "footer": custom_footer,
+    }
+    plain_types = {"midnight", "sunset", "vip_gold"}
+    if template_id not in plain_types and guest_name:
+        values["name"] = f"Name  {guest_name}"
+    if template_id not in plain_types and guest_phone:
+        values["phone"] = f"Phone  {guest_phone}"
+    if template_id not in plain_types and guest_email:
+        values["email"] = f"Email  {guest_email}"
+
+    for el in elements:
+        etype = str(el.get("type") or "").strip().lower()
+        if not etype or etype in hidden:
+            continue
+        flag = _CANVAS_FLAGS.get(etype)
+        if flag and not bool(layout.get(flag, True)):
+            continue
+        x, y, w, h = canvas_element_box(el, card_x, card_y, card_w, card_h)
+        own = str(el.get("color") or "").strip()
+        paint = text_paint
+        if own.startswith("#"):
+            paint = _rgb(hex_to_rgb01_safe(own))
+        size = _canvas_font_px(el, template_id) * (card_h / css_h)
+        size = max(6.0, min(size, h * 0.85 if h else size))
+        align = _canvas_align(el)
+
+        if etype in {"line", "dashed_line"}:
+            color = _rgb(hex_to_rgb01_safe(own or "#94a3b8"))
+            if etype == "dashed_line":
+                ops.append("[3 2] 0 d")
+            ops.extend([
+                f"{color} RG {max(1.0, h * 0.35):.1f} w",
+                f"{x:.1f} {y + h / 2.0:.1f} m {x + w:.1f} {y + h / 2.0:.1f} l S",
+            ])
+            if etype == "dashed_line":
+                ops.append("[] 0 d")
+            continue
+        if etype == "rectangle":
+            color = _rgb(hex_to_rgb01_safe(own or "#38bdf8"))
+            ops.extend([
+                f"{color} RG 1.2 w",
+                f"{x:.1f} {y:.1f} {w:.1f} {h:.1f} re S",
+            ])
+            continue
+        if etype == "circle":
+            color = _rgb(hex_to_rgb01_safe(own or "#22d3ee"))
+            ops.extend([
+                f"{color} RG 1.2 w",
+                f"{x:.1f} {y:.1f} {w:.1f} {h:.1f} re S",
+            ])
+            continue
+        if etype == "qr":
+            if not show_qr:
+                continue
+            pad = 3.0
+            if qr_jpeg:
+                qw, qh = _jpeg_dimensions(qr_jpeg)
+                xobjects["ImQ"] = (qr_jpeg, qw, qh, "DCTDecode")
+                side = min(w, h) - pad * 2
+                qx = x + (w - side) / 2.0
+                qy = y + (h - side) / 2.0
+                if template_id in {"sunset", "vip_gold"}:
+                    ops.append(f"1 1 1 rg {qx - 2:.1f} {qy - 2:.1f} {side + 4:.1f} {side + 4:.1f} re f")
+                ops.append(_draw_image("ImQ", qx, qy, side, side))
+            continue
+        if etype == "jod_logo":
+            if logo:
+                filt, payload, lw, lh = logo
+                xobjects["ImL"] = (payload, lw, lh, filt)
+                aspect = (lw / float(lh)) if lh else 3.0
+                draw_h = min(h * 0.8, w / aspect)
+                draw_w = draw_h * aspect
+                ops.append(_draw_image("ImL", x + (w - draw_w) / 2.0, y + (h - draw_h) / 2.0, draw_w, draw_h))
+            else:
+                _draw_text_box(ops, "JOD Events", x, y, w, h, size, paint, "center")
+            continue
+        if etype in {"poster", "image"}:
+            image = poster if etype == "poster" else None
+            if etype == "image":
+                image = _load_poster_image(_absolute_media_url(str(el.get("src") or "")))
+            if image:
+                filt, payload, iw, ih, = image[0], image[1], image[2], image[3]
+                image_seq += 1
+                name = f"ImC{image_seq}"
+                xobjects[name] = (payload, iw, ih, filt)
+                ops.append(_cover_image(name, x, y, w, h, iw, ih, 4))
+            continue
+        if etype == "text":
+            _draw_text_box(ops, str(el.get("text") or ""), x, y, w, h, size, paint, align, "/F1")
+            continue
+        if etype == "stub":
+            stub = str(el.get("text") or "").strip() or type_label or title
+            stub = _ascii_text(stub, "")[:48]
+            if not stub:
+                continue
+            cx = x + w / 2.0
+            cy = y + h / 2.0
+            ops.extend([
+                "BT",
+                f"/F1 {max(7.0, size):.1f} Tf {paint} rg",
+                f"0 1 -1 0 {cx:.1f} {cy - (len(stub) * size * 0.22):.1f} Tm ({_pdf_escape(stub)}) Tj",
+                "ET",
+            ])
+            continue
+        value = values.get(etype, "")
+        if not value:
+            continue
+        font = "/F1" if etype in {"title", "ticket_type", "name", "booking_id", "price"} else "/F2"
+        use_paint = muted_paint if etype in {"date", "venue", "qty", "seat", "footer"} and template_id not in plain_types else paint
+        _draw_text_box(ops, value, x, y, w, h, size, use_paint, align, font)
+
+    return {"ops": ops, "xobjects": xobjects, "page_w": page_w, "page_h": page_h}
+
+
+def hex_to_rgb01_safe(hex_color: str):
+    from Services.ticket_templates import hex_to_rgb01
+    return hex_to_rgb01(hex_color)
+
+
 def build_mticket_pdf_bytes(
     *,
     booking_id,
@@ -834,6 +1191,36 @@ def build_mticket_pdf_bytes(
         poster = _load_poster_image(_absolute_media_url(poster_url)) if poster_url else None
         badge_label = "Invoice" if not show_qr else "E-Ticket"
         logo = _load_jod_logo_image() if show_jod_logo else None
+        if isinstance(layout.get("canvas_elements"), list) and layout.get("canvas_elements"):
+            canvas_chunk = _render_canvas_ticket(
+                layout=layout,
+                style=style,
+                page_rgb=page_rgb,
+                card_rgb=card_rgb,
+                accent_rgb=accent_rgb,
+                text_rgb=text_rgb,
+                muted_rgb=muted_rgb,
+                title=title,
+                date_label=date_label,
+                venue_label=venue_label,
+                type_label=type_label,
+                seat_label=seat_label,
+                guest_name=guest_name,
+                guest_email=guest_email,
+                guest_phone=guest_phone,
+                qty=qty,
+                total=total,
+                booking_label=booking_label,
+                custom_footer=custom_footer,
+                qr_jpeg=qr_jpeg,
+                poster=poster,
+                logo=logo,
+                show_qr=show_qr,
+            )
+            if canvas_chunk:
+                if _return_page_chunk:
+                    return canvas_chunk
+                return _assemble_pdf_from_page_chunks([canvas_chunk])
 
         poster_w, poster_h = 88.0, 110.0
         qr_size = 180.0

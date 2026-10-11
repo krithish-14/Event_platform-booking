@@ -192,6 +192,39 @@ class TicketOfferPricingTests(unittest.TestCase):
         )
         self.assertEqual((name, email, phone), ("Form Asha", "asha@example.com", "9000000000"))
 
+    def test_canvas_pdf_uses_host_element_positions(self):
+        from Services.ticket_pdf import (
+            build_mticket_pdf_bytes,
+            canvas_element_box,
+            canvas_page_metrics,
+        )
+        x, y, w, h = canvas_element_box({"x": 10, "y": 20, "w": 40, "h": 10}, 0, 0, 200, 400)
+        self.assertEqual((round(x, 1), round(y, 1), round(w, 1), round(h, 1)), (20.0, 280.0, 80.0, 40.0))
+        midnight_w, midnight_h, *_rest = canvas_page_metrics("midnight")
+        self.assertGreater(midnight_w, midnight_h)
+        classic_w, classic_h, *_rest = canvas_page_metrics("classic")
+        self.assertGreater(classic_h, classic_w)
+        pdf = build_mticket_pdf_bytes(
+            booking_id="abc",
+            event_name="Canvas Workshop",
+            ticket_layout={
+                "template_id": "midnight",
+                "event_id": "11111111-1111-1111-1111-111111111111",
+                "canvas_elements": [
+                    {"id": "title", "type": "title", "x": 4, "y": 13, "w": 46, "h": 7},
+                    {"id": "name", "type": "name", "x": 4, "y": 21, "w": 40, "h": 12},
+                ],
+                "show_qr": False,
+                "show_jod_logo": False,
+            },
+            include_qr=False,
+            attendee_name="Form Asha",
+        )
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertIn(b"/MediaBox [0 0 842.0 595.0]", pdf)
+        self.assertIn(b"Canvas Workshop", pdf)
+        self.assertIn(b"Form Asha", pdf)
+
     def test_ticket_layout_cannot_belong_to_another_event(self):
         from Services.ticket_pdf import layout_belongs_to_event
         this_event = "11111111-1111-1111-1111-111111111111"
