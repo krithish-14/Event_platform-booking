@@ -439,29 +439,38 @@ def seats_for_offer(
 ) -> int:
     """How many QR tickets to issue.
 
-    A group package of 3 is three tickets even when the buyer purchased one package.
-    A per-person ticket stays one ticket per purchased seat.
+    One purchased package produces one ticket per person in that package.
+    A package of 3, 6, 10, 15, or any larger size uses the same rule.
+    Buying two packages multiplies by the number of packages, not by an
+    attendee total that was already stored. A per-person purchase stays
+    one ticket per purchased seat.
     """
     stored = max(1, _as_int(stored_quantity, 1))
-    attendees = _as_int(attendee_count, 0)
-    purchase = _as_int(purchase_quantity, 0)
+    attendees = max(0, _as_int(attendee_count, 0))
+    purchase = max(0, _as_int(purchase_quantity, 0))
     if not isinstance(offer, dict):
         return max(stored, attendees)
     pricing = str(offer.get("pricing_type") or "").strip().lower()
     people = _as_int(offer.get("package_quantity"), 0)
-    if pricing == "package" and people >= 2:
-        if purchase >= 1:
-            packs = purchase
-        elif attendees >= people and attendees % people == 0:
-            packs = attendees // people
-        elif stored >= people and stored % people == 0:
-            packs = stored // people
-        else:
-            packs = stored if 1 <= stored < people else 1
-        return people * max(1, packs)
-    if attendees >= 1:
+    if pricing != "package" or people < 2:
+        return attendees if attendees >= 1 else stored
+    # purchase_quantity is the number of packages. attendee_count and a stored
+    # quantity that is already a multiple of the package size are seat totals.
+    # Never multiply a seat total by the package size again.
+    if purchase >= 1:
+        seats = people * purchase
+        if attendees == seats or stored == seats:
+            return seats
+        if attendees > seats and attendees % people == 0:
+            return attendees
+        if stored > seats and stored % people == 0:
+            return stored
+        return seats
+    if attendees >= people and attendees % people == 0:
         return attendees
-    return stored
+    if stored >= people and stored % people == 0:
+        return stored
+    return people * stored
 
 
 def seat_count_for_proof(db, row, event_id, ticket_type: str = "") -> int:

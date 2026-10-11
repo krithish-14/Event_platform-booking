@@ -754,16 +754,27 @@
  const token = (bookingData && bookingData.qr_token) || getQueryParam("token") || getQueryParam("qr");
  const id = (bookingData && bookingData.booking_id) || getQueryParam("id") || getQueryParam("booking_id");
  const tickets = Array.isArray(bookingData && bookingData.tickets) ? bookingData.tickets.filter((t) => t && t.qr_token) : [];
+ const purchased = Math.max(tickets.length, Number(bookingData && bookingData.quantity) || 0);
+ const btn = document.getElementById("btnDownloadTicket");
+ const previousLabel = btn ? btn.textContent : "";
+ if (btn) {
+ btn.disabled = true;
+ btn.textContent = "Downloading\u2026";
+ }
  try {
  if (kind === "ticket" && !token && !id) throw new Error("missing");
- if (kind === "ticket" && tickets.length > 1) {
+ if (kind === "ticket" && (purchased > 1 || (options && options.downloadAll))) {
  await downloadTicketPdfForToken(bookingData, token, kind, { combined: true });
  return;
  }
  await downloadTicketPdfForToken(bookingData, token, kind);
- return;
  } catch (_) {
  printTicketCardOnly(bookingData, { includeAgenda: false, mode: kind });
+ } finally {
+ if (btn) {
+ btn.disabled = false;
+ btn.textContent = previousLabel || "Download Ticket";
+ }
  }
 	}
 

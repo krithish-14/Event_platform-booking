@@ -642,9 +642,15 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None, *, active_qr_to
     event_venue = (b.event.venue or b.event.location) if b.event else None
     event_start = b.event.start_date if b.event else None
     form_name, form_email, form_phone = _form_attendee_for_booking(db, b)
-    user_name = form_name or (b.receiver_name or "") or "Guest"
-    user_email = form_email or (b.receiver_email or "") or ""
-    user_phone = form_phone or (b.receiver_phone or "") or ""
+    from Services.ticket_pdf import registration_contact
+    user_name, user_email, user_phone = registration_contact(
+        form_name,
+        form_email,
+        form_phone,
+        b.receiver_name,
+        b.receiver_email,
+        b.receiver_phone,
+    )
     user_city = b.customer.city if b.customer else None
 
     pid = getattr(b, "payment_id", None)

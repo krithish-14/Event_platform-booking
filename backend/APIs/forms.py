@@ -1309,8 +1309,6 @@ def download_host_submission_ticket_pdf(
 		resolve_host_identifiers,
 		resolve_registrations_display_event,
 	)
-	from Services.ticket_pdf import build_combined_mticket_pdf_from_booking, ticket_pdf_filename
-
 	row = form_submission_by_id(db, submission_id)
 	if not row:
 		raise HTTPException(status_code=404, detail="Registration not found.")
@@ -1338,30 +1336,8 @@ def download_host_submission_ticket_pdf(
 			status_code=400,
 			detail="No ticket has been issued for this registration yet.",
 		)
-	tickets = [t for t in (booking.tickets or []) if (getattr(t, "qr_token", None) or "").strip()]
-	if not tickets:
-		raise HTTPException(
-			status_code=400,
-			detail="QR ticket is not ready yet for this registration.",
-		)
-
-	# Host-designed M-ticket renderer — same design as user and admin downloads.
-	# Multi-quantity bookings return one page per unique QR.
-	pdf = build_combined_mticket_pdf_from_booking(booking, db=db)
-	if not pdf:
-		raise HTTPException(status_code=500, detail="Could not generate the host ticket PDF.")
-	filename = ticket_pdf_filename(
-		booking.booking_id,
-		ticket_index=-1 if len(tickets) > 1 else 0,
-	)
-	return Response(
-		content=pdf,
-		media_type="application/pdf",
-		headers={
-			"Content-Disposition": f'attachment; filename="{filename}"',
-			"Cache-Control": "private, no-store",
-		},
-	)
+	from APIs.admin import issued_ticket_pdf_response
+	return issued_ticket_pdf_response(db, booking)
 
 
 @router.get("/export-csv")

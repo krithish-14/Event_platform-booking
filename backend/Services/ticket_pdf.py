@@ -500,18 +500,46 @@ def _tj_center(center_x: float, y: float, text: str, char_w: float) -> str:
     return f"1 0 0 1 {center_x - width / 2.0:.1f} {y:.1f} Tm ({_pdf_escape(text)}) Tj"
 
 
+def pdf_page_count(data: bytes) -> int:
+    """Count PDF page objects. The Pages parent dictionary is not a page."""
+    if not data:
+        return 0
+    import re
+    return len(re.findall(br"/Type\s*/Page(?!s)", data))
+
+
 def guest_label_for_index(index: int) -> str:
     """The first ticket uses the buyer name. Every other ticket in the order is a guest."""
     idx = int(index or 0)
     if idx <= 0:
         return ""
-    return "guest"
+    return "Guest"
+
+
+def registration_contact(
+    form_name: str = "",
+    form_email: str = "",
+    form_phone: str = "",
+    saved_name: str = "",
+    saved_email: str = "",
+    saved_phone: str = "",
+) -> tuple:
+    """Name, email, and phone for a ticket.
+
+    Each field uses the registration-form answer when that answer exists.
+    The saved booking value is only the checkout copy of the same form.
+    A login profile name, email, or phone is never read here.
+    """
+    name = str(form_name or "").strip() or str(saved_name or "").strip() or "Guest"
+    email = str(form_email or "").strip() or str(saved_email or "").strip()
+    phone = str(form_phone or "").strip() or str(saved_phone or "").strip()
+    return name, email, phone
 
 
 def ticket_attendee_name(form_name: str = "", receiver_name: str = "") -> str:
-    """Ticket face name. Host-form answer first, then the name saved from that form."""
-    name = str(form_name or "").strip() or str(receiver_name or "").strip()
-    return name or "Guest"
+    """Ticket face name. Registration-form answer first, then the name saved from that form."""
+    name, _, _ = registration_contact(form_name, saved_name=receiver_name)
+    return name
 
 
 def _compact_event_id(value) -> str:
@@ -539,7 +567,7 @@ def _form_identity_for_booking(booking, db) -> tuple:
 
 
 def attendee_display_name(name: str, index: int) -> str:
-    """Buyer name on ticket 1. Later tickets read 'Buyer name (guest)'."""
+    """Buyer name on ticket 1. Later tickets read 'Buyer name (Guest)'."""
     base = _ascii_text(name, "")
     label = guest_label_for_index(index)
     if label and base:
@@ -1101,6 +1129,14 @@ def build_mticket_pdf_from_booking(
     if ticket_layout and not layout_belongs_to_event(ticket_layout, event_id):
         ticket_layout = None
     form_name, form_email, form_phone = _form_identity_for_booking(booking, db)
+    attendee_name, attendee_email, attendee_phone = registration_contact(
+        form_name,
+        form_email,
+        form_phone,
+        getattr(booking, "receiver_name", None),
+        getattr(booking, "receiver_email", None),
+        getattr(booking, "receiver_phone", None),
+    )
 
     return build_mticket_pdf_bytes(
         booking_id=getattr(booking, "booking_id", ""),
@@ -1119,9 +1155,9 @@ def build_mticket_pdf_from_booking(
         payment_mode=getattr(booking, "payment_mode", None) or "",
         include_qr=include_qr,
         ticket_layout=ticket_layout,
-        attendee_name=ticket_attendee_name(form_name, getattr(booking, "receiver_name", None)),
-        attendee_email=(form_email or getattr(booking, "receiver_email", None) or ""),
-        attendee_phone=(form_phone or getattr(booking, "receiver_phone", None) or ""),
+        attendee_name=attendee_name,
+        attendee_email=attendee_email,
+        attendee_phone=attendee_phone,
         attendee_guest_label=guest_label,
         _return_page_chunk=_return_page_chunk,
     )
@@ -1600,8 +1636,15 @@ def build_admin_mticket_pdf_from_booking(
         except Exception:
             event_date = public_start
 
-    form_name, _, _ = _form_identity_for_booking(booking, db)
-    guest = ticket_attendee_name(form_name or attendee_name, getattr(booking, "receiver_name", None))
+    form_name, form_email, form_phone = _form_identity_for_booking(booking, db)
+    guest, guest_email, guest_phone = registration_contact(
+        form_name or attendee_name,
+        form_email,
+        form_phone,
+        getattr(booking, "receiver_name", None),
+        getattr(booking, "receiver_email", None),
+        getattr(booking, "receiver_phone", None),
+    )
 
     # ── Load this event's published ticket layout only ─────────────────────────
     event_id = getattr(booking, "event_id", None)
@@ -1630,8 +1673,8 @@ def build_admin_mticket_pdf_from_booking(
             include_qr=bool(token),
             ticket_layout=ticket_layout,
             attendee_name=guest,
-            attendee_email=getattr(booking, "receiver_email", None) or "",
-            attendee_phone=getattr(booking, "receiver_phone", None) or "",
+            attendee_email=guest_email,
+            attendee_phone=guest_phone,
         )
 
     # ── Fallback: legacy 85x130mm admin card (no host design configured) ──────

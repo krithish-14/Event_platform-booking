@@ -141,24 +141,56 @@ class TicketOfferPricingTests(unittest.TestCase):
         from Services.ticket_pricing import seats_for_offer
         group3 = {"pricing_type": "package", "package_quantity": 3}
         group6 = {"pricing_type": "package", "package_quantity": 6}
+        person = {"pricing_type": "per_person"}
+        self.assertEqual(seats_for_offer(person, stored_quantity=1), 1)
+        self.assertEqual(seats_for_offer(person, stored_quantity=3, attendee_count=3), 3)
+        self.assertEqual(seats_for_offer(person, stored_quantity=6), 6)
+        group10 = {"pricing_type": "package", "package_quantity": 10}
+        group15 = {"pricing_type": "package", "package_quantity": 15}
         self.assertEqual(seats_for_offer(group3, stored_quantity=1), 3)
         self.assertEqual(seats_for_offer(group6, stored_quantity=1), 6)
+        self.assertEqual(seats_for_offer(group10, stored_quantity=1), 10)
+        self.assertEqual(seats_for_offer(group15, stored_quantity=1), 15)
+        self.assertEqual(seats_for_offer(group10, stored_quantity=10, attendee_count=10, purchase_quantity=1), 10)
+        self.assertEqual(seats_for_offer(group10, stored_quantity=1, purchase_quantity=2), 20)
+        self.assertEqual(seats_for_offer(person, stored_quantity=10, attendee_count=10), 10)
+        self.assertEqual(seats_for_offer(person, stored_quantity=12), 12)
         self.assertEqual(seats_for_offer(group3, stored_quantity=1, purchase_quantity=2), 6)
-        self.assertEqual(seats_for_offer(group3, stored_quantity=3, attendee_count=3), 3)
-        self.assertEqual(seats_for_offer({"pricing_type": "per_person"}, stored_quantity=1), 1)
+        self.assertEqual(seats_for_offer(group3, stored_quantity=3, attendee_count=3, purchase_quantity=1), 3)
+        self.assertEqual(seats_for_offer(group3, stored_quantity=6), 6)
         self.assertEqual(seats_for_offer(None, stored_quantity=1), 1)
+        with self.assertRaises(Exception):
+            quote_offer(person, 0)
+
+    def test_combined_pdf_page_count_matches_ticket_count(self):
+        from Services.ticket_pdf import _assemble_pdf_from_page_chunks, pdf_page_count
+        for count in (1, 3, 6, 10, 15):
+            chunks = [{"ops": ["BT ET"], "xobjects": {}} for _ in range(count)]
+            pdf = _assemble_pdf_from_page_chunks(chunks)
+            self.assertTrue(pdf.startswith(b"%PDF"))
+            self.assertEqual(pdf_page_count(pdf), count)
 
     def test_package_pdf_names_buyer_then_guests(self):
         from Services.ticket_pdf import attendee_display_name
-        self.assertEqual(attendee_display_name("Asha", 0), "Asha")
-        self.assertEqual(attendee_display_name("Asha", 1), "Asha (guest)")
-        self.assertEqual(attendee_display_name("Asha", 2), "Asha (guest)")
+        self.assertEqual(attendee_display_name("Krithish B R", 0), "Krithish B R")
+        self.assertEqual(attendee_display_name("Krithish B R", 1), "Krithish B R (Guest)")
+        self.assertEqual(attendee_display_name("Krithish B R", 2), "Krithish B R (Guest)")
+        self.assertEqual(attendee_display_name("Krithish B R", 9), "Krithish B R (Guest)")
 
     def test_ticket_name_comes_from_the_form(self):
-        from Services.ticket_pdf import ticket_attendee_name
-        self.assertEqual(ticket_attendee_name("Form Asha", "Saved Asha"), "Form Asha")
+        from Services.ticket_pdf import registration_contact, ticket_attendee_name
+        self.assertEqual(ticket_attendee_name("Form Asha", "Profile Asha"), "Form Asha")
         self.assertEqual(ticket_attendee_name("", "Saved Asha"), "Saved Asha")
         self.assertEqual(ticket_attendee_name("", ""), "Guest")
+        name, email, phone = registration_contact(
+            "Form Asha",
+            "asha@example.com",
+            "9000000000",
+            "Profile Asha",
+            "profile@example.com",
+            "9111111111",
+        )
+        self.assertEqual((name, email, phone), ("Form Asha", "asha@example.com", "9000000000"))
 
     def test_ticket_layout_cannot_belong_to_another_event(self):
         from Services.ticket_pdf import layout_belongs_to_event

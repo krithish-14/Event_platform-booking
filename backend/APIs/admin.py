@@ -1291,6 +1291,42 @@ def _issue_tickets_from_payment(
     return issued
 
 
+def _apply_registration_form_identity(db: Session, booking: Booking, proof=None) -> bool:
+    """Copy name, email, and phone from the registration form onto the booking.
+
+    Profile full name, login email, and profile phone are not read.
+    """
+    try:
+        from APIs.bookings import _form_attendee_for_booking
+        name, email, phone = _form_attendee_for_booking(db, booking)
+    except Exception:
+        return False
+    name = (name or "").strip()
+    email = (email or "").strip()
+    phone = (phone or "").strip()
+    changed = False
+
+    def _set(obj, attr: str, value: str) -> None:
+        nonlocal changed
+        if not value or obj is None or not hasattr(obj, attr):
+            return
+        current = str(getattr(obj, attr, None) or "").strip()
+        if current == value:
+            return
+        setattr(obj, attr, value)
+        changed = True
+
+    _set(booking, "receiver_name", name)
+    _set(booking, "receiver_email", email)
+    if phone and phone.upper() != "N/A":
+        _set(booking, "receiver_phone", phone)
+    _set(proof, "attendee_name", name)
+    _set(proof, "attendee_email", email)
+    if phone and phone.upper() != "N/A":
+        _set(proof, "attendee_phone", phone)
+    return changed
+
+
 def ensure_booking_ticket_seats(db: Session, booking: Optional[Booking]) -> Optional[Booking]:
     """Mint one QR per person in a group package when an older booking only has one."""
     if booking is None or db is None:
@@ -1303,12 +1339,17 @@ def ensure_booking_ticket_seats(db: Session, booking: Optional[Booking]) -> Opti
     else:
         target = seat_count_for_proof(db, booking, booking.event_id, booking.ticket_type or "")
     target = max(1, int(target or 1))
-    existing = [
-        ticket for ticket in (getattr(booking, "tickets", None) or [])
-        if (getattr(ticket, "qr_token", None) or "").strip()
-    ]
-    changed = False
-    if target > len(existing):
+    try:
+        db.query(Booking).filter(Booking.booking_id == booking.booking_id).with_for_update().first()
+    except Exception:
+        _db_safe_rollback(db)
+    existing_count = (
+        db.query(Ticket)
+        .filter(Ticket.booking_id == booking.booking_id)
+        .count()
+    )
+    changed = _apply_registration_form_identity(db, booking, proof)
+    if target > int(existing_count or 0):
         _mint_unique_tickets(db, booking, target, booking.ticket_type or "General Admission")
         changed = True
     if int(getattr(booking, "quantity", 1) or 1) != target:
@@ -1324,6 +1365,40 @@ def ensure_booking_ticket_seats(db: Session, booking: Optional[Booking]) -> Opti
             _db_safe_rollback(db)
         return _reload_booking(db, booking.booking_id) or booking
     return booking
+
+
+def issued_ticket_pdf_response(db: Session, booking: Booking) -> Response:
+    """One combined PDF for every issued ticket on this booking. Issuance is idempotent."""
+    booking = ensure_booking_ticket_seats(db, booking) or booking
+    from Services.ticket_pdf import build_combined_mticket_pdf_from_booking, ticket_pdf_filename
+
+    tickets = [
+        ticket for ticket in (getattr(booking, "tickets", None) or [])
+        if (getattr(ticket, "qr_token", None) or "").strip()
+    ]
+    if not tickets:
+        booking = _reload_booking(db, booking.booking_id) or booking
+        tickets = [
+            ticket for ticket in (getattr(booking, "tickets", None) or [])
+            if (getattr(ticket, "qr_token", None) or "").strip()
+        ]
+    if not tickets:
+        raise HTTPException(status_code=400, detail="QR ticket is not ready yet.")
+    pdf = build_combined_mticket_pdf_from_booking(booking, db=db, include_qr=True)
+    if not pdf:
+        raise HTTPException(status_code=500, detail="Could not generate the ticket PDF.")
+    filename = ticket_pdf_filename(
+        booking.booking_id,
+        ticket_index=-1 if len(tickets) > 1 else 0,
+    )
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) -> dict:
@@ -1355,14 +1430,24 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
     image = qr_image_url(token)
     form_name = ""
     form_email = ""
+    _form_phone = ""
     if db is not None:
         try:
             from APIs.bookings import _form_attendee_for_booking
             form_name, form_email, _form_phone = _form_attendee_for_booking(db, booking)
         except Exception:
             form_name, form_email = "", ""
-    attendee = (form_name or booking.receiver_name or "there")
-    email_addr = (form_email or booking.receiver_email or "")
+    from Services.ticket_pdf import registration_contact
+    attendee, email_addr, _phone = registration_contact(
+        form_name,
+        form_email,
+        _form_phone,
+        booking.receiver_name,
+        booking.receiver_email,
+        booking.receiver_phone,
+    )
+    if attendee == "Guest":
+        attendee = "there"
     extra_links = ""
     extra_text = ""
     if len(tickets) > 1:
@@ -1390,7 +1475,7 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#201d19;">
       <h2 style="color:#FF7508;">Your ticket is ready</h2>
       <p>Hi {attendee},</p>
-      <p>Your unique QR ticket{'s' if len(tickets) > 1 else ''} for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) {'are' if len(tickets) > 1 else 'is'} ready. {'One PDF with a page for each ticket is attached. The first page uses your name. The other pages use your name with (guest).' if len(tickets) > 1 else 'A PDF with booking ID, event date, and QR is attached.'}</p>
+      <p>Your unique QR ticket{'s' if len(tickets) > 1 else ''} for <strong>{event_title}</strong> ({booking.ticket_type or "General Admission"}) {'are' if len(tickets) > 1 else 'is'} ready. {'One PDF with a page for each ticket is attached. The first page uses your name. The other pages use your name with (Guest).' if len(tickets) > 1 else 'A PDF with booking ID, event date, and QR is attached.'}</p>
       <p style="text-align:center;margin:24px 0;">
         <img src="{image}" alt="Ticket QR" width="220" height="220" style="border:8px solid #fff8f0;border-radius:12px;" />
       </p>
@@ -1690,31 +1775,7 @@ def download_admin_payment_ticket_pdf(
             status_code=400,
             detail="QR ticket is not ready yet. Resend QR first, then download.",
         )
-    name, _, _ = _resolve_attendee_identity(
-        db,
-        booking=booking,
-        form_name=row.attendee_name or "",
-        form_email=row.attendee_email or "",
-        form_phone=row.attendee_phone or "",
-    )
-    from Services.ticket_pdf import build_combined_mticket_pdf_from_booking, ticket_pdf_filename
-    # Host-designed M-ticket renderer — same design as user/host downloads.
-    # Multi-quantity bookings return one page per unique QR.
-    pdf = build_combined_mticket_pdf_from_booking(booking, db=db)
-    if not pdf:
-        raise HTTPException(status_code=500, detail="Could not generate the admin ticket PDF.")
-    filename = ticket_pdf_filename(
-        booking.booking_id,
-        ticket_index=-1 if len(tickets) > 1 else 0,
-    )
-    return Response(
-        content=pdf,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Cache-Control": "private, no-store",
-        },
-    )
+    return issued_ticket_pdf_response(db, booking)
 
 
 @router.get("/submissions/{submission_id}/ticket-pdf")
@@ -1734,40 +1795,7 @@ def download_admin_submission_ticket_pdf(
             status_code=400,
             detail="No ticket booking yet for this attendee. Generate QR first.",
         )
-    tickets = [t for t in (booking.tickets or []) if (getattr(t, "qr_token", None) or "").strip()]
-    if not tickets:
-        raise HTTPException(
-            status_code=400,
-            detail="QR ticket is not ready yet. Generate QR first, then download.",
-        )
-    answers = parse_answers_json(getattr(row, "answers_json", None))
-    form_name, form_email, form_phone = _form_guest_identity(answers, fallback_email=row.user_email or "")
-    name, _, _ = _resolve_attendee_identity(
-        db,
-        booking=booking,
-        form_name=form_name,
-        form_email=form_email,
-        form_phone=form_phone,
-        prefer_form=True,
-    )
-    from Services.ticket_pdf import build_combined_mticket_pdf_from_booking, ticket_pdf_filename
-    # Host-designed M-ticket renderer — same design as user/host downloads.
-    # Multi-quantity bookings return one page per unique QR.
-    pdf = build_combined_mticket_pdf_from_booking(booking, db=db)
-    if not pdf:
-        raise HTTPException(status_code=500, detail="Could not generate the admin ticket PDF.")
-    filename = ticket_pdf_filename(
-        booking.booking_id,
-        ticket_index=-1 if len(tickets) > 1 else 0,
-    )
-    return Response(
-        content=pdf,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Cache-Control": "private, no-store",
-        },
-    )
+    return issued_ticket_pdf_response(db, booking)
 
 
 @router.get("/cancellation-requests")
