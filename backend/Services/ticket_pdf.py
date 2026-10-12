@@ -839,20 +839,54 @@ def _canvas_font_px(el, template_id: str) -> float:
     return 12
 
 
+def _split_to_width(text: str, max_chars: int) -> list[str]:
+    """Wrap the whole string. Long words continue on the next line instead of being cut."""
+    max_chars = max(4, int(max_chars))
+    words = _ascii_text(text, "").split()
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        pieces = [word[i:i + max_chars] for i in range(0, len(word), max_chars)] or [word]
+        for piece in pieces:
+            trial = (current + " " + piece).strip()
+            if current and len(trial) > max_chars:
+                lines.append(current)
+                current = piece
+            else:
+                current = trial
+    if current:
+        lines.append(current)
+    return lines or [""]
+
+
 def _draw_text_box(ops, text, x, y, w, h, size, rgb, align, font="/F1"):
+    """Draw the full string inside the canvas box, shrinking the type so nothing is clipped."""
     text = _ascii_text(text, "")
     if not text or w < 4 or h < 4:
         return
-    char_w = max(2.2, size * 0.52)
-    max_chars = max(4, int(w / char_w))
-    line_h = max(size * 1.15, 8.0)
-    max_lines = max(1, int(h / line_h))
-    lines = _wrap_text(text, max_chars, max_lines)
+    size = min(28.0, max(6.0, float(size or 10)))
+    lines = [text]
+    char_w = size * 0.5
+    while size >= 5.0:
+        char_w = max(1.6, size * 0.46)
+        max_chars = max(4, int((w - 2.0) / char_w))
+        line_h = size * 1.08
+        max_lines = max(1, int(h / max(line_h, 1.0)))
+        lines = _split_to_width(text, max_chars)
+        if len(lines) <= max_lines:
+            break
+        size -= 0.35
+    line_h = max(size * 1.08, 5.5)
+    # Keep every line. A tiny box shrinks the type instead of dropping the rest of the name.
+    if len(lines) * line_h > h and len(lines) > 1:
+        line_h = max(5.0, h / len(lines))
+        size = min(size, line_h / 1.08)
+        char_w = max(1.6, size * 0.46)
     block = line_h * len(lines)
     ops.append("BT")
     ops.append(f"{font} {size:.1f} Tf {rgb} rg")
     for index, line in enumerate(lines):
-        line_y = y + (h - block) / 2.0 + (len(lines) - 1 - index) * line_h
+        line_y = y + max(0.0, (h - block) / 2.0) + (len(lines) - 1 - index) * line_h
         if align == "center":
             ops.append(_tj_center(x + w / 2.0, line_y, line, char_w))
         elif align == "right":
@@ -959,7 +993,6 @@ def _render_canvas_ticket(
 
     xobjects: dict[str, tuple[bytes, int, int, str]] = {}
     image_seq = 0
-    name_value = guest_name
     price_text = _money(total)
     qty_text = "1 Ticket" if qty == 1 else f"{qty} Tickets"
     values = {
@@ -970,7 +1003,7 @@ def _render_canvas_ticket(
         "qty": qty_text,
         "ticket_type": type_label,
         "seat": seat_label,
-        "name": name_value,
+        "name": guest_name,
         "phone": guest_phone,
         "email": guest_email,
         "booking_id": f"BOOKING ID: #{booking_label}" if template_id not in {"midnight", "sunset", "vip_gold"} else booking_label,
@@ -978,12 +1011,6 @@ def _render_canvas_ticket(
         "footer": custom_footer,
     }
     plain_types = {"midnight", "sunset", "vip_gold"}
-    if template_id not in plain_types and guest_name:
-        values["name"] = f"Name  {guest_name}"
-    if template_id not in plain_types and guest_phone:
-        values["phone"] = f"Phone  {guest_phone}"
-    if template_id not in plain_types and guest_email:
-        values["email"] = f"Email  {guest_email}"
 
     for el in elements:
         etype = str(el.get("type") or "").strip().lower()
@@ -998,7 +1025,6 @@ def _render_canvas_ticket(
         if own.startswith("#"):
             paint = _rgb(hex_to_rgb01_safe(own))
         size = _canvas_font_px(el, template_id) * (card_h / css_h)
-        size = max(6.0, min(size, h * 0.85 if h else size))
         align = _canvas_align(el)
 
         if etype in {"line", "dashed_line"}:
@@ -1205,7 +1231,7 @@ def build_mticket_pdf_bytes(
                 venue_label=venue_label,
                 type_label=type_label,
                 seat_label=seat_label,
-                guest_name=guest_name,
+                guest_name=name_value,
                 guest_email=guest_email,
                 guest_phone=guest_phone,
                 qty=qty,
@@ -1299,7 +1325,7 @@ def build_mticket_pdf_bytes(
 
         text_x = inner_x + poster_w + 12
         title_lines = _wrap_text(title, 30, 2)
-        venue_lines = _wrap_text(venue_label, 38, 2) if venue_label else []
+        venue_lines = _split_to_width(venue_label, 42)[:6] if venue_label else []
         ops.extend([
             "BT",
             f"/F1 15 Tf {_rgb(text_rgb)} rg",
@@ -1321,14 +1347,10 @@ def build_mticket_pdf_bytes(
                 f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(date_label[:44])}) Tj",
             ])
         if venue_lines:
-            cursor -= 13
-            ops.extend([
-                f"/F2 9 Tf {_rgb(muted_rgb)} rg",
-                f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[0])}) Tj",
-            ])
-            if len(venue_lines) > 1:
-                cursor -= 12
-                ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(venue_lines[1])}) Tj")
+            ops.append(f"/F2 8 Tf {_rgb(muted_rgb)} rg")
+            for line in venue_lines:
+                cursor -= 11
+                ops.append(f"1 0 0 1 {text_x:.1f} {cursor:.1f} Tm ({_pdf_escape(line)}) Tj")
         ops.extend([
             f"/F1 8 Tf {_rgb(muted_rgb)} rg",
             _tj_right(inner_right, y - 16, badge_label, 5.1),
@@ -1345,14 +1367,16 @@ def build_mticket_pdf_bytes(
             _tj_center(center_x, block_top - 6, f"{qty} Ticket" if qty == 1 else f"{qty} Tickets", 4.8),
         ])
         if type_label:
+            type_size = 11 if len(type_label) > 28 else 14
+            type_char = 5.6 if len(type_label) > 28 else 8.0
             ops.extend([
-                f"/F1 14 Tf {_rgb(text_rgb)} rg",
-                _tj_center(center_x, block_top - 26, type_label[:34], 8.0),
+                f"/F1 {type_size} Tf {_rgb(text_rgb)} rg",
+                _tj_center(center_x, block_top - 26, type_label, type_char),
             ])
         if seat_label:
             ops.extend([
                 f"/F2 10 Tf {_rgb(muted_rgb)} rg",
-                _tj_center(center_x, block_top - 42, seat_label[:34], 5.5),
+                _tj_center(center_x, block_top - 42, seat_label, 5.5),
             ])
         ops.append("ET")
 
@@ -1365,7 +1389,7 @@ def build_mticket_pdf_bytes(
                     f"/F2 9 Tf {_rgb(muted_rgb)} rg",
                     f"1 0 0 1 {inner_x:.1f} {cursor_a:.1f} Tm ({_pdf_escape(label)}) Tj",
                     f"/F1 9 Tf {_rgb(text_rgb)} rg",
-                    _tj_right(inner_right, cursor_a, value[:72], 5.0),
+                    _tj_right(inner_right, cursor_a, value, 4.6 if len(value) > 28 else 5.0),
                 ])
                 cursor_a -= 13
             ops.append("ET")
@@ -1477,6 +1501,7 @@ def build_mticket_pdf_from_booking(
     db=None,
     include_qr: bool = True,
     *,
+    ticket_index: Optional[int] = None,
     _return_page_chunk: bool = False,
 ) -> Optional[bytes | dict]:
     """Build one M-ticket PDF from a Booking ORM row (per unique QR when qty > 1)."""
@@ -1490,6 +1515,8 @@ def build_mticket_pdf_from_booking(
     total = float(ctx.get("total_price") or 0)
     gst = float(ctx.get("gst_amount") or 0)
     guest_label = ctx.get("guest_label") or ""
+    if ticket_index is not None:
+        guest_label = guest_label_for_index(int(ticket_index))
     event_date = None
     public_start = getattr(event, "start_date", None) if event is not None else None
     if db is not None:
@@ -1570,7 +1597,7 @@ def build_combined_mticket_pdf_from_booking(
         return result if isinstance(result, bytes) else None
 
     chunks: list[dict] = []
-    for ticket in tickets:
+    for index, ticket in enumerate(tickets):
         token = (getattr(ticket, "qr_token", None) or "").strip()
         if not token:
             continue
@@ -1579,6 +1606,7 @@ def build_combined_mticket_pdf_from_booking(
             qr_token=token,
             db=db,
             include_qr=include_qr,
+            ticket_index=index,
             _return_page_chunk=True,
         )
         if isinstance(chunk, dict):

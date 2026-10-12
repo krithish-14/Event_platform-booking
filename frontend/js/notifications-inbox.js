@@ -323,6 +323,20 @@ window.JodInbox = (() => {
  updateBadge(0);
 	}
 
+	function currentBuyerId() {
+ try {
+ const user = window.JodAuth && typeof window.JodAuth.getUser === "function" ? window.JodAuth.getUser() : null;
+ return String((user && user.customer_id) || "").replace(/-/g, "").toLowerCase();
+ } catch (_) {
+ return "";
+ }
+	}
+
+	function isTicketBuyer(booking, buyerId) {
+ const owner = String((booking && booking.customer_id) || "").replace(/-/g, "").toLowerCase();
+ return !!(buyerId && owner && buyerId === owner);
+	}
+
 	async function collectItems() {
  const prefs = loadPrefs();
  const readIds = new Set(readJson(READ_KEY, []));
@@ -334,22 +348,7 @@ window.JodInbox = (() => {
  if (res.ok) {
  const bookings = await res.json();
  const list = Array.isArray(bookings) ? bookings : [];
- const cancelMap = {};
- const missingIds = [...new Set(list
- .filter((b) => b && b.event_id && b.event_is_cancelled == null)
- .map((b) => String(b.event_id)))];
- await Promise.all(missingIds.map(async (id) => {
- try {
- const evRes = await authFetch(`${apiBase()}/api/events/${encodeURIComponent(id)}`);
- if (evRes.status === 404) {
- cancelMap[id] = true;
- return;
- }
- if (!evRes.ok) return;
- const ev = await evRes.json();
- cancelMap[id] = isFlagTrue(ev.is_cancelled);
- } catch (_) {}
- }));
+ const buyer = currentBuyerId();
  list.forEach((b) => {
  const bookingId = String(b.booking_id || "");
  const eventId = String(b.event_id || "");
@@ -358,35 +357,30 @@ window.JodInbox = (() => {
  const type = b.ticket_type || "ticket";
  const status = String(b.status || "").toUpperCase();
  const ticketStatus = String(b.ticket_status || "").toUpperCase();
- const eventCancelled = isFlagTrue(b.event_is_cancelled) || isFlagTrue(cancelMap[eventId]);
- const bookingCancelled = status === "CANCELLED";
+ const boughtThisEvent = isTicketBuyer(b, buyer);
+ const eventCancelled = boughtThisEvent && isFlagTrue(b.event_is_cancelled);
+ const bookingCancelled = boughtThisEvent && status === "CANCELLED";
  const liveCancelled = eventCancelled || bookingCancelled;
 
- if (prefs.bookingEmails && liveCancelled) {
- const id = eventCancelled
- ? `event-cancelled-${eventId || bookingId}`
- : `booking-cancelled-${bookingId}`;
+ if (prefs.bookingEmails && bookingCancelled && !eventCancelled) {
+ const id = `booking-cancelled-${bookingId}`;
  if (!clearedIds.has(id)) {
- const cancelAt = b.event_updated_at || b.booked_at;
- const plain = eventCancelled
- ? `${title} was cancelled by the host.`
- : `Your ${type} for ${title} was cancelled.`;
+ const cancelAt = b.booked_at;
+ const plain = `Your ${type} for ${title} was cancelled.`;
  items.push({
  id,
- kind: eventCancelled ? "event_cancelled" : "booking_cancelled",
+ kind: "booking_cancelled",
  icon: "🚫",
- title: eventCancelled ? "Event cancelled" : "Booking cancelled",
+ title: "Booking cancelled",
  time: timeAgo(cancelAt),
  unread: !readIds.has(id),
  href: "orders.html",
  plain,
- html: eventCancelled
- ? `<strong>${escapeHtml(title)}</strong> was cancelled by the host. Your booking is in <span style="color:var(--primary);font-weight:600;">Your Orders</span>.`
- : `Your ${escapeHtml(type)} for <strong>${escapeHtml(title)}</strong> was cancelled.`,
+ html: `Your ${escapeHtml(type)} for <strong>${escapeHtml(title)}</strong> was cancelled.`,
  sort: sortMillis(cancelAt, 2),
  });
  }
- } else if (prefs.bookingEmails) {
+ } else if (prefs.bookingEmails && !liveCancelled) {
  const id = `booking-confirmed-${bookingId}`;
  if (!clearedIds.has(id)) {
  const plain = `Your ${qty} × ${type} for ${title} is confirmed.`;
@@ -498,19 +492,22 @@ window.JodInbox = (() => {
  const kind = row.kind || "event_published";
  const place = row.location || "your city";
  const isWelcome = kind === "welcome" || id.startsWith("welcome-");
+ const isCancelled = kind === "event_cancelled" || id.startsWith("event-cancelled-");
  const message = row.message || (isWelcome
  ? "Welcome to JOD Events! Explore upcoming events and book tickets."
- : `A new event is upcoming in ${place}.`);
+ : (isCancelled
+ ? "This event was cancelled by the host. Your ticket is in Your Orders."
+ : `A new event is upcoming in ${place}.`));
  items.push({
  id,
  kind,
- icon: isWelcome ? "👋" : "📍",
- title: row.title || (isWelcome ? "Welcome to JOD Events" : "New upcoming event"),
+ icon: isWelcome ? "👋" : (isCancelled ? "🚫" : "📍"),
+ title: row.title || (isWelcome ? "Welcome to JOD Events" : (isCancelled ? "Event cancelled" : "New upcoming event")),
  time: timeAgo(row.created_at),
  unread: !readIds.has(id),
  href: row.href || (isWelcome ? "index.html#upcoming" : eventHref(row.event_id) || "index.html#upcoming"),
  plain: message,
- html: isWelcome
+ html: isWelcome || isCancelled
  ? escapeHtml(message)
  : escapeHtml(message).replace(
  escapeHtml(place),
@@ -524,7 +521,13 @@ window.JodInbox = (() => {
  } catch (_) {}
 
  items.sort((a, b) => (b.sort || 0) - (a.sort || 0));
- return items;
+ const seen = new Set();
+ return items.filter((row) => {
+ const id = String((row && row.id) || "");
+ if (!id || seen.has(id)) return false;
+ seen.add(id);
+ return true;
+ });
 	}
 
 	async function refresh(opts) {

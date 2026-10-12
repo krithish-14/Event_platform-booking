@@ -225,6 +225,38 @@ class TicketOfferPricingTests(unittest.TestCase):
         self.assertIn(b"Canvas Workshop", pdf)
         self.assertIn(b"Form Asha", pdf)
 
+    def test_canvas_pdf_keeps_full_name_email_and_guest_label(self):
+        from Services.ticket_pdf import _split_to_width, build_mticket_pdf_bytes
+        email = "satheesh.m1912@gmail.com"
+        lines = _split_to_width(email, 12)
+        self.assertEqual("".join(lines), email)
+        pdf = build_mticket_pdf_bytes(
+            booking_id="8c087eb7",
+            event_name="Full Stack",
+            venue="Lakshmi bhavan Sundaram Avenue, Anna Salai, Thousand Lights, Chennai, Tamil Nadu",
+            ticket_type="General Pass Group of 3",
+            ticket_layout={
+                "template_id": "classic",
+                "canvas_elements": [
+                    {"id": "name", "type": "name", "x": 7, "y": 45, "w": 40, "h": 6},
+                    {"id": "email", "type": "email", "x": 7, "y": 55, "w": 40, "h": 6},
+                    {"id": "venue", "type": "venue", "x": 28, "y": 16, "w": 50, "h": 10},
+                    {"id": "ticket_type", "type": "ticket_type", "x": 20, "y": 33, "w": 50, "h": 6},
+                ],
+                "show_qr": False,
+                "show_jod_logo": False,
+            },
+            include_qr=False,
+            attendee_name="SATHEESHKUMAR M",
+            attendee_email=email,
+            attendee_guest_label="Guest",
+        )
+        self.assertIn(b"SATHEESHKUMAR M", pdf)
+        self.assertIn(b"\\(Guest\\)", pdf)
+        self.assertIn(b"satheesh.m1912@gmail.com", pdf)
+        self.assertIn(b"Tamil Nadu", pdf)
+        self.assertIn(b"Group of 3", pdf)
+
     def test_ticket_layout_cannot_belong_to_another_event(self):
         from Services.ticket_pdf import layout_belongs_to_event
         this_event = "11111111-1111-1111-1111-111111111111"

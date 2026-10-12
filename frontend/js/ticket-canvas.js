@@ -321,23 +321,26 @@
 		out.card_color = optionalColor(src && src.card_color);
 		out.text_color = optionalColor(src && src.text_color);
 		out.sunset_hero_src = sanitizeMediaSrc(src && src.sunset_hero_src);
-		out.canvas_elements = cloneElements((src && src.canvas_elements) || DEFAULT_ELEMENTS);
-		const prevVer = Number(src && src.layout_version) || 0;
-		/* v2+: one shared alignment for every color format; migrate older drafts once. */
-		if (!src || !Array.isArray(src.canvas_elements) || !src.canvas_elements.length || prevVer < 6) {
+		const savedElements = src && Array.isArray(src.canvas_elements) && src.canvas_elements.length;
+		out.canvas_elements = cloneElements(savedElements ? src.canvas_elements : DEFAULT_ELEMENTS);
+		const prevVer = Number(src && src.layout_version);
+		const versionKnown = Number.isFinite(prevVer) && prevVer > 0;
+		/* Only migrate an explicitly older saved version. A layout reloaded from the
+		   server must keep the positions the host already set. */
+		if (savedElements && versionKnown && prevVer < 6) {
 			out.canvas_elements = snapDataElementsToDefault(out.canvas_elements);
 		}
 		out.layout_version = LAYOUT_VERSION;
-		if (String(out.template_id || "") === "midnight" && prevVer < 6) {
+		if (savedElements && versionKnown && String(out.template_id || "") === "midnight" && prevVer < 6) {
 			applyMidnightGeometry(out.canvas_elements);
 		}
-		if (String(out.template_id || "") === "sunset" && prevVer < 8) {
+		if (savedElements && versionKnown && String(out.template_id || "") === "sunset" && prevVer < 8) {
 			applySunsetGeometry(out.canvas_elements);
 		}
-		if (String(out.template_id || "") === "vip_gold" && prevVer < 10) {
+		if (savedElements && versionKnown && String(out.template_id || "") === "vip_gold" && prevVer < 10) {
 			applyVipGeometry(out.canvas_elements);
 		}
-		repairFooterPlacement(out.canvas_elements);
+		if (!savedElements) repairFooterPlacement(out.canvas_elements);
 		return out;
 	}
 
@@ -1786,9 +1789,6 @@
 		card.style.setProperty("--ticket-accent", isMidnight ? "#c4b5fd" : accent);
 		card.style.setProperty("--ticket-muted", isMidnight ? "#ddd6fe" : (isSunset ? "#78716c" : (isVip ? "#d4a017" : (p.muted || "#6b7280"))));
 		card.style.setProperty("--ticket-stage", isMidnight ? "#12081f" : (isSunset ? "#2a120c" : (isVip ? "#111111" : (p.bg || "#f4f6f8"))));
-
-		/* Keep footer note off the venue on every paint (old saved layouts). */
-		if (!isMidnight && !isSunset && !isVip) repairFooterPlacement(L.canvas_elements);
 
 		const face = isMidnight
 			? '<div class="ms-waves"></div><div class="ms-hole"></div><div class="ms-notch is-top"></div><div class="ms-notch is-bot"></div><div class="ms-perf"></div>'

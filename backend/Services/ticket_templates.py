@@ -244,6 +244,12 @@ def normalize_ticket_layout(
             cleaned_elements.append(entry)
     if cleaned_elements:
         base["canvas_elements"] = cleaned_elements
+    try:
+        version = int(raw.get("layout_version") or 0)
+    except (TypeError, ValueError):
+        version = 0
+    if version > 0:
+        base["layout_version"] = version
 
     if not is_premium:
         base["show_jod_logo"] = True

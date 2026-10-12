@@ -77,6 +77,57 @@ def _welcome_notification(user: User) -> InboxNotification:
     )
 
 
+def _buyer_cancellation_notifications(db: Session, user: User) -> List[InboxNotification]:
+    """One cancel notice per event, only for the account that bought a ticket."""
+    buyer_id = str(getattr(user, "customer_id", None) or "").strip()
+    if not buyer_id:
+        return []
+    try:
+        from sqlalchemy.orm import joinedload
+        from Models.booking import Booking
+
+        bookings = (
+            db.query(Booking)
+            .options(joinedload(Booking.event), joinedload(Booking.tickets))
+            .filter(Booking.customer_id == buyer_id)
+            .all()
+        )
+    except Exception:
+        db.rollback()
+        return []
+
+    seen = set()
+    items: List[InboxNotification] = []
+    for booking in bookings:
+        event = getattr(booking, "event", None)
+        if event is None or not bool(getattr(event, "is_cancelled", False)):
+            continue
+        tickets = [
+            ticket for ticket in (getattr(booking, "tickets", None) or [])
+            if (getattr(ticket, "qr_token", None) or "").strip()
+        ]
+        if not tickets:
+            continue
+        event_id = str(getattr(event, "id", None) or getattr(booking, "event_id", "") or "")
+        if not event_id or event_id in seen:
+            continue
+        seen.add(event_id)
+        title = (getattr(event, "title", None) or "Your event").strip() or "Your event"
+        items.append(
+            InboxNotification(
+                id=f"event-cancelled-{event_id}",
+                kind="event_cancelled",
+                event_id=event_id,
+                title="Event cancelled",
+                message=f"{title} was cancelled by the host. Your ticket is in Your Orders.",
+                location=None,
+                href="orders.html",
+                created_at=_as_utc(getattr(event, "updated_at", None) or getattr(booking, "booked_at", None)),
+            )
+        )
+    return items
+
+
 def _backfill_published_announcements(db: Session) -> None:
     """Create missing announcements only for published events that have not ended."""
     now = utc_now()
@@ -113,6 +164,10 @@ def list_my_notifications(
         db.rollback()
 
     items: List[InboxNotification] = [_welcome_notification(current_user)]
+    try:
+        items.extend(_buyer_cancellation_notifications(db, current_user))
+    except Exception:
+        db.rollback()
 
     now = utc_now()
     rows = (
