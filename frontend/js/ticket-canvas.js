@@ -267,15 +267,15 @@
 			const item = {
 				id: id,
 				type: type,
-				x: clampNum(e.x, 0, 92, 4),
-				y: clampNum(e.y, 0, 94, 4),
-				w: clampNum(e.w, shape && (type === "line" || type === "dashed_line") ? 8 : 10, 96, 40),
-				h: clampNum(e.h, shape && (type === "line" || type === "dashed_line") ? 1 : 3, 40, 6),
+				x: clampNum(e.x, 0, 98, 4),
+				y: clampNum(e.y, 0, 98, 4),
+				w: clampNum(e.w, 4, 100, 40),
+				h: clampNum(e.h, shape && (type === "line" || type === "dashed_line") ? 1 : 2, 100, 6),
 			};
 			const savedColor = optionalColor(e.color);
 			if (savedColor) item.color = savedColor;
 			else if (shape) item.color = sanitizeColor(e.color, DEF_BY_TYPE[type].color);
-			if (type === "text" || ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge"].indexOf(type) >= 0) {
+			if (type === "text" || type === "stub" || ["title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge"].indexOf(type) >= 0) {
 				item.align = sanitizeAlign(e.align, type);
 			}
 			if (type === "text") item.text = String(e.text || "Your text").trim().slice(0, 120) || "Your text";
@@ -323,23 +323,8 @@
 		out.sunset_hero_src = sanitizeMediaSrc(src && src.sunset_hero_src);
 		const savedElements = src && Array.isArray(src.canvas_elements) && src.canvas_elements.length;
 		out.canvas_elements = cloneElements(savedElements ? src.canvas_elements : DEFAULT_ELEMENTS);
-		const prevVer = Number(src && src.layout_version);
-		const versionKnown = Number.isFinite(prevVer) && prevVer > 0;
-		/* Only migrate an explicitly older saved version. A layout reloaded from the
-		   server must keep the positions the host already set. */
-		if (savedElements && versionKnown && prevVer < 6) {
-			out.canvas_elements = snapDataElementsToDefault(out.canvas_elements);
-		}
+		/* A saved canvas is the layout. Do not snap it back to a template preset on reload. */
 		out.layout_version = LAYOUT_VERSION;
-		if (savedElements && versionKnown && String(out.template_id || "") === "midnight" && prevVer < 6) {
-			applyMidnightGeometry(out.canvas_elements);
-		}
-		if (savedElements && versionKnown && String(out.template_id || "") === "sunset" && prevVer < 8) {
-			applySunsetGeometry(out.canvas_elements);
-		}
-		if (savedElements && versionKnown && String(out.template_id || "") === "vip_gold" && prevVer < 10) {
-			applyVipGeometry(out.canvas_elements);
-		}
 		if (!savedElements) repairFooterPlacement(out.canvas_elements);
 		return out;
 	}
@@ -1556,6 +1541,7 @@
 				const id = btn.getAttribute("data-template-id");
 				const tmpl = self.templates.find(function (x) { return x.id === id; });
 				const prevId = self.layout.template_id;
+				if (id === prevId) return;
 				self.layout.template_id = id;
 				if (id === "midnight") {
 					applyMidnightGeometry(self.layout.canvas_elements);

@@ -384,8 +384,9 @@ def _assemble_pdf_from_page_chunks(page_chunks: list[dict]) -> Optional[bytes]:
             image_objects.append(_image_xobject(payload, width, height, pdf_filter))
             next_obj += 1
         xobject_dict = f"/XObject << {' '.join(xobject_refs)} >>" if xobject_refs else ""
+        extra = str(chunk.get("resource_extra") or "")
         resources = (
-            f"<< /Font << /F1 4 0 R /F2 5 0 R >> {xobject_dict} >>".encode("ascii")
+            f"<< /Font << /F1 4 0 R /F2 5 0 R >> {xobject_dict} {extra} >>".encode("ascii")
         )
         contents_obj = f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
         page_obj = (
@@ -430,7 +431,8 @@ def _assemble_pdf_from_page_chunks(page_chunks: list[dict]) -> Optional[bytes]:
         page_h = float(chunk.get("page_h") or 842)
         contents_obj = f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
         xobject_dict = f"/XObject << {' '.join(xobject_refs)} >>" if xobject_refs else ""
-        resources = f"<< /Font << /F1 3 0 R /F2 4 0 R >> {xobject_dict} >>".encode("ascii")
+        extra = str(chunk.get("resource_extra") or "")
+        resources = f"<< /Font << /F1 3 0 R /F2 4 0 R >> {xobject_dict} {extra} >>".encode("ascii")
         page_obj = (
             b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "
             + f"{page_w:.1f} {page_h:.1f}".encode("ascii")
@@ -771,23 +773,77 @@ _CENTER_TYPES = {"qty", "ticket_type", "seat", "booking_id", "footer", "badge"}
 
 
 def canvas_page_metrics(template_id: str):
-    """Page and card size that keep the host canvas aspect ratio."""
+    """Page size matches the designer card, so the ticket is not letterboxed on A4."""
     css_w, css_h = _CANVAS_CSS.get(str(template_id or ""), (340.0, 520.0))
-    landscape = css_w > css_h
-    page_w, page_h = (842.0, 595.0) if landscape else (595.0, 842.0)
-    margin = 24.0
-    scale = min((page_w - margin * 2.0) / css_w, (page_h - margin * 2.0) / css_h)
-    card_w = css_w * scale
-    card_h = css_h * scale
+    long_side = 760.0
+    scale = long_side / max(css_w, css_h, 1.0)
+    page_w = css_w * scale
+    page_h = css_h * scale
+    return page_w, page_h, 0.0, 0.0, page_w, page_h, css_h
+
+
+def _ellipse_path(cx: float, cy: float, rx: float, ry: float) -> str:
+    k = 0.5522847498
     return (
-        page_w,
-        page_h,
-        (page_w - card_w) / 2.0,
-        (page_h - card_h) / 2.0,
-        card_w,
-        card_h,
-        css_h,
+        f"{cx + rx:.2f} {cy:.2f} m "
+        f"{cx + rx:.2f} {cy + ry * k:.2f} {cx + rx * k:.2f} {cy + ry:.2f} {cx:.2f} {cy + ry:.2f} c "
+        f"{cx - rx * k:.2f} {cy + ry:.2f} {cx - rx:.2f} {cy + ry * k:.2f} {cx - rx:.2f} {cy:.2f} c "
+        f"{cx - rx:.2f} {cy - ry * k:.2f} {cx - rx * k:.2f} {cy - ry:.2f} {cx:.2f} {cy - ry:.2f} c "
+        f"{cx + rx * k:.2f} {cy - ry:.2f} {cx + rx:.2f} {cy - ry * k:.2f} {cx + rx:.2f} {cy:.2f} c h"
     )
+
+
+def _midnight_resources(card_x: float, card_y: float, card_w: float, card_h: float) -> str:
+    """Diagonal purple gradient plus soft glows, matching the Midnight Stage preview."""
+    return (
+        "/Shading << /Sh1 << /ShadingType 2 /ColorSpace /DeviceRGB "
+        f"/Coords [{card_x:.2f} {card_y:.2f} {card_x + card_w:.2f} {card_y + card_h * 0.62:.2f}] "
+        "/Function << /FunctionType 2 /Domain [0 1] "
+        "/C0 [0.298 0.114 0.584] /C1 [0.486 0.227 0.929] /N 1 >> "
+        "/Extend [true true] >> >> "
+        "/ExtGState << "
+        "/GsGlow << /Type /ExtGState /ca 0.50 /CA 0.50 >> "
+        "/GsMist << /Type /ExtGState /ca 0.22 /CA 0.22 >> "
+        "/GsRing << /Type /ExtGState /CA 0.20 >> "
+        ">>"
+    )
+
+
+def _paint_midnight_face(ops, card_x: float, card_y: float, card_w: float, card_h: float) -> None:
+    """Rings, perforation, and edge notches from the Midnight Stage preview."""
+    radius = max(8.0, card_h * (22.0 / 280.0))
+    unit = card_h / 280.0
+    ops.extend([
+        "q",
+        f"{_round_rect_path(card_x, card_y, card_w, card_h, radius)} W n",
+        "/Sh1 sh",
+        "/GsGlow gs",
+        "0.298 0.114 0.584 rg",
+        f"{_ellipse_path(card_x + card_w * 0.08, card_y - card_h * 0.08, card_w * 0.42, card_h * 0.42)} f",
+        "/GsMist gs",
+        "1 1 1 rg",
+        f"{_ellipse_path(card_x + card_w * 0.92, card_y + card_h * 1.08, card_w * 0.34, card_h * 0.46)} f",
+        "0.769 0.710 0.992 rg",
+        f"{_ellipse_path(card_x + card_w * 0.62, card_y, card_w * 0.22, card_h * 0.28)} f",
+        "/GsRing gs",
+        "1 1 1 RG",
+        f"{18.0 * unit:.2f} w",
+        f"{_ellipse_path(card_x + card_w - card_w * (100.0 / 760.0), card_y + card_h - card_h * (20.0 / 280.0), card_w * (140.0 / 760.0), card_h * (90.0 / 280.0))} S",
+        f"{_ellipse_path(card_x + card_w * (246.8 / 760.0), card_y + card_h - card_h * (290.0 / 280.0), card_w * (110.0 / 760.0), card_h * (70.0 / 280.0))} S",
+        "Q",
+    ])
+    perf_x = card_x + card_w * 0.73
+    ops.extend([
+        "[3 2.2] 0 d",
+        "1 1 1 RG",
+        f"{max(1.0, 1.6 * unit):.2f} w",
+        f"{perf_x:.2f} {card_y + 14.0 * unit:.2f} m {perf_x:.2f} {card_y + card_h - 14.0 * unit:.2f} l S",
+        "[] 0 d",
+        "0.071 0.031 0.122 rg",
+        f"{_ellipse_path(card_x, card_y + card_h / 2.0, 16.0 * unit, 16.0 * unit)} f",
+        f"{_ellipse_path(perf_x, card_y + card_h, 13.0 * unit, 13.0 * unit)} f",
+        f"{_ellipse_path(perf_x, card_y, 13.0 * unit, 13.0 * unit)} f",
+    ])
 
 
 def canvas_element_box(el, card_x: float, card_y: float, card_w: float, card_h: float):
@@ -829,9 +885,13 @@ def _canvas_font_px(el, template_id: str) -> float:
     if template_id == "midnight" and etype == "name":
         return 18
     if template_id == "midnight" and etype == "ticket_type":
-        return 16
+        return 22
     if template_id == "midnight" and etype == "title":
         return 12
+    if template_id == "midnight" and etype in {"email", "phone", "venue"}:
+        return 11
+    if template_id == "midnight" and etype == "stub":
+        return 10
     if etype in {"ticket_type", "title", "name"}:
         return 16
     if etype in {"stub", "badge"}:
@@ -864,7 +924,7 @@ def _draw_text_box(ops, text, x, y, w, h, size, rgb, align, font="/F1"):
     text = _ascii_text(text, "")
     if not text or w < 4 or h < 4:
         return
-    size = min(28.0, max(6.0, float(size or 10)))
+    size = min(72.0, max(6.0, float(size or 10)))
     lines = [text]
     char_w = size * 0.5
     while size >= 5.0:
@@ -941,13 +1001,17 @@ def _render_canvas_ticket(
 
     text_paint = _rgb(text_rgb)
     muted_paint = _rgb(muted_rgb)
-    radius = 16.0 if template_id == "midnight" else (8.0 if template_id == "vip_gold" else 12.0)
+    radius = max(8.0, card_h * (22.0 / 280.0)) if template_id == "midnight" else (8.0 if template_id == "vip_gold" else 12.0)
     ops = [
         f"{_rgb(page_rgb)} rg 0 0 {page_w:.1f} {page_h:.1f} re f",
         f"{_rgb(card_rgb)} rg",
         f"{_round_rect_path(card_x, card_y, card_w, card_h, radius)} f",
     ]
-    if template_id == "vip_gold":
+    resource_extra = ""
+    if template_id == "midnight":
+        resource_extra = _midnight_resources(card_x, card_y, card_w, card_h)
+        _paint_midnight_face(ops, card_x, card_y, card_w, card_h)
+    elif template_id == "vip_gold":
         gold_w = card_w * 0.68
         ops.extend([
             "q",
@@ -1011,6 +1075,15 @@ def _render_canvas_ticket(
         "footer": custom_footer,
     }
     plain_types = {"midnight", "sunset", "vip_gold"}
+    if template_id == "midnight":
+        for key in ("ticket_type", "title"):
+            if values.get(key):
+                values[key] = values[key].upper()
+        guest_name_text = values.get("name") or ""
+        if guest_name_text.endswith(" (Guest)"):
+            values["name"] = guest_name_text[:-8].upper() + " (Guest)"
+        elif guest_name_text:
+            values["name"] = guest_name_text.upper()
 
     for el in elements:
         etype = str(el.get("type") or "").strip().lower()
@@ -1092,16 +1165,20 @@ def _render_canvas_ticket(
             _draw_text_box(ops, str(el.get("text") or ""), x, y, w, h, size, paint, align, "/F1")
             continue
         if etype == "stub":
-            stub = str(el.get("text") or "").strip() or type_label or title
-            stub = _ascii_text(stub, "")[:48]
+            stub = str(el.get("text") or "").strip() or " ".join(part for part in (type_label, title) if part)
+            if template_id == "midnight":
+                stub = stub.upper()
+            stub = _ascii_text(stub, "")[:80]
             if not stub:
                 continue
             cx = x + w / 2.0
             cy = y + h / 2.0
+            char_w = max(3.0, size * 0.52)
+            text_w = len(stub) * char_w
             ops.extend([
                 "BT",
                 f"/F1 {max(7.0, size):.1f} Tf {paint} rg",
-                f"0 1 -1 0 {cx:.1f} {cy - (len(stub) * size * 0.22):.1f} Tm ({_pdf_escape(stub)}) Tj",
+                f"0 1 -1 0 {cx:.1f} {cy - text_w / 2.0:.1f} Tm ({_pdf_escape(stub)}) Tj",
                 "ET",
             ])
             continue
@@ -1112,7 +1189,13 @@ def _render_canvas_ticket(
         use_paint = muted_paint if etype in {"date", "venue", "qty", "seat", "footer"} and template_id not in plain_types else paint
         _draw_text_box(ops, value, x, y, w, h, size, use_paint, align, font)
 
-    return {"ops": ops, "xobjects": xobjects, "page_w": page_w, "page_h": page_h}
+    return {
+        "ops": ops,
+        "xobjects": xobjects,
+        "page_w": page_w,
+        "page_h": page_h,
+        "resource_extra": resource_extra,
+    }
 
 
 def hex_to_rgb01_safe(hex_color: str):

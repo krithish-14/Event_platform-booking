@@ -221,9 +221,42 @@ class TicketOfferPricingTests(unittest.TestCase):
             attendee_name="Form Asha",
         )
         self.assertTrue(pdf.startswith(b"%PDF"))
-        self.assertIn(b"/MediaBox [0 0 842.0 595.0]", pdf)
-        self.assertIn(b"Canvas Workshop", pdf)
-        self.assertIn(b"Form Asha", pdf)
+        self.assertIn(b"/MediaBox [0 0 760.0 280.0]", pdf)
+        self.assertIn(b"/Sh1 sh", pdf)
+        self.assertIn(b"CANVAS WORKSHOP", pdf)
+        self.assertIn(b"FORM ASHA", pdf)
+        self.assertNotIn(b"/MediaBox [0 0 842.0 595.0]", pdf)
+
+    def test_saved_canvas_style_survives_normalize(self):
+        from Services.ticket_templates import normalize_ticket_layout
+        raw = {
+            "template_id": "midnight",
+            "layout_version": 10,
+            "canvas_elements": [{
+                "id": "name",
+                "type": "name",
+                "x": 8.5,
+                "y": 22,
+                "w": 8,
+                "h": 11,
+                "align": "center",
+                "fontSize": 21,
+                "color": "#ffffff",
+            }],
+        }
+        out = normalize_ticket_layout(raw, is_premium=True)
+        el = out["canvas_elements"][0]
+        self.assertEqual(out["layout_version"], 10)
+        self.assertEqual(out["template_id"], "midnight")
+        self.assertEqual(el["x"], 8.5)
+        self.assertEqual(el["y"], 22)
+        self.assertEqual(el["w"], 8)
+        self.assertEqual(el["h"], 11)
+        self.assertEqual(el["align"], "center")
+        self.assertEqual(el["fontSize"], 21)
+        self.assertEqual(el["color"], "#ffffff")
+        again = normalize_ticket_layout(out, is_premium=True)
+        self.assertEqual(again["canvas_elements"][0], el)
 
     def test_canvas_pdf_keeps_full_name_email_and_guest_label(self):
         from Services.ticket_pdf import _split_to_width, build_mticket_pdf_bytes

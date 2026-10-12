@@ -5656,6 +5656,43 @@ html[data-theme="dark"] .ticket-float-close {
 .tc-node.is-align-right .tc-el-price {
 	justify-content: flex-end;
 }
+/* Saved alignment wins over a template's default row layout, including after the field is deselected. */
+.ticket-live-card .tc-node.is-align-left .tc-el-row,
+.ticket-live-card .tc-node.is-align-left .tc-el-price,
+.ticket-live-card.style-midnight .tc-node.is-align-left .tc-el-row,
+.ticket-live-card.style-midnight .tc-node.is-align-left .tc-el-price,
+.ticket-live-card.style-sunset .tc-node.is-align-left .sg-detail,
+.ticket-live-card.style-vip_gold .tc-node.is-align-left .vg-detail {
+	justify-content: flex-start !important;
+	text-align: left !important;
+	align-items: flex-start !important;
+}
+.ticket-live-card .tc-node.is-align-center .tc-el-row,
+.ticket-live-card .tc-node.is-align-center .tc-el-price,
+.ticket-live-card.style-midnight .tc-node.is-align-center .tc-el-row,
+.ticket-live-card.style-midnight .tc-node.is-align-center .tc-el-price,
+.ticket-live-card.style-midnight .tc-node.is-align-center .ms-name,
+.ticket-live-card.style-midnight .tc-node.is-align-center .ms-code,
+.ticket-live-card.style-midnight .tc-node.is-align-center .ms-meta,
+.ticket-live-card.style-sunset .tc-node.is-align-center .sg-detail,
+.ticket-live-card.style-vip_gold .tc-node.is-align-center .vg-detail {
+	justify-content: center !important;
+	text-align: center !important;
+	align-items: center !important;
+}
+.ticket-live-card .tc-node.is-align-right .tc-el-row,
+.ticket-live-card .tc-node.is-align-right .tc-el-price,
+.ticket-live-card.style-midnight .tc-node.is-align-right .tc-el-row,
+.ticket-live-card.style-midnight .tc-node.is-align-right .tc-el-price,
+.ticket-live-card.style-midnight .tc-node.is-align-right .ms-name,
+.ticket-live-card.style-midnight .tc-node.is-align-right .ms-code,
+.ticket-live-card.style-midnight .tc-node.is-align-right .ms-meta,
+.ticket-live-card.style-sunset .tc-node.is-align-right .sg-detail,
+.ticket-live-card.style-vip_gold .tc-node.is-align-right .vg-detail {
+	justify-content: flex-end !important;
+	text-align: right !important;
+	align-items: flex-end !important;
+}
 .ticket-canvas-hint {
 	flex: 0 0 auto;
 	position: relative;

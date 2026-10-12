@@ -209,10 +209,10 @@ def normalize_ticket_layout(
             entry = {
                 "id": eid[:80],
                 "type": etype,
-                "x": max(0.0, min(92.0, x)),
-                "y": max(0.0, min(94.0, y)),
-                "w": max(8.0 if is_repeatable else 10.0, min(96.0, w)),
-                "h": max(1.0 if etype in {"line", "dashed_line"} else 3.0, min(40.0, h)),
+                "x": max(0.0, min(98.0, x)),
+                "y": max(0.0, min(98.0, y)),
+                "w": max(4.0, min(100.0, w)),
+                "h": max(1.0 if etype in {"line", "dashed_line"} else 2.0, min(100.0, h)),
             }
             color = _hex(item.get("color"), "")
             if color:
