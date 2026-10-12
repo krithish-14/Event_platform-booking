@@ -88,6 +88,15 @@
  }, HERO_ROTATE_MS);
 	}
 
+	function bySoonest(a, b) {
+		const am = EP.parseEventMs(a && a.start_date);
+		const bm = EP.parseEventMs(b && b.start_date);
+		if (am == null && bm == null) return 0;
+		if (am == null) return 1;
+		if (bm == null) return -1;
+		return am - bm;
+	}
+
 	async function loadAndRender() {
  const track = document.querySelector("[data-carousel-track]");
  const carouselSection = document.getElementById("upcoming");
@@ -95,7 +104,7 @@
  if (track) EP.showLoadingState(track, "Loading events…");
 
  try {
- const events = await EP.fetchPublishedEvents({ limit: 24 });
+ const events = (await EP.fetchPublishedEvents({ limit: 24 })).sort(bySoonest);
 
  if (!events.length) {
  stopHeroRotation();
