@@ -500,18 +500,42 @@ async function initOrganizerDashboard() {
 		return String(card.querySelector("." + cls)?.value ?? "").trim();
 	}
 
-	function subtypeTicketLabel(row, card) {
+	function groupLineLabel(line) {
+		const people = Math.round(Number(line.querySelector(".group-people-input")?.value) || 0);
+		const custom = String(line.querySelector(".group-name-input")?.value || "").trim();
+		return custom || (people >= 2 ? "Group of " + people : "Group");
+	}
+
+	function cardOffers(row, card) {
 		const kind = card.dataset.kind;
 		const main = rowMainName(row);
 		if (kind === "early_bird") {
-			return main + " \u00b7 " + (subtypeValue(card, "subtype-name-input") || "Early Bird");
+			const percent = Number(subtypeValue(card, "subtype-percent-input"));
+			const mainPrice = rowMainPrice(row);
+			return [{
+				el: card,
+				name: main + " \u00b7 " + (subtypeValue(card, "subtype-name-input") || "Early Bird"),
+				price: mainPrice !== null && percent >= 1 && percent <= 90 ? earlyBirdUnit(mainPrice, percent) : null
+			}];
+		}
+		if (kind === "standard") {
+			const name = subtypeValue(card, "subtype-name-input");
+			return name ? [{ el: card, name, price: numberOrNull(subtypeValue(card, "subtype-price-input")) }] : [];
 		}
 		if (kind === "group") {
-			const people = Math.round(Number(subtypeValue(card, "subtype-people-input")) || 0);
-			return main + " \u00b7 " + (subtypeValue(card, "subtype-name-input") || ("Group of " + people));
+			return [...card.querySelectorAll(".group-line")].map((line) => {
+				const peopleRaw = String(line.querySelector(".group-people-input")?.value || "").trim();
+				const priceRaw = String(line.querySelector(".group-price-input")?.value || "").trim();
+				return {
+					el: line,
+					name: main + " \u00b7 " + groupLineLabel(line),
+					price: numberOrNull(priceRaw),
+					people: Math.round(Number(peopleRaw) || 0),
+					blank: peopleRaw === "" && priceRaw === ""
+				};
+			}).filter((offer) => !offer.blank);
 		}
-		if (kind === "standard") return subtypeValue(card, "subtype-name-input");
-		return "";
+		return [];
 	}
 
 	function subtypeTimeNoteHtml(kind, data) {
@@ -560,21 +584,8 @@ async function initOrganizerDashboard() {
 		}
 		if (kind === "group") {
 			return `
-			<div class="setup-grid-3">
-				<div class="setup-form-group">
-					<label>Group name</label>
-					<input type="text" class="setup-input subtype-name-input" maxlength="60" placeholder="e.g. Group of 5" value="${attrEscape(d.label || "")}" />
-				</div>
-				<div class="setup-form-group">
-					<label>Number of tickets</label>
-					<input type="number" class="setup-input subtype-people-input" min="2" step="1" placeholder="e.g. 5" value="${attrEscape(d.people ?? "")}" />
-				</div>
-				<div class="setup-form-group">
-					<label>Group price (\u20b9)</label>
-					<input type="number" class="setup-input subtype-price-input" min="0" step="0.01" placeholder="e.g. 1999" value="${attrEscape(d.price ?? "")}" />
-				</div>
-			</div>
-			<p class="ticket-offer-hint" data-subtype-computed></p>` + subtypeTimeNoteHtml(kind, d);
+			<div class="group-line-list"></div>
+			<p class="ticket-offer-hint">Each group is priced on its own, not from the main ticket. Use Add group for Group of 3, Group of 6, Group of 10, and so on.</p>` + subtypeTimeNoteHtml(kind, d);
 		}
 		if (kind === "standard") {
 			return `
@@ -616,11 +627,52 @@ async function initOrganizerDashboard() {
 		return "";
 	}
 
+	function createGroupLine(data = {}) {
+		const line = document.createElement("div");
+		line.className = "group-line";
+		line.dataset.offerId = data.offer_id ? String(data.offer_id) : newTicketSectionId();
+		line.innerHTML = `
+			<div class="group-line-grid">
+				<div class="setup-form-group">
+					<label>Group name</label>
+					<input type="text" class="setup-input group-name-input" maxlength="60" placeholder="e.g. Group of 5" value="${attrEscape(data.label || "")}" />
+				</div>
+				<div class="setup-form-group">
+					<label>Number of tickets</label>
+					<input type="number" class="setup-input group-people-input" min="2" step="1" placeholder="e.g. 5" value="${attrEscape(data.people ?? "")}" />
+				</div>
+				<div class="setup-form-group">
+					<label>Group price (\u20b9)</label>
+					<input type="number" class="setup-input group-price-input" min="0" step="0.01" placeholder="e.g. 1999" value="${attrEscape(data.price ?? "")}" />
+				</div>
+				<button type="button" class="btn-remove-package btn-remove-group-line" title="Remove this group">&times;</button>
+			</div>
+			<p class="ticket-offer-hint" data-group-computed></p>
+		`;
+		line.querySelector(".btn-remove-group-line").addEventListener("click", () => {
+			const card = line.closest(".ticket-subtype-card");
+			const list = line.parentElement;
+			line.remove();
+			if (list && !list.querySelector(".group-line")) list.appendChild(createGroupLine());
+			updateTicketOfferPreview(card && card.closest(".ticket-tier-row"));
+			triggerManageAutoSave();
+		});
+		return line;
+	}
+
 	function renderSubtypeFields(card, kind, data) {
 		card.dataset.kind = kind || "";
 		const fields = card.querySelector(".ticket-subtype-fields");
 		fields.innerHTML = subtypeFieldsHtml(kind, data);
-		if (kind && kind !== "coupon") ensureOfferId(card);
+		const addGroup = card.querySelector(".btn-add-group-line");
+		if (addGroup) addGroup.hidden = kind !== "group";
+		if (kind === "early_bird" || kind === "standard") ensureOfferId(card);
+		if (kind === "group") {
+			if (!card.dataset.cardId) card.dataset.cardId = (data && data.card_id) || newTicketSectionId();
+			const list = card.querySelector(".group-line-list");
+			const lines = data && Array.isArray(data.lines) && data.lines.length ? data.lines : [{}];
+			lines.forEach((item) => list.appendChild(createGroupLine(item)));
+		}
 		if (kind === "coupon") {
 			const code = card.querySelector(".subtype-code-input");
 			if (code) {
@@ -637,6 +689,7 @@ async function initOrganizerDashboard() {
 		const card = document.createElement("div");
 		card.className = "ticket-subtype-card";
 		if (data.offer_id) card.dataset.offerId = String(data.offer_id);
+		if (data.card_id) card.dataset.cardId = String(data.card_id);
 		const options = TICKET_SUBTYPES.map(([value, label]) => `<option value="${value}"${value === kind ? " selected" : ""}>${label}</option>`).join("");
 		card.innerHTML = `
 			<div class="ticket-subtype-head">
@@ -647,7 +700,10 @@ async function initOrganizerDashboard() {
 						${options}
 					</select>
 				</div>
-				<button type="button" class="btn-remove-package btn-remove-subtype" title="Remove">&times;</button>
+				<div class="ticket-subtype-actions">
+					<button type="button" class="btn-add-package btn-add-group-line" hidden>+ Add group</button>
+					<button type="button" class="btn-remove-package btn-remove-subtype" title="Remove">&times;</button>
+				</div>
 			</div>
 			<div class="ticket-subtype-fields"></div>
 		`;
@@ -659,6 +715,15 @@ async function initOrganizerDashboard() {
 				note: subtypeValue(card, "subtype-note-input")
 			};
 			renderSubtypeFields(card, e.target.value, keep);
+			updateTicketOfferPreview(card.closest(".ticket-tier-row"));
+		});
+		card.querySelector(".btn-add-group-line").addEventListener("click", () => {
+			const list = card.querySelector(".group-line-list");
+			if (!list) return;
+			const line = createGroupLine();
+			list.appendChild(line);
+			const first = line.querySelector(".group-name-input");
+			if (first) first.focus();
 			updateTicketOfferPreview(card.closest(".ticket-tier-row"));
 		});
 		card.querySelector(".btn-remove-subtype").addEventListener("click", () => {
@@ -692,18 +757,10 @@ async function initOrganizerDashboard() {
 			const mainPrice = rowMainPrice(row);
 			if (mainPrice !== null) out.push({ id: ensureOfferId(row), name: main, price: mainPrice });
 			row.querySelectorAll(".ticket-subtype-card").forEach((card) => {
-				const kind = card.dataset.kind;
-				if (!kind || kind === "coupon") return;
-				const name = subtypeTicketLabel(row, card);
-				if (!name) return;
-				let price = null;
-				if (kind === "early_bird") {
-					const percent = Number(subtypeValue(card, "subtype-percent-input"));
-					if (mainPrice !== null && percent >= 1 && percent <= 90) price = earlyBirdUnit(mainPrice, percent);
-				} else {
-					price = numberOrNull(subtypeValue(card, "subtype-price-input"));
-				}
-				out.push({ id: ensureOfferId(card), name, price });
+				if (!card.dataset.kind || card.dataset.kind === "coupon") return;
+				cardOffers(row, card).forEach((offer) => {
+					out.push({ id: ensureOfferId(offer.el), name: offer.name, price: offer.price });
+				});
 			});
 		});
 		return out;
@@ -738,9 +795,9 @@ async function initOrganizerDashboard() {
 			const mainPrice = rowMainPrice(row);
 			row.querySelectorAll(".ticket-subtype-card").forEach((card) => {
 				const kind = card.dataset.kind;
-				const computed = card.querySelector("[data-subtype-computed]");
-				if (!computed) return;
 				if (kind === "early_bird") {
+					const computed = card.querySelector("[data-subtype-computed]");
+					if (!computed) return;
 					const percent = Number(subtypeValue(card, "subtype-percent-input"));
 					if (mainPrice === null) computed.textContent = "Set the main ticket price first";
 					else if (!(percent >= 1 && percent <= 90)) computed.textContent = formatTicketRupees(mainPrice) + " \u2014 enter 1 to 90%";
@@ -749,11 +806,15 @@ async function initOrganizerDashboard() {
 						computed.textContent = formatTicketRupees(unit) + " (" + formatTicketRupees(mainPrice - unit) + " off " + formatTicketRupees(mainPrice) + ")";
 					}
 				} else if (kind === "group") {
-					const people = Math.round(Number(subtypeValue(card, "subtype-people-input")) || 0);
-					const price = numberOrNull(subtypeValue(card, "subtype-price-input"));
-					computed.textContent = people >= 2 && price !== null
-						? formatTicketRupees(price) + " for " + people + " tickets (" + formatTicketRupees(price / people) + " each). Priced on its own, not from the main ticket."
-						: "Enter how many tickets the group gets and the price for the whole group.";
+					card.querySelectorAll(".group-line").forEach((line) => {
+						const computed = line.querySelector("[data-group-computed]");
+						if (!computed) return;
+						const people = Math.round(Number(line.querySelector(".group-people-input")?.value) || 0);
+						const price = numberOrNull(line.querySelector(".group-price-input")?.value);
+						computed.textContent = people >= 2 && price !== null
+							? groupLineLabel(line) + ": " + formatTicketRupees(price) + " for " + people + " tickets (" + formatTicketRupees(price / people) + " each)."
+							: "Enter how many tickets this group gets and the price for the whole group.";
+					});
 				}
 			});
 			const preview = row.querySelector(".ticket-offer-preview");
@@ -761,10 +822,8 @@ async function initOrganizerDashboard() {
 				const parts = [];
 				if (mainPrice !== null) parts.push((rowMainName(row) || "Main ticket") + " " + formatTicketRupees(mainPrice) + " per person");
 				row.querySelectorAll(".ticket-subtype-card").forEach((card) => {
-					const kind = card.dataset.kind;
-					if (!kind || kind === "coupon") return;
-					const label = subtypeTicketLabel(row, card);
-					if (label) parts.push(label);
+					if (!card.dataset.kind || card.dataset.kind === "coupon") return;
+					cardOffers(row, card).forEach((offer) => parts.push(offer.name));
 				});
 				const coupons = [...row.querySelectorAll('.ticket-subtype-card[data-kind="coupon"]')]
 					.map((card) => subtypeValue(card, "subtype-code-input")).filter(Boolean);
@@ -810,7 +869,6 @@ async function initOrganizerDashboard() {
 				if (!kind || kind === "coupon") return;
 				const base = {
 					ticket_kind: kind,
-					offer_id: ensureOfferId(card),
 					section_id: shared.section_id,
 					is_active: shared.is_active,
 					sales_start: toIstIsoFromDatetimeLocal(subtypeValue(card, "subtype-start-input")) || shared.sales_start,
@@ -824,7 +882,8 @@ async function initOrganizerDashboard() {
 					if (!percent) return;
 					const unit = mainPrice !== null ? earlyBirdUnit(mainPrice, percent) : 0;
 					out.push(Object.assign(base, {
-						name: subtypeTicketLabel(row, card),
+						offer_id: ensureOfferId(card),
+						name: cardOffers(row, card)[0].name,
 						pricing_type: "per_person",
 						unit_price: unit,
 						price: unit,
@@ -833,24 +892,25 @@ async function initOrganizerDashboard() {
 						qty: shared.qty
 					}));
 				} else if (kind === "group") {
-					const peopleRaw = subtypeValue(card, "subtype-people-input");
-					const priceRaw = subtypeValue(card, "subtype-price-input");
-					if (peopleRaw === "" && priceRaw === "") return;
-					const people = Math.round(Number(peopleRaw) || 0);
-					const price = Number(priceRaw || 0);
-					out.push(Object.assign(base, {
-						name: subtypeTicketLabel(row, card),
-						pricing_type: "package",
-						package_quantity: people,
-						package_price: price,
-						price,
-						qty: shared.qty
-					}));
+					cardOffers(row, card).forEach((offer) => {
+						const price = offer.price !== null ? offer.price : 0;
+						out.push(Object.assign({}, base, {
+							offer_id: ensureOfferId(offer.el),
+							group_card_id: card.dataset.cardId || "",
+							name: offer.name,
+							pricing_type: "package",
+							package_quantity: offer.people,
+							package_price: price,
+							price,
+							qty: shared.qty
+						}));
+					});
 				} else if (kind === "standard") {
 					const ticketName = subtypeValue(card, "subtype-name-input");
 					if (!ticketName) return;
 					const price = Number(subtypeValue(card, "subtype-price-input") || 0);
 					out.push(Object.assign(base, {
+						offer_id: ensureOfferId(card),
 						name: ticketName,
 						pricing_type: "per_person",
 						unit_price: price,
@@ -893,6 +953,8 @@ async function initOrganizerDashboard() {
 		const rows = [...document.querySelectorAll("#ticketTiersRows .ticket-tier-row")];
 		for (const row of rows) {
 			const main = rowMainName(row) || "this ticket";
+			const names = new Set();
+			if (rowMainName(row)) names.add(rowMainName(row).toLowerCase());
 			for (const card of row.querySelectorAll(".ticket-subtype-card")) {
 				const kind = card.dataset.kind;
 				if (!kind) continue;
@@ -906,10 +968,10 @@ async function initOrganizerDashboard() {
 					if (rowMainPrice(row) === null) return { el: row.querySelector(".ticket-price-input"), msg: "Early Bird needs the main ticket price for " + main + "." };
 					if (!(percent >= 1 && percent <= 90)) return { el: card.querySelector(".subtype-percent-input"), msg: "Early Bird discount must be between 1% and 90%." };
 				} else if (kind === "group") {
-					const people = Number(subtypeValue(card, "subtype-people-input"));
-					const price = numberOrNull(subtypeValue(card, "subtype-price-input"));
-					if (!(people >= 2)) return { el: card.querySelector(".subtype-people-input"), msg: "A group ticket needs at least 2 tickets." };
-					if (price === null || price < 0) return { el: card.querySelector(".subtype-price-input"), msg: "Enter the price for the whole group." };
+					for (const offer of cardOffers(row, card)) {
+						if (!(offer.people >= 2)) return { el: offer.el.querySelector(".group-people-input"), msg: "Each group needs at least 2 tickets." };
+						if (offer.price === null || offer.price < 0) return { el: offer.el.querySelector(".group-price-input"), msg: "Enter the price for " + offer.name + "." };
+					}
 				} else if (kind === "standard") {
 					if (!subtypeValue(card, "subtype-name-input")) return { el: card.querySelector(".subtype-name-input"), msg: "Enter a name for the added ticket, for example VIP Pass." };
 					const price = numberOrNull(subtypeValue(card, "subtype-price-input"));
@@ -920,6 +982,15 @@ async function initOrganizerDashboard() {
 					if (codes.has(code)) return { el: card.querySelector(".subtype-code-input"), msg: "Coupon code " + code + " is used more than once." };
 					codes.add(code);
 					if (!(Number(subtypeValue(card, "subtype-amount-input")) > 0)) return { el: card.querySelector(".subtype-amount-input"), msg: "Enter the amount coupon " + code + " takes off each ticket." };
+					continue;
+				}
+				for (const offer of cardOffers(row, card)) {
+					const key = offer.name.toLowerCase();
+					if (names.has(key)) {
+						const field = offer.el.querySelector(".group-name-input, .subtype-name-input");
+						return { el: field, msg: "Two tickets are both called \"" + offer.name + "\". Give each one a different name." };
+					}
+					names.add(key);
 				}
 			}
 		}
@@ -995,6 +1066,7 @@ async function initOrganizerDashboard() {
 				const text = String(name || "");
 				return prefix && text.startsWith(prefix) ? text.slice(prefix.length) : text;
 			};
+			const groupCards = new Map();
 			section.rawSubs.forEach((ticket) => {
 				const kind = ticket.ticket_kind || (ticket.pricing_type === "package" ? "group" : "standard");
 				const win = subtypeWindowFields(ticket, section.start, section.end);
@@ -1008,12 +1080,19 @@ async function initOrganizerDashboard() {
 				} else if (kind === "group") {
 					const people = ticket.package_quantity;
 					const label = stripPrefix(ticket.name);
-					section.offer.subs.push({ kind, data: Object.assign(win, {
+					const line = {
 						offer_id: ticket.offer_id || "",
 						label: label === ("Group of " + people) ? "" : label,
 						people: people != null ? people : "",
 						price: ticket.package_price != null ? ticket.package_price : (ticket.price != null ? ticket.price : "")
-					}) });
+					};
+					const cardKey = ticket.group_card_id || "legacy";
+					if (!groupCards.has(cardKey)) {
+						const card = { kind: "group", data: Object.assign(win, { card_id: ticket.group_card_id || "", lines: [] }) };
+						groupCards.set(cardKey, card);
+						section.offer.subs.push(card);
+					}
+					groupCards.get(cardKey).data.lines.push(line);
 				} else {
 					section.offer.subs.push({ kind: "standard", data: Object.assign(win, {
 						offer_id: ticket.offer_id || "",
@@ -5331,12 +5410,12 @@ async function initOrganizerDashboard() {
 	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "", offer = {}) {
 		const saved = offer || {};
 		const subs = Array.isArray(saved.subs) ? saved.subs.slice() : [];
-		if (Array.isArray(saved.packages)) {
-			saved.packages.forEach((item) => subs.push({ kind: "group", data: {
+		if (Array.isArray(saved.packages) && saved.packages.length) {
+			subs.push({ kind: "group", data: { lines: saved.packages.map((item) => ({
 				offer_id: item.offer_id || "",
 				people: item.package_quantity != null ? item.package_quantity : "",
 				price: item.package_price != null ? item.package_price : ""
-			} }));
+			})) } });
 		}
 		const maxOrder = saved.max_per_order != null && saved.max_per_order !== "" ? saved.max_per_order : "";
 		const active = saved.is_active === false ? "" : "checked";

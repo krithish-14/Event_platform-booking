@@ -2300,6 +2300,57 @@ html[data-theme="dark"] .btn-remove-package {
 	gap: 0.75rem;
 }
 
+.ticket-subtype-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+}
+
+.ticket-subtype-actions .btn-add-group-line {
+	height: 44px;
+	white-space: nowrap;
+}
+
+.ticket-subtype-actions .btn-add-group-line[hidden] {
+	display: none;
+}
+
+.group-line-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.65rem;
+}
+
+.group-line {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	padding-bottom: 0.65rem;
+	border-bottom: 1px dashed rgba(16, 185, 129, 0.35);
+}
+
+.group-line:last-child {
+	border-bottom: 0;
+	padding-bottom: 0;
+}
+
+.group-line-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr auto;
+	gap: 0.75rem;
+	align-items: end;
+}
+
+@media (max-width: 720px) {
+	.group-line-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.ticket-subtype-head {
+		grid-template-columns: 1fr;
+	}
+}
+
 .ticket-subtype-fields:empty {
 	display: none;
 }
