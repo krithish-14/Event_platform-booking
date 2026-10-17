@@ -28,6 +28,22 @@
 
 	const REELS = [
 		{
+			id: "self-grooming",
+			shortcode: "DeUQDfySOWE",
+			title: "Self Grooming & Styling",
+			caption: "Advertisement for Self Grooming & Styling",
+			instagram: "https://www.instagram.com/reel/DeUQDfySOWE/",
+			poster: asset("images/video/DeUQDfySOWE.jpg")
+		},
+		{
+			id: "rotary-meet",
+			shortcode: "DdwGu5xy8UU",
+			title: "Rotary Business Meet",
+			caption: "A memorable Rotary Business Meet bringing together business leaders",
+			instagram: "https://www.instagram.com/reel/DdwGu5xy8UU/",
+			poster: asset("images/video/DdwGu5xy8UU.jpg")
+		},
+		{
 			id: "rotary",
 			shortcode: "DdHE_6uSqjD",
 			title: "Rotary Business Meet",
@@ -240,9 +256,16 @@
 		const row = document.getElementById("homeReelsTrack");
 		if (!row) return;
 		const rect = row.getBoundingClientRect();
-		const visible = rect.top < window.innerHeight - 40 && rect.bottom > 40;
-		if (!visible) return;
-		document.querySelectorAll(".reels-card-video").forEach(playMuted);
+		const rowVisible = rect.top < window.innerHeight - 40 && rect.bottom > 40;
+		const viewLeft = row.scrollLeft - 80;
+		const viewRight = row.scrollLeft + row.clientWidth + 80;
+		row.querySelectorAll(".reels-card").forEach(function (card) {
+			const video = card.querySelector(".reels-card-video");
+			if (!video) return;
+			const inView = card.offsetLeft + card.offsetWidth > viewLeft && card.offsetLeft < viewRight;
+			if (rowVisible && inView) playMuted(video);
+			else video.pause();
+		});
 	}
 
 	function bindStripMedia(card) {
@@ -373,7 +396,8 @@
 	function init() {
 		const track = document.getElementById("homeReelsTrack");
 		if (!track) return;
-		track.innerHTML = REELS.map(cardHtml).join("");
+		const reelMarkup = REELS.map(cardHtml).join("");
+		track.innerHTML = reelMarkup + reelMarkup + reelMarkup;
 		track.querySelectorAll(".reels-card").forEach(function (card) {
 			bindStripMedia(card);
 		});
@@ -395,30 +419,133 @@
 		}
 		window.addEventListener("scroll", playStripIfVisible, { passive: true });
 
-		function nearestCardIndex() {
-			const cards = track.querySelectorAll(".reels-card");
-			const mid = track.scrollLeft + track.clientWidth / 2;
-			let best = 0;
-			let bestDist = Infinity;
-			cards.forEach(function (card, index) {
-				const center = card.offsetLeft + card.offsetWidth / 2;
-				const dist = Math.abs(center - mid);
-				if (dist < bestDist) {
-					bestDist = dist;
-					best = index;
+		const reelCount = REELS.length;
+		let pendingDest = 0;
+		let settling = false;
+
+		function cardList() {
+			return track.querySelectorAll(".reels-card");
+		}
+
+		function cardStep() {
+			const cards = cardList();
+			if (cards.length < 2) return 0;
+			return cards[1].offsetLeft - cards[0].offsetLeft;
+		}
+
+		function loopWidth() {
+			const cards = cardList();
+			if (!reelCount || cards.length < reelCount + 1) return 0;
+			return cards[reelCount].offsetLeft - cards[0].offsetLeft;
+		}
+
+		function placeInMiddle(left) {
+			const width = loopWidth();
+			if (!width) return left;
+			while (left >= width * 2) left -= width;
+			while (left < width) left += width;
+			return left;
+		}
+
+		function jumpTo(left) {
+			settling = true;
+			track.scrollLeft = left;
+			settling = false;
+		}
+
+		let animating = false;
+		let animFrame = 0;
+		let animToken = 0;
+
+		function settleLoop() {
+			if (settling || animating) return;
+			const width = loopWidth();
+			if (!width) return;
+			const left = placeInMiddle(track.scrollLeft);
+			if (Math.abs(left - track.scrollLeft) > 1) jumpTo(left);
+			pendingDest = placeInMiddle(track.scrollLeft);
+		}
+
+		function animateTo(dest) {
+			const token = ++animToken;
+			cancelAnimationFrame(animFrame);
+			const start = track.scrollLeft;
+			const change = dest - start;
+			if (Math.abs(change) < 1 || reduceMotion) {
+				jumpTo(dest);
+				pendingDest = placeInMiddle(dest);
+				if (Math.abs(pendingDest - track.scrollLeft) > 1) jumpTo(pendingDest);
+				animating = false;
+				return;
+			}
+			animating = true;
+			const t0 = performance.now();
+			const duration = 320;
+			function frame(now) {
+				if (token !== animToken) return;
+				const t = Math.min(1, (now - t0) / duration);
+				const eased = 1 - Math.pow(1 - t, 3);
+				settling = true;
+				track.scrollLeft = start + change * eased;
+				settling = false;
+				if (t < 1) {
+					animFrame = requestAnimationFrame(frame);
+					return;
 				}
-			});
-			return best;
+				animating = false;
+				const parked = placeInMiddle(dest);
+				if (Math.abs(parked - track.scrollLeft) > 1) jumpTo(parked);
+				pendingDest = parked;
+			}
+			animFrame = requestAnimationFrame(frame);
 		}
 
 		function scrollStrip(delta) {
-			const cards = track.querySelectorAll(".reels-card");
-			if (!cards.length) return;
-			const next = (nearestCardIndex() + delta + cards.length) % cards.length;
-			const card = cards[next];
-			const left = card.offsetLeft - (track.clientWidth - card.offsetWidth) / 2;
-			track.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+			const step = cardStep();
+			const width = loopWidth();
+			if (!step || !width) return;
+			clearTimeout(settleTimer);
+			const normalized = placeInMiddle(pendingDest);
+			const shift = normalized - pendingDest;
+			if (shift) jumpTo(track.scrollLeft + shift);
+			pendingDest = normalized + delta * step;
+			animateTo(pendingDest);
 		}
+
+		let primed = false;
+		function primeLoop() {
+			if (primed) return;
+			const width = loopWidth();
+			if (!width) return;
+			pendingDest = width;
+			jumpTo(width);
+			primed = true;
+		}
+		primeLoop();
+		window.addEventListener("load", primeLoop);
+		window.addEventListener("resize", function () {
+			pendingDest = placeInMiddle(track.scrollLeft);
+		});
+
+		let settleTimer = null;
+		function queueSettle() {
+			if (settling) return;
+			clearTimeout(settleTimer);
+			settleTimer = setTimeout(settleLoop, 80);
+		}
+		track.addEventListener("scroll", function () {
+			queueSettle();
+			playStripIfVisible();
+		}, { passive: true });
+		track.addEventListener("scrollend", settleLoop);
+		track.addEventListener("pointerdown", function () {
+			animToken += 1;
+			cancelAnimationFrame(animFrame);
+			animating = false;
+			pendingDest = track.scrollLeft;
+		});
+		track.addEventListener("pointerup", function () { pendingDest = track.scrollLeft; });
+		track.addEventListener("pointercancel", function () { pendingDest = track.scrollLeft; });
 
 		document.querySelector("[data-reels-strip-prev]")?.addEventListener("click", function (event) {
 			event.preventDefault();

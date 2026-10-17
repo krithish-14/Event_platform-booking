@@ -1358,6 +1358,71 @@ async def verify_razorpay_payment(
     }
 
 
+def _local_bypass_or_404(request: Request) -> None:
+    from Services.runtime_env import local_dev_bypass_enabled, request_is_loopback
+
+    client_host = request.client.host if request.client else ""
+    if not local_dev_bypass_enabled() or not request_is_loopback(client_host):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found.")
+
+
+async def local_dev_flags(request: Request):
+    """Tell the local site whether OTP and Razorpay can be skipped. Live always says no."""
+    _local_bypass_or_404(request)
+    return {"publish_otp_required": False, "payment_required": False}
+
+
+async def complete_local_checkout(
+    payload: CreateOrderRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Issue the ticket without Razorpay. Refuses every request that is not local."""
+    _local_bypass_or_404(request)
+    limit_payment(request)
+    event_id = sanitize_text(payload.event_id or "", max_length=255)
+    if not event_id:
+        raise HTTPException(status_code=400, detail="Missing event. Go back and book again.")
+    from Services.event_service import assert_ticket_sales_open
+    assert_ticket_sales_open(db, event_id)
+    checkout_quote = _checkout_quote(
+        db,
+        event_id,
+        payload.offer_id or "",
+        payload.ticket_type or "",
+        payload.quantity or 1,
+    )
+    payment_id = "LOCAL-" + secrets.token_hex(8).upper()
+    row, submission_id = _record_razorpay_payment(
+        db,
+        current_user,
+        event_id=event_id,
+        ticket_type=payload.ticket_type,
+        quantity=payload.quantity,
+        amount_rupees=checkout_quote.total_rupees,
+        payment_id=payment_id,
+        attendee_name=None,
+        attendee_phone=None,
+        quote=checkout_quote,
+    )
+    ticket = _auto_issue_and_deliver(db, row, submission_id=submission_id)
+    has_qr = bool(ticket.get("qr_token"))
+    return {
+        "success": True,
+        "message": (
+            "Local checkout skipped Razorpay. Your ticket is ready."
+            if has_qr
+            else "Local checkout skipped Razorpay. Your ticket is being prepared."
+        ),
+        "payment_id": getattr(row, "id", None),
+        "status": ticket.get("status") or getattr(row, "status", None) or "payment_submitted",
+        "razorpay_payment_id": payment_id,
+        "local_bypass": True,
+        **ticket,
+    }
+
+
 # Same handlers under /api/payments/* and /api/* for the Standard Checkout guide paths.
 router.add_api_route("/create-order", create_razorpay_order, methods=["POST"], status_code=200)
 router.add_api_route("/verify-payment", verify_razorpay_payment, methods=["POST"], status_code=200)
@@ -1365,3 +1430,5 @@ router.add_api_route("/claim-free-ticket", claim_free_ticket, methods=["POST"], 
 razorpay_router.add_api_route("/create-order", create_razorpay_order, methods=["POST"], status_code=200)
 razorpay_router.add_api_route("/verify-payment", verify_razorpay_payment, methods=["POST"], status_code=200)
 razorpay_router.add_api_route("/claim-free-ticket", claim_free_ticket, methods=["POST"], status_code=200)
+razorpay_router.add_api_route("/dev/local-flags", local_dev_flags, methods=["GET"], status_code=200)
+razorpay_router.add_api_route("/dev/complete-checkout", complete_local_checkout, methods=["POST"], status_code=200)

@@ -4585,35 +4585,21 @@ body.jod-loc-modal-open {
 }
 
 .guest-auth-modal-actions #guestAuthCancelBtn {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 100%;
-	padding: 0.9rem 1.5rem;
-	border: 1px solid rgba(255, 255, 255, 0.15);
-	border-radius: 50px;
-	background: rgba(255, 255, 255, 0.05);
-	color: #ffffff;
-	font-size: 1rem;
-	font-weight: 600;
-	cursor: pointer;
-	transition: all 0.2s ease;
-}
-
-.guest-auth-modal-actions #guestAuthCancelBtn:hover {
-	background: rgba(255, 255, 255, 0.12);
-	border-color: rgba(255, 255, 255, 0.25);
+	display: none !important;
 }
 
 .guest-auth-modal-switch {
-	margin-top: 1.25rem;
-	font-size: 0.875rem;
-	color: #9ca3af;
+	margin-top: 1.35rem;
+	font-size: 1.45rem;
+	font-weight: 600;
+	line-height: 1.4;
+	color: #d1d5db;
 }
 
 .guest-auth-modal-switch a {
 	color: #ff9d00;
-	font-weight: 600;
+	font-size: 1.45rem;
+	font-weight: 700;
 	text-decoration: underline;
 	margin-left: 0.25rem;
 }

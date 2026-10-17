@@ -6702,6 +6702,20 @@ async function initOrganizerDashboard() {
 		});
 	}
 
+	async function localDevSkipsPublishOtp() {
+		const host = window.location.hostname;
+		if (host !== "127.0.0.1" && host !== "localhost") return false;
+		try {
+			const origin = HOST_EVENTS_API_BASE.replace(/\/api\/host-events\/?$/, "");
+			const res = await fetch(origin + "/api/dev/local-flags", { cache: "no-store", headers: { Accept: "application/json" } });
+			if (!res.ok) return false;
+			const data = await res.json();
+			return data && data.publish_otp_required === false;
+		} catch (_) {
+			return false;
+		}
+	}
+
 	function showPublishAuthOtpModal(options) {
 		const opts = Object.assign({
 			badge: "Verify to Publish",
@@ -7094,8 +7108,11 @@ async function initOrganizerDashboard() {
 				try {
 					setWizardNavBusy(btnPublish, false);
 					setWizardNavBusy(btnTop, false);
-					const verified = await showPublishAuthOtpModal();
-					if (!verified) return;
+					const skipOtp = await localDevSkipsPublishOtp();
+					if (!skipOtp) {
+						const verified = await showPublishAuthOtpModal();
+						if (!verified) return;
+					}
 					setWizardNavBusy(btnPublish, true, "<span>Publishing\u2026</span>");
 					setWizardNavBusy(btnTop, true, "<span>Publishing\u2026</span>");
 					await postPublishEvent();

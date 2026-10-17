@@ -754,9 +754,7 @@
 		}
 		if (ctaEl) {
 			ctaEl.href = url;
-			ctaEl.onclick = function () {
-				if (typeof global.JodCloseFeaturedModal === "function") global.JodCloseFeaturedModal();
-			};
+			ctaEl.onclick = null;
 		}
 
 		modal.dataset.eventId = event.id;

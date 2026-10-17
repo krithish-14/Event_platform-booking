@@ -265,6 +265,25 @@ def _frontend_looks_local() -> bool:
     return any(marker in public for marker in ("127.0.0.1", "localhost"))
 
 
+def local_dev_bypass_enabled() -> bool:
+    """Skip publish OTP and Razorpay only on a local workstation.
+
+    Live stays gated: production, staging, and any RDS database never qualify,
+    even if APP_ENV is left as development.
+    """
+    if is_production() or is_staging():
+        return False
+    url = (os.getenv("DATABASE_URL") or "").strip()
+    if not url or database_is_rds(url) or not database_is_loopback(url):
+        return False
+    return _frontend_looks_local()
+
+
+def request_is_loopback(host: str | None) -> bool:
+    value = (host or "").strip().lower()
+    return value in {"127.0.0.1", "::1", "localhost"} or value.startswith("127.")
+
+
 def validate_database_isolation(db_url: str | None = None) -> None:
     """Keep live off localhost Postgres. Never abort EC2 because APP_ENV is still development."""
     url = (db_url if db_url is not None else os.getenv("DATABASE_URL") or "").strip()

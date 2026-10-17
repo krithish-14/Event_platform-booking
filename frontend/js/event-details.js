@@ -1371,32 +1371,6 @@ async function triggerBookingModal() {
  }
  }
 
- const isAuth = (window.JodAuth && typeof window.JodAuth.isLoggedIn === "function")
- ? window.JodAuth.isLoggedIn()
- : Boolean((function () {
- try {
- const raw = localStorage.getItem("jod_user") || sessionStorage.getItem("jod_user");
- return raw && raw !== "null";
- } catch (_) { return false; }
- })());
-
- if (!isAuth) {
- const currentTarget = window.location.pathname + window.location.search + window.location.hash;
- if (window.JodAuth && typeof window.JodAuth.openGuestAuthModal === "function") {
- window.JodAuth.openGuestAuthModal({
- title: "Sign Up to Book Tickets",
- message: "You need to create an account or sign in to complete registration for this event.",
- targetUrl: currentTarget,
- badge: "\ud83c\udf9f\ufe0f Account Required"
- });
- } else {
- showToast("Please sign up or log in to book tickets. Redirecting\u2026 \ud83c\udf9f\ufe0f");
- try { sessionStorage.setItem("jod_redirect_after_login", currentTarget); } catch (_) {}
- setTimeout(() => { window.location.href = `signup.html?redirect=${encodeURIComponent(currentTarget)}`; }, 800);
- }
- return;
- }
-
  let ticketType = typeof currentSelectedTicketType !== "undefined" ? currentSelectedTicketType : "General Admission";
  const activeOptName = document.querySelector('.ticket-type-option.selected .ticket-name');
  if (activeOptName && activeOptName.textContent.trim()) {

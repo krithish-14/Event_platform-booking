@@ -10,6 +10,8 @@
  : (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 	if (page !== "index.html") return;
 
+	try { sessionStorage.removeItem("jod_after_featured_redirect"); } catch (_) {}
+
 	const EP = window.JodEventsPublic;
 	if (!EP) return;
 

@@ -240,6 +240,13 @@ window.JodAuth = (() => {
 		return prettyUrl("index.html?show_featured=1");
 	}
 
+	function isHomeDestination(dest) {
+		const value = String(dest || "").trim();
+		if (!value || value === "/" || value === "#top") return true;
+		const path = value.split("?")[0].split("#")[0].replace(/\/+$/, "") || "/";
+		return path === "/" || path === "/index" || /(?:^|\/)index\.html$/i.test(path);
+	}
+
 	async function redirectAfterAuth(preferredUrl) {
 		const targetUrl = preferredUrl || getRedirectTarget();
 		let dest = "index.html";
@@ -248,21 +255,19 @@ window.JodAuth = (() => {
 		} catch (_) {
 			dest = targetUrl || "index.html";
 		}
-		// Featured popup only exists on the home page. After every login, land
-		// on home with show_featured=1 so the modal always appears. Admins keep
-		// going straight to the admin portal.
+		try { sessionStorage.removeItem("jod_after_featured_redirect"); } catch (_) {}
+		// Stay on home when that is the destination. Do not hop through home and
+		// then leave for an event. A login started on another page returns there.
 		if (isAdminUser(getUser()) || String(dest).toLowerCase().includes("admin-portal")) {
 			window.location.replace(prettyUrl(dest));
 			return;
 		}
-		try {
-			if (dest && !/index\.html\/?$/i.test(String(dest).split("?")[0]) && String(dest) !== "/" && String(dest) !== "") {
-				sessionStorage.setItem("jod_after_featured_redirect", dest);
-			} else {
-				sessionStorage.removeItem("jod_after_featured_redirect");
-			}
-		} catch (_) {}
-		window.location.replace(homeUrlWithFeaturedPopup());
+		if (isHomeDestination(dest)) {
+			queueFeaturedModalAfterLogin();
+			window.location.replace(homeUrlWithFeaturedPopup());
+			return;
+		}
+		window.location.replace(prettyUrl(dest));
 	}
 
 	function persistAuthSession(tokenOrUser, maybeUser) {
@@ -1801,6 +1806,49 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 	let googleClientConfig = { client_id: "", enabled: false };
 	let googleGsiReady = false;
 	let googleGsiInitialized = false;
+	let googleClickPending = false;
+	let googleScriptPromise = null;
+
+	function googleLibraryReady() {
+		return !!(window.google && window.google.accounts && window.google.accounts.id);
+	}
+
+	function ensureGoogleScript() {
+		if (googleLibraryReady()) return Promise.resolve();
+		if (googleScriptPromise) return googleScriptPromise;
+		googleScriptPromise = new Promise((resolve, reject) => {
+			let script = document.querySelector("script[src*='accounts.google.com/gsi/client']");
+			if (!script) {
+				script = document.createElement("script");
+				script.src = "https://accounts.google.com/gsi/client";
+				script.async = true;
+				script.defer = true;
+				document.head.appendChild(script);
+			}
+			if (googleLibraryReady()) {
+				resolve();
+				return;
+			}
+			script.addEventListener("load", () => {
+				if (googleLibraryReady()) resolve();
+			}, { once: true });
+			script.addEventListener("error", () => reject(new Error("gsi")), { once: true });
+			const started = Date.now();
+			const timer = window.setInterval(() => {
+				if (googleLibraryReady()) {
+					window.clearInterval(timer);
+					resolve();
+				} else if (Date.now() - started > 8000) {
+					window.clearInterval(timer);
+					reject(new Error("gsi"));
+				}
+			}, 50);
+		}).catch((error) => {
+			googleScriptPromise = null;
+			throw error;
+		});
+		return googleScriptPromise;
+	}
 
 	function rememberGoogleRedirect() {
 		const params = new URLSearchParams(window.location.search);
@@ -1886,10 +1934,33 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 		}
 	}
 
+	function openGoogleChooser() {
+		if (!googleLibraryReady()) return false;
+		if (!googleGsiReady) initGoogleIdentity();
+		try {
+			window.google.accounts.id.prompt();
+			return true;
+		} catch (_) {
+			return clickOfficialGoogleButton();
+		}
+	}
+
+	function flushPendingGoogleOpen() {
+		if (!googleClickPending || !googleLibraryReady()) return;
+		if (!googleClientConfig.enabled || !googleClientConfig.client_id) return;
+		googleClickPending = false;
+		const alertEl = googleAlertEl();
+		if (alertEl) hideAlert(alertEl);
+		if (!openGoogleChooser()) {
+			if (alertEl) showAlert(alertEl, "error", "Google sign-in failed. Please try again.");
+		}
+	}
+
 	async function initGoogleAuth(attempt) {
 		const btnEl = googleButtonEl();
 		if (!btnEl) return;
 		const tries = Number(attempt) || 0;
+		const scriptReady = ensureGoogleScript().catch(() => null);
 		try {
 			const res = await fetch(`${getApiBase()}/api/auth/google/config`);
 			if (res.ok) googleClientConfig = await res.json();
@@ -1913,23 +1984,9 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 			privacyAgree.addEventListener("change", syncGoogleSignupGate);
 		}
 
-		if (window.google && window.google.accounts && window.google.accounts.id) {
-			initGoogleIdentity();
-			return;
-		}
-		if (document.querySelector("script[src='https://accounts.google.com/gsi/client']")) {
-			return;
-		}
-		const script = document.createElement("script");
-		script.src = "https://accounts.google.com/gsi/client";
-		script.async = true;
-		script.defer = true;
-		script.onload = initGoogleIdentity;
-		script.onerror = () => {
-			const alertEl = googleAlertEl();
-			if (alertEl) showAlert(alertEl, "error", "Unable to load Google sign-in. Please try again.");
-		};
-		document.head.appendChild(script);
+		await scriptReady;
+		if (googleLibraryReady()) initGoogleIdentity();
+		flushPendingGoogleOpen();
 	}
 
 	function canStartGoogleSignup(showErrors) {
@@ -1957,21 +2014,19 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 	function triggerGoogleAccountPicker(alertElement) {
 		if (!canStartGoogleSignup()) return;
 		rememberGoogleRedirect();
-		if (!googleClientConfig.enabled || !googleClientConfig.client_id) {
-			if (alertElement) showAlert(alertElement, "error", "Google sign-in is not configured. Please use email and password.");
+		if (alertElement) hideAlert(alertElement);
+		if (!googleClientConfig.enabled || !googleClientConfig.client_id || !googleLibraryReady()) {
+			googleClickPending = true;
 			initGoogleAuth(0);
+			ensureGoogleScript().then(flushPendingGoogleOpen).catch(() => {
+				googleClickPending = false;
+				if (alertElement) showAlert(alertElement, "error", "Unable to load Google sign-in. Please try again.");
+			});
 			return;
 		}
-		if (!window.google || !window.google.accounts || !window.google.accounts.id) {
-			if (alertElement) showAlert(alertElement, "error", "Google sign-in is still loading. Please try again.");
-			initGoogleAuth(0);
-			return;
+		if (!openGoogleChooser() && alertElement) {
+			showAlert(alertElement, "error", "Google sign-in failed. Please try again.");
 		}
-		if (!googleGsiReady) initGoogleIdentity();
-		if (clickOfficialGoogleButton()) return;
-		renderOfficialGoogleButton();
-		if (clickOfficialGoogleButton()) return;
-		if (alertElement) showAlert(alertElement, "error", "Google sign-in failed. Please try again.");
 	}
 
 	document.addEventListener("click", (e) => {
@@ -1992,7 +2047,7 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 		}
 		const targetBtn = e.target.closest("#googleSignupBtn, #googleLoginBtn, .btn-google-auth");
 		if (!targetBtn) return;
-		e.preventDefault();
+			e.preventDefault();
 		triggerGoogleAccountPicker(googleAlertEl());
 	});
 
@@ -2054,7 +2109,6 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 						<a class="button button-primary guest-auth-submit-btn" id="guestAuthSignupBtn" href="signup.html">
 							Sign Up <span aria-hidden="true">&rarr;</span>
 						</a>
-						<button class="button button-ghost-light" type="button" id="guestAuthCancelBtn">Maybe Later</button>
 					</div>
 					<div class="guest-auth-modal-switch">
 						Already have an account? <a href="login.html" id="guestAuthLoginLink">Log In</a>
@@ -2177,24 +2231,6 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 		}
 	}
 
-	function promptGuestForEventDetails(targetUrl) {
-		openGuestAuthModal({
-			title: "Sign Up to Book Tickets",
-			message: "You can browse this event as a guest. Sign up or log in to reserve tickets.",
-			targetUrl: targetUrl || (window.location.pathname + window.location.search + window.location.hash),
-			badge: "\ud83c\udf9f\ufe0f Account Required"
-		});
-	}
-
-	function maybePromptGuestOnEventDetails() {
-		const page = currentPageName();
-		if (page !== "event-details.html" && page !== "makeup-boutique-workshop.html") return;
-		ensureSession().then(() => {
-			if (isLoggedIn()) return;
-			promptGuestForEventDetails(window.location.pathname + window.location.search + window.location.hash);
-		}).catch(() => {});
-	}
-
 	if (typeof document !== "undefined") {
 		document.addEventListener("keydown", (e) => {
 			if (e.key === "Escape") {
@@ -2229,20 +2265,6 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 				return;
 			}
 
-			const bookTarget = e.target.closest(".btn-book-now");
-			if (bookTarget) {
-				if (bookTarget.classList.contains("btn-view-ticket") || bookTarget.getAttribute("data-action") === "view-ticket") return;
-				e.preventDefault();
-				e.stopPropagation();
-				e.stopImmediatePropagation();
-				const currentTarget = window.location.pathname + window.location.search + window.location.hash;
-				openGuestAuthModal({
-					title: "Sign Up to Book Tickets",
-					message: "You need to sign up or log in to reserve tickets for this event.",
-					targetUrl: currentTarget,
-					badge: "\ud83c\udf9f\ufe0f Account Required"
-				});
-			}
 		}, true);
 	}
 
@@ -2297,14 +2319,6 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 				maybeCompleteGoogleProfile(user).catch(() => {});
 			}
 		}).catch(() => {});
-		const startEventDetailsPrompt = () => {
-			window.setTimeout(maybePromptGuestOnEventDetails, 600);
-		};
-		if (document.readyState === "loading") {
-			document.addEventListener("DOMContentLoaded", startEventDetailsPrompt);
-		} else {
-			startEventDetailsPrompt();
-		}
 	}
 
 	/* \u2500\u2500 Expose Public API \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */

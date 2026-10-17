@@ -511,6 +511,25 @@
 		return page === "volunteer-portal.html" || page === "volunteer-invite.html";
 	}
 
+	function currentPath() {
+		return global.location.pathname + global.location.search + global.location.hash;
+	}
+
+	function sameOriginPath(urlString) {
+		try {
+			if (!urlString) return "";
+			var url = new URL(urlString, global.location.href);
+			if (url.origin !== global.location.origin) return "";
+			return url.pathname + url.search + url.hash;
+		} catch (_) {
+			return "";
+		}
+	}
+
+	function isAuthPath(path) {
+		return /\/(login|signup|forgot-password|verify-email)(\.html)?([/?#]|$)/i.test(path || "");
+	}
+
 	function goBack(btn) {
 		var page = pageFile();
 		var leaveSite = (btn && btn.getAttribute("data-back-leave-site") === "true") || isVolunteerLeavePage(page);
@@ -524,13 +543,18 @@
 			} catch (_) {}
 			return;
 		}
-		// Always prefer the real previous history entry. Do not jump to a hardcoded
-		// "parent" page while history exists — that polluted Chrome Back.
+		// The page that linked here is the step the user expects. history.back()
+		// misses it when an earlier redirect replaced that entry.
+		var here = currentPath();
+		var ref = sameOriginPath(document.referrer);
+		if (ref && ref !== here && !isAuthPath(ref)) {
+			global.location.assign(ref);
+			return;
+		}
 		if (hasUsableHistory()) {
 			global.history.back();
 			return;
 		}
-		// Empty / external-only history: logical parent without adding a stack entry.
 		global.location.replace(pretty(fallbackHref(btn)));
 	}
 

@@ -27,7 +27,7 @@ from Services.auth_service import (
 from Services.email import send_email
 from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES, AUTH_COOKIE_NAME
 from Authentication.dependencies import get_current_user
-from Services.runtime_env import cookie_secure, expose_access_token_in_json, smtp_configured, auth_cookie_domain
+from Services.runtime_env import cookie_secure, expose_access_token_in_json, smtp_configured, auth_cookie_domain, local_dev_bypass_enabled
 from Services.rate_limit import limit_login, limit_otp, limit_password_reset, limit_register
 from Services.csrf import clear_csrf_cookie, set_csrf_cookie
 from Services.turnstile import require_signup_turnstile, turnstile_public_config
@@ -514,7 +514,7 @@ def login(response: Response, request: Request, form: OAuth2PasswordRequestForm 
         db.add(login_log)
         db.commit()
     except Exception:
-        pass
+        db.rollback()
 
     token = create_access_token(
         data={
@@ -876,6 +876,155 @@ def verify_reset_otp(payload: VerifyResetOtpRequest, request: Request, db: Sessi
     limit_otp(request, email_clean)
     otp_service.verify_otp(db, email_clean, payload.otp_code, "password_reset")
     return {"message": "Email verified. You can now set a new password.", "email": email_clean}
+
+
+class GuestPhoneOtpRequest(BaseModel):
+    phone: str
+    email: EmailStr
+    full_name: str = ""
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        return _normalize_phone(v)
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        return (v or "").strip()[:200]
+
+
+class GuestPhoneVerifyRequest(GuestPhoneOtpRequest):
+    otp_code: str
+
+
+def _phone_otp_key(phone: str) -> str:
+    return "phone:" + phone
+
+
+def _unique_guest_username(db: Session, email_clean: str, phone: str) -> str:
+    local = email_clean.split("@")[0]
+    base = re.sub(r"[^a-z0-9]", "", local.lower())[:16] or "guest"
+    if len(base) < 3:
+        base = (base + "guest")[:16]
+    candidate = base
+    for n in range(1, 40):
+        if not _username_taken(db, candidate):
+            return candidate
+        suffix = phone[-4:] if phone else str(n)
+        candidate = f"{base}{suffix}{n}"[:30]
+    return f"guest{secrets.token_hex(3)}"
+
+
+def _deliver_guest_otp(phone: str, email_clean: str, otp_code: str) -> str:
+    """Send the booking code to the registration email. WhatsApp stays off until a template is approved."""
+    subject = "Your JOD Events verification code"
+    text_body = (
+        f"Your verification code is {otp_code}.\n\n"
+        "It expires in 10 minutes. Do not share this code.\n"
+        f"This confirms the phone number {phone} for your booking."
+    )
+    html_body = (
+        "<p><strong>This is your verification code to continue your booking.</strong></p>"
+        f"<p style=\"font-size:28px;letter-spacing:0.18em;font-weight:800;margin:16px 0;\">{otp_code}</p>"
+        "<p>It expires in 10 minutes. Do not share this code.</p>"
+        f"<p>Phone number being confirmed: {phone}</p>"
+    )
+    emailed = False
+    try:
+        emailed = bool(send_email(email_clean, subject, text_body, html_body))
+    except Exception:
+        emailed = False
+    return "email" if emailed else ""
+
+
+@router.post("/guest/phone-otp")
+def send_guest_phone_otp(payload: GuestPhoneOtpRequest, request: Request, db: Session = Depends(get_db)):
+    """Send a booking verification code before a guest account is created."""
+    email_clean = payload.email.strip().lower()
+    limit_otp(request, payload.phone)
+    if email_clean.endswith("@guest.com"):
+        raise HTTPException(status_code=400, detail="Enter the email address from your registration form.")
+    otp_code = otp_service.generate_otp()
+    otp_service.store_otp(db, _phone_otp_key(payload.phone), "guest_phone", otp_code)
+    channel = _deliver_guest_otp(payload.phone, email_clean, otp_code)
+    if not channel and local_dev_bypass_enabled():
+        return {
+            "message": "Verification code ready on this local workstation.",
+            "channel": "local",
+            "email": email_clean,
+            "debug_code": otp_code,
+        }
+    if not channel:
+        raise HTTPException(status_code=503, detail="Could not send the verification code. Try again.")
+    return {"message": "Verification code sent.", "channel": channel, "email": email_clean}
+
+
+@router.post("/guest/phone-verify", response_model=TokenResponse)
+def verify_guest_phone_otp(
+    payload: GuestPhoneVerifyRequest,
+    response: Response,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Verify the phone code, create or resume the attendee account, and start the session."""
+    email_clean = payload.email.strip().lower()
+    limit_otp(request, payload.phone)
+    otp_service.verify_otp(db, _phone_otp_key(payload.phone), payload.otp_code, "guest_phone", consume=True)
+    phone = payload.phone
+    user = db.query(User).filter(func.lower(func.trim(User.email)) == email_clean).first()
+    phone_owner = db.query(User).filter(User.phone == phone).first()
+    if phone_owner and (not user or phone_owner.customer_id != user.customer_id):
+        raise HTTPException(status_code=409, detail="This phone number already belongs to another account. Log in to continue.")
+    created = False
+    if user:
+        if user.phone and user.phone != phone:
+            raise HTTPException(status_code=409, detail="This email already has an account. Log in to continue.")
+        if user.is_active is False:
+            raise HTTPException(status_code=403, detail="This account has been deactivated. Please contact support.")
+        user.phone = phone
+        if payload.full_name and not user.full_name:
+            user.full_name = payload.full_name
+    else:
+        user = User(
+            email=email_clean,
+            username=_unique_guest_username(db, email_clean, phone),
+            full_name=payload.full_name or None,
+            phone=phone,
+            hashed_password=get_password_hash(secrets.token_urlsafe(24)),
+            auth_provider="phone",
+        )
+        db.add(user)
+        created = True
+    try:
+        db.commit()
+        db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="This email already has an account. Log in to continue.")
+    if created:
+        try:
+            db.add(UserSignupLog(
+                customer_id=user.customer_id,
+                email=user.email,
+                username=user.username,
+                full_name=user.full_name,
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+    token = create_access_token(
+        data={
+            "sub": str(user.customer_id),
+            "customer_id": str(user.customer_id),
+            "email": user.email,
+            "username": user.username,
+        },
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    _set_auth_cookie(response, token)
+    set_csrf_cookie(response)
+    return _auth_payload(token, user)
 
 
 @router.post("/reset-password")

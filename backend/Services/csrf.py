@@ -33,6 +33,8 @@ EXEMPT_PATHS = {
     "/api/auth/check",
     "/api/auth/verify-reset-otp",
     "/api/auth/reset-password",
+    "/api/auth/guest/phone-otp",
+    "/api/auth/guest/phone-verify",
     "/api/auth/logout",
     "/api/whatsapp/webhook",
 }
