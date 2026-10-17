@@ -866,21 +866,31 @@ function paintTicketTypes(event) {
  const maxAttr = Number.isFinite(maxOrder) && maxOrder >= 1 ? String(Math.round(maxOrder)) : "";
  const offerId = escape(t.offer_id || "");
  const qrUrl = escape(t.payment_qr_url || t.qr_url || t.payment_qr || "");
+ const isEarlyBird = t.ticket_kind === "early_bird";
+ const basePrice = Number(t.base_price);
+ const percentOff = Number(t.discount_percent) || 0;
+ const strike = isEarlyBird && Number.isFinite(basePrice) && basePrice > price
+ ? `<s style="opacity:0.6;font-weight:600;margin-right:0.35rem;">\u20b9${Number(basePrice).toLocaleString("en-IN")}</s>`
+ : "";
  const priceLabel = price <= 0
  ? "Free"
  : (pricing === "package"
  ? ("\u20b9" + Number(price).toLocaleString("en-IN") + " for " + packageQty + " people")
  : ("\u20b9" + Number(price).toLocaleString("en-IN") + (pricing === "per_person" ? " per person" : "")));
  const statusLabel = pricing === "package"
- ? ("Group package \u00b7 " + packageQty + " attendees")
- : (t.availability || (timed ? "Limited-time offer" : "Available"));
- return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" data-offer-id="${offerId}" data-pricing="${pricing}" data-package-qty="${packageQty}" data-max-per-order="${maxAttr}">
+ ? ("Group ticket \u00b7 " + packageQty + " tickets")
+ : (isEarlyBird && percentOff
+ ? ("Early Bird \u00b7 " + percentOff + "% off")
+ : (t.availability || (timed ? "Limited-time offer" : "Available")));
+ const ticketNote = String(t.price_note || "").trim();
+ return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" data-offer-id="${offerId}" data-pricing="${pricing}" data-package-qty="${packageQty}" data-max-per-order="${maxAttr}" data-note="${escape(ticketNote)}">
  <div>
  ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${escape(start)}" data-ticket-end="${escape(end)}"></div>` : ""}
  <div class="ticket-name">${name}</div>
  <div class="ticket-status">${escape(statusLabel)}</div>
+ ${ticketNote ? `<div class="ticket-status" style="font-style:italic;">${escape(ticketNote)}</div>` : ""}
  </div>
- <div class="ticket-price">${priceLabel}</div>
+ <div class="ticket-price">${strike}${priceLabel}</div>
  </div>`;
  }).join("");
  tList.querySelectorAll("[data-ticket-option]").forEach((opt) => {
@@ -1412,7 +1422,8 @@ async function triggerBookingModal() {
  packageQuantity: (selectedOfferMeta().packageQty) || Number(matchedTicket && matchedTicket.package_quantity) || 0,
  bulkOffers: (selectedOfferMeta().pricing === "per_person" || selectedOfferMeta().pricing === "package") ? [] : bulkOffersFromPurchase(currentTicketPurchase),
  paymentQrUrl: pendingQr,
- priceNote: String((currentTicketPurchase && currentTicketPurchase.price_note)
+ priceNote: String((selectedOpt && selectedOpt.dataset && selectedOpt.dataset.note)
+ || (currentTicketPurchase && currentTicketPurchase.price_note)
  || (currentEventData && currentEventData.ticket_purchase && currentEventData.ticket_purchase.price_note)
  || "")
  }));

@@ -97,6 +97,53 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
  padding-top: 0.8rem;
  border-top: 1px solid #e2e8f0;
  }
+ .coupon-box {
+ margin: 0.85rem 0 0.2rem;
+ padding-top: 0.8rem;
+ border-top: 1px solid #e2e8f0;
+ }
+ .coupon-box label {
+ display: block;
+ font-size: 0.82rem;
+ font-weight: 700;
+ margin-bottom: 0.35rem;
+ }
+ .coupon-input-row {
+ display: flex;
+ gap: 0.5rem;
+ }
+ .coupon-input-row input {
+ flex: 1;
+ min-width: 0;
+ padding: 0.6rem 0.75rem;
+ border: 1px solid #cbd5e1;
+ border-radius: 10px;
+ font: inherit;
+ text-transform: uppercase;
+ }
+ .coupon-input-row button {
+ border: 0;
+ border-radius: 10px;
+ padding: 0 1rem;
+ font-weight: 800;
+ background: #0f172a;
+ color: #fff;
+ cursor: pointer;
+ }
+ .coupon-input-row button:disabled { opacity: 0.6; cursor: wait; }
+ .coupon-msg {
+ margin: 0.4rem 0 0;
+ font-size: 0.8rem;
+ font-weight: 600;
+ min-height: 1rem;
+ }
+ .coupon-msg.is-ok { color: #15803d; }
+ .coupon-msg.is-err { color: #b91c1c; }
+ html[data-theme="dark"] .coupon-box { border-top-color: rgba(255, 255, 255, 0.12); }
+ html[data-theme="dark"] .coupon-input-row input { background: #1c1917; color: #f5efe6; border-color: rgba(255, 255, 255, 0.18); }
+ html[data-theme="dark"] .coupon-input-row button { background: #ff8a1f; color: #1c1917; }
+ html[data-theme="dark"] .coupon-msg.is-ok { color: #86efac; }
+ html[data-theme="dark"] .coupon-msg.is-err { color: #fca5a5; }
  .bill-gst-note {
  margin: 0.1rem 0 0.75rem;
  font-size: 0.8rem;
@@ -378,7 +425,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) --> <div class="wrap"> <a class="header-back-btn" id="payBack" href="/" data-header-back> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> <span>Back</span> </a> <h1>Ticket bill</h1> <p class="sub" id="paySub">Review your ticket details, then tap Pay now to open Razorpay checkout. Your ticket is issued after support verifies the payment.</p> <div class="bill-card"> <h2>Selected ticket</h2> <div class="row"><span>Event</span><span id="payEvent">Loading&#8230;</span></div> <div class="row" id="venueRow" hidden><span>Venue</span><span id="payVenue"></span></div> <div class="row"><span>Ticket</span><span id="payTicket">&#8212;</span></div> <div class="row"><span>Quantity</span><span id="payQty">1</span></div> <div class="row" id="bulkOfferRow" hidden><span>Bulk offer</span><span id="payBulkOffer"></span></div> <h2 class="bill-summary-title">Payment summary</h2> <div class="row"><span>Ticket</span><span id="payTicketBase">&#8212;</span></div> <div class="row"><span>Platform charges (5%)</span><span id="payPlatformFee">&#8212;</span></div> <div class="row"><span>GST (18%)</span><span id="payGstFee">&#8212;</span></div> <div class="row is-total"><span>Total</span><span id="payAmount">&#8212;</span></div> <p class="bill-gst-note" id="payGstNote">This payment is included with GST</p> <div class="row"> <span>Payment method</span> <span class="pay-method"> <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"> <title>Razorpay</title> <rect width="24" height="24" rx="5.5" fill="#072654"/> <path fill="#ffffff" d="M18.7 4.2 10.1 9.8l-1.22 9.95-1.23-9.49L5.3 9.8 13.9 4.2z"/> </svg> Razorpay
+<!-- End Google Tag Manager (noscript) --> <div class="wrap"> <a class="header-back-btn" id="payBack" href="/" data-header-back> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> <span>Back</span> </a> <h1>Ticket bill</h1> <p class="sub" id="paySub">Review your ticket details, then tap Pay now to open Razorpay checkout. Your ticket is issued after support verifies the payment.</p> <div class="bill-card"> <h2>Selected ticket</h2> <div class="row"><span>Event</span><span id="payEvent">Loading&#8230;</span></div> <div class="row" id="venueRow" hidden><span>Venue</span><span id="payVenue"></span></div> <div class="row"><span>Ticket</span><span id="payTicket">&#8212;</span></div> <div class="row"><span>Quantity</span><span id="payQty">1</span></div> <div class="row" id="bulkOfferRow" hidden><span>Bulk offer</span><span id="payBulkOffer"></span></div> <div class="coupon-box" id="couponBox"> <label for="couponInput">Coupon code</label> <div class="coupon-input-row"> <input type="text" id="couponInput" maxlength="30" placeholder="Have a code? Enter it here" autocomplete="off" /> <button type="button" id="couponApplyBtn">Apply</button> </div> <p class="coupon-msg" id="couponMsg"></p> </div> <h2 class="bill-summary-title">Payment summary</h2> <div class="row" id="couponRow" hidden><span id="couponRowLabel">Coupon</span><span id="couponRowValue"></span></div> <div class="row"><span>Ticket</span><span id="payTicketBase">&#8212;</span></div> <div class="row"><span>Platform charges (5%)</span><span id="payPlatformFee">&#8212;</span></div> <div class="row"><span>GST (18%)</span><span id="payGstFee">&#8212;</span></div> <div class="row is-total"><span>Total</span><span id="payAmount">&#8212;</span></div> <p class="bill-gst-note" id="payGstNote">This payment is included with GST</p> <div class="row"> <span>Payment method</span> <span class="pay-method"> <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"> <title>Razorpay</title> <rect width="24" height="24" rx="5.5" fill="#072654"/> <path fill="#ffffff" d="M18.7 4.2 10.1 9.8l-1.22 9.95-1.23-9.49L5.3 9.8 13.9 4.2z"/> </svg> Razorpay
  </span> </div> <div class="row"><span>Status</span><span><span class="status" id="payStatus">Payment pending</span></span></div> </div> <button type="button" class="pay-btn" id="payNowBtn">Pay now</button> <div class="pay-wait" id="payWaitNote">Your payment is recorded. If a ticket is already issued, open Your Orders or the thank-you page link.</div> <div id="payFormPanel" class="is-hidden"> <div class="qr-pay-card"> <h2>Pay with this QR</h2> <p id="payQrCaption">Scan the QR for this ticket, then fill the details below.</p> <img id="payQrImage" alt="Payment QR for selected ticket" hidden /> <p class="qr-missing" id="payQrMissing">Payment QR for this ticket is not available. Ask the host to upload the ticket QR.</p> </div> <form class="proof-card" id="payProofForm"> <h2 style="font-size:0.95rem;margin-bottom:0.2rem;">Payment details</h2> <p class="sub" style="margin-bottom:0.2rem;">After you submit, support verifies the payment and then issues your ticket.</p> <label for="payName">Name</label> <input type="text" id="payName" name="attendee_name" required autocomplete="name" /> <label for="payEmail">Email</label> <input type="email" id="payEmail" name="attendee_email" required autocomplete="email" /> <label for="payNumber">Phone number</label> <input type="tel" id="payNumber" name="attendee_phone" required autocomplete="tel" /> <label for="payTxn">Transaction ID</label> <input type="text" id="payTxn" name="transaction_id" required /> <label for="payShot">Payment screenshot</label> <input type="file" id="payShot" name="screenshot" accept="image/*" required /> <img class="shot-preview" id="payShotPreview" alt="Payment screenshot preview" /> <button type="submit" class="pay-btn" id="paySubmitBtn">Submit payment details</button> </form> </div> <p class="err" id="payError"></p> </div> <script src="https://checkout.razorpay.com/v1/checkout.js"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=58"></script> <script> (function () {
  const params = new URLSearchParams(window.location.search);
  let saved = {};
@@ -538,10 +585,90 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  el.textContent = String(text || "").trim() || DEFAULT_GST_NOTE;
  }
 
- function billAmountRupees() {
+ let couponCode = "";
+ let couponDiscount = 0;
+
+ function billBeforeCoupon() {
  const base = Math.max(0, (Number(price) || 0) * (Number(qty) || 1));
  if (pricingType === "per_person" || pricingType === "package") return base;
  return base * (100 - bulkPercent) / 100;
+ }
+
+ function billAmountRupees() {
+ return Math.max(0, roundMoney(billBeforeCoupon() - couponDiscount));
+ }
+
+ function renderCouponRow() {
+ const row = document.getElementById("couponRow");
+ const label = document.getElementById("couponRowLabel");
+ const value = document.getElementById("couponRowValue");
+ if (!row) return;
+ row.hidden = !(couponCode && couponDiscount > 0);
+ if (label) label.textContent = "Coupon (" + couponCode + ")";
+ if (value) value.textContent = "\u2212" + formatRupees(couponDiscount);
+ }
+
+ function setCouponMessage(text, ok) {
+ const el = document.getElementById("couponMsg");
+ if (!el) return;
+ el.textContent = text || "";
+ el.classList.toggle("is-ok", Boolean(text) && ok === true);
+ el.classList.toggle("is-err", Boolean(text) && ok === false);
+ }
+
+ function refreshBillAfterCoupon() {
+ renderCouponRow();
+ renderPaymentSummary();
+ applyFreeTicketUi();
+ }
+
+ async function applyCouponCode() {
+ const input = document.getElementById("couponInput");
+ const btn = document.getElementById("couponApplyBtn");
+ if (couponCode) {
+ couponCode = "";
+ couponDiscount = 0;
+ if (input) { input.value = ""; input.disabled = false; }
+ if (btn) btn.textContent = "Apply";
+ setCouponMessage("", null);
+ refreshBillAfterCoupon();
+ return;
+ }
+ const code = String((input && input.value) || "").replace(/\s+/g, "").toUpperCase();
+ if (!code) {
+ setCouponMessage("Enter a coupon code first.", false);
+ return;
+ }
+ if (!eventId) {
+ setCouponMessage("Missing event. Go back and book again.", false);
+ return;
+ }
+ if (btn) btn.disabled = true;
+ setCouponMessage("Checking code\u2026", null);
+ try {
+ const res = await authFetch(apiBase + "/api/coupons/check", {
+ method: "POST",
+ allowGuest: true,
+ headers: { "Content-Type": "application/json", Accept: "application/json" },
+ body: JSON.stringify({ event_id: eventId, ticket_type: ticket, offer_id: offerId, quantity: qty || 1, coupon_code: code })
+ });
+ const data = await res.json().catch(() => ({}));
+ if (!res.ok) throw new Error(apiErrorMessage(data, "This coupon code could not be applied."));
+ couponCode = data.code || code;
+ couponDiscount = Math.max(0, Number(data.discount) || 0);
+ if (input) { input.value = couponCode; input.disabled = true; }
+ if (btn) btn.textContent = "Remove";
+ const note = String(data.note || "").trim();
+ setCouponMessage("Coupon applied: " + formatRupees(couponDiscount) + " off." + (note ? " " + note : ""), true);
+ refreshBillAfterCoupon();
+ } catch (err) {
+ couponCode = "";
+ couponDiscount = 0;
+ setCouponMessage(err.message === "SESSION_EXPIRED" ? "Please log in again to use a coupon." : (err.message || "This coupon code could not be applied."), false);
+ refreshBillAfterCoupon();
+ } finally {
+ if (btn) btn.disabled = false;
+ }
  }
 
  function renderPaymentSummary() {
@@ -630,6 +757,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  ticket_type: ticket,
  offer_id: offerId,
  quantity: qty || 1,
+ coupon_code: couponCode || undefined,
  attendee_name: user.full_name || user.username || "",
  attendee_phone: user.phone || user.mobile || ""
  })
@@ -696,7 +824,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  event_id: eventId,
  ticket_type: ticket,
  offer_id: offerId,
- quantity: qty || 1
+ quantity: qty || 1,
+ coupon_code: couponCode || undefined
  })
  });
  const data = await res.json().catch(() => ({}));
@@ -760,7 +889,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  event_id: eventId,
  ticket_type: ticket,
  offer_id: offerId,
- quantity: qty || 1
+ quantity: qty || 1,
+ coupon_code: couponCode || undefined
  })
  });
  const order = await createRes.json().catch(() => ({}));
@@ -817,6 +947,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  ticket_type: ticket,
  offer_id: offerId,
  quantity: qty || 1,
+ coupon_code: couponCode || undefined,
  amount: billAmountRupees(),
  attendee_name: user.full_name || user.username || "",
  attendee_phone: user.phone || user.mobile || ""
@@ -875,6 +1006,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
  if (ticketEl) ticketEl.textContent = ticket;
  if (qtyEl) qtyEl.textContent = String(qty);
+ const couponBox = document.getElementById("couponBox");
+ if (couponBox && billBeforeCoupon() <= 0) couponBox.hidden = true;
+ const couponBtn = document.getElementById("couponApplyBtn");
+ if (couponBtn) couponBtn.addEventListener("click", applyCouponCode);
+ const couponInputEl = document.getElementById("couponInput");
+ if (couponInputEl) {
+ couponInputEl.addEventListener("keydown", (e) => {
+ if (e.key === "Enter") { e.preventDefault(); applyCouponCode(); }
+ });
+ }
  applyGstNote(saved.priceNote);
  renderPaymentSummary();
  applyFreeTicketUi();
@@ -985,7 +1126,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  venueRow.hidden = false;
  }
  applyPaymentQr(ticketQrFromTypes(data.ticket_types, ticket) || qrFromUrl, ticket);
- applyGstNote((data.ticket_purchase && data.ticket_purchase.price_note) || saved.priceNote);
+ const chosenTicket = Array.isArray(data.ticket_types)
+ ? data.ticket_types.find((item) => item && offerId && String(item.offer_id || "") === String(offerId))
+ : null;
+ applyGstNote((chosenTicket && chosenTicket.price_note) || (data.ticket_purchase && data.ticket_purchase.price_note) || saved.priceNote);
  const startMs = Date.parse(data.start_date || "");
  const endMs = Date.parse(data.end_date || "");
  const now = Date.now();
@@ -1078,6 +1222,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  body.append("offer_id", offerId);
  body.append("amount", String(billAmountRupees()));
  body.append("quantity", String(qty || 1));
+ if (couponCode) body.append("coupon_code", couponCode);
  body.append("attendee_name", document.getElementById("payName").value.trim());
  body.append("attendee_email", document.getElementById("payEmail").value.trim());
  body.append("attendee_phone", document.getElementById("payNumber").value.trim());

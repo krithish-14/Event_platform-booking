@@ -115,6 +115,15 @@ class CreateOrderRequest(BaseModel):
     ticket_type: Optional[str] = Field(default=None, max_length=100)
     offer_id: Optional[str] = Field(default=None, max_length=64)
     quantity: Optional[int] = Field(default=1, ge=1, le=100000)
+    coupon_code: Optional[str] = Field(default=None, max_length=40)
+
+
+class CouponCheckRequest(BaseModel):
+    event_id: str = Field(..., min_length=1, max_length=255)
+    ticket_type: Optional[str] = Field(default=None, max_length=100)
+    offer_id: Optional[str] = Field(default=None, max_length=64)
+    quantity: Optional[int] = Field(default=1, ge=1, le=100000)
+    coupon_code: str = Field(..., min_length=1, max_length=40)
 
 
 class VerifyPaymentRequest(BaseModel):
@@ -128,6 +137,7 @@ class VerifyPaymentRequest(BaseModel):
     amount: Optional[float] = Field(default=None, description="Amount in rupees for recording")
     attendee_name: Optional[str] = Field(default=None, max_length=120)
     attendee_phone: Optional[str] = Field(default=None, max_length=40)
+    coupon_code: Optional[str] = Field(default=None, max_length=40)
 
 
 class ClaimFreeTicketRequest(BaseModel):
@@ -137,6 +147,7 @@ class ClaimFreeTicketRequest(BaseModel):
     quantity: Optional[int] = Field(default=1, ge=1, le=100000)
     attendee_name: Optional[str] = Field(default=None, max_length=120)
     attendee_phone: Optional[str] = Field(default=None, max_length=40)
+    coupon_code: Optional[str] = Field(default=None, max_length=40)
 
 
 def _ticket_label(item: dict) -> str:
@@ -764,6 +775,7 @@ async def claim_free_ticket(
         payload.offer_id or "",
         ticket_type,
         payload.quantity or 1,
+        coupon_code=payload.coupon_code,
     )
     qty = quote.attendee_count
     if quote.total_paise > 0:
@@ -868,8 +880,8 @@ def _clamp_purchase_quantity(db: Session, event_id: str, requested) -> int:
     return min(qty, limit)
 
 
-def _checkout_quote(db, event_id, offer_id, ticket_type, quantity, client_rupees=None, enforce_client=False):
-    from Services.ticket_pricing import assert_client_amount, calculate_order_price
+def _checkout_quote(db, event_id, offer_id, ticket_type, quantity, client_rupees=None, enforce_client=False, coupon_code=None):
+    from Services.ticket_pricing import apply_coupon, assert_client_amount, calculate_order_price
     quote = calculate_order_price(
         db,
         event_id,
@@ -877,6 +889,8 @@ def _checkout_quote(db, event_id, offer_id, ticket_type, quantity, client_rupees
         ticket_name=ticket_type or "",
         purchase_quantity=int(quantity or 1),
     )
+    if coupon_code:
+        quote = apply_coupon(db, event_id, quote, coupon_code)
     if enforce_client:
         assert_client_amount(quote, client_rupees)
     return quote
@@ -896,6 +910,7 @@ async def submit_payment_proof(
     bank_name: str = Form(""),
     transaction_id: str = Form(...),
     screenshot: UploadFile = File(...),
+    coupon_code: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -952,6 +967,7 @@ async def submit_payment_proof(
         quantity,
         client_rupees=amount,
         enforce_client=True,
+        coupon_code=sanitize_text(coupon_code or "", max_length=40),
     )
 
     if submission is not None and getattr(submission, "id", None) is not None:
@@ -1061,6 +1077,7 @@ async def create_razorpay_order(
             payload.offer_id or "",
             payload.ticket_type or "",
             payload.quantity or 1,
+            coupon_code=payload.coupon_code,
         )
         amount_paise = int(checkout_quote.total_paise)
     if amount_paise < 100:
@@ -1091,6 +1108,7 @@ async def create_razorpay_order(
                     "quantity": str(checkout_quote.purchase_quantity if checkout_quote else (payload.quantity or 1)),
                     "attendee_count": str(checkout_quote.attendee_count if checkout_quote else (payload.quantity or 1)),
                     "offer_id": (checkout_quote.offer_id if checkout_quote else "") or "",
+                    "coupon_code": (checkout_quote.coupon_code if checkout_quote else "") or "",
                     "customer_id": getattr(current_user, "customer_id", None) or "",
                 },
             }
@@ -1220,6 +1238,7 @@ async def verify_razorpay_payment(
                 payload.quantity or 1,
                 client_rupees=amount_rupees,
                 enforce_client=True,
+                coupon_code=payload.coupon_code,
             )
         amount_rupees = checkout_quote.total_rupees
         try:
@@ -1392,6 +1411,7 @@ async def complete_local_checkout(
         payload.offer_id or "",
         payload.ticket_type or "",
         payload.quantity or 1,
+        coupon_code=payload.coupon_code,
     )
     payment_id = "LOCAL-" + secrets.token_hex(8).upper()
     row, submission_id = _record_razorpay_payment(
@@ -1423,6 +1443,31 @@ async def complete_local_checkout(
     }
 
 
+async def check_coupon(payload: CouponCheckRequest, request: Request, db: Session = Depends(get_db)):
+    """Preview a coupon on the selected ticket. Checkout re-checks the code before charging."""
+    limit_payment(request)
+    event_id = sanitize_text(payload.event_id or "", max_length=255)
+    quote = _checkout_quote(
+        db,
+        event_id,
+        payload.offer_id or "",
+        sanitize_text(payload.ticket_type or "", max_length=100),
+        payload.quantity or 1,
+        coupon_code=sanitize_text(payload.coupon_code or "", max_length=40),
+    )
+    from Services.ticket_pricing import _load_event_coupons, paise_to_rupees
+    note = next(
+        (c.get("note") or "" for c in _load_event_coupons(db, event_id) if c.get("code") == quote.coupon_code),
+        "",
+    )
+    return {
+        "code": quote.coupon_code,
+        "discount": paise_to_rupees(quote.discount_paise),
+        "total": quote.total_rupees,
+        "note": note,
+    }
+
+
 # Same handlers under /api/payments/* and /api/* for the Standard Checkout guide paths.
 router.add_api_route("/create-order", create_razorpay_order, methods=["POST"], status_code=200)
 router.add_api_route("/verify-payment", verify_razorpay_payment, methods=["POST"], status_code=200)
@@ -1430,5 +1475,6 @@ router.add_api_route("/claim-free-ticket", claim_free_ticket, methods=["POST"], 
 razorpay_router.add_api_route("/create-order", create_razorpay_order, methods=["POST"], status_code=200)
 razorpay_router.add_api_route("/verify-payment", verify_razorpay_payment, methods=["POST"], status_code=200)
 razorpay_router.add_api_route("/claim-free-ticket", claim_free_ticket, methods=["POST"], status_code=200)
+razorpay_router.add_api_route("/coupons/check", check_coupon, methods=["POST"], status_code=200)
 razorpay_router.add_api_route("/dev/local-flags", local_dev_flags, methods=["GET"], status_code=200)
 razorpay_router.add_api_route("/dev/complete-checkout", complete_local_checkout, methods=["POST"], status_code=200)

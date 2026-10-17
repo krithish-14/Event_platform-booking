@@ -22,6 +22,10 @@ PAISE = Decimal("100")
 ONE = Decimal("1")
 
 
+TICKET_KINDS = ("main", "standard", "early_bird", "group")
+COUPON_CODE_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+
+
 @dataclass
 class PriceQuote:
     offer_id: str
@@ -32,6 +36,8 @@ class PriceQuote:
     total_paise: int
     currency: str = "INR"
     legacy: bool = False
+    discount_paise: int = 0
+    coupon_code: str = ""
 
     @property
     def total_rupees(self) -> float:
@@ -127,7 +133,48 @@ def normalize_offer(raw: dict, previous: Optional[dict] = None) -> dict:
         if limit < 1:
             raise HTTPException(status_code=400, detail=f"{name}: maximum per order must be at least 1.")
         out["max_per_order"] = limit
+
+    kind = str(raw.get("ticket_kind") or "").strip().lower()
+    if kind in TICKET_KINDS:
+        out["ticket_kind"] = kind
+    else:
+        out.pop("ticket_kind", None)
+    note = " ".join(str(raw.get("price_note") or "").split())[:200]
+    if note:
+        out["price_note"] = note
+    else:
+        out.pop("price_note", None)
+    if kind == "early_bird":
+        percent = _as_int(raw.get("discount_percent"), 0)
+        if percent < 1 or percent > 90:
+            raise HTTPException(status_code=400, detail=f"{name}: Early Bird discount must be between 1% and 90%.")
+        out["discount_percent"] = percent
+        out["base_offer_id"] = str(raw.get("base_offer_id") or "").strip()[:64] or None
+    else:
+        out.pop("discount_percent", None)
+        out.pop("base_offer_id", None)
     return out
+
+
+def _apply_early_bird_prices(offers: list) -> None:
+    """Early Bird price is always the base ticket price minus its percentage."""
+    by_id = {str(o.get("offer_id")): o for o in offers}
+    for offer in offers:
+        if offer.get("ticket_kind") != "early_bird":
+            continue
+        base = by_id.get(str(offer.get("base_offer_id") or ""))
+        if base is None or base.get("pricing_type") != "per_person":
+            raise HTTPException(
+                status_code=400,
+                detail=f"{_offer_name(offer)}: Early Bird needs the main ticket's price per person.",
+            )
+        base_paise = rupees_to_paise(base.get("unit_price", base.get("price")))
+        percent = _as_int(offer.get("discount_percent"), 0)
+        unit = int((Decimal(base_paise) * Decimal(100 - percent) / Decimal(100)).quantize(ONE, rounding=ROUND_HALF_UP))
+        offer["pricing_type"] = "per_person"
+        offer["unit_price"] = paise_to_rupees(unit)
+        offer["price"] = offer["unit_price"]
+        offer["base_price"] = paise_to_rupees(base_paise)
 
 
 def normalize_ticket_list(incoming, previous=None) -> list:
@@ -160,7 +207,95 @@ def normalize_ticket_list(incoming, previous=None) -> list:
             raise HTTPException(status_code=400, detail="Each ticket offer must have its own id.")
         seen.add(offer["offer_id"])
         out.append(offer)
+    _apply_early_bird_prices(out)
     return out
+
+
+def normalize_coupons(incoming) -> list:
+    """Host coupon codes. Stored privately in policies, never in the public ticket list."""
+    rows = incoming if isinstance(incoming, list) else []
+    out = []
+    seen = set()
+    for raw in rows:
+        if not isinstance(raw, dict):
+            continue
+        code = "".join(str(raw.get("code") or "").split()).upper()
+        if not code and raw.get("amount") in (None, ""):
+            continue
+        if len(code) < 3 or len(code) > 30 or any(ch not in COUPON_CODE_CHARS for ch in code):
+            raise HTTPException(
+                status_code=400,
+                detail="Coupon code must be 3 to 30 letters or numbers (dash and underscore allowed).",
+            )
+        if code in seen:
+            raise HTTPException(status_code=400, detail=f"Coupon code {code} is used more than once.")
+        amount_paise = rupees_to_paise(raw.get("amount"))
+        if amount_paise <= 0:
+            raise HTTPException(status_code=400, detail=f"Coupon {code}: enter the amount to take off the ticket.")
+        sales_start = raw.get("sales_start") or None
+        sales_end = raw.get("sales_end") or None
+        _assert_window(sales_start, sales_end)
+        seen.add(code)
+        out.append({
+            "code": code,
+            "amount": paise_to_rupees(amount_paise),
+            "applies_to": str(raw.get("applies_to") or "").strip()[:64],
+            "applies_to_name": str(raw.get("applies_to_name") or "").strip()[:100],
+            "sales_start": sales_start,
+            "sales_end": sales_end,
+            "note": " ".join(str(raw.get("note") or "").split())[:200],
+            "section_id": str(raw.get("section_id") or "").strip()[:64],
+        })
+    return out
+
+
+def _load_event_coupons(db, event_id) -> list:
+    host, _rows = _load_host_tickets(db, event_id)
+    policies = getattr(host, "policies_json", None) if host is not None else None
+    if isinstance(policies, str):
+        import json
+        try:
+            policies = json.loads(policies)
+        except Exception:
+            policies = None
+    if not isinstance(policies, dict):
+        return []
+    coupons = policies.get("_coupons")
+    return [c for c in coupons if isinstance(c, dict)] if isinstance(coupons, list) else []
+
+
+def apply_coupon(db, event_id: str, quote: PriceQuote, code: str, *, now: Optional[datetime] = None) -> PriceQuote:
+    """Take the coupon amount off each ticket or package bought. The total never goes below zero."""
+    wanted = "".join(str(code or "").split()).upper()
+    if not wanted:
+        return quote
+    coupon = next((c for c in _load_event_coupons(db, event_id) if str(c.get("code") or "").upper() == wanted), None)
+    if coupon is None:
+        raise HTTPException(status_code=400, detail="This coupon code is not valid for this event.")
+    applies_to = str(coupon.get("applies_to") or "")
+    if applies_to:
+        matches = applies_to == str(quote.offer_id or "")
+        if not matches and not quote.offer_id:
+            matches = str(coupon.get("applies_to_name") or "").strip().lower() == quote.offer_name.strip().lower()
+        if not matches:
+            label = coupon.get("applies_to_name") or "another ticket"
+            raise HTTPException(status_code=400, detail=f"This coupon only works on {label}.")
+    moment = now or datetime.now(timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    moment = moment.astimezone(IST)
+    start_at = _parse_local(coupon.get("sales_start"), is_end=False)
+    end_at = _parse_local(coupon.get("sales_end"), is_end=True)
+    if start_at and moment < start_at:
+        raise HTTPException(status_code=400, detail="This coupon code is not active yet.")
+    if end_at and moment >= end_at:
+        raise HTTPException(status_code=400, detail="This coupon code has expired.")
+    per_unit = rupees_to_paise(coupon.get("amount"))
+    discount = min(per_unit * max(1, quote.purchase_quantity), quote.total_paise)
+    quote.discount_paise = discount
+    quote.total_paise = quote.total_paise - discount
+    quote.coupon_code = wanted
+    return quote
 
 
 def _parse_local(value, *, is_end: bool) -> Optional[datetime]:

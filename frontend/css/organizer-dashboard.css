@@ -2254,6 +2254,85 @@ html[data-theme="dark"] .btn-remove-package {
 	color: #fca5a5;
 }
 
+.ticket-subtype-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.ticket-subtype-card {
+	border: 1px solid #e2e8f0;
+	border-left: 4px solid #fb923c;
+	border-radius: 12px;
+	background: #fffaf5;
+	padding: 0.9rem 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.ticket-subtype-card[data-kind="coupon"] {
+	border-left-color: #8b5cf6;
+	background: #faf7ff;
+}
+
+.ticket-subtype-card[data-kind="group"] {
+	border-left-color: #10b981;
+	background: #f6fdf9;
+}
+
+.ticket-subtype-card[data-kind="standard"] {
+	border-left-color: #3b82f6;
+	background: #f7faff;
+}
+
+.ticket-subtype-head {
+	display: grid;
+	grid-template-columns: minmax(0, 18rem) auto;
+	justify-content: space-between;
+	align-items: end;
+	gap: 0.75rem;
+}
+
+.ticket-subtype-fields {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.ticket-subtype-fields:empty {
+	display: none;
+}
+
+.ticket-subtype-computed {
+	min-height: 44px;
+	display: flex;
+	align-items: center;
+	padding: 0 0.85rem;
+	border-radius: 8px;
+	background: #fff;
+	border: 1px dashed #fdba74;
+	font-weight: 700;
+	color: #c2410c;
+	font-size: 0.9rem;
+}
+
+html[data-theme="dark"] .ticket-subtype-card {
+	background: rgba(255, 255, 255, 0.03);
+	border-color: rgba(255, 138, 31, 0.22);
+	border-left-color: #fb923c;
+}
+
+html[data-theme="dark"] .ticket-subtype-card[data-kind="coupon"] { border-left-color: #a78bfa; }
+html[data-theme="dark"] .ticket-subtype-card[data-kind="group"] { border-left-color: #34d399; }
+html[data-theme="dark"] .ticket-subtype-card[data-kind="standard"] { border-left-color: #60a5fa; }
+
+html[data-theme="dark"] .ticket-subtype-computed {
+	background: rgba(255, 138, 31, 0.08);
+	border-color: rgba(255, 138, 31, 0.45);
+	color: #ffb067;
+}
+
 .setup-form-group {
 	display: flex;
 	flex-direction: column;

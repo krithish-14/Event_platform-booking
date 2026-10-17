@@ -1971,6 +1971,9 @@ def save_manage_event(
             if offers:
                 purchase["bulk_offers"] = offers
         policies["_ticket_purchase"] = purchase
+        if "_coupons" in policies:
+            from Services.ticket_pricing import normalize_coupons
+            policies["_coupons"] = normalize_coupons(policies.get("_coupons"))
         event.policies_json = policies
     event.updated_at = datetime.utcnow()
 
