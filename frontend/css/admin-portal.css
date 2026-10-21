@@ -1447,3 +1447,37 @@ html[data-theme="dark"] .admin-btn.admin-btn-danger { color: #fca5a5; border-col
 		grid-template-columns: 1fr;
 	}
 }
+
+/* Notifications page in dark mode */
+html[data-theme="dark"] .admin-notify-card {
+	background: #1c1814 !important;
+	border-color: #3a322a !important;
+	color: #f5efe6 !important;
+}
+
+html[data-theme="dark"] .admin-notify-card:hover {
+	border-color: rgba(255, 161, 54, 0.6) !important;
+	box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35) !important;
+}
+
+html[data-theme="dark"] .admin-notify-code {
+	color: #FFA136 !important;
+}
+
+html[data-theme="dark"] .admin-notify-subject {
+	color: #f5efe6 !important;
+}
+
+html[data-theme="dark"] .admin-notify-meta {
+	color: #a89c8f !important;
+}
+
+html[data-theme="dark"] .admin-notify-preview {
+	color: #d6cdc2 !important;
+}
+
+html[data-theme="dark"] .admin-notify-empty {
+	background: #1c1814 !important;
+	border-color: #3a322a !important;
+	color: #a89c8f !important;
+}

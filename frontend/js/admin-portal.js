@@ -342,8 +342,10 @@
 		const hint = document.getElementById("adminSectionHint");
 		const toolbar = document.getElementById("adminToolbar");
 		const backBtn = document.getElementById("adminNotifyClose");
+		const accessPanel = document.getElementById("adminAccessPanel");
 		if (overviewPanel) overviewPanel.hidden = true;
 		if (dataPanel) dataPanel.hidden = true;
+		if (accessPanel) accessPanel.hidden = true;
 		if (notifyPanel) notifyPanel.hidden = false;
 		if (toolbar) toolbar.hidden = true;
 		if (backBtn) backBtn.hidden = false;
@@ -1349,9 +1351,9 @@
 	function inviteResultMessage(result) {
 		const email = escapeHtml(result.email || "");
 		if (result.email_sent) {
-			return `Invite emailed to <strong>${email}</strong>. It expires in 48 hours. ${accessLinkHtml(result.invite_url)}`;
+			return `Invite emailed to <strong>${email}</strong>. It expires in 48 hours.`;
 		}
-		return `The invite email could not be sent. Share this link with <strong>${email}</strong> yourself: ${accessLinkHtml(result.invite_url)}`;
+		return `The invite email could not be sent to <strong>${email}</strong>. Copy the invite link and share it yourself. <button type="button" class="admin-btn ghost" data-access-copy="${escapeHtml(result.invite_url)}">Copy link</button>`;
 	}
 
 	async function accessAction(url, button, busyText) {
