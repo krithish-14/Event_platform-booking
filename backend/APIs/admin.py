@@ -1538,10 +1538,12 @@ class GenerateQrRequest(BaseModel):
 
 @router.get("/me")
 def admin_me(current_admin: User = Depends(get_current_admin)):
+    from APIs.admin_access import is_super_admin
     return {
         "email": current_admin.email,
         "full_name": current_admin.full_name,
         "is_admin": True,
+        "is_super_admin": is_super_admin(current_admin),
         "customer_id": current_admin.customer_id,
     }
 

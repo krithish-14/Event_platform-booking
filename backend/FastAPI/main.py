@@ -45,6 +45,7 @@ from APIs.support import router as support_router
 from APIs.notifications import router as notifications_router
 from APIs.volunteers import router as volunteers_router, compat_router as volunteers_compat_router
 from APIs.admin import router as admin_router
+from APIs.admin_access import router as admin_access_router, public_router as admin_access_public_router
 from APIs.payments import router as payments_router, razorpay_router
 from APIs.whatsapp import router as whatsapp_router
 from APIs.reels import router as reels_router
@@ -254,6 +255,8 @@ app.include_router(support_router, prefix="/api/support", tags=["Support"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(volunteers_router, prefix="/api/volunteers", tags=["Volunteers"])
 app.include_router(volunteers_compat_router, tags=["Volunteers"])
+app.include_router(admin_access_router, prefix="/api/admin/access", tags=["Admin Access"])
+app.include_router(admin_access_public_router, prefix="/api/admin-access", tags=["Admin Access"])
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
 app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
 app.include_router(razorpay_router, prefix="/api", tags=["Razorpay"])

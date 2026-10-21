@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Admin Invitation | JOD Events</title>
+<link rel="icon" href="/favicon.ico" sizes="any" /><link rel="icon" type="image/png" href="/favicon.png" /><link rel="apple-touch-icon" href="/favicon.png" />
+<link rel="stylesheet" href="css/fonts.css?v=2" />
+<script src="js/theme.js?v=30"></script>
+<script src="js/api-config.js?v=4"></script>
+<link rel="stylesheet" href="css/style.css?v=86" />
+<style>
+	body.admin-invite-body {
+		min-height: 100vh;
+		margin: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1.5rem 1rem;
+		background: var(--background, #fffefa);
+		color: var(--foreground, #0f172a);
+	}
+	.ai-card {
+		width: min(460px, 100%);
+		background: var(--card, #fff);
+		border: 1px solid rgba(255, 117, 8, 0.18);
+		border-radius: 20px;
+		box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+		padding: 1.75rem 1.5rem;
+		text-align: center;
+	}
+	.ai-brand {
+		display: inline-block;
+		font-weight: 800;
+		color: var(--primary, #FF7508);
+		text-decoration: none;
+		margin-bottom: 1rem;
+		letter-spacing: 0.02em;
+	}
+	.ai-kicker {
+		display: inline-block;
+		padding: 0.3rem 0.75rem;
+		border-radius: 999px;
+		background: rgba(255, 117, 8, 0.1);
+		color: var(--primary, #FF7508);
+		font-size: 0.75rem;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.ai-card h1 {
+		margin: 0.9rem 0 0.5rem;
+		font-size: 1.45rem;
+		line-height: 1.25;
+	}
+	.ai-card p {
+		margin: 0 0 1rem;
+		color: var(--muted, #64748b);
+		line-height: 1.55;
+	}
+	.ai-email {
+		font-weight: 700;
+		color: var(--foreground, #0f172a);
+		word-break: break-all;
+	}
+	.ai-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		margin-top: 0.5rem;
+	}
+	.ai-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 46px;
+		padding: 0 1.1rem;
+		border-radius: 12px;
+		border: 0;
+		font: inherit;
+		font-weight: 800;
+		text-decoration: none;
+		cursor: pointer;
+		background: var(--primary, #FF7508);
+		color: #fff;
+	}
+	.ai-btn.ghost {
+		background: transparent;
+		color: var(--primary, #FF7508);
+		border: 1px solid rgba(255, 117, 8, 0.4);
+	}
+	.ai-btn:disabled { opacity: 0.65; cursor: wait; }
+	.ai-error {
+		margin-top: 0.75rem;
+		color: #b91c1c;
+		font-size: 0.88rem;
+		font-weight: 600;
+		min-height: 1.2rem;
+	}
+</style>
+</head>
+<body class="admin-invite-body">
+	<main class="ai-card" id="adminInviteCard">
+		<a class="ai-brand" href="/">JOD Events</a>
+		<div><span class="ai-kicker">Admin invitation</span></div>
+		<h1 id="aiTitle">Checking invitation&#8230;</h1>
+		<p id="aiMessage">Please wait while we load this invitation.</p>
+		<div class="ai-actions" id="aiActions"></div>
+		<div class="ai-error" id="aiError"></div>
+	</main>
+	<script src="js/health.js?v=3"></script>
+	<script src="js/auth.js?v=58"></script>
+	<script>
+	(function () {
+		"use strict";
+		const TOKEN_KEY = "jod_admin_invite_token";
+		const params = new URLSearchParams(window.location.search);
+		let token = params.get("token") || "";
+		try {
+			if (token) sessionStorage.setItem(TOKEN_KEY, token);
+			else token = sessionStorage.getItem(TOKEN_KEY) || "";
+		} catch (_) {}
+
+		const apiRoot = ((window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || "").replace(/\/$/, "");
+		const titleEl = document.getElementById("aiTitle");
+		const messageEl = document.getElementById("aiMessage");
+		const actionsEl = document.getElementById("aiActions");
+		const errorEl = document.getElementById("aiError");
+
+		function esc(value) {
+			return String(value == null ? "" : value)
+				.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+		}
+
+		function show(title, messageHtml, actionsHtml) {
+			titleEl.textContent = title;
+			messageEl.innerHTML = messageHtml;
+			actionsEl.innerHTML = actionsHtml || "";
+			errorEl.textContent = "";
+		}
+
+		function returnPath() {
+			return "admin-invite.html?token=" + encodeURIComponent(token);
+		}
+
+		function authLinks(email) {
+			const back = encodeURIComponent(returnPath());
+			return `<a class="ai-btn" href="login.html?redirect=${back}">Log in as ${esc(email)}</a>`
+				+ `<a class="ai-btn ghost" href="signup.html?redirect=${back}">Create an account with this email</a>`;
+		}
+
+		function apiError(data, fallback) {
+			const detail = data && data.detail;
+			return typeof detail === "string" && detail ? detail : fallback;
+		}
+
+		async function goToPortal() {
+			if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+				try { await window.JodAuth.validateSession(); } catch (_) {}
+			}
+			try { sessionStorage.removeItem(TOKEN_KEY); } catch (_) {}
+			window.location.replace("admin-portal.html");
+		}
+
+		async function accept(button) {
+			button.disabled = true;
+			button.textContent = "Accepting\u2026";
+			try {
+				const res = await fetch(`${apiRoot}/api/admin-access/invite/${encodeURIComponent(token)}/accept`, {
+					method: "POST",
+					credentials: "include",
+					headers: { "Content-Type": "application/json", Accept: "application/json" }
+				});
+				const data = await res.json().catch(() => ({}));
+				if (res.status === 401) {
+					window.location.replace("login.html?redirect=" + encodeURIComponent(returnPath()));
+					return;
+				}
+				if (!res.ok) throw new Error(apiError(data, "Could not accept this invitation."));
+				show("Admin access granted", "You now have access to the JOD Events admin portal. Taking you there\u2026", "");
+				setTimeout(goToPortal, 700);
+			} catch (err) {
+				errorEl.textContent = err.message || "Could not accept this invitation.";
+				button.disabled = false;
+				button.textContent = "Accept admin access";
+			}
+		}
+
+		async function load() {
+			if (!token) {
+				show("Invitation not found", "This page needs the link from your admin invitation email.", `<a class="ai-btn ghost" href="/">Go to JOD Events</a>`);
+				return;
+			}
+			let invite;
+			try {
+				const res = await fetch(`${apiRoot}/api/admin-access/invite/${encodeURIComponent(token)}`, { cache: "no-store", headers: { Accept: "application/json" } });
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok) {
+					show("Invitation not valid", esc(apiError(data, "This admin invitation link is not valid.")), `<a class="ai-btn ghost" href="/">Go to JOD Events</a>`);
+					return;
+				}
+				invite = data;
+			} catch (_) {
+				show("Could not load invitation", "Check your connection and refresh this page.", "");
+				return;
+			}
+			const email = invite.email || "";
+			const status = String(invite.status || "").toUpperCase();
+			if (status === "REVOKED") {
+				show("Invitation cancelled", "This admin invitation was cancelled by the super admin. Ask them for a new invite if you still need access.", `<a class="ai-btn ghost" href="/">Go to JOD Events</a>`);
+				return;
+			}
+			if (status === "EXPIRED") {
+				show("Invitation expired", "This admin invitation has expired. Ask the super admin to resend it.", `<a class="ai-btn ghost" href="/">Go to JOD Events</a>`);
+				return;
+			}
+
+			const user = window.JodAuth && typeof window.JodAuth.validateSession === "function"
+				? await window.JodAuth.validateSession()
+				: null;
+			const signedIn = user && user.email;
+			const sameEmail = signedIn && String(user.email).trim().toLowerCase() === email.trim().toLowerCase();
+			const inviter = invite.invited_by ? ` from <span class="ai-email">${esc(invite.invited_by)}</span>` : "";
+
+			if (status === "ACTIVE") {
+				if (sameEmail) {
+					show("You already have admin access", `Signed in as <span class="ai-email">${esc(email)}</span>.`, `<button type="button" class="ai-btn" id="aiOpenPortal">Open admin portal</button>`);
+					document.getElementById("aiOpenPortal").addEventListener("click", goToPortal);
+				} else {
+					show("Invitation already accepted", `This invitation was accepted by <span class="ai-email">${esc(email)}</span>. Log in with that email to open the admin portal.`, authLinks(email));
+				}
+				return;
+			}
+
+			if (!signedIn) {
+				show("You're invited to be an admin", `You have an admin invitation${inviter} for <span class="ai-email">${esc(email)}</span>. Log in or create an account with this email to accept it.`, authLinks(email));
+				return;
+			}
+			if (!sameEmail) {
+				show("Wrong account", `This invitation is for <span class="ai-email">${esc(email)}</span>, but you are signed in as <span class="ai-email">${esc(user.email)}</span>. Log out, then sign in with the invited email.`,
+					`<button type="button" class="ai-btn" id="aiSwitch">Log out and switch account</button>`);
+				document.getElementById("aiSwitch").addEventListener("click", async () => {
+					if (window.JodAuth && typeof window.JodAuth.logout === "function") {
+						try { await window.JodAuth.logout(); } catch (_) {}
+					}
+					window.location.replace("login.html?redirect=" + encodeURIComponent(returnPath()));
+				});
+				return;
+			}
+			show("Accept admin access", `You have an admin invitation${inviter}. Accept it to manage JOD Events from the admin portal as <span class="ai-email">${esc(email)}</span>.`,
+				`<button type="button" class="ai-btn" id="aiAccept">Accept admin access</button>`);
+			const btn = document.getElementById("aiAccept");
+			btn.addEventListener("click", () => accept(btn));
+		}
+
+		load();
+	})();
+	</script>
+</body>
+</html>

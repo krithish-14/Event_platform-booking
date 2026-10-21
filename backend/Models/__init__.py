@@ -32,6 +32,7 @@ from Models.stored_file import StoredFile
 from Models.payment_proof import PaymentProof
 from Models.support_ticket import SupportTicket
 from Models.notification import EventAnnouncement
+from Models.admin_access import AdminAccess
 
 __all__ = [
     "Base",
@@ -71,4 +72,5 @@ __all__ = [
     "PaymentProof",
     "SupportTicket",
     "EventAnnouncement",
+    "AdminAccess",
 ]

@@ -453,8 +453,8 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 	position: relative;
 	overflow: hidden;
 	padding: 0.6rem 0;
-	-webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
-	mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
+	-webkit-mask-image: linear-gradient(90deg, transparent 0, #000 2.5%, #000 97.5%, transparent 100%);
+	mask-image: linear-gradient(90deg, transparent 0, #000 2.5%, #000 97.5%, transparent 100%);
 }
 
 .clients-track {
@@ -480,6 +480,7 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 }
 
 .client-logo {
+	position: relative;
 	flex: 0 0 auto;
 	width: 10rem;
 	height: 9rem;
@@ -487,18 +488,26 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 0.35rem;
-	overflow: hidden;
-	background: #fff;
-	border: 1px solid rgba(15, 23, 42, 0.08);
-	border-radius: 18px;
-	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-	transition: transform 0.25s ease, box-shadow 0.25s ease;
+	isolation: isolate;
 }
 
-.client-logo:hover {
-	transform: translateY(-3px);
-	box-shadow: 0 14px 30px rgba(255, 117, 8, 0.16);
+.client-logo::before {
+	content: "";
+	position: absolute;
+	inset: 6%;
+	z-index: -1;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(255, 117, 8, 0.26) 0%, rgba(255, 138, 31, 0.12) 42%, rgba(255, 138, 31, 0) 70%);
+	filter: blur(14px);
+	opacity: 0;
+	transform: scale(0.75);
+	transition: opacity 0.3s ease, transform 0.3s ease;
+	pointer-events: none;
+}
+
+.client-logo:hover::before {
+	opacity: 1;
+	transform: scale(1.05);
 }
 
 .client-logo img {
@@ -506,12 +515,17 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 	height: 100%;
 	object-fit: contain;
 	display: block;
-	border-radius: 12px;
+	mix-blend-mode: multiply;
+	transition: transform 0.3s ease;
 }
 
-html[data-theme="dark"] .client-logo {
-	border-color: rgba(255, 255, 255, 0.08);
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+.client-logo:hover img {
+	transform: translateY(-3px) scale(1.06);
+}
+
+html[data-theme="dark"] .client-logo img {
+	mix-blend-mode: normal;
+	border-radius: 14px;
 }
 
 @keyframes jodClientsScroll {
@@ -524,8 +538,6 @@ html[data-theme="dark"] .client-logo {
 		width: 7.25rem;
 		height: 6.5rem;
 		margin-right: 0.85rem;
-		padding: 0.25rem;
-		border-radius: 14px;
 	}
 	.clients-track {
 		animation-duration: 24s;

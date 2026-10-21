@@ -78,11 +78,22 @@
 		}
 		try {
 			const res = await adminFetch(`${apiBase()}/api/admin/me`);
+			if (res.status === 403) {
+				// Admin access was revoked: refresh the saved profile so login stops routing here.
+				if (window.JodAuth && typeof window.JodAuth.validateSession === "function") {
+					try { await window.JodAuth.validateSession(); } catch (_) {}
+				}
+				window.location.replace("/");
+				return null;
+			}
 			if (!res.ok) {
 				window.location.replace("login.html");
 				return null;
 			}
 			const me = await res.json();
+			window.__adminMe = me;
+			const accessNav = document.getElementById("adminNavAccess");
+			if (accessNav) accessNav.hidden = !me.is_super_admin;
 			const email = me.email || (current && current.email) || "Admin";
 			const label = document.getElementById("adminUserLabel");
 			if (label) label.textContent = email;
@@ -213,10 +224,15 @@
 	}
 
 	const SECTION_KEY = "jod_admin_section";
-	const VALID_SECTIONS = ["overview", "host", "payment", "cancel", "host-data", "support"];
+	const VALID_SECTIONS = ["overview", "host", "payment", "cancel", "host-data", "support", "access"];
+
+	function canManageAccess() {
+		return Boolean(window.__adminMe && window.__adminMe.is_super_admin);
+	}
 
 	function currentSection() {
 		const raw = window.__adminSection || sessionStorage.getItem(SECTION_KEY) || "overview";
+		if (raw === "access" && !canManageAccess()) return "overview";
 		return VALID_SECTIONS.includes(raw) ? raw : "overview";
 	}
 
@@ -230,7 +246,8 @@
 	}
 
 	function setSection(section, options) {
-		const next = VALID_SECTIONS.includes(section) ? section : "overview";
+		let next = VALID_SECTIONS.includes(section) ? section : "overview";
+		if (next === "access" && !canManageAccess()) next = "overview";
 		window.__adminSection = next;
 		window.__adminShowingNotifications = false;
 		try { sessionStorage.setItem(SECTION_KEY, next); } catch (_) {}
@@ -422,11 +439,14 @@
 		const showingOverview = section === "overview";
 		const showingNotifications = Boolean(window.__adminShowingNotifications);
 
+		const showingAccess = !showingNotifications && section === "access";
+		const accessPanel = document.getElementById("adminAccessPanel");
 		if (notifyPanel) notifyPanel.hidden = !showingNotifications;
 		if (overviewPanel) overviewPanel.hidden = showingNotifications || !showingOverview;
-		if (dataPanel) dataPanel.hidden = showingNotifications || showingOverview;
-		if (searchInput) searchInput.hidden = showingNotifications || showingOverview;
-		if (eventFilterWrap) eventFilterWrap.hidden = showingNotifications || section === "support" || section === "host-data";
+		if (dataPanel) dataPanel.hidden = showingNotifications || showingOverview || showingAccess;
+		if (accessPanel) accessPanel.hidden = !showingAccess;
+		if (searchInput) searchInput.hidden = showingNotifications || showingOverview || showingAccess;
+		if (eventFilterWrap) eventFilterWrap.hidden = showingNotifications || showingAccess || section === "support" || section === "host-data";
 		const toolbar = document.getElementById("adminToolbar");
 		if (toolbar) toolbar.hidden = showingNotifications;
 		if (backBtn) backBtn.hidden = !showingNotifications;
@@ -455,6 +475,15 @@
 		setTimeout(() => {
 			if (window.JodPieChart) window.JodPieChart.redrawAll();
 		}, 60);
+
+		if (showingAccess) {
+			if (pageTitle) pageTitle.textContent = "Admin Access";
+			if (hint) hint.textContent = "Invite people by email to use this admin portal, and revoke access when it is no longer needed.";
+			renderAdminAccess();
+			if (!window.__adminAccess) loadAdminAccess();
+			window.__adminData = payload;
+			return;
+		}
 
 		if (showingOverview) {
 			if (pageTitle) pageTitle.textContent = "Overview";
@@ -1225,8 +1254,213 @@
 		}
 	}
 
+	const ACCESS_STATUS = {
+		ACTIVE: { label: "Active", badge: "ready" },
+		PENDING: { label: "Invite sent", badge: "pending" },
+		EXPIRED: { label: "Invite expired", badge: "cancel" },
+		REVOKED: { label: "Revoked", badge: "cancel" },
+	};
+
+	function setAccessMessage(text, tone) {
+		const el = document.getElementById("adminAccessMsg");
+		if (!el) return;
+		el.hidden = !text;
+		el.className = "admin-access-msg" + (tone ? " is-" + tone : "");
+		el.innerHTML = text || "";
+	}
+
+	function accessLinkHtml(url) {
+		const safe = escapeHtml(url);
+		return `<span class="admin-access-link">${safe}</span> <button type="button" class="admin-btn ghost" data-access-copy="${safe}">Copy link</button>`;
+	}
+
+	async function loadAdminAccess() {
+		if (!canManageAccess()) return null;
+		try {
+			const res = await adminFetch(`${apiBase()}/api/admin/access`);
+			if (res.status === 401) {
+				window.location.replace("login.html");
+				return null;
+			}
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Could not load admin access.");
+			window.__adminAccess = data;
+			renderAdminAccess();
+			return data;
+		} catch (err) {
+			setAccessMessage(escapeHtml(err.message || "Could not load admin access."), "error");
+			return null;
+		}
+	}
+
+	function renderAdminAccess() {
+		const body = document.getElementById("adminAccessBody");
+		const data = window.__adminAccess || { admins: [], super_admin: window.__adminMe || {} };
+		const admins = Array.isArray(data.admins) ? data.admins : [];
+		const active = admins.filter((row) => row.status === "ACTIVE").length;
+		const countEl = document.getElementById("accessCount");
+		if (countEl) countEl.textContent = String(active + 1);
+		const navCount = document.getElementById("navCountAccess");
+		if (navCount) navCount.textContent = String(active);
+		if (!body) return;
+		const owner = data.super_admin || {};
+		const ownerRow = `<tr>
+			<td><div class="admin-name">${escapeHtml(owner.name || "Super admin")}</div><div class="admin-muted">${escapeHtml(owner.email || "")}</div></td>
+			<td><span class="admin-badge ready">Super admin</span></td>
+			<td class="admin-submitted">—</td>
+			<td class="admin-submitted">—</td>
+			<td><span class="admin-muted">Full access, cannot be revoked</span></td>
+		</tr>`;
+		const links = window.__adminAccessLinks || {};
+		const rows = admins.map((row) => {
+			const state = ACCESS_STATUS[row.status] || ACCESS_STATUS.PENDING;
+			const id = escapeHtml(row.id);
+			const actions = [];
+			if (row.status === "ACTIVE") {
+				actions.push(`<button type="button" class="admin-btn ghost admin-btn-danger" data-access-revoke="${id}">Revoke access</button>`);
+			} else if (row.status === "REVOKED") {
+				actions.push(`<button type="button" class="admin-btn" data-access-resend="${id}">Invite again</button>`);
+			} else {
+				actions.push(`<button type="button" class="admin-btn" data-access-resend="${id}">Resend invite</button>`);
+				if (links[row.id]) actions.push(`<button type="button" class="admin-btn ghost" data-access-copy="${escapeHtml(links[row.id])}">Copy link</button>`);
+				actions.push(`<button type="button" class="admin-btn ghost admin-btn-danger" data-access-revoke="${id}">Cancel invite</button>`);
+			}
+			const endWhen = row.status === "REVOKED" ? row.revoked_at : row.accepted_at;
+			const pendingNote = row.status === "PENDING" && row.expires_at
+				? `<div class="admin-muted">Expires ${escapeHtml(formatWhen(row.expires_at))}</div>`
+				: "";
+			return `<tr>
+				<td><div class="admin-name">${escapeHtml(row.name || row.email.split("@")[0])}</div><div class="admin-muted">${escapeHtml(row.email)}</div></td>
+				<td><span class="admin-badge ${state.badge}">${state.label}</span>${pendingNote}</td>
+				<td class="admin-submitted">${escapeHtml(formatWhen(row.invited_at))}</td>
+				<td class="admin-submitted">${escapeHtml(formatWhen(endWhen))}</td>
+				<td><div class="admin-actions">${actions.join("")}</div></td>
+			</tr>`;
+		}).join("");
+		body.innerHTML = ownerRow + (rows || `<tr><td colspan="5" class="admin-muted" style="padding:1.2rem;">No other admins yet. Send an invite above.</td></tr>`);
+	}
+
+	function rememberAccessLink(result) {
+		if (!result || !result.id || !result.invite_url) return;
+		window.__adminAccessLinks = window.__adminAccessLinks || {};
+		window.__adminAccessLinks[result.id] = result.invite_url;
+	}
+
+	function inviteResultMessage(result) {
+		const email = escapeHtml(result.email || "");
+		if (result.email_sent) {
+			return `Invite emailed to <strong>${email}</strong>. It expires in 48 hours. ${accessLinkHtml(result.invite_url)}`;
+		}
+		return `The invite email could not be sent. Share this link with <strong>${email}</strong> yourself: ${accessLinkHtml(result.invite_url)}`;
+	}
+
+	async function accessAction(url, button, busyText) {
+		const original = button ? button.textContent : "";
+		if (button) {
+			button.disabled = true;
+			button.textContent = busyText;
+		}
+		try {
+			const res = await adminFetch(url, { method: "POST", headers: { "Content-Type": "application/json" } });
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Request failed.");
+			return data;
+		} finally {
+			if (button && button.isConnected) {
+				button.disabled = false;
+				button.textContent = original;
+			}
+		}
+	}
+
+	async function submitAdminInvite(event) {
+		event.preventDefault();
+		const emailEl = document.getElementById("adminAccessEmail");
+		const nameEl = document.getElementById("adminAccessName");
+		const btn = document.getElementById("adminAccessInviteBtn");
+		const email = String((emailEl && emailEl.value) || "").trim().toLowerCase();
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			setAccessMessage("Enter a valid email address.", "error");
+			if (emailEl) emailEl.focus();
+			return;
+		}
+		if (btn) {
+			btn.disabled = true;
+			btn.textContent = "Sending\u2026";
+		}
+		try {
+			const res = await adminFetch(`${apiBase()}/api/admin/access`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email, name: String((nameEl && nameEl.value) || "").trim() || null })
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				const detail = Array.isArray(data.detail) ? "Enter a valid email address." : data.detail;
+				throw new Error(typeof detail === "string" ? detail : "Could not send the invite.");
+			}
+			rememberAccessLink(data);
+			if (emailEl) emailEl.value = "";
+			if (nameEl) nameEl.value = "";
+			setAccessMessage(inviteResultMessage(data), data.email_sent ? "ok" : "warn");
+			await loadAdminAccess();
+		} catch (err) {
+			setAccessMessage(escapeHtml(err.message || "Could not send the invite."), "error");
+		} finally {
+			if (btn) {
+				btn.disabled = false;
+				btn.textContent = "Send admin invite";
+			}
+		}
+	}
+
+	async function handleAccessClick(event) {
+		const copyBtn = event.target.closest("[data-access-copy]");
+		if (copyBtn) {
+			const link = copyBtn.getAttribute("data-access-copy") || "";
+			try {
+				await navigator.clipboard.writeText(link);
+				copyBtn.textContent = "Copied";
+			} catch (_) {
+				window.prompt("Copy this invite link:", link);
+			}
+			setTimeout(() => { if (copyBtn.isConnected) copyBtn.textContent = "Copy link"; }, 1600);
+			return;
+		}
+		const resendBtn = event.target.closest("[data-access-resend]");
+		if (resendBtn) {
+			try {
+				const data = await accessAction(`${apiBase()}/api/admin/access/${encodeURIComponent(resendBtn.getAttribute("data-access-resend"))}/resend`, resendBtn, "Sending\u2026");
+				rememberAccessLink(data);
+				setAccessMessage(inviteResultMessage(data), data.email_sent ? "ok" : "warn");
+				await loadAdminAccess();
+			} catch (err) {
+				setAccessMessage(escapeHtml(err.message || "Could not resend the invite."), "error");
+			}
+			return;
+		}
+		const revokeBtn = event.target.closest("[data-access-revoke]");
+		if (revokeBtn) {
+			const id = revokeBtn.getAttribute("data-access-revoke");
+			const row = ((window.__adminAccess && window.__adminAccess.admins) || []).find((item) => item.id === id) || {};
+			const pending = row.status !== "ACTIVE";
+			const question = pending
+				? `Cancel the admin invite for ${row.email || "this email"}? The link will stop working.`
+				: `Revoke admin access for ${row.email || "this admin"}? They will lose access to the admin portal immediately.`;
+			if (!window.confirm(question)) return;
+			try {
+				await accessAction(`${apiBase()}/api/admin/access/${encodeURIComponent(id)}/revoke`, revokeBtn, pending ? "Cancelling\u2026" : "Revoking\u2026");
+				setAccessMessage(escapeHtml(pending ? `Invite for ${row.email} cancelled.` : `Admin access revoked for ${row.email}.`), "ok");
+				await loadAdminAccess();
+			} catch (err) {
+				setAccessMessage(escapeHtml(err.message || "Could not revoke access."), "error");
+			}
+		}
+	}
+
 	async function refresh() {
 		const query = (document.getElementById("adminSearch") || {}).value || "";
+		if (canManageAccess()) loadAdminAccess();
 		try {
 			const [data, cancelData, supportData, hostData] = await Promise.all([
 				loadRows(query.trim()),
@@ -1270,6 +1504,8 @@
 		document.querySelectorAll(".admin-nav-item[data-section]").forEach((btn) => {
 			btn.addEventListener("click", () => setSection(btn.getAttribute("data-section")));
 		});
+		document.getElementById("adminAccessForm")?.addEventListener("submit", submitAdminInvite);
+		document.getElementById("adminAccessPanel")?.addEventListener("click", handleAccessClick);
 		const openNotifications = () => {
 			setNavOpen(false);
 			showNotificationsPage();
