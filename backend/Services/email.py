@@ -4,6 +4,7 @@ Never logs message bodies or one-time codes.
 Every outbound message ends with the JOD Events logo and Help & Support footer.
 """
 
+import base64
 import html
 import json
 import os
@@ -11,6 +12,7 @@ import smtplib
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from email.mime.application import MIMEApplication
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.policy import SMTP as SMTP_POLICY
@@ -22,6 +24,10 @@ LOGO_URL = (
 	os.getenv("EMAIL_LOGO_URL")
 	or f"{SITE_URL}/images/JOD%20Events%20Logo.png"
 )
+# Gmail hides remote images on mail it marks suspicious (the admin invite).
+# The password-reset mail is not flagged, so the same remote logo loads there.
+# Embedding the file lets every message show the logo without that fetch.
+LOGO_CID = "jod-events-logo"
 SUPPORT_PHONE = (os.getenv("SUPPORT_PHONE") or "+91 91509 04455").strip()
 SUPPORT_EMAIL = (os.getenv("SUPPORT_EMAIL") or "contact@jodevents.com").strip()
 SUPPORT_HELP_URL = f"{SITE_URL}/help"
@@ -47,14 +53,30 @@ def support_footer_text() -> str:
 	)
 
 
-def brand_footer_html() -> str:
+def email_logo_bytes() -> Optional[bytes]:
+	"""PNG used in the footer. None when the file is missing, so mail still sends."""
+	path = os.path.abspath(
+		os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "images", "JOD Events Logo.png")
+	)
+	try:
+		with open(path, "rb") as handle:
+			data = handle.read()
+	except OSError:
+		return None
+	if not data.startswith(b"\x89PNG"):
+		return None
+	return data
+
+
+def brand_footer_html(logo_src: Optional[str] = None) -> str:
 	phone_href = "tel:" + "".join(ch for ch in SUPPORT_PHONE if ch.isdigit() or ch == "+")
+	src = logo_src or LOGO_URL
 	return (
 		'<div style="margin-top:28px;padding-top:20px;border-top:1px solid #eadfce;'
 		'font-family:Arial,Helvetica,sans-serif;color:#5c534a;font-size:13px;line-height:1.55;">'
 		f'<a href="{html.escape(SITE_URL)}" style="text-decoration:none;display:inline-block;margin:0 0 14px;">'
-		f'<img src="{html.escape(LOGO_URL)}" alt="JOD Events" width="140" '
-		'style="display:block;max-width:140px;height:auto;border:0;" />'
+		f'<img src="{html.escape(src)}" alt="JOD Events" width="140" height="53" '
+		'style="display:block;width:140px;max-width:140px;height:auto;border:0;" />'
 		"</a>"
 		'<p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#201d19;">Help &amp; Support</p>'
 		f'<p style="margin:0;">Phone: <a href="{html.escape(phone_href)}" style="color:#FF7508;text-decoration:none;">'
@@ -67,7 +89,7 @@ def brand_footer_html() -> str:
 	)
 
 
-def wrap_html_body(inner_html: str) -> str:
+def wrap_html_body(inner_html: str, logo_src: Optional[str] = None) -> str:
 	body = (inner_html or "").strip()
 	# Avoid double-wrapping if a caller already branded the message.
 	if 'alt="JOD Events"' in body and "Help &amp; Support" in body:
@@ -78,9 +100,39 @@ def wrap_html_body(inner_html: str) -> str:
 		'font-family:Arial,Helvetica,sans-serif;color:#201d19;font-size:15px;line-height:1.55;'
 		'background:#ffffff;border:1px solid #eadfce;border-radius:12px;">'
 		f'<div>{body}</div>'
-		f"{brand_footer_html()}"
+		f"{brand_footer_html(logo_src)}"
 		"</div></div>"
 	)
+
+
+def zepto_inline_images(images: Optional[List[Tuple[str, bytes, str]]]) -> list:
+	"""Base64 inline images for Zepto. Each cid matches the footer img src."""
+	packed = []
+	for cid, content, mime in images or []:
+		if not cid or not content:
+			continue
+		packed.append({
+			"cid": cid,
+			"mime_type": mime or "image/png",
+			"content": base64.b64encode(content).decode("ascii"),
+		})
+	return packed
+
+
+def html_message_part(plain: str, rich: str, logo: Optional[bytes]) -> MIMEMultipart:
+	"""HTML plus the footer logo. The logo is a related inline part, not a remote URL."""
+	alt = MIMEMultipart("alternative")
+	alt.attach(MIMEText(plain or "", "plain", "utf-8"))
+	alt.attach(MIMEText(rich or "", "html", "utf-8"))
+	if not logo or f"cid:{LOGO_CID}" not in (rich or ""):
+		return alt
+	related = MIMEMultipart("related")
+	related.attach(alt)
+	image = MIMEImage(logo, _subtype="png")
+	image.add_header("Content-ID", f"<{LOGO_CID}>")
+	image.add_header("Content-Disposition", "inline", filename="jod-events-logo.png")
+	related.attach(image)
+	return related
 
 
 def wrap_text_body(text_body: str) -> str:
@@ -211,6 +263,7 @@ def _send_via_zepto(
 	text_body: str,
 	html_body: str,
 	attachments: Optional[List[Tuple[str, bytes, str]]] = None,
+	inline_images: Optional[List[Tuple[str, bytes, str]]] = None,
 ) -> bool:
 	"""Send through Zepto's HTTP API. The India token is rejected by SMTP login."""
 	global _last_send_detail
@@ -232,7 +285,6 @@ def _send_via_zepto(
 	for filename, content, mime in attachments or []:
 		if not content:
 			continue
-		import base64
 		files.append({
 			"name": filename or "ticket.pdf",
 			"mime_type": mime or "application/pdf",
@@ -240,6 +292,9 @@ def _send_via_zepto(
 		})
 	if files:
 		payload["attachments"] = files
+	images = zepto_inline_images(inline_images)
+	if images:
+		payload["inline_images"] = images
 	req = Request(zepto_api_url(host), data=json.dumps(payload).encode("utf-8"), method="POST")
 	req.add_header("Accept", "application/json")
 	req.add_header("Content-Type", "application/json")
@@ -302,22 +357,21 @@ def send_email(
 	from_addr = envelope_address(from_header) or from_header
 	use_tls = (_smtp_setting(file_values, "SMTP_TLS") or os.getenv("SMTP_TLS") or "1").strip() not in ("0", "false", "False")
 
+	logo = email_logo_bytes()
+	logo_src = f"cid:{LOGO_CID}" if logo else None
 	plain = wrap_text_body(text_body or "")
 	if html_body and html_body.strip():
-		rich = wrap_html_body(html_body)
+		rich = wrap_html_body(html_body, logo_src)
 	else:
 		# Build a simple HTML version from plain text when callers only send text.
 		escaped = html.escape(text_body or "").replace("\n", "<br>")
-		rich = wrap_html_body(f"<p style=\"margin:0;\">{escaped}</p>")
+		rich = wrap_html_body(f"<p style=\"margin:0;\">{escaped}</p>", logo_src)
 
 	msg = MIMEMultipart("mixed")
 	msg["Subject"] = subject
 	msg["From"] = from_header if envelope_address(from_header) else from_addr
 	msg["To"] = to_email
-	alt = MIMEMultipart("alternative")
-	alt.attach(MIMEText(plain, "plain", "utf-8"))
-	alt.attach(MIMEText(rich, "html", "utf-8"))
-	msg.attach(alt)
+	msg.attach(html_message_part(plain, rich, logo))
 	for filename, content, mime in attachments or []:
 		if not content:
 			continue
@@ -338,6 +392,7 @@ def send_email(
 			text_body=plain,
 			html_body=rich,
 			attachments=attachments,
+			inline_images=[(LOGO_CID, logo, "image/png")] if logo and f"cid:{LOGO_CID}" in rich else None,
 		)
 
 	payload = smtp_message_bytes(msg)

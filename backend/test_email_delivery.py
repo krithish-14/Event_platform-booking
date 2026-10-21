@@ -3,13 +3,18 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from Services.email import (
+    LOGO_CID,
+    email_logo_bytes,
     envelope_address,
+    html_message_part,
     smtp_login_users,
     smtp_message_bytes,
     smtp_password,
+    wrap_html_body,
     wrap_text_body,
     zepto_api_url,
     zepto_authorization,
+    zepto_inline_images,
     zepto_send_failure,
 )
 
@@ -51,6 +56,21 @@ class EmailDeliveryTests(unittest.TestCase):
             ["emailapikey"],
         )
         self.assertEqual(smtp_login_users("", "", "smtp.zeptomail.com"), ["emailapikey"])
+
+    def test_footer_logo_is_embedded_not_a_remote_image(self):
+        logo = email_logo_bytes()
+        self.assertTrue(logo and logo.startswith(b"\x89PNG"))
+        html = wrap_html_body("<p>You're invited to the admin portal.</p>", f"cid:{LOGO_CID}")
+        self.assertIn(f'src="cid:{LOGO_CID}"', html)
+        self.assertNotIn("https://jodevents.com/images/", html)
+        part = html_message_part("plain", html, logo)
+        raw = part.as_string()
+        self.assertIn(f"Content-ID: <{LOGO_CID}>", raw)
+        self.assertIn("Content-Disposition: inline", raw)
+        packed = zepto_inline_images([(LOGO_CID, logo, "image/png")])
+        self.assertEqual(packed[0]["cid"], LOGO_CID)
+        self.assertEqual(packed[0]["mime_type"], "image/png")
+        self.assertTrue(packed[0]["content"])
 
     def test_zepto_india_api_uses_the_token_prefix(self):
         self.assertEqual(zepto_api_url("smtp.zeptomail.in"), "https://api.zeptomail.in/v1.1/email")
