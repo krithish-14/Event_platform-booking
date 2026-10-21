@@ -569,3 +569,58 @@
 
 	global.JodGoBack = goBack;
 })(window);
+
+/**
+ * Page loader: covers the page until the shared header and the signed-in
+ * profile menu are in place, so half-built pieces never flash on screen.
+ */
+(function initPageLoader(global) {
+	"use strict";
+	var doc = global.document;
+	var root = doc && doc.documentElement;
+	if (!root || !doc.head || root.classList.contains("jod-no-loader")) return;
+
+	var style = doc.createElement("style");
+	style.id = "jod-page-loader-style";
+	style.textContent = [
+		"html.jod-loading::after{content:'';position:fixed;inset:0;z-index:2147483646;background:var(--background,#fffefa);opacity:1;transition:opacity .3s ease;pointer-events:all;}",
+		"html.jod-loading::before{content:'';position:fixed;top:50%;left:50%;width:46px;height:46px;margin:-23px 0 0 -23px;z-index:2147483647;border-radius:50%;border:3.5px solid rgba(255,117,8,.18);border-top-color:var(--primary,#FF7508);animation:jodPageSpin .75s linear infinite;opacity:1;transition:opacity .2s ease;}",
+		"html.jod-loading.jod-ready::after,html.jod-loading.jod-ready::before{opacity:0;pointer-events:none;}",
+		"html[data-theme='dark'].jod-loading::after{background:var(--background,#0e0c0a);}",
+		"@keyframes jodPageSpin{to{transform:rotate(360deg);}}",
+		"@media (prefers-reduced-motion: reduce){html.jod-loading::before{animation-duration:1.6s;}}",
+		"@media print{html.jod-loading::after,html.jod-loading::before{display:none;}}"
+	].join("");
+	doc.head.appendChild(style);
+	root.classList.add("jod-loading");
+
+	var finished = false;
+	function finish() {
+		if (finished) return;
+		finished = true;
+		root.classList.add("jod-ready");
+		global.setTimeout(function () {
+			root.classList.remove("jod-loading", "jod-ready");
+		}, 320);
+	}
+
+	function whenSettled() {
+		var ready = global.includesReady;
+		if (doc.getElementById("header") && ready && typeof ready.then === "function") {
+			// include.js renders the profile menu one tick after the header resolves.
+			ready.then(function () { global.setTimeout(finish, 60); }, finish);
+		} else {
+			global.requestAnimationFrame(finish);
+		}
+	}
+
+	if (doc.readyState === "loading") {
+		doc.addEventListener("DOMContentLoaded", whenSettled);
+	} else {
+		whenSettled();
+	}
+	global.setTimeout(finish, 3000);
+	global.addEventListener("pageshow", function (event) {
+		if (event.persisted) finish();
+	});
+})(window);

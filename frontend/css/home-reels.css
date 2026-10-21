@@ -439,3 +439,116 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 		scroll-padding-inline: 2.55rem;
 	}
 }
+
+/* Our Clients: endless logo strip */
+.home-clients {
+	padding-bottom: clamp(2.5rem, 5vw, 4rem);
+}
+
+.home-clients .section-heading {
+	margin-bottom: clamp(1.4rem, 3vw, 2.2rem);
+}
+
+.clients-marquee {
+	position: relative;
+	overflow: hidden;
+	padding: 0.6rem 0;
+	-webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
+	mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
+}
+
+.clients-track {
+	display: flex;
+	width: max-content;
+	animation: jodClientsScroll 32s linear infinite;
+	will-change: transform;
+}
+
+.clients-marquee:hover .clients-track,
+.clients-marquee:focus-within .clients-track {
+	animation-play-state: paused;
+}
+
+.clients-group {
+	display: flex;
+	align-items: center;
+	gap: 0;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	flex-shrink: 0;
+}
+
+.client-logo {
+	flex: 0 0 auto;
+	width: 10rem;
+	height: 9rem;
+	margin-right: 1.25rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.35rem;
+	overflow: hidden;
+	background: #fff;
+	border: 1px solid rgba(15, 23, 42, 0.08);
+	border-radius: 18px;
+	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+	transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.client-logo:hover {
+	transform: translateY(-3px);
+	box-shadow: 0 14px 30px rgba(255, 117, 8, 0.16);
+}
+
+.client-logo img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	display: block;
+	border-radius: 12px;
+}
+
+html[data-theme="dark"] .client-logo {
+	border-color: rgba(255, 255, 255, 0.08);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes jodClientsScroll {
+	from { transform: translateX(0); }
+	to { transform: translateX(-50%); }
+}
+
+@media (max-width: 640px) {
+	.client-logo {
+		width: 7.25rem;
+		height: 6.5rem;
+		margin-right: 0.85rem;
+		padding: 0.25rem;
+		border-radius: 14px;
+	}
+	.clients-track {
+		animation-duration: 24s;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.clients-marquee {
+		-webkit-mask-image: none;
+		mask-image: none;
+	}
+	.clients-track {
+		animation: none;
+		width: auto;
+		flex-wrap: wrap;
+		justify-content: center;
+	}
+	.clients-group {
+		flex-wrap: wrap;
+		justify-content: center;
+		row-gap: 1rem;
+	}
+	.clients-group[aria-hidden="true"] {
+		display: none;
+	}
+}

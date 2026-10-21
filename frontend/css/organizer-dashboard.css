@@ -2315,6 +2315,51 @@ html[data-theme="dark"] .btn-remove-package {
 	display: none;
 }
 
+.coupon-target-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.coupon-target-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.45rem 0.75rem;
+	border: 1px solid #ddd6fe;
+	border-radius: 999px;
+	background: #fff;
+	font-size: 0.85rem !important;
+	font-weight: 600 !important;
+	text-transform: none !important;
+	letter-spacing: 0 !important;
+	color: #334155 !important;
+	cursor: pointer;
+}
+
+.coupon-target-chip:has(input:checked) {
+	background: #ede9fe;
+	border-color: #8b5cf6;
+	color: #5b21b6 !important;
+}
+
+.coupon-target-chip input {
+	margin: 0;
+	accent-color: #7c3aed;
+}
+
+html[data-theme="dark"] .coupon-target-chip {
+	background: rgba(255, 255, 255, 0.04);
+	border-color: rgba(167, 139, 250, 0.35);
+	color: #e7ded3 !important;
+}
+
+html[data-theme="dark"] .coupon-target-chip:has(input:checked) {
+	background: rgba(139, 92, 246, 0.2);
+	border-color: #a78bfa;
+	color: #ddd6fe !important;
+}
+
 .group-line-list {
 	display: flex;
 	flex-direction: column;

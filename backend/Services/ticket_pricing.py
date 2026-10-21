@@ -211,6 +211,19 @@ def normalize_ticket_list(incoming, previous=None) -> list:
     return out
 
 
+def _coupon_targets(coupon: dict) -> tuple[list, list]:
+    """Ticket offer ids and names a coupon is limited to. Empty means every ticket."""
+    raw_ids = coupon.get("applies_to")
+    if not isinstance(raw_ids, list):
+        raw_ids = [raw_ids] if raw_ids else []
+    raw_names = coupon.get("applies_to_names")
+    if not isinstance(raw_names, list):
+        raw_names = [coupon.get("applies_to_name")] if coupon.get("applies_to_name") else []
+    ids = [str(v).strip()[:64] for v in raw_ids if str(v or "").strip()][:50]
+    names = [str(v).strip()[:100] for v in raw_names if str(v or "").strip()][:50]
+    return ids, names
+
+
 def normalize_coupons(incoming) -> list:
     """Host coupon codes. Stored privately in policies, never in the public ticket list."""
     rows = incoming if isinstance(incoming, list) else []
@@ -236,11 +249,12 @@ def normalize_coupons(incoming) -> list:
         sales_end = raw.get("sales_end") or None
         _assert_window(sales_start, sales_end)
         seen.add(code)
+        ids, names = _coupon_targets(raw)
         out.append({
             "code": code,
             "amount": paise_to_rupees(amount_paise),
-            "applies_to": str(raw.get("applies_to") or "").strip()[:64],
-            "applies_to_name": str(raw.get("applies_to_name") or "").strip()[:100],
+            "applies_to": ids,
+            "applies_to_names": names,
             "sales_start": sales_start,
             "sales_end": sales_end,
             "note": " ".join(str(raw.get("note") or "").split())[:200],
@@ -272,13 +286,13 @@ def apply_coupon(db, event_id: str, quote: PriceQuote, code: str, *, now: Option
     coupon = next((c for c in _load_event_coupons(db, event_id) if str(c.get("code") or "").upper() == wanted), None)
     if coupon is None:
         raise HTTPException(status_code=400, detail="This coupon code is not valid for this event.")
-    applies_to = str(coupon.get("applies_to") or "")
-    if applies_to:
-        matches = applies_to == str(quote.offer_id or "")
+    ids, names = _coupon_targets(coupon)
+    if ids:
+        matches = str(quote.offer_id or "") in ids
         if not matches and not quote.offer_id:
-            matches = str(coupon.get("applies_to_name") or "").strip().lower() == quote.offer_name.strip().lower()
+            matches = quote.offer_name.strip().lower() in {n.lower() for n in names}
         if not matches:
-            label = coupon.get("applies_to_name") or "another ticket"
+            label = ", ".join(names) if names else "other tickets"
             raise HTTPException(status_code=400, detail=f"This coupon only works on {label}.")
     moment = now or datetime.now(timezone.utc)
     if moment.tzinfo is None:

@@ -616,11 +616,13 @@ async function initOrganizerDashboard() {
 					<input type="number" class="setup-input subtype-amount-input" min="1" step="0.01" placeholder="e.g. 100" value="${attrEscape(d.amount ?? "")}" />
 				</div>
 				<div class="setup-form-group">
-					<label>Works on</label>
-					<select class="setup-input subtype-applies-input" data-saved-value="${attrEscape(d.applies_to || "")}">
-						<option value="">All tickets</option>
-					</select>
+					<label>Amount preview</label>
+					<div class="ticket-subtype-computed" data-coupon-amount></div>
 				</div>
+			</div>
+			<div class="setup-form-group">
+				<label>Works on</label>
+				<div class="coupon-target-list" data-saved-value="${attrEscape(JSON.stringify(couponTargetIds(d.applies_to)))}"></div>
 			</div>
 			<p class="ticket-offer-hint" data-subtype-computed></p>` + subtypeTimeNoteHtml(kind, d);
 		}
@@ -766,31 +768,73 @@ async function initOrganizerDashboard() {
 		return out;
 	}
 
+	function couponTargetIds(value) {
+		if (Array.isArray(value)) return value.map((v) => String(v || "").trim()).filter(Boolean);
+		const text = String(value || "").trim();
+		if (!text) return [];
+		if (text.startsWith("[")) {
+			try { return couponTargetIds(JSON.parse(text)); } catch (_) { return []; }
+		}
+		return [text];
+	}
+
+	function selectedCouponTargets(list) {
+		if (!list.dataset.rendered) return couponTargetIds(list.dataset.savedValue);
+		return [...list.querySelectorAll(".coupon-target-input:checked")].map((box) => box.value);
+	}
+
 	function refreshCouponTargets() {
 		const targets = ticketTargetsForCoupons();
-		document.querySelectorAll("#ticketTiersRows .subtype-applies-input").forEach((select) => {
-			const current = select.value || select.dataset.savedValue || "";
-			select.innerHTML = `<option value="">All tickets</option>` + targets.map((t) =>
-				`<option value="${attrEscape(t.id)}">${attrEscape(t.name)}</option>`
-			).join("");
-			select.value = targets.some((t) => t.id === current) ? current : "";
-			if (select.value) select.dataset.savedValue = select.value;
-			const card = select.closest(".ticket-subtype-card");
-			const hint = card && card.querySelector("[data-subtype-computed]");
-			if (!hint) return;
+		const signature = JSON.stringify(targets.map((t) => [t.id, t.name]));
+		document.querySelectorAll("#ticketTiersRows .coupon-target-list").forEach((list) => {
+			const chosen = selectedCouponTargets(list).filter((id) => targets.some((t) => t.id === id));
+			if (list.dataset.signature !== signature) {
+				list.innerHTML = `<label class="coupon-target-chip coupon-target-all"><input type="checkbox" class="coupon-target-all-input"${chosen.length ? "" : " checked"} /> All tickets</label>`
+					+ targets.map((t) => `<label class="coupon-target-chip"><input type="checkbox" class="coupon-target-input" value="${attrEscape(t.id)}"${chosen.includes(t.id) ? " checked" : ""} /> ${attrEscape(t.name)}</label>`).join("");
+				list.dataset.signature = signature;
+				list.dataset.rendered = "1";
+			}
+			const card = list.closest(".ticket-subtype-card");
 			const amount = Number(subtypeValue(card, "subtype-amount-input"));
-			const target = targets.find((t) => t.id === select.value);
+			const amountBox = card.querySelector("[data-coupon-amount]");
+			if (amountBox) amountBox.textContent = amount > 0 ? formatTicketRupees(amount) + " off each ticket" : "Enter an amount";
+			const hint = card.querySelector("[data-subtype-computed]");
+			if (!hint) return;
+			const picked = targets.filter((t) => chosen.includes(t.id));
 			if (!(amount > 0)) {
 				hint.textContent = "Buyers type this code on the payment page to get the amount off.";
-			} else if (target && target.price !== null) {
-				hint.textContent = target.name + ": " + formatTicketRupees(target.price) + " \u2192 " + formatTicketRupees(Math.max(0, target.price - amount)) + " per ticket with this code.";
+			} else if (!picked.length) {
+				hint.textContent = "Works on every ticket: " + formatTicketRupees(amount) + " off each ticket bought with this code.";
 			} else {
-				hint.textContent = formatTicketRupees(amount) + " off each ticket bought with this code.";
+				hint.textContent = "Works only on: " + picked.map((t) => t.price !== null
+					? t.name + " (" + formatTicketRupees(t.price) + " \u2192 " + formatTicketRupees(Math.max(0, t.price - amount)) + ")"
+					: t.name).join(", ") + ".";
 			}
 		});
 	}
 
+	function bindCouponTargetClicks() {
+		const host = document.getElementById("ticketTiersRows");
+		if (!host || host.dataset.couponTargetsBound) return;
+		host.dataset.couponTargetsBound = "1";
+		host.addEventListener("change", (e) => {
+			const box = e.target;
+			if (!box || !box.closest) return;
+			const list = box.closest(".coupon-target-list");
+			if (!list) return;
+			const all = list.querySelector(".coupon-target-all-input");
+			const tickets = [...list.querySelectorAll(".coupon-target-input")];
+			if (box.classList.contains("coupon-target-all-input")) {
+				if (box.checked) tickets.forEach((item) => { item.checked = false; });
+				else if (!tickets.some((item) => item.checked)) box.checked = true;
+			} else if (all) {
+				all.checked = !tickets.some((item) => item.checked);
+			}
+		}, true);
+	}
+
 	function updateTicketOfferPreview(row) {
+		bindCouponTargetClicks();
 		if (row) {
 			const mainPrice = rowMainPrice(row);
 			row.querySelectorAll(".ticket-subtype-card").forEach((card) => {
@@ -931,13 +975,13 @@ async function initOrganizerDashboard() {
 				const code = subtypeValue(card, "subtype-code-input").toUpperCase();
 				const amount = Number(subtypeValue(card, "subtype-amount-input"));
 				if (!COUPON_CODE_RE.test(code) || !(amount > 0)) return;
-				const appliesTo = card.querySelector(".subtype-applies-input")?.value || "";
-				const target = targets.find((t) => t.id === appliesTo);
+				const list = card.querySelector(".coupon-target-list");
+				const picked = list ? targets.filter((t) => selectedCouponTargets(list).includes(t.id)) : [];
 				out.push({
 					code,
 					amount,
-					applies_to: target ? appliesTo : "",
-					applies_to_name: target ? target.name : "",
+					applies_to: picked.map((t) => t.id),
+					applies_to_names: picked.map((t) => t.name),
 					sales_start: toIstIsoFromDatetimeLocal(subtypeValue(card, "subtype-start-input")) || null,
 					sales_end: toIstIsoFromDatetimeLocal(subtypeValue(card, "subtype-end-input")) || null,
 					note: subtypeValue(card, "subtype-note-input"),
@@ -1118,7 +1162,7 @@ async function initOrganizerDashboard() {
 			list.appendChild(createSubtypeCard("coupon", {
 				code: coupon.code,
 				amount: coupon.amount,
-				applies_to: coupon.applies_to || "",
+				applies_to: couponTargetIds(coupon.applies_to),
 				start: isoToDatetimeLocal(coupon.sales_start || ""),
 				end: isoToDatetimeLocal(coupon.sales_end || ""),
 				note: coupon.note || ""

@@ -697,6 +697,7 @@
 
 	/* ── Render Profile Widget ────────────────────────────────── */
 	function renderProfileWidget(navAuth) {
+ injectDropdownCSS();
  const user = getUser();
  if (!user || !isLoggedIn()) return;
 
@@ -1018,6 +1019,9 @@
  script.onload = run;
  document.head.appendChild(script);
 	}
+
+	// include.js renders the avatar as soon as the header lands, before init runs.
+	injectDropdownCSS();
 
 	// Header is injected via include.js — wait for it
 	if (window.includesReady && typeof window.includesReady.then === "function") {
