@@ -20,7 +20,8 @@ load_dotenv(os.path.join(_BACKEND_DIR, ".env"))
 SECRET_KEY = require_strong_secret(os.getenv("SECRET_KEY"), "SECRET_KEY")
 # Fixed algorithm — ignore JWT_ALGORITHM env to prevent algorithm confusion.
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+# 24 hours from sign-in. Idle time does not shorten this. Logout clears the cookie immediately.
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 AUTH_COOKIE_NAME = "jod_access_token"
 JWT_ISSUER = (os.getenv("JWT_ISSUER") or "jod-events").strip()
 JWT_AUDIENCE = (os.getenv("JWT_AUDIENCE") or "jod-events-api").strip()

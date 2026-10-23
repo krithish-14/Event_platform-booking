@@ -10,7 +10,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from Authentication.jwt_handler import AUTH_COOKIE_NAME
+from Authentication.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES, AUTH_COOKIE_NAME
 from Services.runtime_env import cookie_secure, csrf_protection_enabled, auth_cookie_domain
 
 CSRF_COOKIE_NAME = "jod_csrf"
@@ -62,7 +62,7 @@ def set_csrf_cookie(response: Response, token: str | None = None) -> str:
         key=CSRF_COOKIE_NAME,
         value=value,
         httponly=False,
-        max_age=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")) * 60,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         **_cookie_kwargs(),
     )
     return value
