@@ -1,6 +1,9 @@
 /**
- * Host ticket design canvas - drag, remove, shapes, and data fields on live preview.
- * JOD Events logo is locked on unless host has premium subscription.
+ * Host ticket design canvas. New tickets start blank in landscape.
+ * The JOD Events logo is mandatory on every plan and switches between the
+ * black and white wordmark from the ticket background.
+ * Saved preset layouts (canvas_mode is not "custom") keep their published look
+ * until the host edits and clicks Update tickets.
  */
 (function (global) {
 	"use strict";
@@ -23,9 +26,10 @@
 		{ type: "poster", label: "Poster", flag: null, w: 22, h: 18, locked: false, shape: false },
 		{ type: "title", label: "Event title", flag: null, w: 58, h: 8, locked: false, shape: false },
 		{ type: "badge", label: "E-Ticket badge", flag: null, w: 18, h: 4, locked: false, shape: false },
-		{ type: "date", label: "Date", flag: "show_date", w: 58, h: 5, locked: false, shape: false },
+		{ type: "date", label: "Event date", flag: "show_date", w: 58, h: 5, locked: false, shape: false },
+		{ type: "time", label: "Event time", flag: "show_time", w: 40, h: 5, locked: false, shape: false },
 		{ type: "venue", label: "Venue", flag: "show_venue", w: 70, h: 8, locked: false, shape: false },
-		{ type: "qty", label: "Ticket count", flag: null, w: 30, h: 4, locked: false, shape: false },
+		{ type: "qty", label: "Ticket quantity", flag: "show_qty", w: 30, h: 4, locked: false, shape: false },
 		{ type: "ticket_type", label: "Ticket type", flag: "show_ticket_type", w: 55, h: 6, locked: false, shape: false },
 		{ type: "seat", label: "Seat", flag: "show_seat", w: 55, h: 5, locked: false, shape: false },
 		{ type: "name", label: "Name", flag: "show_attendee_name", w: 70, h: 5, locked: false, shape: false },
@@ -33,8 +37,11 @@
 		{ type: "email", label: "Email", flag: "show_attendee_email", w: 70, h: 5, locked: false, shape: false },
 		{ type: "qr", label: "QR code", flag: "show_qr", w: 34, h: 22, locked: false, shape: false },
 		{ type: "booking_id", label: "Booking ID", flag: null, w: 55, h: 4, locked: false, shape: false },
-		{ type: "price", label: "Price", flag: "show_price", w: 86, h: 5, locked: false, shape: false },
-		{ type: "jod_logo", label: "JOD Events logo", flag: "show_jod_logo", w: 78, h: 12, locked: true, shape: false },
+		{ type: "ticket_id", label: "Ticket ID", flag: "show_ticket_id", w: 50, h: 4, locked: false, shape: false },
+		{ type: "price", label: "Ticket price", flag: "show_price", w: 40, h: 5, locked: false, shape: false },
+		{ type: "organizer", label: "Organizer name", flag: "show_organizer", w: 50, h: 5, locked: false, shape: false },
+		{ type: "organizer_logo", label: "Organizer logo", flag: null, w: 22, h: 12, locked: false, shape: false },
+		{ type: "jod_logo", label: "JOD Events logo", flag: "show_jod_logo", w: 32, h: 14, locked: true, shape: false },
 		{ type: "stub", label: "Side text", flag: null, w: 10, h: 70, locked: false, shape: false },
 		{ type: "footer", label: "Footer note", flag: null, w: 70, h: 4, locked: false, shape: false },
 	];
@@ -316,16 +323,107 @@
 		});
 	}
 
+	const LOGO_BLACK = "/images/JOD%20Events%20Logo.png";
+	const LOGO_WHITE = "/images/JOD%20Events%20Logo%20White.png";
+
+	function relativeLuminance(hex) {
+		const raw = String(hex || "#ffffff").replace("#", "");
+		const full = raw.length === 3 ? raw.split("").map(function (ch) { return ch + ch; }).join("") : raw;
+		const n = parseInt(full, 16);
+		if (!Number.isFinite(n) || full.length !== 6) return 1;
+		function channel(v) {
+			const c = v / 255;
+			return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+		}
+		return 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
+	}
+
+	function clampBox(el) {
+		if (!el) return;
+		el.w = clampNum(el.w, el.type === "jod_logo" ? 12 : 4, 100, el.w || 20);
+		el.h = clampNum(el.h, el.type === "jod_logo" ? 6 : (el.type === "line" || el.type === "dashed_line" ? 1 : 2), el.type === "jod_logo" ? 28 : 100, el.h || 8);
+		if (el.x + el.w > 100) el.x = Math.max(0, 100 - el.w);
+		if (el.y + el.h > 100) el.y = Math.max(0, 100 - el.h);
+		el.x = clampNum(el.x, 0, 100, 0);
+		el.y = clampNum(el.y, 0, 100, 0);
+	}
+
+	function ensureLogoElement(layout) {
+		if (!layout) return;
+		layout.show_jod_logo = true;
+		const list = layout.canvas_elements || (layout.canvas_elements = []);
+		let logo = list.find(function (el) { return el && el.type === "jod_logo"; });
+		if (!logo) {
+			logo = { id: "jod_logo", type: "jod_logo", x: 4, y: 78, w: 32, h: 14 };
+			list.push(logo);
+		}
+		clampBox(logo);
+	}
+
+	function blankCustomLayout() {
+		return {
+			template_id: "classic",
+			canvas_mode: "custom",
+			orientation: "landscape",
+			layout_version: 11,
+			accent_color: "#2563eb",
+			card_color: "#ffffff",
+			text_color: "#111111",
+			background_image: "",
+			show_jod_logo: true,
+			show_venue: false,
+			show_date: false,
+			show_time: false,
+			show_price: false,
+			show_seat: false,
+			show_qr: false,
+			show_qty: false,
+			show_ticket_type: false,
+			show_ticket_id: false,
+			show_organizer: false,
+			show_attendee_name: false,
+			show_attendee_email: false,
+			show_attendee_phone: false,
+			custom_footer: "",
+			headline_override: "",
+			ticket_type_override: "",
+			sunset_hero_src: "",
+			canvas_elements: [{ id: "jod_logo", type: "jod_logo", x: 4, y: 78, w: 32, h: 14 }],
+		};
+	}
+
 	function cloneLayout(src) {
+		const savedElements = src && Array.isArray(src.canvas_elements) && src.canvas_elements.length;
+		const version = Number(src && src.layout_version) || 0;
+		const mode = src && src.canvas_mode;
+		const extraKeys = src ? Object.keys(src).filter(function (key) { return key !== "template_id"; }) : [];
+		const fresh = !src || (!savedElements && mode !== "legacy" && mode !== "custom" && version < 11 && !extraKeys.length);
+		if (fresh) return blankCustomLayout();
+		if (mode === "custom" || version >= 11) {
+			const base = blankCustomLayout();
+			const out = Object.assign({}, base, src || {});
+			out.canvas_mode = "custom";
+			out.orientation = src && src.orientation === "portrait" ? "portrait" : "landscape";
+			out.layout_version = Math.max(11, version || 11);
+			out.card_color = optionalColor(src && src.card_color) || "#ffffff";
+			out.text_color = optionalColor(src && src.text_color) || "#111111";
+			out.accent_color = optionalColor(src && src.accent_color) || "#2563eb";
+			out.background_image = sanitizeMediaSrc(src && src.background_image) || "";
+			out.sunset_hero_src = sanitizeMediaSrc(src && src.sunset_hero_src);
+			out.canvas_elements = cloneElements(savedElements ? src.canvas_elements : base.canvas_elements);
+			out.canvas_elements.forEach(clampBox);
+			ensureLogoElement(out);
+			return out;
+		}
 		const out = Object.assign({}, DEFAULT_LAYOUT, src || {});
+		out.canvas_mode = "legacy";
 		out.card_color = optionalColor(src && src.card_color);
 		out.text_color = optionalColor(src && src.text_color);
 		out.sunset_hero_src = sanitizeMediaSrc(src && src.sunset_hero_src);
-		const savedElements = src && Array.isArray(src.canvas_elements) && src.canvas_elements.length;
 		out.canvas_elements = cloneElements(savedElements ? src.canvas_elements : DEFAULT_ELEMENTS);
-		/* A saved canvas is the layout. Do not snap it back to a template preset on reload. */
-		out.layout_version = LAYOUT_VERSION;
+		out.layout_version = version || LAYOUT_VERSION;
 		if (!savedElements) repairFooterPlacement(out.canvas_elements);
+		ensureLogoElement(out);
 		return out;
 	}
 
@@ -387,16 +485,24 @@
 		this.formFields = Object.assign({ name: true, email: true, phone: true }, opts.formFields || {});
 		this.sample = Object.assign({
 			title: "Your Event Title",
-			date: "Sat, Apr 18, 2026, 06:30 PM",
-			venue: "Chennai Trade Centre",
+			date: "Sat, Apr 18, 2026",
+			time: "6:30 PM",
+			venue: "Venue name",
 			ticketType: "General Admission",
-			seat: "Seat A12",
+			seat: "A12",
+			qty: "1 Ticket",
 			price: "Rs. 999",
-			bookingId: "JOD-A1B2C3D4",
-			attendeeName: "fullname",
-			attendeeEmail: "contact@jodevents.com",
-			attendeePhone: "+91 91509 04455",
+			bookingId: "BOOKING-12345",
+			ticketId: "TICKET-12345",
+			organizer: "Organizer Name",
+			attendeeName: "Attendee Name",
+			attendeeEmail: "attendee@example.com",
+			attendeePhone: "+91 XXXXX XXXXX",
 		}, opts.sample || {});
+		this._undo = [];
+		this._redo = [];
+		this._historyLock = false;
+		this._snap = "";
 		this.onChange = typeof opts.onChange === "function" ? opts.onChange : function () {};
 		this.onUploadImage = typeof opts.onUploadImage === "function" ? opts.onUploadImage : null;
 		this.selectedId = null;
@@ -410,6 +516,20 @@
 
 	TicketCanvasController.prototype.emitChange = function () {
 		this.syncFlagsFromElements();
+		if (!this._historyLock) {
+			let next = "";
+			try { next = JSON.stringify(this.getLayout()); } catch (_) { next = ""; }
+			if (this._snap && next && next !== this._snap) {
+				this._undo = this._undo || [];
+				this._undo.push(this._snap);
+				if (this._undo.length > 40) this._undo.shift();
+				this._redo = [];
+				this._snap = next;
+			} else if (next) {
+				this._snap = next;
+			}
+		}
+		this.syncUndoButtons();
 		this.onChange(this.getLayout());
 	};
 
@@ -418,18 +538,17 @@
 		(this.layout.canvas_elements || []).forEach(function (el) { present[el.type] = true; });
 		DATA_DEFS.forEach(function (def) {
 			if (!def.flag) return;
-			this.layout[def.flag] = !!present[def.type] || (def.type === "jod_logo" && !this.isPremium);
+			this.layout[def.flag] = !!present[def.type] || def.type === "jod_logo";
 		}.bind(this));
-		if (!this.isPremium) this.layout.show_jod_logo = true;
-		this.layout.show_qr = !!(present.qr || present.booking_id);
+		this.layout.show_jod_logo = true;
+		if (this.layout.canvas_mode !== "custom") {
+			this.layout.show_qr = !!(present.qr || present.booking_id);
+		}
 	};
 
 	TicketCanvasController.prototype.setPremium = function (premium) {
 		this.isPremium = !!premium;
-		if (!this.isPremium) {
-			this.layout.show_jod_logo = true;
-			if (!this.hasElement("jod_logo")) this.addElement("jod_logo", true);
-		}
+		ensureLogoElement(this.layout);
 		this.syncControls();
 		this.renderPreview();
 		this.renderPalette();
@@ -449,10 +568,7 @@
 
 	TicketCanvasController.prototype.setLayout = function (layout) {
 		this.layout = cloneLayout(layout);
-		if (!this.isPremium) {
-			this.layout.show_jod_logo = true;
-			if (!this.hasElement("jod_logo")) this.addElement("jod_logo", true);
-		}
+		ensureLogoElement(this.layout);
 		this.applyFlagsToElements();
 		this.selectedId = null;
 		this.canvasSelected = false;
@@ -461,10 +577,34 @@
 		this.scrollActiveTemplateIntoView();
 		this.renderPalette();
 		this.renderPreview();
+		this.syncSelectedPanel();
+		if (!this._historyLock) {
+			this._undo = [];
+			this._redo = [];
+			try { this._snap = JSON.stringify(this.getLayout()); } catch (_) { this._snap = ""; }
+			this.syncUndoButtons();
+		}
 	};
 
 	TicketCanvasController.prototype.applyFlagsToElements = function () {
 		const L = this.layout;
+		if (L.canvas_mode === "custom") {
+			const seen = {};
+			const keep = [];
+			(L.canvas_elements || []).forEach(function (el) {
+				if (!el || !DEF_BY_TYPE[el.type]) return;
+				if (DEF_BY_TYPE[el.type].shape || DEF_BY_TYPE[el.type].repeatable || el.type === "text" || el.type === "image") {
+					keep.push(el);
+					return;
+				}
+				if (seen[el.type]) return;
+				seen[el.type] = true;
+				keep.push(el);
+			});
+			L.canvas_elements = keep;
+			ensureLogoElement(L);
+			return;
+		}
 		const keep = [];
 		const seen = {};
 		(L.canvas_elements || []).forEach(function (el) {
@@ -474,14 +614,22 @@
 				keep.push(el);
 				return;
 			}
-			if (def.flag && L[def.flag] === false && !(def.type === "jod_logo" && !this.isPremium)) return;
+			if (def.type === "jod_logo") {
+				keep.push(el);
+				seen[el.type] = true;
+				return;
+			}
+			if (def.flag && L[def.flag] === false) return;
 			if (seen[el.type]) return;
 			seen[el.type] = true;
 			keep.push(el);
 		}.bind(this));
+		const legacyTypes = {};
+		DEFAULT_ELEMENTS.forEach(function (el) { legacyTypes[el.type] = true; });
 		DATA_DEFS.forEach(function (def) {
 			if (seen[def.type]) return;
-			const shouldShow = !def.flag || L[def.flag] !== false || (def.type === "jod_logo" && !this.isPremium);
+			if (!legacyTypes[def.type] && L[def.flag] !== true) return;
+			const shouldShow = def.type === "jod_logo" || !def.flag || L[def.flag] !== false;
 			if (!shouldShow) return;
 			const base = DEFAULT_ELEMENTS.find(function (e) { return e.type === def.type; }) || { id: def.type, type: def.type, x: 20, y: 20, w: def.w, h: def.h };
 			keep.push(Object.assign({}, base));
@@ -497,7 +645,7 @@
 	TicketCanvasController.prototype.getLayout = function () {
 		this.syncFlagsFromElements();
 		const out = cloneLayout(this.layout);
-		if (!this.isPremium) out.show_jod_logo = true;
+		ensureLogoElement(out);
 		return out;
 	};
 
@@ -539,12 +687,12 @@
 			next.color = this.layout.text_color || "#111827";
 		}
 		if (type === "stub") next.text = "";
-		if (type === "image") next.src = "";
-		const templateGeo = this.layout.template_id === "midnight"
+		if (type === "image" || type === "organizer_logo") next.src = "";
+		const templateGeo = this.layout.canvas_mode === "custom" ? null : (this.layout.template_id === "midnight"
 			? MIDNIGHT_GEOMETRY
 			: (this.layout.template_id === "sunset"
 				? SUNSET_GEOMETRY
-				: (this.layout.template_id === "vip_gold" ? VIP_GEOMETRY : null));
+				: (this.layout.template_id === "vip_gold" ? VIP_GEOMETRY : null)));
 		if (templateGeo && templateGeo[type]) {
 			next.x = templateGeo[type].x;
 			next.y = templateGeo[type].y;
@@ -567,7 +715,7 @@
 		const type = byId ? byId.type : idOrType;
 		const id = byId ? byId.id : idOrType;
 		const def = DEF_BY_TYPE[type];
-		if (def && def.locked && !this.isPremium && type === "jod_logo") return;
+		if (type === "jod_logo") return;
 		if (byId) {
 			this.layout.canvas_elements = (this.layout.canvas_elements || []).filter(function (e) { return e.id !== id; });
 		} else {
@@ -718,6 +866,16 @@
 		if (sizeWrap) sizeWrap.hidden = false;
 		if (wEl) wEl.value = String(Math.round(item.w));
 		if (hEl) hEl.value = String(Math.round(item.h));
+		const xEl = this.root.querySelector("#ticketElX");
+		const yEl = this.root.querySelector("#ticketElY");
+		const familyEl = this.root.querySelector("#ticketElFamily");
+		const weightEl = this.root.querySelector("#ticketElWeight");
+		const rotateEl = this.root.querySelector("#ticketElRotate");
+		if (xEl) xEl.value = String(Math.round(item.x));
+		if (yEl) yEl.value = String(Math.round(item.y));
+		if (familyEl) familyEl.value = item.fontFamily || "";
+		if (weightEl) weightEl.value = item.fontWeight || "400";
+		if (rotateEl) rotateEl.value = String(Math.round(Number(item.rotation) || 0));
 		if (hWrap) hWrap.hidden = !!isLine;
 		if (fWrap) fWrap.hidden = !showFont;
 		if (fontBtn && showFont) {
@@ -748,7 +906,7 @@
 			}
 		}
 		const imageWrap = this.root.querySelector("#ticketImageEditWrap");
-		if (imageWrap) imageWrap.hidden = item.type !== "image";
+		if (imageWrap) imageWrap.hidden = item.type !== "image" && item.type !== "organizer_logo";
 		if (colorLabel) colorLabel.textContent = item.type === "image" ? "Frame" : (isShapeType(item.type) ? "Shape" : "Text");
 		if (colorInput) {
 			const fallback = isShapeType(item.type) ? (def.color || "#38bdf8") : (this.layout.text_color || preview.text || "#111827");
@@ -756,7 +914,7 @@
 		}
 		const removeBtn = this.root.querySelector("#ticketRemoveSelectedBtn");
 		if (removeBtn) {
-			const lockedLogo = item.type === "jod_logo" && !this.isPremium;
+			const lockedLogo = item.type === "jod_logo";
 			removeBtn.hidden = !!lockedLogo;
 			removeBtn.disabled = !!lockedLogo;
 		}
@@ -803,31 +961,29 @@
 		this.root.innerHTML = [
 			'<div class="ticket-design-studio is-studio-layout">',
 			'  <div class="ticket-studio-toolbar">',
-			'    <div class="ticket-template-carousel">',
-			'      <button type="button" class="ticket-carousel-btn is-prev" id="ticketTemplatePrev" aria-label="Previous designs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>',
-			'      <div class="ticket-template-grid" id="ticketTemplateGrid" role="listbox" aria-label="Ticket templates"></div>',
-			'      <button type="button" class="ticket-carousel-btn is-next" id="ticketTemplateNext" aria-label="More designs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></button>',
-			'    </div>',
 			'    <div class="ticket-canvas-controls ticket-studio-controls-top">',
-			'      <div class="ticket-tool-block">',
-			'        <div class="ticket-palette-title">Add fields</div>',
+			'      <div class="ticket-tool-block" id="ticketElementPanel">',
+			'        <div class="ticket-palette-title">Add elements</div>',
 			'        <div class="ticket-element-palette" id="ticketElementPalette"></div>',
 			'      </div>',
 			'      <div class="ticket-tool-block">',
 			'        <div class="ticket-palette-title">Show on ticket</div>',
 			'        <div class="ticket-toggle-grid">',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowDate" checked /> Date</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowVenue" checked /> Venue</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowType" checked /> Ticket type</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowSeat" checked /> Seat</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowPrice" checked /> Price</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowQr" checked /> QR code</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeeName" checked /> Name</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeePhone" checked /> Phone number</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeeEmail" checked /> Email</label>',
-			'          <label class="ticket-toggle ticket-toggle-premium" id="ticketLogoToggleWrap"><input type="checkbox" id="ticketShowJodLogo" checked /> JOD Events logo</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowDate" /> Date</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowTime" /> Time</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowVenue" /> Venue</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowType" /> Ticket type</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowQty" /> Quantity</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowSeat" /> Seat</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowPrice" /> Price</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowOrganizer" /> Organizer</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowQr" /> QR code</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowTicketId" /> Ticket ID</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeeName" /> Name</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeePhone" /> Phone</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeeEmail" /> Email</label>',
 			'        </div>',
-			'        <p class="ticket-premium-hint" id="ticketPremiumHint">JOD Events logo stays on free plans. Upgrade to Premium to remove it.</p>',
+			'        <p class="ticket-premium-hint" id="ticketPremiumHint">The JOD Events logo stays on every ticket. Its color follows the background.</p>',
 			'      </div>',
 			'      <button type="button" class="ticket-reset-btn" id="ticketResetLayout" hidden>Reset layout</button>',
 			'    </div>',
@@ -869,6 +1025,11 @@
 			'          <label class="ticket-ctrl"><span>Background</span><input type="color" id="ticketCardColor" value="#ffffff" /></label>',
 			'          <label class="ticket-ctrl"><span>Accent</span><input type="color" id="ticketAccentColor" value="#2563eb" /></label>',
 			'        </div>',
+			'        <div class="ticket-hero-upload">',
+			'          <button type="button" class="ticket-hero-upload-btn" id="ticketBgUploadBtn">Background image</button>',
+			'          <input type="file" id="ticketBgImage" accept="image/png,image/jpeg,image/webp" hidden />',
+			'          <button type="button" class="ticket-reset-btn" id="ticketBgClearBtn">Remove image</button>',
+			'        </div>',
 			'      </div>',
 			'      <div class="ticket-float-section ticket-selected-panel" id="ticketSelectedPanel" hidden>',
 			'        <div class="ticket-palette-title">Selected <span id="ticketSelectedLabel"></span></div>',
@@ -885,6 +1046,15 @@
 			'            <button type="button" class="ticket-align-btn" data-align="center" title="Center">Center</button>',
 			'            <button type="button" class="ticket-align-btn" data-align="right" title="Right">Right</button>',
 			'          </div>',
+			'        </div>',
+			'        <div class="ticket-ctrl-row" id="ticketPosRow">',
+			'          <label class="ticket-ctrl"><span>X</span><input type="number" id="ticketElX" min="0" max="96" step="1" /></label>',
+			'          <label class="ticket-ctrl"><span>Y</span><input type="number" id="ticketElY" min="0" max="96" step="1" /></label>',
+			'        </div>',
+			'        <div class="ticket-ctrl-row" id="ticketFontStyleRow">',
+			'          <label class="ticket-ctrl"><span>Font</span><select id="ticketElFamily"><option value="">Default</option><option>Arial</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Courier New</option></select></label>',
+			'          <label class="ticket-ctrl"><span>Weight</span><select id="ticketElWeight"><option value="400">Regular</option><option value="600">Semibold</option><option value="700">Bold</option></select></label>',
+			'          <label class="ticket-ctrl"><span>Rotate</span><input type="number" id="ticketElRotate" min="-180" max="180" step="1" value="0" /></label>',
 			'        </div>',
 			'        <div class="ticket-ctrl-row" id="ticketSizeRow">',
 			'          <label class="ticket-ctrl"><span>Width</span><input type="number" id="ticketElWidth" min="8" max="96" step="1" /></label>',
@@ -914,6 +1084,10 @@
 		this.renderPalette();
 		this.renderPreview();
 		this.syncSelectedPanel();
+		this._undo = [];
+		this._redo = [];
+		try { this._snap = JSON.stringify(this.getLayout()); } catch (_) { this._snap = ""; }
+		this.syncUndoButtons();
 	};
 
 	TicketCanvasController.prototype.bindEvents = function () {
@@ -924,12 +1098,15 @@
 			["ticketAccentColor", "accent_color", "value"],
 			["ticketCardColor", "card_color", "value"],
 			["ticketShowDate", "show_date", "checked", "date"],
+			["ticketShowTime", "show_time", "checked", "time"],
 			["ticketShowVenue", "show_venue", "checked", "venue"],
 			["ticketShowType", "show_ticket_type", "checked", "ticket_type"],
+			["ticketShowQty", "show_qty", "checked", "qty"],
 			["ticketShowSeat", "show_seat", "checked", "seat"],
 			["ticketShowPrice", "show_price", "checked", "price"],
+			["ticketShowOrganizer", "show_organizer", "checked", "organizer"],
 			["ticketShowQr", "show_qr", "checked", "qr"],
-			["ticketShowJodLogo", "show_jod_logo", "checked", "jod_logo"],
+			["ticketShowTicketId", "show_ticket_id", "checked", "ticket_id"],
 			["ticketShowAttendeeName", "show_attendee_name", "checked", "name"],
 			["ticketShowAttendeeEmail", "show_attendee_email", "checked", "email"],
 			["ticketShowAttendeePhone", "show_attendee_phone", "checked", "phone"],
@@ -938,22 +1115,16 @@
 			const el = self.root.querySelector("#" + row[0]);
 			if (!el) return;
 			el.addEventListener("input", function () {
-				if (row[0] === "ticketShowJodLogo" && !self.isPremium) {
-					el.checked = true;
-					self.layout.show_jod_logo = true;
-					if (!self.hasElement("jod_logo")) self.addElement("jod_logo", true);
-					self.renderPreview();
-					return;
+				if (self.layout.canvas_mode !== "custom" && (row[0] === "ticketCardColor" || row[0] === "ticketAccentColor")) {
+					self.layout.canvas_mode = self.layout.canvas_mode || "legacy";
 				}
 				const on = row[2] === "checked" ? !!el.checked : String(el.value || "");
 				self.layout[row[1]] = on;
 				if (row[2] === "checked" && row[3]) {
 					if (on) {
 						self.addElement(row[3], true);
-						if (row[3] === "qr") self.addElement("booking_id", true);
 					} else {
 						self.removeElement(row[3]);
-						if (row[3] === "qr") self.removeElement("booking_id");
 						return;
 					}
 				}
@@ -990,7 +1161,7 @@
 				const file = itemImage.files && itemImage.files[0];
 				if (!file) return;
 				let item = self.findById(self.selectedId);
-				if (!item || item.type !== "image") {
+				if (!item || (item.type !== "image" && item.type !== "organizer_logo")) {
 					self.addElement("image", true);
 					item = self.findById(self.selectedId);
 				}
@@ -1153,7 +1324,7 @@
 			});
 		});
 
-		[["ticketElWidth", "w"], ["ticketElHeight", "h"]].forEach(function (pair) {
+		[["ticketElX", "x"], ["ticketElY", "y"], ["ticketElWidth", "w"], ["ticketElHeight", "h"]].forEach(function (pair) {
 			const el = self.root.querySelector("#" + pair[0]);
 			if (!el) return;
 			el.addEventListener("input", function () {
@@ -1161,10 +1332,14 @@
 				if (!item) return;
 				const key = pair[1];
 				const isLine = item.type === "line" || item.type === "dashed_line";
-				const min = key === "h" && isLine ? 1 : (key === "w" ? 8 : 3);
-				item[key] = clampNum(Number(el.value), min, key === "w" ? 96 : 40, item[key]);
-				if (item.x + item.w > 100) item.x = Math.max(0, 100 - item.w);
-				if (item.y + item.h > 100) item.y = Math.max(0, 100 - item.h);
+				const logo = item.type === "jod_logo";
+				let min = 0;
+				let max = 96;
+				if (key === "w") { min = logo ? 12 : 8; max = logo ? 80 : 96; }
+				else if (key === "h") { min = logo ? 6 : (isLine ? 1 : 3); max = logo ? 28 : 40; }
+				else { min = 0; max = 96; }
+				item[key] = clampNum(Number(el.value), min, max, item[key]);
+				clampBox(item);
 				self.applyNodeBox(item);
 				self.emitChange();
 			});
@@ -1244,7 +1419,7 @@
 			removeSelectedBtn.addEventListener("click", function () {
 				const item = self.findById(self.selectedId);
 				if (!item) return;
-				if (item.type === "jod_logo" && !self.isPremium) return;
+				if (item.type === "jod_logo") return;
 				self.removeElement(self.selectedId);
 			});
 		}
@@ -1252,17 +1427,8 @@
 		const resetBtn = this.root.querySelector("#ticketResetLayout");
 		if (resetBtn) {
 			resetBtn.addEventListener("click", function () {
-				const keep = {
-					template_id: self.layout.template_id,
-					accent_color: self.layout.accent_color,
-					card_color: self.layout.card_color,
-					text_color: self.layout.text_color,
-					headline_override: self.layout.headline_override,
-					ticket_type_override: self.layout.ticket_type_override,
-					custom_footer: self.layout.custom_footer,
-				};
-				self.layout = cloneLayout(Object.assign({}, DEFAULT_LAYOUT, keep));
-				if (!self.isPremium) self.layout.show_jod_logo = true;
+				if (!window.confirm("Reset this draft to a blank landscape ticket? Published tickets stay as they are until you click Update tickets.")) return;
+				self.layout = blankCustomLayout();
 				self.selectedId = null;
 				self.canvasSelected = false;
 				self.syncControls();
@@ -1272,6 +1438,68 @@
 				self.emitChange();
 			});
 		}
+		const familyEl = this.root.querySelector("#ticketElFamily");
+		const weightEl = this.root.querySelector("#ticketElWeight");
+		const rotateEl = this.root.querySelector("#ticketElRotate");
+		function bindStyle(input, key, numeric) {
+			if (!input) return;
+			input.addEventListener("input", function () {
+				const item = self.findById(self.selectedId);
+				if (!item || item.type === "jod_logo") return;
+				item[key] = numeric ? clampNum(Number(input.value), -180, 180, 0) : String(input.value || "");
+				self.renderPreview();
+				self.emitChange();
+			});
+		}
+		bindStyle(familyEl, "fontFamily", false);
+		bindStyle(weightEl, "fontWeight", false);
+		bindStyle(rotateEl, "rotation", true);
+		const bgBtn = this.root.querySelector("#ticketBgUploadBtn");
+		const bgInput = this.root.querySelector("#ticketBgImage");
+		const bgClear = this.root.querySelector("#ticketBgClearBtn");
+		if (bgBtn && bgInput) {
+			bgBtn.addEventListener("click", function () { bgInput.click(); });
+			bgInput.addEventListener("change", function () {
+				const file = bgInput.files && bgInput.files[0];
+				bgInput.value = "";
+				if (!file || typeof self.onUploadImage !== "function") return;
+				Promise.resolve(self.onUploadImage(file)).then(function (src) {
+					const clean = sanitizeMediaSrc(src);
+					if (!clean) return;
+					self.layout.background_image = clean;
+					if (self.layout.canvas_mode !== "custom") self.layout.canvas_mode = "custom";
+					self.renderPreview();
+					self.emitChange();
+				}).catch(function () {});
+			});
+		}
+		if (bgClear) {
+			bgClear.addEventListener("click", function () {
+				self.layout.background_image = "";
+				self.renderPreview();
+				self.emitChange();
+			});
+		}
+		function wireHeader(id, fn) {
+			const btn = document.getElementById(id);
+			if (!btn) return;
+			btn._ticketAction = fn;
+			if (btn._ticketWired) return;
+			btn._ticketWired = true;
+			btn.addEventListener("click", function () {
+				if (typeof btn._ticketAction === "function") btn._ticketAction();
+			});
+		}
+		wireHeader("ticketUndoBtn", function () { self.undo(); });
+		wireHeader("ticketRedoBtn", function () { self.redo(); });
+		wireHeader("ticketOrientLandscape", function () { self.setOrientation("landscape"); });
+		wireHeader("ticketOrientPortrait", function () { self.setOrientation("portrait"); });
+		wireHeader("ticketPreviewBtn", function () { self.openPreview(); });
+		wireHeader("ticketAddElementsBtn", function () {
+			if (window.matchMedia(DRAWER_QUERY).matches) self.setToolsOpen(true);
+			const panel = self.root.querySelector("#ticketElementPanel");
+			if (panel && panel.scrollIntoView) panel.scrollIntoView({ block: "nearest" });
+		});
 
 		document.addEventListener("pointermove", function (ev) { self.onPointerMove(ev); }, true);
 		document.addEventListener("pointerup", function (ev) { self.onPointerEnd(ev); }, true);
@@ -1443,29 +1671,25 @@
 		setVal("ticketAccentColor", L.accent_color || preview.accent || "#2563eb");
 		setVal("ticketCardColor", L.card_color || preview.card || "#ffffff");
 		setChk("ticketShowDate", this.hasElement("date"));
+		setChk("ticketShowTime", this.hasElement("time"));
 		setChk("ticketShowVenue", this.hasElement("venue"));
 		setChk("ticketShowType", this.hasElement("ticket_type"));
+		setChk("ticketShowQty", this.hasElement("qty"));
 		setChk("ticketShowSeat", this.hasElement("seat"));
 		setChk("ticketShowPrice", this.hasElement("price"));
-		setChk("ticketShowQr", this.hasElement("qr") || this.hasElement("booking_id"));
-		setChk("ticketShowJodLogo", this.hasElement("jod_logo") || !this.isPremium);
+		setChk("ticketShowOrganizer", this.hasElement("organizer"));
+		setChk("ticketShowQr", this.hasElement("qr"));
+		setChk("ticketShowTicketId", this.hasElement("ticket_id"));
 		setChk("ticketShowAttendeeName", this.hasElement("name"));
 		setChk("ticketShowAttendeeEmail", this.hasElement("email"));
 		setChk("ticketShowAttendeePhone", this.hasElement("phone"));
-
-		const logoEl = this.root.querySelector("#ticketShowJodLogo");
-		const wrap = this.root.querySelector("#ticketLogoToggleWrap");
 		const hint = this.root.querySelector("#ticketPremiumHint");
-		if (logoEl) {
-			logoEl.disabled = !this.isPremium;
-			if (!this.isPremium) logoEl.checked = true;
-		}
-		if (wrap) wrap.classList.toggle("is-locked", !this.isPremium);
-		if (hint) {
-			hint.textContent = this.isPremium
-				? "Premium active - drag or remove the JOD logo on the canvas."
-				: "JOD Events logo stays on free plans. Upgrade to Premium to remove it.";
-		}
+		if (hint) hint.textContent = "The JOD Events logo stays on every ticket. Its color follows the background.";
+		const landBtn = document.getElementById("ticketOrientLandscape");
+		const portBtn = document.getElementById("ticketOrientPortrait");
+		const orient = (L.canvas_mode === "custom" && L.orientation === "portrait") ? "portrait" : (L.canvas_mode === "custom" ? "landscape" : "");
+		if (landBtn) landBtn.classList.toggle("is-active", orient === "landscape");
+		if (portBtn) portBtn.classList.toggle("is-active", orient === "portrait");
 		const heroSection = this.root.querySelector("#ticketHeroUploadSection");
 		const heroBtn = this.root.querySelector("#ticketHeroUploadBtn");
 		const sunsetOn = (L.template_id || "") === "sunset";
@@ -1476,16 +1700,107 @@
 
 	TicketCanvasController.prototype.syncFormFieldToggles = function () {};
 
+	TicketCanvasController.prototype.syncUndoButtons = function () {
+		const undo = document.getElementById("ticketUndoBtn");
+		const redo = document.getElementById("ticketRedoBtn");
+		if (undo) undo.disabled = !(this._undo && this._undo.length);
+		if (redo) redo.disabled = !(this._redo && this._redo.length);
+	};
+
+	TicketCanvasController.prototype.undo = function () {
+		if (!this._undo || !this._undo.length) return;
+		this._redo = this._redo || [];
+		if (this._snap) this._redo.push(this._snap);
+		const prev = this._undo.pop();
+		this._historyLock = true;
+		try { this.setLayout(JSON.parse(prev)); } catch (_) {}
+		this._snap = prev;
+		this._historyLock = false;
+		this.syncUndoButtons();
+		this.onChange(this.getLayout());
+	};
+
+	TicketCanvasController.prototype.redo = function () {
+		if (!this._redo || !this._redo.length) return;
+		this._undo = this._undo || [];
+		if (this._snap) this._undo.push(this._snap);
+		const next = this._redo.pop();
+		this._historyLock = true;
+		try { this.setLayout(JSON.parse(next)); } catch (_) {}
+		this._snap = next;
+		this._historyLock = false;
+		this.syncUndoButtons();
+		this.onChange(this.getLayout());
+	};
+
+	TicketCanvasController.prototype.setOrientation = function (next) {
+		const orient = next === "portrait" ? "portrait" : "landscape";
+		if (this.layout.canvas_mode === "custom" && this.layout.orientation === orient) return;
+		this.layout.canvas_mode = "custom";
+		this.layout.orientation = orient;
+		this.layout.layout_version = 11;
+		(this.layout.canvas_elements || []).forEach(clampBox);
+		ensureLogoElement(this.layout);
+		this.syncControls();
+		this.renderPreview();
+		this.emitChange();
+	};
+
+	TicketCanvasController.prototype.openPreview = function () {
+		let modal = document.getElementById("ticketPreviewModal");
+		if (!modal) {
+			modal = document.createElement("div");
+			modal.id = "ticketPreviewModal";
+			modal.className = "ticket-preview-modal";
+			modal.innerHTML = '<div class="ticket-preview-dialog" role="dialog" aria-modal="true" aria-label="Ticket preview"><div class="ticket-preview-bar"><strong>Preview</strong><button type="button" class="ticket-reset-btn" id="ticketPreviewClose">Close</button></div><div id="ticketPreviewStage"></div><p class="ticket-preview-note">Sample details only. Attendee PDFs use the published design for this event.</p></div>';
+			document.body.appendChild(modal);
+			modal.addEventListener("click", function (ev) {
+				if (ev.target === modal || (ev.target && ev.target.id === "ticketPreviewClose")) modal.hidden = true;
+			});
+		}
+		const stage = document.getElementById("ticketPreviewStage");
+		const card = this.root && this.root.querySelector("#ticketLiveCard");
+		if (stage) {
+			stage.innerHTML = "";
+			if (card) {
+				const clone = card.cloneNode(true);
+				clone.querySelectorAll(".tc-handles, .tc-node-remove, .tc-guides").forEach(function (node) { node.remove(); });
+				clone.classList.remove("has-selection", "is-canvas-selected");
+				clone.classList.add("is-preview");
+				stage.appendChild(clone);
+			}
+		}
+		modal.hidden = false;
+	};
+
+	TicketCanvasController.prototype.jodLogoSrc = function () {
+		const L = this.layout || {};
+		if (L.background_image) return LOGO_BLACK;
+		const light = relativeLuminance(L.card_color || "#ffffff") > 0.179;
+		return light ? LOGO_BLACK : LOGO_WHITE;
+	};
+
 	TicketCanvasController.prototype.renderPalette = function () {
 		const self = this;
 		const dataHost = this.root && this.root.querySelector("#ticketElementPalette");
 		const shapeHost = this.root && this.root.querySelector("#ticketShapePalette");
 		if (dataHost) {
-			dataHost.innerHTML = DATA_DEFS.map(function (def) {
-				const onCanvas = self.hasElement(def.type);
-				const locked = def.locked && !self.isPremium && def.type === "jod_logo";
-				const disabled = onCanvas || locked;
-				return '<button type="button" class="ticket-palette-chip' + (onCanvas ? " is-on" : "") + '" data-add-type="' + def.type + '"' + (disabled ? " disabled" : "") + ">" + escapeHtml(def.label) + (onCanvas ? " ✓" : " +") + "</button>";
+			const groups = [
+				{ title: "Event information", types: ["poster", "title", "date", "time", "venue", "ticket_type", "qty", "seat", "price", "organizer"] },
+				{ title: "Attendee information", types: ["name", "phone", "email", "booking_id", "ticket_id", "qr"] },
+				{ title: "Branding", types: ["jod_logo", "organizer_logo"] },
+				{ title: "Design elements", types: ["text", "image", "line", "dashed_line", "rectangle", "circle"] },
+			];
+			dataHost.innerHTML = groups.map(function (group) {
+				const chips = group.types.map(function (type) {
+					const def = DEF_BY_TYPE[type];
+					if (!def) return "";
+					const onCanvas = self.hasElement(type);
+					const locked = type === "jod_logo";
+					const disabled = (onCanvas && !def.repeatable) || locked;
+					return '<button type="button" class="ticket-palette-chip' + (onCanvas ? " is-on" : "") + '" data-add-type="' + type + '"' + (disabled ? " disabled" : "") + ">" + escapeHtml(def.label) + (onCanvas && !def.repeatable ? " ✓" : " +") + "</button>";
+				}).join("");
+				return '<div class="ticket-palette-group"><h4>' + escapeHtml(group.title) + "</h4><div class=\"ticket-palette-chips\">" + chips + "</div></div>";
 			}).join("");
 			dataHost.querySelectorAll("[data-add-type]").forEach(function (btn) {
 				btn.addEventListener("click", function () { self.addElement(btn.getAttribute("data-add-type")); });
@@ -1583,9 +1898,10 @@
 		const title = (L.headline_override || "").trim() || s.title;
 		const ticketLabel = (L.ticket_type_override || "").trim() || s.ticketType;
 		const color = sanitizeColor(el.color, "#38bdf8");
-		const isSunset = L.template_id === "sunset";
-		const isVip = L.template_id === "vip_gold";
-		const isMidnight = L.template_id === "midnight";
+		const custom = L.canvas_mode === "custom";
+		const isSunset = !custom && L.template_id === "sunset";
+		const isVip = !custom && L.template_id === "vip_gold";
+		const isMidnight = !custom && L.template_id === "midnight";
 		const sgDetail = function (_label, value) {
 			return '<div class="sg-detail"><strong>' + escapeHtml(value) + "</strong></div>";
 		};
@@ -1610,6 +1926,14 @@
 					? '<div class="vg-sub">' + escapeHtml(title) + "</div>"
 					: '<div class="tc-el-title">' + escapeHtml(title) + "</div>");
 			case "badge": return '<div class="tc-el-badge">E-Ticket</div>';
+			case "time": return '<div class="tc-el-text">' + escapeHtml(s.time || "6:30 PM") + "</div>";
+			case "organizer": return '<div class="tc-el-text">' + escapeHtml(s.organizer || "Organizer Name") + "</div>";
+			case "ticket_id": return '<div class="tc-el-text strong">' + escapeHtml(s.ticketId || "TICKET-12345") + "</div>";
+			case "organizer_logo": {
+				const src = String(el.src || "").trim();
+				if (src) return '<div class="tc-el-image"><img src="' + escapeHtml(src) + '" alt="" draggable="false" /></div>';
+				return '<div class="tc-el-image is-empty">Organizer logo</div>';
+			}
 			case "date": {
 				if (isVip) return vgDetail("DATE", s.date);
 				if (isSunset) return sgDetail("DATE", s.date);
@@ -1667,14 +1991,17 @@
 					: (isMidnight
 						? '<div class="tc-el-price"><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"
 						: '<div class="tc-el-price"><span class="tc-price-label">Price</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"));
-			case "jod_logo": return '<div class="tc-el-logo is-watermark" aria-label="JOD Events"><img src="/images/JOD%20Events%20Logo.png" alt="JOD Events" draggable="false" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'/images/jod-logo.png\';}" /></div>';
+			case "jod_logo": {
+				const plate = L.background_image ? " is-plate" : "";
+				return '<div class="tc-el-logo is-watermark' + plate + '" aria-label="JOD Events"><img src="' + this.jodLogoSrc() + '" alt="JOD Events" draggable="false" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'' + LOGO_BLACK + '\';}" /></div>';
+			}
 			case "footer": {
 				const note = String(L.custom_footer || "").trim();
 				if (!note) return '<div class="tc-el-text muted tc-el-placeholder">Footer note</div>';
 				return '<div class="tc-el-text muted">' + escapeHtml(note) + "</div>";
 			}
 			case "text": return '<div class="tc-el-text">' + escapeHtml(el.text || "Your text") + "</div>";
-			case "line": return '<div class="tc-shape-line" style="background:' + color + ';"></div>';
+			case "line": return '<div class="tc-shape-line' + (Number(el.h) > Number(el.w) ? " is-vertical" : "") + '" style="background:' + color + ';"></div>';
 			case "dashed_line": return '<div class="tc-shape-line is-dashed" style="border-top-color:' + color + ';"></div>';
 			case "rectangle": return '<div class="tc-shape-rect" style="border-color:' + color + ';background:color-mix(in srgb, ' + color + ' 18%, transparent);"></div>';
 			case "circle": return '<div class="tc-shape-circle" style="border-color:' + color + ';background:color-mix(in srgb, ' + color + ' 22%, transparent);"></div>';
@@ -1761,17 +2088,23 @@
 		const self = this;
 		const hasSel = !!this.selectedId;
 
-		const isMidnight = (tmpl.id || "") === "midnight";
-		const isSunset = (tmpl.id || "") === "sunset";
-		const isVip = (tmpl.id || "") === "vip_gold";
+		const custom = L.canvas_mode === "custom";
+		const isMidnight = !custom && (tmpl.id || "") === "midnight";
+		const isSunset = !custom && (tmpl.id || "") === "sunset";
+		const isVip = !custom && (tmpl.id || "") === "vip_gold";
 		stage.style.background = isMidnight ? "#12081f" : (isSunset ? "#2a120c" : (isVip ? "#111111" : (p.bg || "#f4f6f8")));
 		const heroSrc = isSunset ? sanitizeMediaSrc(L.sunset_hero_src) : "";
-		card.className = "ticket-live-card is-canvas style-" + (tmpl.id || "classic") + (hasSel ? " has-selection" : "") + (this.canvasSelected && !hasSel ? " is-canvas-selected" : "");
+		const orientClass = custom ? (" is-custom is-orient-" + (L.orientation === "portrait" ? "portrait" : "landscape")) : "";
+		card.className = "ticket-live-card is-canvas style-" + (custom ? "custom" : (tmpl.id || "classic")) + orientClass + (hasSel ? " has-selection" : "") + (this.canvasSelected && !hasSel ? " is-canvas-selected" : "");
+		const customBg = L.card_color || "#ffffff";
 		card.style.background = isMidnight
 			? "linear-gradient(118deg, #4c1d95 0%, #6d28d9 46%, #7c3aed 100%)"
-			: (isSunset ? "#ff7a1a" : (isVip ? "#e6c15a" : (L.card_color || p.card || "#fff")));
-		card.style.backgroundImage = (isSunset || isVip) ? "none" : "";
-		card.style.color = L.text_color || (isMidnight || isSunset ? "#ffffff" : (isVip ? "#111111" : (p.text || "#111827")));
+			: (isSunset ? "#ff7a1a" : (isVip ? "#e6c15a" : (custom ? customBg : (L.card_color || p.card || "#fff"))));
+		const bgUrl = custom ? sanitizeMediaSrc(L.background_image) : "";
+		card.style.backgroundImage = bgUrl ? ("url(\"" + bgUrl.replace(/"/g, "") + "\")") : ((isSunset || isVip || custom) ? "none" : "");
+		card.style.backgroundSize = bgUrl ? "cover" : "";
+		card.style.backgroundPosition = bgUrl ? "center" : "";
+		card.style.color = L.text_color || (custom ? (relativeLuminance(customBg) > 0.179 ? "#111111" : "#ffffff") : (isMidnight || isSunset ? "#ffffff" : (isVip ? "#111111" : (p.text || "#111827"))));
 		card.style.setProperty("--ticket-accent", isMidnight ? "#c4b5fd" : accent);
 		card.style.setProperty("--ticket-muted", isMidnight ? "#ddd6fe" : (isSunset ? "#78716c" : (isVip ? "#d4a017" : (p.muted || "#6b7280"))));
 		card.style.setProperty("--ticket-stage", isMidnight ? "#12081f" : (isSunset ? "#2a120c" : (isVip ? "#111111" : (p.bg || "#f4f6f8"))));
@@ -1789,7 +2122,7 @@
 			'<div class="tc-guides" id="ticketGuides" aria-hidden="true"></div>',
 		];
 		(L.canvas_elements || []).forEach(function (el) {
-			const locked = el.type === "jod_logo" && !self.isPremium;
+			const locked = el.type === "jod_logo";
 			const selected = self.selectedId === el.id;
 			const def = DEF_BY_TYPE[el.type] || {};
 			const isLine = el.type === "line" || el.type === "dashed_line";
@@ -1825,7 +2158,10 @@
 					(customFont ? " has-font-size" : "") +
 					'" data-id="' + escapeHtml(el.id) + '" data-type="' + el.type +
 					'" style="left:' + el.x + "%;top:" + el.y + "%;width:" + el.w + "%;height:" + el.h +
-					"%;--tc-font-scale:" + scale + ";" + (customFont ? "--tc-font-px:" + fontPx + "px;" : "") + (paint ? "color:" + paint + ";" : "") + '">' +
+					"%;--tc-font-scale:" + scale + ";" + (customFont ? "--tc-font-px:" + fontPx + "px;" : "") + (paint ? "color:" + paint + ";" : "") +
+					(el.fontFamily ? "font-family:" + escapeHtml(el.fontFamily) + ",sans-serif;" : "") +
+					(el.fontWeight ? "font-weight:" + escapeHtml(el.fontWeight) + ";" : "") +
+					(el.rotation ? "transform:rotate(" + Number(el.rotation) + "deg);" : "") + '">' +
 				'<div class="tc-node-body">' + self.elementContent(el) + "</div>" +
 				removeCtrl +
 				'<div class="tc-handles" aria-hidden="true">' + handles + "</div>" +

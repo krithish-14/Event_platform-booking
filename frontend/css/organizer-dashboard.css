@@ -6283,3 +6283,92 @@ html[data-theme="dark"] .ticket-float-close {
 		flex-direction: column;
 	}
 }
+
+.ticket-studio-actions .ticket-reset-btn.is-active {
+	background: #0f172a;
+	color: #fff;
+	border-color: #0f172a;
+}
+.ticket-palette-group {
+	margin: 0 0 0.7rem;
+}
+.ticket-palette-group h4 {
+	margin: 0 0 0.35rem;
+	font-size: 0.72rem;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: #64748b;
+}
+.ticket-palette-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas.is-custom.is-orient-landscape {
+	width: min(100%, 760px);
+	height: auto;
+	aspect-ratio: 16 / 9;
+}
+.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas.is-custom.is-orient-portrait {
+	width: min(100%, 420px);
+	height: auto;
+	aspect-ratio: 3 / 4;
+}
+.tc-el-logo.is-plate {
+	background: #ffffff;
+	border-radius: 8px;
+	padding: 4px;
+	box-sizing: border-box;
+}
+.tc-shape-line.is-vertical {
+	width: 3px;
+	height: 100%;
+	align-self: center;
+}
+.ticket-preview-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 80;
+	background: rgba(15, 23, 42, 0.55);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+}
+.ticket-preview-modal[hidden] {
+	display: none !important;
+}
+.ticket-preview-dialog {
+	width: min(100%, 860px);
+	max-height: calc(100vh - 2rem);
+	overflow: auto;
+	background: #f8fafc;
+	border-radius: 16px;
+	padding: 1rem;
+}
+.ticket-preview-bar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 0.8rem;
+}
+.ticket-preview-note {
+	margin: 0.8rem 0 0;
+	color: #64748b;
+	font-size: 0.82rem;
+}
+.ticket-preview-dialog .ticket-live-card.is-preview {
+	margin: 0 auto;
+	pointer-events: none;
+}
+@media (max-width: 960px) {
+	.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas.is-custom.is-orient-landscape,
+	.ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas.is-custom.is-orient-portrait {
+		width: min(100%, 100%);
+		height: auto;
+	}
+	.ticket-studio-actions .ticket-reset-btn,
+	.ticket-studio-actions .ticket-publish-btn {
+		min-height: 40px;
+	}
+}

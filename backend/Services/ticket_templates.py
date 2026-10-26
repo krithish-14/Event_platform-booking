@@ -1,6 +1,8 @@
 """Host ticket design templates for canvas preview + PDF accents.
 
-Free hosts always keep the JOD Events logo. Premium hosts may hide it.
+Custom canvas layouts (canvas_mode=custom) always keep the JOD Events logo,
+on every plan. Older preset layouts keep their saved logo flag so a premium
+ticket that hid the logo is not changed until the host publishes a new design.
 """
 
 from __future__ import annotations
@@ -90,7 +92,85 @@ DEFAULT_LAYOUT: Dict[str, Any] = {
     "custom_footer": "",
     "headline_override": "",
     "ticket_type_override": "",
+    "canvas_mode": "",
+    "orientation": "",
+    "background_image": "",
 }
+
+
+def relative_luminance(hex_color: str) -> float:
+    """sRGB relative luminance, 0 (black) to 1 (white)."""
+    r, g, b = hex_to_rgb01(hex_color or "#ffffff")
+
+    def _channel(c: float) -> float:
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * _channel(r) + 0.7152 * _channel(g) + 0.0722 * _channel(b)
+
+
+def logo_variant_for_color(hex_color: str) -> str:
+    """Light backgrounds use the black wordmark. Dark backgrounds use white."""
+    return "black" if relative_luminance(hex_color) > 0.179 else "white"
+
+
+def _is_custom_layout(raw: Dict[str, Any]) -> bool:
+    return str(raw.get("canvas_mode") or "").strip().lower() == "custom"
+
+
+def _clamp_custom_box(entry: Dict[str, Any]) -> None:
+    """Keep a percentage box inside the ticket, including the logo and QR."""
+    entry["w"] = max(4.0, min(100.0, float(entry["w"])))
+    entry["h"] = max(2.0, min(100.0, float(entry["h"])))
+    if entry["x"] + entry["w"] > 100.0:
+        entry["x"] = max(0.0, 100.0 - entry["w"])
+    if entry["y"] + entry["h"] > 100.0:
+        entry["y"] = max(0.0, 100.0 - entry["h"])
+    entry["x"] = max(0.0, min(100.0, float(entry["x"])))
+    entry["y"] = max(0.0, min(100.0, float(entry["y"])))
+
+
+def _ensure_custom_logo(elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if any(str(el.get("type") or "") == "jod_logo" for el in elements):
+        for el in elements:
+            if str(el.get("type") or "") == "jod_logo":
+                el["w"] = max(12.0, min(80.0, float(el.get("w") or 32)))
+                el["h"] = max(6.0, min(28.0, float(el.get("h") or 14)))
+                _clamp_custom_box(el)
+        return elements
+    logo = {
+        "id": "jod_logo",
+        "type": "jod_logo",
+        "x": 4.0,
+        "y": 78.0,
+        "w": 32.0,
+        "h": 14.0,
+    }
+    _clamp_custom_box(logo)
+    return elements + [logo]
+
+
+def ticket_layout_publish_error(layout: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Block a custom publish that drops the logo or clips the QR / logo."""
+    raw = layout if isinstance(layout, dict) else {}
+    if not _is_custom_layout(raw):
+        return None
+    elements = raw.get("canvas_elements") if isinstance(raw.get("canvas_elements"), list) else []
+    logo = next((el for el in elements if isinstance(el, dict) and el.get("type") == "jod_logo"), None)
+    if not logo or not bool(raw.get("show_jod_logo", True)):
+        return "The JOD Events logo must stay on the ticket."
+    for el in elements:
+        if not isinstance(el, dict) or el.get("type") not in {"jod_logo", "qr"}:
+            continue
+        try:
+            x = float(el.get("x", 0))
+            y = float(el.get("y", 0))
+            w = float(el.get("w", 0))
+            h = float(el.get("h", 0))
+        except (TypeError, ValueError):
+            return "The QR code and JOD Events logo must stay inside the ticket."
+        if x < -0.5 or y < -0.5 or x + w > 100.5 or y + h > 100.5 or w < 4 or h < 2:
+            return "The QR code and JOD Events logo must stay inside the ticket."
+    return None
 
 
 def list_templates_public() -> List[Dict[str, Any]]:
@@ -169,6 +249,16 @@ def normalize_ticket_layout(
     hero_src = str(raw.get("sunset_hero_src") or "").strip()
     if hero_src.startswith(("https://", "http://", "/")) and len(hero_src) <= 800:
         base["sunset_hero_src"] = hero_src
+    bg_image = str(raw.get("background_image") or "").strip()
+    if bg_image.startswith(("https://", "http://", "/")) and len(bg_image) <= 800:
+        base["background_image"] = bg_image
+    custom = _is_custom_layout(raw)
+    if custom:
+        base["canvas_mode"] = "custom"
+        orient = str(raw.get("orientation") or "landscape").strip().lower()
+        base["orientation"] = "portrait" if orient == "portrait" else "landscape"
+    elif str(raw.get("canvas_mode") or "").strip().lower() == "legacy":
+        base["canvas_mode"] = "legacy"
 
     elements = raw.get("canvas_elements")
     cleaned_elements = []
@@ -176,7 +266,9 @@ def normalize_ticket_layout(
     text_types = {
         "title", "date", "venue", "qty", "ticket_type", "seat", "name", "phone",
         "email", "booking_id", "price", "footer", "badge", "text", "stub",
+        "time", "organizer", "ticket_id",
     }
+    font_families = {"Arial", "Georgia", "Courier New", "Times New Roman", "Verdana"}
     if isinstance(elements, list):
         seen_data = set()
         seen_ids = set()
@@ -224,10 +316,34 @@ def normalize_ticket_layout(
                 entry["text"] = str(item.get("text") or "Your text").strip()[:120] or "Your text"
             if etype == "stub":
                 entry["text"] = str(item.get("text") or "").strip()[:120]
-            if etype == "image":
+            if etype in {"image", "organizer_logo"}:
                 src = str(item.get("src") or "").strip()
                 if src.startswith(("https://", "http://", "/")) and len(src) <= 800:
                     entry["src"] = src
+            family = str(item.get("fontFamily") or "").strip()
+            if family in font_families:
+                entry["fontFamily"] = family
+            weight = str(item.get("fontWeight") or "").strip()
+            if weight in {"400", "500", "600", "700", "800"}:
+                entry["fontWeight"] = weight
+            fill = _hex(item.get("fill"), "")
+            if fill:
+                entry["fill"] = fill
+            border = _hex(item.get("borderColor"), "")
+            if border:
+                entry["borderColor"] = border
+            try:
+                border_width = float(item.get("borderWidth", 0))
+            except (TypeError, ValueError):
+                border_width = 0
+            if 0 < border_width <= 12:
+                entry["borderWidth"] = round(border_width, 1)
+            try:
+                rotation = float(item.get("rotation", 0))
+            except (TypeError, ValueError):
+                rotation = 0
+            if -180 <= rotation <= 180 and abs(rotation) >= 0.5:
+                entry["rotation"] = round(rotation, 1)
             font_steps = {6, 8, 10, 12, 14, 16, 18, 21, 24, 28, 32, 36, 42, 48, 56, 64, 72, 80, 96}
             try:
                 font_size = int(round(float(item.get("fontSize", 0))))
@@ -241,7 +357,11 @@ def normalize_ticket_layout(
                 font_scale = 1.0
             if 0.4 <= font_scale <= 8 and abs(font_scale - 1.0) > 0.01:
                 entry["fontScale"] = round(font_scale, 2)
+            if custom:
+                _clamp_custom_box(entry)
             cleaned_elements.append(entry)
+    if custom:
+        cleaned_elements = _ensure_custom_logo(cleaned_elements)
     if cleaned_elements:
         base["canvas_elements"] = cleaned_elements
     try:
@@ -251,7 +371,10 @@ def normalize_ticket_layout(
     if version > 0:
         base["layout_version"] = version
 
-    if not is_premium:
+    if custom:
+        base["show_jod_logo"] = True
+        base["layout_version"] = max(11, int(base.get("layout_version") or 0))
+    elif not is_premium:
         base["show_jod_logo"] = True
 
     return base

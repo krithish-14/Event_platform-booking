@@ -759,6 +759,7 @@ _CANVAS_HIDDEN = {
 }
 _CANVAS_FLAGS = {
     "date": "show_date",
+    "time": "show_time",
     "venue": "show_venue",
     "ticket_type": "show_ticket_type",
     "seat": "show_seat",
@@ -767,6 +768,9 @@ _CANVAS_FLAGS = {
     "email": "show_attendee_email",
     "qr": "show_qr",
     "price": "show_price",
+    "qty": "show_qty",
+    "organizer": "show_organizer",
+    "ticket_id": "show_ticket_id",
     "jod_logo": "show_jod_logo",
 }
 _CENTER_TYPES = {"qty", "ticket_type", "seat", "booking_id", "footer", "badge"}
@@ -981,20 +985,39 @@ def _render_canvas_ticket(
     poster,
     logo,
     show_qr: bool,
+    organizer_name: str = "",
 ) -> Optional[dict]:
     """Place every host canvas element on a ticket with the same proportions."""
     elements = [el for el in (layout.get("canvas_elements") or []) if isinstance(el, dict)]
     if not elements:
         return None
-    template_id = str(layout.get("template_id") or "classic")
+    custom = str(layout.get("canvas_mode") or "") == "custom"
+    template_id = "custom" if custom else str(layout.get("template_id") or "classic")
     if layout.get("text_color"):
         text_rgb = hex_to_rgb01_safe(layout.get("text_color"))
-    if layout.get("card_color") and template_id not in {"midnight", "sunset", "vip_gold"}:
-        card_rgb = hex_to_rgb01_safe(layout.get("card_color"))
-    page_w, page_h, card_x, card_y, card_w, card_h, css_h = canvas_page_metrics(template_id)
-    hidden = set(_CANVAS_HIDDEN.get(template_id, set()))
-    if template_id not in {"midnight", "sunset"}:
-        hidden.add("stub")
+    if custom:
+        orient = "portrait" if str(layout.get("orientation") or "") == "portrait" else "landscape"
+        if orient == "portrait":
+            page_w, page_h, css_h = 570.0, 760.0, 760.0
+        else:
+            page_w, page_h, css_h = 760.0, 427.5, 427.5
+        card_x, card_y, card_w, card_h = 0.0, 0.0, page_w, page_h
+        card_rgb = hex_to_rgb01_safe(layout.get("card_color") or "#ffffff")
+        if not layout.get("text_color"):
+            text_rgb = hex_to_rgb01_safe("#111111")
+        hidden = set()
+        from Services.ticket_templates import logo_variant_for_color
+        variant = "black" if layout.get("background_image") else logo_variant_for_color(layout.get("card_color") or "#ffffff")
+        chosen = _load_jod_logo_image(variant)
+        if chosen:
+            logo = chosen
+    else:
+        if layout.get("card_color") and template_id not in {"midnight", "sunset", "vip_gold"}:
+            card_rgb = hex_to_rgb01_safe(layout.get("card_color"))
+        page_w, page_h, card_x, card_y, card_w, card_h, css_h = canvas_page_metrics(template_id)
+        hidden = set(_CANVAS_HIDDEN.get(template_id, set()))
+        if template_id not in {"midnight", "sunset"}:
+            hidden.add("stub")
 
     def _rgb(rgb):
         return f"{rgb[0]:.3f} {rgb[1]:.3f} {rgb[2]:.3f}"
@@ -1008,7 +1031,9 @@ def _render_canvas_ticket(
         f"{_round_rect_path(card_x, card_y, card_w, card_h, radius)} f",
     ]
     resource_extra = ""
-    if template_id == "midnight":
+    if custom:
+        pass
+    elif template_id == "midnight":
         resource_extra = _midnight_resources(card_x, card_y, card_w, card_h)
         _paint_midnight_face(ops, card_x, card_y, card_w, card_h)
     elif template_id == "vip_gold":
@@ -1057,12 +1082,26 @@ def _render_canvas_ticket(
 
     xobjects: dict[str, tuple[bytes, int, int, str]] = {}
     image_seq = 0
+    if custom and layout.get("background_image"):
+        bg = _load_poster_image(_absolute_media_url(str(layout.get("background_image") or "")))
+        if bg:
+            filt, payload, iw, ih = bg[0], bg[1], bg[2], bg[3]
+            xobjects["ImB"] = (payload, iw, ih, filt)
+            ops.append(_cover_image("ImB", card_x, card_y, card_w, card_h, iw, ih, 0))
     price_text = _money(total)
     qty_text = "1 Ticket" if qty == 1 else f"{qty} Tickets"
+    date_value = date_label
+    time_value = ""
+    if custom and date_label.count(",") >= 3:
+        date_value, time_value = date_label.rsplit(",", 1)
+        date_value = date_value.strip()
+        time_value = time_value.strip()
+    booking_text = booking_label if template_id in {"midnight", "sunset", "vip_gold", "custom"} else f"BOOKING ID: #{booking_label}"
     values = {
         "title": title,
         "badge": "E-Ticket",
-        "date": date_label,
+        "date": date_value,
+        "time": time_value or "Time TBA",
         "venue": venue_label,
         "qty": qty_text,
         "ticket_type": type_label,
@@ -1070,8 +1109,10 @@ def _render_canvas_ticket(
         "name": guest_name,
         "phone": guest_phone,
         "email": guest_email,
-        "booking_id": f"BOOKING ID: #{booking_label}" if template_id not in {"midnight", "sunset", "vip_gold"} else booking_label,
-        "price": price_text if template_id in {"midnight", "sunset", "vip_gold"} else f"Price  {price_text}",
+        "booking_id": booking_text,
+        "ticket_id": f"TICKET-{booking_label}",
+        "organizer": _ascii_text(organizer_name, "") or "Organizer",
+        "price": price_text if template_id in {"midnight", "sunset", "vip_gold", "custom"} else f"Price  {price_text}",
         "footer": custom_footer,
     }
     plain_types = {"midnight", "sunset", "vip_gold"}
@@ -1105,8 +1146,12 @@ def _render_canvas_ticket(
             if etype == "dashed_line":
                 ops.append("[3 2] 0 d")
             ops.extend([
-                f"{color} RG {max(1.0, h * 0.35):.1f} w",
-                f"{x:.1f} {y + h / 2.0:.1f} m {x + w:.1f} {y + h / 2.0:.1f} l S",
+                f"{color} RG {max(1.0, min(w, h) * 0.35):.1f} w",
+                (
+                    f"{x + w / 2.0:.1f} {y:.1f} m {x + w / 2.0:.1f} {y + h:.1f} l S"
+                    if h > w * 1.4
+                    else f"{x:.1f} {y + h / 2.0:.1f} m {x + w:.1f} {y + h / 2.0:.1f} l S"
+                ),
             ])
             if etype == "dashed_line":
                 ops.append("[] 0 d")
@@ -1120,10 +1165,13 @@ def _render_canvas_ticket(
             continue
         if etype == "circle":
             color = _rgb(hex_to_rgb01_safe(own or "#22d3ee"))
-            ops.extend([
-                f"{color} RG 1.2 w",
-                f"{x:.1f} {y:.1f} {w:.1f} {h:.1f} re S",
-            ])
+            fill = str(el.get("fill") or "").strip()
+            ops.append(f"{color} RG 1.2 w")
+            if fill.startswith("#"):
+                ops.append(f"{_rgb(hex_to_rgb01_safe(fill))} rg")
+                ops.append(_ellipse_path(x + w / 2.0, y + h / 2.0, w / 2.0, h / 2.0) + " B")
+            else:
+                ops.append(_ellipse_path(x + w / 2.0, y + h / 2.0, max(1.0, w / 2.0), max(1.0, h / 2.0)) + " S")
             continue
         if etype == "qr":
             if not show_qr:
@@ -1140,6 +1188,8 @@ def _render_canvas_ticket(
                 ops.append(_draw_image("ImQ", qx, qy, side, side))
             continue
         if etype == "jod_logo":
+            if custom and layout.get("background_image"):
+                ops.append(f"1 1 1 rg {x:.1f} {y:.1f} {w:.1f} {h:.1f} re f")
             if logo:
                 filt, payload, lw, lh = logo
                 xobjects["ImL"] = (payload, lw, lh, filt)
@@ -1150,9 +1200,9 @@ def _render_canvas_ticket(
             else:
                 _draw_text_box(ops, "JOD Events", x, y, w, h, size, paint, "center")
             continue
-        if etype in {"poster", "image"}:
+        if etype in {"poster", "image", "organizer_logo"}:
             image = poster if etype == "poster" else None
-            if etype == "image":
+            if etype in {"image", "organizer_logo"}:
                 image = _load_poster_image(_absolute_media_url(str(el.get("src") or "")))
             if image:
                 filt, payload, iw, ih, = image[0], image[1], image[2], image[3]
@@ -1185,7 +1235,7 @@ def _render_canvas_ticket(
         value = values.get(etype, "")
         if not value:
             continue
-        font = "/F1" if etype in {"title", "ticket_type", "name", "booking_id", "price"} else "/F2"
+        font = "/F1" if etype in {"title", "ticket_type", "name", "booking_id", "price", "ticket_id"} or str(el.get("fontWeight") or "") in {"600", "700", "800"} else "/F2"
         use_paint = muted_paint if etype in {"date", "venue", "qty", "seat", "footer"} and template_id not in plain_types else paint
         _draw_text_box(ops, value, x, y, w, h, size, use_paint, align, font)
 
@@ -1225,6 +1275,7 @@ def build_mticket_pdf_bytes(
     attendee_email: str = "",
     attendee_phone: str = "",
     attendee_guest_label: str = "",
+    organizer_name: str = "",
     _return_page_chunk: bool = False,
 ) -> Optional[bytes | dict]:
     """One-page M-ticket PDF. Returns None if assembly fails."""
@@ -1267,6 +1318,7 @@ def build_mticket_pdf_bytes(
         guest_phone = _ascii_text(attendee_phone, "") if show_attendee_phone else ""
         guest_sub_label = _ascii_text(attendee_guest_label, "") if attendee_guest_label else ""
         attendee_rows: list[tuple[str, str]] = []
+        name_value = guest_name
         if guest_name or (guest_sub_label and allow_attendee_name):
             if guest_sub_label and guest_name:
                 name_value = f"{guest_name} ({guest_sub_label})"
@@ -1325,6 +1377,7 @@ def build_mticket_pdf_bytes(
                 poster=poster,
                 logo=logo,
                 show_qr=show_qr,
+                organizer_name=organizer_name,
             )
             if canvas_chunk:
                 if _return_page_chunk:
@@ -1656,6 +1709,7 @@ def build_mticket_pdf_from_booking(
         attendee_email=attendee_email,
         attendee_phone=attendee_phone,
         attendee_guest_label=guest_label,
+        organizer_name=(getattr(event, "organizer_name", None) or "") if event is not None else "",
         _return_page_chunk=_return_page_chunk,
     )
 
@@ -1790,23 +1844,26 @@ def _load_image_from_bytes(data: bytes, max_w: int = 360, max_h: int = 480) -> O
     return _via_pillow(data)
 
 
-def _admin_logo_candidates() -> list[str]:
+def _admin_logo_candidates(variant: str = "black") -> list[str]:
     here = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(here, "..", ".."))
-    names = ("JOD Events Logo.png", "jod-logo.png", "JOD Logo.png")
+    if str(variant or "black") == "white":
+        names = ("JOD Events Logo White.png", "JOD Events Logo.png")
+    else:
+        names = ("JOD Events Logo.png", "jod-logo.png", "JOD Logo.png")
     paths = []
     for name in names:
         paths.append(os.path.join(repo_root, "frontend", "images", name))
         paths.append(os.path.join(here, "assets", name))
     env_logo = (os.getenv("JOD_TICKET_LOGO_PATH") or "").strip()
-    if env_logo:
+    if env_logo and str(variant or "black") != "white":
         paths.insert(0, env_logo)
     return paths
 
 
-def _load_jod_logo_image() -> Optional[tuple[str, bytes, int, int]]:
-    """Load JOD Events wordmark for admin tickets (local file, then CDN fallback)."""
-    for path in _admin_logo_candidates():
+def _load_jod_logo_image(variant: str = "black") -> Optional[tuple[str, bytes, int, int]]:
+    """Load the black or white JOD Events wordmark (local file, then CDN fallback)."""
+    for path in _admin_logo_candidates(variant):
         try:
             if path and os.path.isfile(path):
                 with open(path, "rb") as fh:
@@ -1815,6 +1872,8 @@ def _load_jod_logo_image() -> Optional[tuple[str, bytes, int, int]]:
                     return loaded
         except Exception:
             continue
+    if str(variant or "black") == "white":
+        return _load_jod_logo_image("black")
     for url in (
         "https://assets.jodevents.com/images/JOD%20Events%20Logo.png",
         "https://jodevents.com/images/JOD%20Events%20Logo.png",

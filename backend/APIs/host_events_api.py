@@ -2122,7 +2122,7 @@ def save_event_design(
         cleaned_title = str(payload.performers_title).strip()
         design.performers_title = cleaned_title or None
 
-    from Services.ticket_templates import normalize_ticket_layout
+    from Services.ticket_templates import normalize_ticket_layout, ticket_layout_publish_error
     premium = _organizer_is_premium(db, email_clean, customer_id, host_id)
 
     # Draft autosave — does not change attendee/PDF layout until publish.
@@ -2164,6 +2164,9 @@ def save_event_design(
             template_id=tid,
             is_premium=premium,
         )
+        publish_error = ticket_layout_publish_error(published)
+        if publish_error:
+            raise HTTPException(status_code=400, detail=publish_error)
         design.ticket_template_id = published["template_id"]
         design.ticket_layout_json = published
         design.ticket_layout_draft_json = published

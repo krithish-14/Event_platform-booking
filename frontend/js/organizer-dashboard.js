@@ -357,6 +357,7 @@ async function initOrganizerDashboard() {
 	const VERIFICATION_UI_ENABLED = false;
 
 	let activeEventId = null;
+	let activeEventSchedule = { status: "", start: "", end: "" };
 	let hostEventCancelled = false;
 	let activeCustomerId = null;
 	let activeHostId = null;
@@ -372,6 +373,7 @@ async function initOrganizerDashboard() {
 	let ticketPublishedLayoutState = null;
 	let ticketLayoutEventId = null;
 	let ticketDraftDirty = false;
+	let ticketSeedBlankDraft = false;
 	let ticketDraftSaveTimer = null;
 	let ticketCanvasCtrl = null;
 	let currentLifecycle = "draft";
@@ -2341,6 +2343,7 @@ async function initOrganizerDashboard() {
 		} else if (tabName === 'reports') {
 			loadReportsData();
 		} else if (tabName === 'eventday') {
+			syncEventLiveNowBadge();
 			loadGates();
 			loadVolunteers();
 			loadEventDayVolunteerStats();
@@ -2523,6 +2526,7 @@ async function initOrganizerDashboard() {
 			banner_image: ""
 		});
 		renderOverviewState();
+		rememberEventSchedule(null);
 	}
 
 	function paintDraftOverview() {
@@ -2612,6 +2616,7 @@ async function initOrganizerDashboard() {
 						sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
 					}
 					if (life) currentLifecycle = life;
+					syncEventLiveNowBadge();
 					if (d.event_id || activeEventId) {
 						paintDraftOverview();
 					} else {
@@ -2621,6 +2626,8 @@ async function initOrganizerDashboard() {
 				}
 				if (d.has_event) {
 					hasEvent = true;
+					if (d.lifecycle) currentLifecycle = String(d.lifecycle).toLowerCase();
+					syncEventLiveNowBadge();
 					if (d.event_id) activeEventId = d.event_id;
 					if (d.event_title && dashEventTitle) dashEventTitle.textContent = d.event_title;
 
@@ -3797,6 +3804,57 @@ async function initOrganizerDashboard() {
 		generatedLinkContainer.style.display = "block";
 	}
 
+	function parseHostScheduleMs(raw) {
+		const text = String(raw || "").trim();
+		if (!text) return null;
+		let value = text;
+		if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) value += ":00+05:30";
+		else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) && !/[zZ]|[+-]\d{2}:\d{2}$/.test(value)) value += "+05:30";
+		const ms = new Date(value).getTime();
+		return Number.isFinite(ms) ? ms : null;
+	}
+
+	function hostEventIsLiveNow(schedule, lifecycle, nowMs) {
+		const status = String((schedule && schedule.status) || "").toLowerCase();
+		const life = String(lifecycle || "").toLowerCase();
+		if (status === "cancelled" || status === "unpublished" || status === "draft") return false;
+		if (life === "cancelled" || life === "unpublished" || life === "draft" || life === "ready_to_publish") return false;
+		const start = parseHostScheduleMs(schedule && schedule.start);
+		const end = parseHostScheduleMs(schedule && schedule.end);
+		const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+		if (start) {
+			if (now < start) return false;
+			if (end && end > start && now >= end) return false;
+			return status === "published" || life === "live" || life === "published";
+		}
+		return life === "live";
+	}
+
+	function syncEventLiveNowBadge() {
+		const badge = document.getElementById("eventLiveNowBadge");
+		if (!badge) return;
+		const show = hostEventIsLiveNow(activeEventSchedule, currentLifecycle);
+		badge.hidden = !show;
+		badge.style.display = show ? "inline-flex" : "none";
+	}
+
+	function rememberEventSchedule(source) {
+		if (!source) {
+			activeEventSchedule = { status: "", start: "", end: "" };
+		} else {
+			const nextStatus = source.event_status || source.status || "";
+			const life = String(source.lifecycle || currentLifecycle || "").toLowerCase();
+			activeEventSchedule = {
+				status: String(nextStatus || activeEventSchedule.status || (["live", "published", "ended"].includes(life) ? "published" : "")).toLowerCase(),
+				start: source.event_start_date || source.event_start_date_local || activeEventSchedule.start || "",
+				end: source.event_end_date || source.event_end_date_local || activeEventSchedule.end || ""
+			};
+		}
+		syncEventLiveNowBadge();
+	}
+
+	setInterval(syncEventLiveNowBadge, 30000);
+
 	function formatEventDayTime(iso) {
 		if (!iso) return "";
 		const date = new Date(iso);
@@ -4376,6 +4434,7 @@ async function initOrganizerDashboard() {
 				} else {
 				activeEventId = hostData.event.event_id;
 				sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
+				rememberEventSchedule(hostData.event);
 				canPublishNew = hostData.can_publish_new !== false;
 				canCreateNew = hostData.can_create_new !== false;
 				pendingManageEvent = hostData.event;
@@ -4412,6 +4471,7 @@ async function initOrganizerDashboard() {
 				pendingManageEvent = null;
 				pendingHostDesignData = null;
 				pendingRegistrationForm = null;
+				rememberEventSchedule(null);
 				sessionStorage.removeItem(`has_event_${email}`);
 				sessionStorage.removeItem(`active_event_id_${email}`);
 				paintEmptyHostDashboard();
@@ -4492,6 +4552,7 @@ async function initOrganizerDashboard() {
 					sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
 				}
 				if (data.lifecycle) currentLifecycle = data.lifecycle;
+				rememberEventSchedule(data);
 				if (typeof data.can_publish_new === "boolean") canPublishNew = data.can_publish_new;
 				if (typeof data.can_create_new === "boolean") canCreateNew = data.can_create_new;
 				if (data.customer_id) {
@@ -4581,6 +4642,7 @@ async function initOrganizerDashboard() {
 		ticketDraftDirty = !!(draft && published && JSON.stringify(draft) !== JSON.stringify(published));
 		if (draft && !published) ticketDraftDirty = true;
 		if (!draft && !published) ticketDraftDirty = false;
+		ticketSeedBlankDraft = !draft && !published;
 		updateTicketPublishUi();
 	}
 
@@ -4598,8 +4660,8 @@ async function initOrganizerDashboard() {
 			btn.disabled = !ticketDraftDirty;
 			btn.textContent = ticketDraftDirty ? "Update tickets" : "Tickets up to date";
 		}
-		if (ticketDraftDirty) setTicketSaveStatus("Draft saved — click Update tickets for attendees", "is-dirty");
-		else setTicketSaveStatus("Attendee tickets are up to date", "is-saved");
+		if (ticketDraftDirty) setTicketSaveStatus("Draft saved", "is-dirty");
+		else setTicketSaveStatus("Tickets up to date", "is-saved");
 	}
 
 	function collectTicketLayoutPayload() {
@@ -4712,6 +4774,10 @@ async function initOrganizerDashboard() {
 			});
 		}
 		updateTicketPublishUi();
+		if (ticketSeedBlankDraft && activeEventId && ticketCanvasCtrl) {
+			ticketSeedBlankDraft = false;
+			autoSaveTicketDraft(false);
+		}
 	}
 
 	async function autoSaveTicketDraft(notifyError) {
@@ -4749,15 +4815,15 @@ async function initOrganizerDashboard() {
 				ticketLayoutEventId = saveEventId;
 				ticketDraftDirty = true;
 				updateTicketPublishUi();
-				setTicketSaveStatus("Draft saved — click Update tickets for attendees", "is-dirty");
+				setTicketSaveStatus("Draft saved", "is-dirty");
 				return true;
 			}
-			setTicketSaveStatus("Draft save failed", "is-dirty");
+			setTicketSaveStatus("Save failed", "is-dirty");
 			if (notifyError) showNotification(apiErrorMessage(data, "Could not save ticket draft."));
 			return false;
 		} catch (e) {
 			console.warn("Ticket draft auto-save warning:", e);
-			setTicketSaveStatus("Draft save failed", "is-dirty");
+			setTicketSaveStatus("Save failed", "is-dirty");
 			return false;
 		}
 	}
@@ -4802,7 +4868,7 @@ async function initOrganizerDashboard() {
 				ticketPublishedLayoutState = cloneTicketLayout(ticketLayout);
 				ticketDraftDirty = false;
 				updateTicketPublishUi();
-				setTicketSaveStatus("Attendee tickets updated", "is-saved");
+				setTicketSaveStatus("Tickets up to date", "is-saved");
 				if (notifyError) showNotification("Ticket layout updated for attendees of this event only.");
 				return true;
 			}
@@ -5750,6 +5816,7 @@ async function initOrganizerDashboard() {
 			activeEventId = null;
 			resetTicketLayoutState();
 			currentLifecycle = "draft";
+			rememberEventSchedule(null);
 			hasEvent = false;
 			sessionStorage.removeItem(`active_event_id_${email}`);
 			sessionStorage.removeItem(`has_event_${email}`);

@@ -257,6 +257,59 @@ class TicketOfferPricingTests(unittest.TestCase):
         self.assertEqual(el["color"], "#ffffff")
         again = normalize_ticket_layout(out, is_premium=True)
         self.assertEqual(again["canvas_elements"][0], el)
+        self.assertNotEqual(out.get("canvas_mode"), "custom")
+
+    def test_custom_canvas_keeps_logo_and_orientation(self):
+        from Services.ticket_pdf import build_mticket_pdf_bytes
+        from Services.ticket_templates import logo_variant_for_color, normalize_ticket_layout
+        self.assertEqual(logo_variant_for_color("#ffffff"), "black")
+        self.assertEqual(logo_variant_for_color("#111111"), "white")
+        raw = {
+            "canvas_mode": "custom",
+            "orientation": "landscape",
+            "card_color": "#111111",
+            "text_color": "#ffffff",
+            "layout_version": 11,
+            "show_jod_logo": False,
+            "canvas_elements": [
+                {"id": "title", "type": "title", "x": 8, "y": 12, "w": 50, "h": 10},
+                {"id": "name", "type": "name", "x": 8, "y": 28, "w": 40, "h": 8},
+            ],
+        }
+        out = normalize_ticket_layout(raw, is_premium=True)
+        self.assertEqual(out["canvas_mode"], "custom")
+        self.assertEqual(out["orientation"], "landscape")
+        self.assertTrue(out["show_jod_logo"])
+        self.assertTrue(any(el.get("type") == "jod_logo" for el in out["canvas_elements"]))
+        portrait = normalize_ticket_layout(dict(raw, orientation="portrait"), is_premium=True)
+        self.assertEqual(portrait["orientation"], "portrait")
+        pdf = build_mticket_pdf_bytes(
+            booking_id="book-12345",
+            event_name="Canvas Workshop",
+            event_date="Sat, Apr 18, 2026, 06:30 PM",
+            venue="Chennai Trade Centre",
+            ticket_type="General Admission",
+            ticket_layout=out,
+            include_qr=False,
+            attendee_name="Attendee Name",
+            attendee_email="attendee@example.com",
+            organizer_name="Organizer Name",
+        )
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertIn(b"/MediaBox [0 0 760.0 427.5]", pdf)
+        self.assertIn(b"Attendee Name", pdf)
+        self.assertNotIn(b"attendee@example.com", pdf)
+        portrait_pdf = build_mticket_pdf_bytes(
+            booking_id="book-12345",
+            event_name="Canvas Workshop",
+            ticket_layout=dict(out, orientation="portrait", show_attendee_email=True, canvas_elements=out["canvas_elements"] + [
+                {"id": "email", "type": "email", "x": 8, "y": 40, "w": 50, "h": 8},
+            ]),
+            include_qr=False,
+            attendee_email="attendee@example.com",
+        )
+        self.assertIn(b"/MediaBox [0 0 570.0 760.0]", portrait_pdf)
+        self.assertIn(b"attendee@example.com", portrait_pdf)
 
     def test_canvas_pdf_keeps_full_name_email_and_guest_label(self):
         from Services.ticket_pdf import _split_to_width, build_mticket_pdf_bytes
