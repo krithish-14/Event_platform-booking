@@ -1155,6 +1155,7 @@ def reset_password(payload: ResetPasswordRequest, request: Request, db: Session 
     if not user:
         raise HTTPException(status_code=400, detail=generic_fail)
     user.hashed_password = get_password_hash(payload.new_password)
+    user.must_set_password = False
     db.query(EmailOTP).filter(
         EmailOTP.email == email_clean,
         EmailOTP.purpose == "password_reset",

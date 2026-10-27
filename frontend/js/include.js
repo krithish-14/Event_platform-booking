@@ -1,6 +1,14 @@
 (() => {
 	"use strict";
 
+	if (!document.querySelector("script[data-jod-guest-password]")) {
+		const guestPwd = document.createElement("script");
+		guestPwd.src = "/js/guest-password.js?v=1";
+		guestPwd.defer = true;
+		guestPwd.setAttribute("data-jod-guest-password", "1");
+		document.head.appendChild(guestPwd);
+	}
+
 	if (window.JodTheme && typeof window.JodTheme.sync === "function") {
  window.JodTheme.sync();
 	} else if (window.JodTheme && typeof window.JodTheme.apply === "function") {
