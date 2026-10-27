@@ -99,8 +99,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 		gap: 0.65rem;
 		margin-top: 1.25rem;
 	}
-	.actions a,
-	.actions button {
+	.actions a {
 		display: block;
 		width: 100%;
 		padding: 0.9rem;
@@ -125,8 +124,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 	#pendingDetail[hidden],
 	#pendingRejectBlock[hidden],
 	#pendingSetupLink[hidden],
-	#pendingHelpLink[hidden],
-	#pendingAgreementPdf[hidden] {
+	#pendingHelpLink[hidden] {
 		display: none !important;
 	}
 	html[data-theme="dark"] body {
@@ -151,7 +149,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) --> <div class="card" id="pendingCard"> <div class="mark" id="pendingMark" aria-hidden="true">&#10003;</div> <span class="status-pill" id="pendingBadge">Under review</span> <h1 id="pendingTitle">Thank you</h1> <p class="lead" id="pendingLead">Your hosting registration has been noted.</p> <p id="pendingDetail">Once the JOD Events Authority has reviewed your application, within 3 working days you will get your Host Dashboard access.</p> <p class="reason" id="pendingRejectBlock" hidden></p> <div class="actions"> <a class="btn-primary" href="index.html" id="pendingHome">Back to home</a> <a class="btn-secondary" href="account-setup.html" id="pendingSetupLink" hidden>Update my application</a> <a class="btn-secondary" href="help.html" id="pendingHelpLink" hidden>Raise a support ticket</a> <button type="button" class="btn-secondary" id="pendingAgreementPdf" hidden>Download agreement record</button> </div> </div> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=40"></script> <script> (async function () {
+<!-- End Google Tag Manager (noscript) --> <div class="card" id="pendingCard"> <div class="mark" id="pendingMark" aria-hidden="true">&#10003;</div> <span class="status-pill" id="pendingBadge">Under review</span> <h1 id="pendingTitle">Thank you</h1> <p class="lead" id="pendingLead">Your hosting registration has been noted.</p> <p id="pendingDetail">Once the JOD Events Authority has reviewed your application, within 3 working days you will get your Host Dashboard access.</p> <p class="reason" id="pendingRejectBlock" hidden></p> <div class="actions"> <a class="btn-primary" href="index.html" id="pendingHome">Back to home</a> <a class="btn-secondary" href="account-setup.html" id="pendingSetupLink" hidden>Update my application</a> <a class="btn-secondary" href="help.html" id="pendingHelpLink" hidden>Raise a support ticket</a> </div> </div> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=40"></script> <script> (async function () {
 		const mark = document.getElementById("pendingMark");
 		const badge = document.getElementById("pendingBadge");
 		const title = document.getElementById("pendingTitle");
@@ -176,7 +174,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 		function showPendingThankYou() {
 			mark.className = "mark";
-			mark.textContent = "&#10003;";
+			mark.textContent = "\u2713";
 			badge.className = "status-pill";
 			badge.textContent = "Under review";
 			title.textContent = "Thank you";
@@ -202,9 +200,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				? window.JodAuth.canAccessHostDashboard(data)
 				: Boolean(data && data.dashboard_access);
 			const status = String((data && data.verification_status) || "").toUpperCase();
-			const agreementBtn = document.getElementById("pendingAgreementPdf");
-			if (agreementBtn) agreementBtn.hidden = !(data && data.agreement_record && data.agreement_record.accepted);
-
 			if (!setupComplete) {
 				window.location.replace("account-setup.html");
 				return;
@@ -248,38 +243,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 			showPendingThankYou();
 		}
-
-		const agreementPdfBtn = document.getElementById("pendingAgreementPdf");
-		if (agreementPdfBtn) agreementPdfBtn.addEventListener("click", async function () {
-			const origin = String((window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || "").replace(/\/$/, "");
-			const label = agreementPdfBtn.textContent;
-			agreementPdfBtn.disabled = true;
-			agreementPdfBtn.textContent = "Preparing PDF...";
-			try {
-				const res = await fetch(origin + "/api/organizers/agreement-record/pdf", { credentials: "include" });
-				if (!res.ok) {
-					let detail = "Could not download the agreement record.";
-					try { const body = await res.json(); if (body && typeof body.detail === "string") detail = body.detail; } catch (_) {}
-					alert(detail);
-					return;
-				}
-				const blob = await res.blob();
-				const match = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/);
-				const url = URL.createObjectURL(blob);
-				const a = document.createElement("a");
-				a.href = url;
-				a.download = match ? match[1] : "JOD-Host-Agreement-Acceptance.pdf";
-				document.body.appendChild(a);
-				a.click();
-				a.remove();
-				setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-			} catch (_) {
-				alert("Could not reach the server. Try again.");
-			} finally {
-				agreementPdfBtn.disabled = false;
-				agreementPdfBtn.textContent = label;
-			}
-		});
 
 		await loadStatus();
 		setInterval(loadStatus, 60000);

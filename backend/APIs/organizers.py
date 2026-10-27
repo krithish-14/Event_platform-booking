@@ -657,12 +657,17 @@ def download_agreement_record_pdf(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Downloadable acceptance record PDF for the signed-in host."""
+    """Downloadable acceptance record PDF for an approved host (Host Settings only)."""
     org_acc = _organizer_account_for_user(db, current_user)
     if not org_acc or not org_acc.accepted_agreement or not getattr(org_acc, "agreement_accepted_at", None):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No accepted agreement is on record yet. Finish host setup and click Accept Agreement first.",
+        )
+    if not can_access_host_dashboard(org_acc):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your agreement record is available in Host Settings once JOD Events approves your host account.",
         )
     pdf = build_agreement_record_pdf_bytes(org_acc)
     filename = agreement_record_filename(agreement_record_payload(org_acc))
