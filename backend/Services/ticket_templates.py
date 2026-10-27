@@ -260,6 +260,8 @@ def normalize_ticket_layout(
         frame = str(raw.get("frame") or "").strip().lower()
         if frame in {"reference", "edited"}:
             base["frame"] = frame
+        if str(raw.get("card_style") or "").strip().lower() == "eticket":
+            base["card_style"] = "eticket"
     elif str(raw.get("canvas_mode") or "").strip().lower() == "legacy":
         base["canvas_mode"] = "legacy"
 

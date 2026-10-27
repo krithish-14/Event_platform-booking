@@ -386,6 +386,46 @@
 		];
 	}
 
+	function eticketElements() {
+		return [
+			{ id: "poster", type: "poster", x: 5, y: 3, w: 19, h: 14 },
+			{ id: "title", type: "title", x: 28, y: 3, w: 60, h: 6, fontSize: 18, fontWeight: "800", align: "left" },
+			{ id: "date", type: "date", x: 28, y: 9.5, w: 60, h: 4, fontSize: 12, fontWeight: "700", align: "left" },
+			{ id: "venue", type: "venue", x: 28, y: 13.5, w: 60, h: 7, fontSize: 10, align: "left" },
+			{ id: "stub", type: "stub", x: 92, y: 3, w: 5, h: 16, text: "E-TICKET", fontSize: 8, color: "#9ca3af" },
+			{ id: "qty", type: "qty", x: 30, y: 27, w: 40, h: 3.5, fontSize: 10, align: "center" },
+			{ id: "ticket_type", type: "ticket_type", x: 15, y: 30.5, w: 70, h: 5, fontSize: 21, fontWeight: "800", align: "center" },
+			{ id: "seat", type: "seat", x: 20, y: 36, w: 60, h: 3.5, fontSize: 12, align: "center" },
+			{ id: "name", type: "name", x: 22, y: 41, w: 56, h: 4, fontSize: 10, align: "left" },
+			{ id: "phone", type: "phone", x: 22, y: 45, w: 56, h: 4, fontSize: 10, align: "left" },
+			{ id: "email", type: "email", x: 22, y: 49, w: 56, h: 4, fontSize: 10, align: "left" },
+			{ id: "qr", type: "qr", x: 33, y: 54, w: 34, h: 21 },
+			{ id: "booking_id", type: "booking_id", x: 15, y: 77, w: 70, h: 4, fontSize: 12, fontWeight: "800", align: "center" },
+			{ id: "perforation", type: "dashed_line", x: 5, y: 82, w: 90, h: 1, color: "#cbd5e1" },
+			{ id: "price", type: "price", x: 6, y: 85, w: 88, h: 5, fontSize: 14, fontWeight: "800" },
+			{ id: "jod_logo", type: "jod_logo", x: 35, y: 92, w: 30, h: 7 },
+		];
+	}
+
+	/* Default start design: the portrait e-ticket guests see on their confirmation page. */
+	function eticketLayout() {
+		return Object.assign(referenceLayout("portrait"), {
+			card_style: "eticket",
+			accent_color: "#cbd5e1",
+			card_color: "#ffffff",
+			text_color: "#111827",
+			show_venue: true,
+			show_qty: true,
+			show_ticket_type: true,
+			show_seat: true,
+			show_price: true,
+			show_attendee_name: true,
+			show_attendee_phone: true,
+			show_attendee_email: true,
+			canvas_elements: eticketElements(),
+		});
+	}
+
 	function referenceLayout(orient) {
 		const portrait = orient === "portrait";
 		return {
@@ -394,6 +434,7 @@
 			orientation: portrait ? "portrait" : "landscape",
 			layout_version: 11,
 			frame: "reference",
+			card_style: "",
 			accent_color: portrait ? "#5b9dff" : "#ff8fb3",
 			card_color: portrait ? "#ffffff" : "#fff7f5",
 			text_color: "#1a1a1a",
@@ -421,7 +462,7 @@
 	}
 
 	function blankCustomLayout() {
-		return referenceLayout("landscape");
+		return eticketLayout();
 	}
 
 	function cloneLayout(src) {
@@ -434,13 +475,15 @@
 		if (mode === "custom" || version >= 11) {
 			const onlyLogo = !!(savedElements && src.canvas_elements.length === 1 && src.canvas_elements[0] && src.canvas_elements[0].type === "jod_logo");
 			const orient = src && src.orientation === "portrait" ? "portrait" : "landscape";
-			if ((src && src.frame === "reference") || onlyLogo || !savedElements) {
-				return referenceLayout(orient);
+			if (src && src.frame === "reference") {
+				return src.card_style === "eticket" ? eticketLayout() : referenceLayout(orient);
 			}
-			const base = blankCustomLayout();
+			if (onlyLogo || !savedElements) return blankCustomLayout();
+			const base = referenceLayout("landscape");
 			const out = Object.assign({}, base, src || {});
 			out.canvas_mode = "custom";
 			out.frame = "edited";
+			out.card_style = src && src.card_style === "eticket" ? "eticket" : "";
 			out.orientation = orient;
 			out.layout_version = Math.max(11, version || 11);
 			out.card_color = optionalColor(src && src.card_color) || "#ffffff";
@@ -1468,9 +1511,10 @@
 		const resetBtn = this.root.querySelector("#ticketResetLayout");
 		if (resetBtn) {
 			resetBtn.addEventListener("click", function () {
-				if (!window.confirm("Reset this draft to the landscape ticket? Published tickets stay as they are until you click Update tickets.")) return;
+				const orient = self.layout && self.layout.orientation === "portrait" ? "portrait" : "landscape";
+				if (!window.confirm("Reset this draft to the plain " + orient + " ticket? Published tickets stay as they are until you click Update tickets.")) return;
 				self._keepReference = true;
-				self.layout = blankCustomLayout();
+				self.layout = referenceLayout(orient);
 				self.selectedId = null;
 				self.canvasSelected = false;
 				self.syncControls();
@@ -1538,6 +1582,7 @@
 		wireHeader("ticketOrientLandscape", function () { self.setOrientation("landscape"); });
 		wireHeader("ticketOrientPortrait", function () { self.setOrientation("portrait"); });
 		wireHeader("ticketPreviewBtn", function () { self.openPreview(); });
+		wireHeader("ticketDefaultDesignBtn", function () { self.applyDefaultDesign(); });
 		wireHeader("ticketAddElementsBtn", function () {
 			if (window.matchMedia(DRAWER_QUERY).matches) self.setToolsOpen(true);
 			const panel = self.root.querySelector("#ticketElementPanel");
@@ -1776,6 +1821,20 @@
 		this.onChange(this.getLayout());
 	};
 
+	TicketCanvasController.prototype.applyDefaultDesign = function () {
+		if (!window.confirm("Replace this draft with the default e-ticket design? Published tickets stay as they are until you click Update tickets.")) return;
+		this._keepReference = true;
+		this.layout = eticketLayout();
+		this.selectedId = null;
+		this.canvasSelected = false;
+		this.syncControls();
+		this.renderPalette();
+		this.renderPreview();
+		this.syncSelectedPanel();
+		this.emitChange();
+		this._keepReference = false;
+	};
+
 	TicketCanvasController.prototype.setOrientation = function (next) {
 		const orient = next === "portrait" ? "portrait" : "landscape";
 		if (this.layout.orientation === orient && this.layout.frame === "reference") return;
@@ -1981,8 +2040,9 @@
 		const isSunset = !custom && L.template_id === "sunset";
 		const isVip = !custom && L.template_id === "vip_gold";
 		const isMidnight = !custom && L.template_id === "midnight";
-		const portraitCard = custom && L.orientation === "portrait";
-		const landscapeCard = custom && !portraitCard;
+		const eticketCard = custom && L.orientation === "portrait" && L.card_style === "eticket";
+		const portraitCard = custom && L.orientation === "portrait" && !eticketCard;
+		const landscapeCard = custom && L.orientation !== "portrait";
 		const field = function (label, value) {
 			return '<div class="tc-field"><span>' + escapeHtml(label) + "</span><strong>" + escapeHtml(value) + "</strong></div>";
 		};
@@ -2089,7 +2149,7 @@
 					? sgDetail("PRICE", s.price)
 					: (isMidnight
 						? '<div class="tc-el-price"><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"
-						: '<div class="tc-el-price"><span class="tc-price-label">Price</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"));
+						: '<div class="tc-el-price"><span class="tc-price-label">' + (eticketCard ? "Total Amount" : "Price") + '</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"));
 			case "jod_logo": {
 				const plate = L.background_image ? " is-plate" : "";
 				return '<div class="tc-el-logo is-watermark' + plate + '" aria-label="JOD Events"><img src="' + this.jodLogoSrc() + '" alt="JOD Events" draggable="false" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'' + LOGO_BLACK + '\';}" /></div>';
@@ -2188,15 +2248,16 @@
 		const hasSel = !!this.selectedId;
 
 		const custom = L.canvas_mode === "custom";
+		const eticket = custom && L.orientation === "portrait" && L.card_style === "eticket";
 		const isMidnight = !custom && (tmpl.id || "") === "midnight";
 		const isSunset = !custom && (tmpl.id || "") === "sunset";
 		const isVip = !custom && (tmpl.id || "") === "vip_gold";
 		const stageTone = custom
-			? (L.orientation === "portrait" ? "#dbe7ff" : "#ffffff")
+			? (eticket ? "#1f2023" : (L.orientation === "portrait" ? "#dbe7ff" : "#ffffff"))
 			: (isMidnight ? "#12081f" : (isSunset ? "#2a120c" : (isVip ? "#111111" : (p.bg || "#f4f6f8"))));
 		stage.style.background = stageTone;
 		const heroSrc = isSunset ? sanitizeMediaSrc(L.sunset_hero_src) : "";
-		const orientClass = custom ? (" is-custom is-orient-" + (L.orientation === "portrait" ? "portrait" : "landscape")) : "";
+		const orientClass = custom ? (" is-custom is-orient-" + (L.orientation === "portrait" ? "portrait" : "landscape") + (eticket ? " is-eticket" : "")) : "";
 		card.className = "ticket-live-card is-canvas style-" + (custom ? "custom" : (tmpl.id || "classic")) + orientClass + (hasSel ? " has-selection" : "") + (this.canvasSelected && !hasSel ? " is-canvas-selected" : "");
 		const customBg = L.card_color || "#ffffff";
 		card.style.background = isMidnight
@@ -2212,9 +2273,11 @@
 		card.style.setProperty("--ticket-stage", stageTone);
 
 		const face = custom
-			? (L.orientation === "portrait"
-				? '<div class="tc-stripe"></div>'
-				: '<div class="tc-perf"></div>')
+			? (eticket
+				? ""
+				: (L.orientation === "portrait"
+					? '<div class="tc-stripe"></div>'
+					: '<div class="tc-perf"></div>'))
 			: (isMidnight
 				? '<div class="ms-waves"></div><div class="ms-hole"></div><div class="ms-notch is-top"></div><div class="ms-notch is-bot"></div><div class="ms-perf"></div>'
 				: (isSunset
@@ -2225,7 +2288,11 @@
 		const bits = [
 			/* Face clips accents to rounded corners; nodes stay above so handles can overflow. */
 			'<div class="tlc-face" aria-hidden="true">' + face + "</div>",
-			custom ? '<div class="tc-notch is-left"></div><div class="tc-notch is-right"></div>' : "",
+			custom
+				? (eticket
+					? '<div class="tc-notch is-left is-upper"></div><div class="tc-notch is-right is-upper"></div><div class="tc-notch is-left is-lower"></div><div class="tc-notch is-right is-lower"></div>'
+					: '<div class="tc-notch is-left"></div><div class="tc-notch is-right"></div>')
+				: "",
 			'<div class="tc-guides" id="ticketGuides" aria-hidden="true"></div>',
 		];
 		(L.canvas_elements || []).forEach(function (el) {

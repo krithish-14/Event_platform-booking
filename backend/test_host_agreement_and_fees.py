@@ -81,5 +81,50 @@ class AgreementRecordTests(unittest.TestCase):
         )
 
 
+class EticketDefaultDesignTests(unittest.TestCase):
+    def test_eticket_style_survives_save_and_prints_total_amount(self):
+        from Services.ticket_pdf import build_mticket_pdf_bytes
+        from Services.ticket_templates import normalize_ticket_layout
+
+        raw = {
+            "canvas_mode": "custom",
+            "orientation": "portrait",
+            "card_style": "eticket",
+            "frame": "reference",
+            "layout_version": 11,
+            "card_color": "#ffffff",
+            "show_price": True,
+            "show_attendee_name": True,
+            "canvas_elements": [
+                {"id": "title", "type": "title", "x": 28, "y": 3, "w": 60, "h": 6},
+                {"id": "stub", "type": "stub", "x": 92, "y": 3, "w": 5, "h": 16, "text": "E-TICKET"},
+                {"id": "name", "type": "name", "x": 22, "y": 41, "w": 56, "h": 4},
+                {"id": "price", "type": "price", "x": 6, "y": 85, "w": 88, "h": 5},
+                {"id": "jod_logo", "type": "jod_logo", "x": 35, "y": 92, "w": 30, "h": 7},
+            ],
+        }
+        out = normalize_ticket_layout(raw, is_premium=True)
+        self.assertEqual(out.get("card_style"), "eticket")
+        self.assertEqual(out["orientation"], "portrait")
+        plain = normalize_ticket_layout(dict(raw, card_style="fancy"), is_premium=True)
+        self.assertNotIn("card_style", plain)
+
+        pdf = build_mticket_pdf_bytes(
+            booking_id="book-12345",
+            event_name="Run Marathon",
+            event_date="Wed, Sep 16, 2026, 06:30 AM",
+            venue="Chennai",
+            ticket_type="General Pass",
+            ticket_layout=out,
+            include_qr=False,
+            attendee_name="Attendee Name",
+            total_price=499,
+        )
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertIn(b"/MediaBox [0 0 570.0 760.0]", pdf)
+        self.assertIn(b"Total Amount", pdf)
+        self.assertIn(b"E-TICKET", pdf)
+
+
 if __name__ == "__main__":
     unittest.main()

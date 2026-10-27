@@ -6427,6 +6427,36 @@ html[data-theme="dark"] .ticket-float-close {
 	top: 62%;
 	clip-path: inset(0 50% 0 0);
 }
+.ticket-live-card.is-custom.is-orient-portrait.is-eticket .tc-notch.is-upper { top: 25%; margin-top: -11px; }
+.ticket-live-card.is-custom.is-orient-portrait.is-eticket .tc-notch.is-lower { top: 82.5%; margin-top: -11px; }
+.ticket-live-card.is-custom.is-eticket {
+	border-radius: 22px;
+	box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+.ticket-live-card.is-eticket .tc-node[data-type="stub"] .ms-stub-text {
+	writing-mode: vertical-rl;
+	transform: rotate(180deg);
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	letter-spacing: 0.2em;
+	font-weight: 800;
+	font-size: 0.62rem;
+	color: inherit;
+}
+.ticket-live-card.is-eticket .tc-node[data-type="date"] .tc-el-text { font-weight: 700; }
+.ticket-live-card.is-eticket .tc-node[data-type="venue"] .tc-el-text,
+.ticket-live-card.is-eticket .tc-node[data-type="qty"] .tc-el-text,
+.ticket-live-card.is-eticket .tc-node[data-type="seat"] .tc-el-text { color: #4b5563; }
+.ticket-live-card.is-eticket .tc-node[data-type="name"] .tc-el-row span,
+.ticket-live-card.is-eticket .tc-node[data-type="phone"] .tc-el-row span,
+.ticket-live-card.is-eticket .tc-node[data-type="email"] .tc-el-row span { min-width: 3.6rem; color: #4b5563; }
+.ticket-live-card.is-eticket .tc-node[data-type="qr"] .tc-el-qr {
+	outline: 1px solid #e5e7eb;
+	outline-offset: 4px;
+	border-radius: 4px;
+}
 .ticket-live-card.is-custom .tc-stripe {
 	position: absolute;
 	left: 0;

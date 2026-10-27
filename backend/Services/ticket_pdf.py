@@ -993,15 +993,17 @@ def _render_canvas_ticket(
         return None
     custom = str(layout.get("canvas_mode") or "") == "custom"
     custom_orient = "landscape"
+    eticket = False
     template_id = "custom" if custom else str(layout.get("template_id") or "classic")
     if layout.get("text_color"):
         text_rgb = hex_to_rgb01_safe(layout.get("text_color"))
     if custom:
         orient = "portrait" if str(layout.get("orientation") or "") == "portrait" else "landscape"
         custom_orient = orient
+        eticket = orient == "portrait" and str(layout.get("card_style") or "") == "eticket"
         if orient == "portrait":
             page_w, page_h, css_h = 570.0, 760.0, 760.0
-            page_rgb = hex_to_rgb01_safe("#dbe7ff")
+            page_rgb = hex_to_rgb01_safe("#1f2023" if eticket else "#dbe7ff")
         else:
             page_w, page_h, css_h = 760.0, 291.2, 291.2
             page_rgb = hex_to_rgb01_safe("#ffffff")
@@ -1046,6 +1048,8 @@ def _render_canvas_ticket(
             ops.append(f"{_rgb(accent)} RG 1.3 w [3 3.5] 0 d")
             ops.append(f"{perf_x:.1f} {card_y + card_h * 0.1:.1f} m {perf_x:.1f} {card_y + card_h * 0.9:.1f} l S")
             ops.append("[] 0 d")
+        elif eticket:
+            pass
         else:
             band_h = max(16.0, card_h * 0.04)
             top = card_y + card_h - band_h
@@ -1061,8 +1065,13 @@ def _render_canvas_ticket(
                 stripe_x += 18.0
             ops.append("Q")
         notch_r = 12.0 if custom_orient == "landscape" else min(16.0, card_h * 0.035)
-        notch_y = card_y + card_h * (0.50 if custom_orient == "landscape" else 0.38)
-        for notch_x in (card_x, card_x + card_w):
+        if eticket:
+            # Cut-outs at the header/body break and at the perforation (25% and 82.5% from the top).
+            notch_points = [(nx, card_y + card_h * frac) for frac in (0.75, 0.175) for nx in (card_x, card_x + card_w)]
+        else:
+            notch_y = card_y + card_h * (0.50 if custom_orient == "landscape" else 0.38)
+            notch_points = [(card_x, notch_y), (card_x + card_w, notch_y)]
+        for notch_x, notch_y in notch_points:
             ops.append(f"{_rgb(page_rgb)} rg")
             ops.append(f"{_ellipse_path(notch_x, notch_y, notch_r, notch_r)} f")
             if custom_orient == "landscape":
@@ -1276,6 +1285,17 @@ def _render_canvas_ticket(
         value = values.get(etype, "")
         if not value:
             continue
+        if eticket and etype == "price":
+            _draw_text_box(ops, "Total Amount", x, y, w, h, size, paint, "left", "/F1")
+            _draw_text_box(ops, value, x, y, w, h, size, paint, "right", "/F1")
+            continue
+        if eticket and etype in {"name", "phone", "email"}:
+            label_w = w * 0.26
+            _draw_text_box(ops, etype.capitalize(), x, y, label_w, h, size, muted_paint, "left", "/F2")
+            _draw_text_box(ops, value, x + label_w, y, w - label_w, h, size, paint, "left", "/F1")
+            continue
+        if eticket and etype == "booking_id":
+            value = f"BOOKING ID: #{value}"
         if custom and custom_orient == "landscape" and etype == "ticket_type":
             value = value.upper()
         font = "/F1" if etype in {"title", "ticket_type", "name", "booking_id", "price", "ticket_id"} or str(el.get("fontWeight") or "") in {"600", "700", "800"} else "/F2"
