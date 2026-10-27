@@ -333,6 +333,7 @@ class UserResponse(BaseModel):
     auth_provider: str | None = None
     google_profile_complete: bool | None = None
     google_profile_required: bool = False
+    must_set_password: bool = False
 
     class Config:
         from_attributes = True
@@ -402,6 +403,7 @@ def _serialize_user(user) -> dict:
         "auth_provider": getattr(user, "auth_provider", None),
         "google_profile_complete": gpc if gpc is None else bool(gpc),
         "google_profile_required": _google_profile_required(user),
+        "must_set_password": bool(getattr(user, "must_set_password", None)),
     }
 
 
@@ -1025,6 +1027,118 @@ def verify_guest_phone_otp(
     _set_auth_cookie(response, token)
     set_csrf_cookie(response)
     return _auth_payload(token, user)
+
+
+def _issue_guest_session(response: Response, user: User) -> dict:
+    token = create_access_token(
+        data={
+            "sub": str(user.customer_id),
+            "customer_id": str(user.customer_id),
+            "email": user.email,
+            "username": user.username,
+        },
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    _set_auth_cookie(response, token)
+    set_csrf_cookie(response)
+    return _auth_payload(token, user)
+
+
+@router.post("/guest/continue", response_model=TokenResponse)
+def continue_guest_checkout(
+    payload: GuestPhoneOtpRequest,
+    response: Response,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Match email and phone to an account, or create one, then start the payment session."""
+    email_clean = payload.email.strip().lower()
+    limit_register(request)
+    if email_clean.endswith("@guest.com"):
+        raise HTTPException(status_code=400, detail="Enter the email address from your registration form.")
+    phone = payload.phone
+    user = db.query(User).filter(func.lower(func.trim(User.email)) == email_clean).first()
+    phone_owner = db.query(User).filter(User.phone == phone).first()
+    if user and phone_owner and phone_owner.customer_id != user.customer_id:
+        raise HTTPException(
+            status_code=409,
+            detail="This phone number and email belong to different accounts. Log in to continue.",
+        )
+    if phone_owner and not user:
+        raise HTTPException(
+            status_code=409,
+            detail="This phone number already belongs to another account. Log in to continue.",
+        )
+    created = False
+    if user:
+        if user.is_active is False:
+            raise HTTPException(status_code=403, detail="This account has been deactivated. Please contact support.")
+        if user.phone and user.phone != phone:
+            raise HTTPException(
+                status_code=409,
+                detail="This email already uses a different phone number. Log in to continue.",
+            )
+        if not user.phone:
+            user.phone = phone
+        if payload.full_name and not user.full_name:
+            user.full_name = payload.full_name
+    else:
+        user = User(
+            email=email_clean,
+            username=_unique_guest_username(db, email_clean, phone),
+            full_name=payload.full_name or None,
+            phone=phone,
+            hashed_password=get_password_hash(secrets.token_urlsafe(24)),
+            auth_provider="phone",
+            must_set_password=True,
+        )
+        db.add(user)
+        created = True
+    try:
+        db.commit()
+        db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="This email already has an account. Log in to continue.")
+    if created:
+        try:
+            db.add(UserSignupLog(
+                customer_id=user.customer_id,
+                email=user.email,
+                username=user.username,
+                full_name=user.full_name,
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+    return _issue_guest_session(response, user)
+
+
+class GuestSetPasswordRequest(BaseModel):
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return UserRegisterRequest.validate_password(v)
+
+
+@router.post("/guest/set-password")
+def set_guest_password(
+    payload: GuestSetPasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Save the password chosen after a guest checkout payment."""
+    if not bool(getattr(current_user, "must_set_password", None)):
+        raise HTTPException(status_code=400, detail="This account already has a password.")
+    current_user.hashed_password = get_password_hash(payload.password)
+    current_user.must_set_password = False
+    if str(getattr(current_user, "auth_provider", "") or "").strip().lower() == "phone":
+        current_user.auth_provider = "local"
+    db.commit()
+    db.refresh(current_user)
+    return {"message": "Password saved. You can log in with it next time.", "user": _serialize_user(current_user)}
 
 
 @router.post("/reset-password")

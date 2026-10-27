@@ -25,11 +25,67 @@
 	   - Singapenn Marathon 2026: images/Singapenn marathon/
 	   - Sandd: images/Sandd/
 	   - Rotary Business Meet: images/Conference/
+	   - Dandiya Night: images/Dandiya Night/
+	   - Self-Grooming & Styling Workshop: images/Self-Grooming & Styling Workshop/
+	   - Arangetram: images/Arangetram/
 	   -------------------------------------------------------------------------- */
 	const EVENT_GALLERIES = [
 		{
 			id: "all",
 			name: "All Events"
+		},
+		{
+			id: "arangetram",
+			name: "Arangetram",
+			folder: "images/Arangetram",
+			items: [
+				{ id: "ar-1", title: "Arangetram", file: "01.webp", type: "image" },
+				{ id: "ar-2", title: "Arangetram", file: "03.webp", type: "image" },
+				{ id: "ar-3", title: "Arangetram", file: "10.webp", type: "image" },
+				{ id: "ar-4", title: "Arangetram", file: "11.webp", type: "image" },
+				{ id: "ar-5", title: "Arangetram", file: "A63A1624.webp", type: "image" },
+				{ id: "ar-6", title: "Arangetram", file: "A63A1632.webp", type: "image" },
+				{ id: "ar-7", title: "Arangetram", file: "A63A1649.webp", type: "image" },
+				{ id: "ar-8", title: "Arangetram", file: "A63A1843.webp", type: "image" },
+				{ id: "ar-9", title: "Arangetram", file: "A63A2072.webp", type: "image" }
+			]
+		},
+		{
+			id: "self-grooming-workshop",
+			name: "Self-Grooming & Styling Workshop",
+			folder: "images/Self-Grooming & Styling Workshop",
+			items: [
+				{ id: "sg-1", title: "Self-Grooming & Styling Workshop", file: "1.jpeg", type: "image" },
+				{ id: "sg-2", title: "Self-Grooming & Styling Workshop", file: "2.jpeg", type: "image" },
+				{ id: "sg-3", title: "Self-Grooming & Styling Workshop", file: "3.jpeg", type: "image" },
+				{ id: "sg-4", title: "Self-Grooming & Styling Workshop", file: "4.jpeg", type: "image" },
+				{ id: "sg-5", title: "Self-Grooming & Styling Workshop", file: "5.jpeg", type: "image" },
+				{ id: "sg-6", title: "Self-Grooming & Styling Workshop", file: "6.jpeg", type: "image" },
+				{ id: "sg-7", title: "Self-Grooming & Styling Workshop", file: "7.jpeg", type: "image" },
+				{ id: "sg-8", title: "Self-Grooming & Styling Workshop", file: "8.jpeg", type: "image" },
+				{ id: "sg-9", title: "Self-Grooming & Styling Workshop", file: "9.jpeg", type: "image" },
+				{ id: "sg-10", title: "Self-Grooming & Styling Workshop", file: "10.jpeg", type: "image" }
+			]
+		},
+		{
+			id: "dandiya-night",
+			name: "Dandiya Night",
+			folder: "images/Dandiya Night",
+			items: [
+				{ id: "dn-1", title: "Dandiya Night", file: "UKC00983.webp", type: "image" },
+				{ id: "dn-2", title: "Dandiya Night", file: "UKC00998.webp", type: "image" },
+				{ id: "dn-3", title: "Dandiya Night", file: "UKC01030.webp", type: "image" },
+				{ id: "dn-4", title: "Dandiya Night", file: "UKC01072.webp", type: "image" },
+				{ id: "dn-5", title: "Dandiya Night", file: "UKC01094.webp", type: "image" },
+				{ id: "dn-6", title: "Dandiya Night", file: "UKC01519.webp", type: "image" },
+				{ id: "dn-7", title: "Dandiya Night", file: "UKC01533.webp", type: "image" },
+				{ id: "dn-8", title: "Dandiya Night", file: "UKC01535.webp", type: "image" },
+				{ id: "dn-9", title: "Dandiya Night", file: "UKC01545.webp", type: "image" },
+				{ id: "dn-10", title: "Dandiya Night", file: "UKC01556.webp", type: "image" },
+				{ id: "dn-11", title: "Dandiya Night", file: "UKC01562.webp", type: "image" },
+				{ id: "dn-12", title: "Dandiya Night", file: "UKC01621.webp", type: "image" },
+				{ id: "dn-13", title: "Dandiya Night", file: "UKC02361.webp", type: "image" }
+			]
 		},
 		{
 			id: "marathon",
@@ -82,7 +138,8 @@
 		}
 	];
 
-	// Flatten all items with full URL and event name attached
+	// Flatten all items with full URL and event name attached.
+	// All Events interleaves one photo from each event. A selected event keeps its own order.
 	const ALL_EVENT_ITEMS = [];
 	EVENT_GALLERIES.forEach((ev) => {
 		if (!ev.items) return;
@@ -101,8 +158,31 @@
 		});
 	});
 
+	function mixedEventItems(items) {
+		const buckets = [];
+		const seen = Object.create(null);
+		items.forEach((item) => {
+			const key = item.eventId;
+			if (seen[key] == null) {
+				seen[key] = buckets.length;
+				buckets.push([]);
+			}
+			buckets[seen[key]].push(item);
+		});
+		const mixed = [];
+		const max = buckets.reduce((count, bucket) => Math.max(count, bucket.length), 0);
+		for (let i = 0; i < max; i += 1) {
+			buckets.forEach((bucket) => {
+				if (bucket[i]) mixed.push(bucket[i]);
+			});
+		}
+		return mixed;
+	}
+
+	const MIXED_EVENT_ITEMS = mixedEventItems(ALL_EVENT_ITEMS);
+
 	let activeEventId = "all";
-	let visibleItems = ALL_EVENT_ITEMS.slice();
+	let visibleItems = MIXED_EVENT_ITEMS.slice();
 	let currentIndex = 0;
 	let lightboxIndex = 0;
 
@@ -157,7 +237,7 @@
 		activeEventId = eventId;
 
 		if (eventId === "all") {
-			visibleItems = ALL_EVENT_ITEMS.slice();
+			visibleItems = MIXED_EVENT_ITEMS.slice();
 		} else {
 			visibleItems = ALL_EVENT_ITEMS.filter((it) => it.eventId === eventId);
 		}

@@ -992,15 +992,19 @@ def _render_canvas_ticket(
     if not elements:
         return None
     custom = str(layout.get("canvas_mode") or "") == "custom"
+    custom_orient = "landscape"
     template_id = "custom" if custom else str(layout.get("template_id") or "classic")
     if layout.get("text_color"):
         text_rgb = hex_to_rgb01_safe(layout.get("text_color"))
     if custom:
         orient = "portrait" if str(layout.get("orientation") or "") == "portrait" else "landscape"
+        custom_orient = orient
         if orient == "portrait":
             page_w, page_h, css_h = 570.0, 760.0, 760.0
+            page_rgb = hex_to_rgb01_safe("#dbe7ff")
         else:
-            page_w, page_h, css_h = 760.0, 427.5, 427.5
+            page_w, page_h, css_h = 760.0, 291.2, 291.2
+            page_rgb = hex_to_rgb01_safe("#ffffff")
         card_x, card_y, card_w, card_h = 0.0, 0.0, page_w, page_h
         card_rgb = hex_to_rgb01_safe(layout.get("card_color") or "#ffffff")
         if not layout.get("text_color"):
@@ -1032,7 +1036,44 @@ def _render_canvas_ticket(
     ]
     resource_extra = ""
     if custom:
-        pass
+        accent = hex_to_rgb01_safe(
+            layout.get("accent_color") or ("#5b9dff" if custom_orient == "portrait" else "#e48aa8")
+        )
+        if custom_orient == "landscape":
+            ops.append(f"{_rgb(accent)} RG 10.0 w")
+            ops.append(f"{_round_rect_path(card_x + 6, card_y + 6, card_w - 12, card_h - 12, 16)} S")
+            perf_x = card_x + card_w * 0.70
+            ops.append(f"{_rgb(accent)} RG 1.3 w [3 3.5] 0 d")
+            ops.append(f"{perf_x:.1f} {card_y + card_h * 0.1:.1f} m {perf_x:.1f} {card_y + card_h * 0.9:.1f} l S")
+            ops.append("[] 0 d")
+        else:
+            band_h = max(16.0, card_h * 0.04)
+            top = card_y + card_h - band_h
+            ops.extend([
+                "q",
+                f"{card_x:.1f} {top:.1f} {card_w:.1f} {band_h:.1f} re W n",
+                f"{_rgb(accent)} rg {card_x:.1f} {top:.1f} {card_w:.1f} {band_h:.1f} re f",
+                "1 1 1 RG 2.2 w",
+            ])
+            stripe_x = card_x - band_h
+            while stripe_x < card_x + card_w + band_h:
+                ops.append(f"{stripe_x:.1f} {card_y + card_h:.1f} m {stripe_x + band_h:.1f} {top:.1f} l S")
+                stripe_x += 18.0
+            ops.append("Q")
+        notch_r = 12.0 if custom_orient == "landscape" else min(16.0, card_h * 0.035)
+        notch_y = card_y + card_h * (0.50 if custom_orient == "landscape" else 0.38)
+        for notch_x in (card_x, card_x + card_w):
+            ops.append(f"{_rgb(page_rgb)} rg")
+            ops.append(f"{_ellipse_path(notch_x, notch_y, notch_r, notch_r)} f")
+            if custom_orient == "landscape":
+                clip_x = card_x if notch_x <= card_x else card_x + card_w * 0.5
+                ops.extend([
+                    "q",
+                    f"{clip_x:.1f} {card_y:.1f} {card_w * 0.5:.1f} {card_h:.1f} re W n",
+                    f"{_rgb(accent)} RG 8 w",
+                    f"{_ellipse_path(notch_x, notch_y, notch_r, notch_r)} S",
+                    "Q",
+                ])
     elif template_id == "midnight":
         resource_extra = _midnight_resources(card_x, card_y, card_w, card_h)
         _paint_midnight_face(ops, card_x, card_y, card_w, card_h)
@@ -1235,6 +1276,8 @@ def _render_canvas_ticket(
         value = values.get(etype, "")
         if not value:
             continue
+        if custom and custom_orient == "landscape" and etype == "ticket_type":
+            value = value.upper()
         font = "/F1" if etype in {"title", "ticket_type", "name", "booking_id", "price", "ticket_id"} or str(el.get("fontWeight") or "") in {"600", "700", "800"} else "/F2"
         use_paint = muted_paint if etype in {"date", "venue", "qty", "seat", "footer"} and template_id not in plain_types else paint
         _draw_text_box(ops, value, x, y, w, h, size, use_paint, align, font)

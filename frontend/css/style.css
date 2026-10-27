@@ -2626,16 +2626,25 @@ html[data-theme="dark"] .marquee {
 	color: var(--light-orange);
 }
 
-.past-events-collage img {
-	height: 8.75rem;
+.past-events-collage {
+	grid-template-columns: repeat(6, 1fr);
+	gap: 0.6rem;
 }
 
-.past-events-collage img:last-child {
-	height: 7rem;
+.past-events-collage img {
+	height: 6.6rem;
+	grid-column: span 2;
+	margin-top: 0;
 }
 
 .past-events-collage img:nth-child(2) {
-	margin-top: 1.15rem;
+	margin-top: 0;
+}
+
+.past-events-collage img:nth-child(4),
+.past-events-collage img:last-child {
+	grid-column: span 3;
+	height: 7.4rem;
 }
 
 .teaser-list {

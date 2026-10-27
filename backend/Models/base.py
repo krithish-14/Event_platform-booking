@@ -178,6 +178,7 @@ def _migrate_tables(engine=None):
                 ("google_user_id", "VARCHAR(64)"),
                 ("auth_provider", "VARCHAR(20)"),
                 ("google_profile_complete", "BOOLEAN" if is_pg else "INTEGER"),
+                ("must_set_password", "BOOLEAN" if is_pg else "INTEGER"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in user_migrations:

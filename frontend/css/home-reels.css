@@ -446,7 +446,7 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 }
 
 .home-clients .section-heading {
-	margin-bottom: clamp(1.4rem, 3vw, 2.2rem);
+	margin-bottom: clamp(0.6rem, 1.6vw, 1rem);
 }
 
 .clients-marquee {
@@ -472,9 +472,9 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 .clients-group {
 	display: flex;
 	align-items: center;
-	gap: 0;
+	gap: 3rem;
 	margin: 0;
-	padding: 0;
+	padding: 0 3rem 0 0;
 	list-style: none;
 	flex-shrink: 0;
 }
@@ -482,9 +482,9 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 .client-logo {
 	position: relative;
 	flex: 0 0 auto;
-	width: 10rem;
-	height: 9rem;
-	margin-right: 1.25rem;
+	width: auto;
+	height: auto;
+	margin: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -511,8 +511,9 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 }
 
 .client-logo img {
-	width: 100%;
-	height: 100%;
+	width: auto;
+	height: 4.5rem;
+	max-width: none;
 	object-fit: contain;
 	display: block;
 	mix-blend-mode: multiply;
@@ -523,9 +524,13 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 	transform: translateY(-3px) scale(1.06);
 }
 
-html[data-theme="dark"] .client-logo img {
+.client-logo-plate img {
 	mix-blend-mode: normal;
 	border-radius: 14px;
+}
+
+html[data-theme="dark"] .client-logo img {
+	mix-blend-mode: normal;
 }
 
 @keyframes jodClientsScroll {
@@ -534,10 +539,12 @@ html[data-theme="dark"] .client-logo img {
 }
 
 @media (max-width: 640px) {
-	.client-logo {
-		width: 7.25rem;
-		height: 6.5rem;
-		margin-right: 0.85rem;
+	.clients-group {
+		gap: 1.75rem;
+		padding-right: 1.75rem;
+	}
+	.client-logo img {
+		height: 3.25rem;
 	}
 	.clients-track {
 		animation-duration: 24s;

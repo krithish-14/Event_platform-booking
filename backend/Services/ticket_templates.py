@@ -257,6 +257,9 @@ def normalize_ticket_layout(
         base["canvas_mode"] = "custom"
         orient = str(raw.get("orientation") or "landscape").strip().lower()
         base["orientation"] = "portrait" if orient == "portrait" else "landscape"
+        frame = str(raw.get("frame") or "").strip().lower()
+        if frame in {"reference", "edited"}:
+            base["frame"] = frame
     elif str(raw.get("canvas_mode") or "").strip().lower() == "legacy":
         base["canvas_mode"] = "legacy"
 

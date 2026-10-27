@@ -28,6 +28,22 @@
 
 	const REELS = [
 		{
+			id: "dandiya-nights",
+			shortcode: "DebmZTjy8_Q",
+			title: "Dandiya Nights",
+			caption: "Memorable corporate celebrations.",
+			instagram: "https://www.instagram.com/reel/DebmZTjy8_Q/",
+			poster: asset("images/video/DebmZTjy8_Q.jpg")
+		},
+		{
+			id: "self-styling-workshop",
+			shortcode: "Dew7vNvkgQz",
+			title: "Self-Grooming & Self-Styling Workshop",
+			caption: "Discover your style, build your confidence.",
+			instagram: "https://www.instagram.com/reel/Dew7vNvkgQz/",
+			poster: asset("images/video/Dew7vNvkgQz.jpg")
+		},
+		{
 			id: "self-grooming",
 			shortcode: "DeUQDfySOWE",
 			title: "Self Grooming & Styling",
@@ -304,33 +320,47 @@
 
 	function playStage(wantSound) {
 		if (!stageVideo) return;
-		stageVideo.playsInline = true;
-		stageVideo.setAttribute("webkit-playsinline", "");
-		stageVideo.muted = !wantSound;
-		stageVideo.onplaying = function () {
-			stageVideo.classList.add("is-on");
+		const video = stageVideo;
+		video.playsInline = true;
+		video.setAttribute("webkit-playsinline", "");
+		video.muted = !wantSound;
+		video.volume = 1;
+		if (wantSound) video.removeAttribute("muted");
+		else video.setAttribute("muted", "");
+		syncMuteButton();
+
+		function show() {
+			video.classList.add("is-on");
 			const poster = document.querySelector("[data-reel-stage-poster]");
 			if (poster) poster.hidden = true;
-		};
-		syncMuteButton();
-		const play = stageVideo.play();
-		if (play && typeof play.then === "function") {
-			play.then(function () {
-				stageVideo.classList.add("is-on");
-				const poster = document.querySelector("[data-reel-stage-poster]");
-				if (poster) poster.hidden = true;
-			}).catch(function () {
-				if (wantSound) {
-					stageVideo.muted = true;
+		}
+
+		function start() {
+			const play = video.play();
+			if (!play || typeof play.then !== "function") {
+				show();
+				return;
+			}
+			play.then(show).catch(function (err) {
+				const blocked = err && err.name === "NotAllowedError";
+				if (wantSound && blocked) {
+					video.muted = true;
+					video.setAttribute("muted", "");
 					syncMuteButton();
-					stageVideo.play().then(function () {
-						stageVideo.classList.add("is-on");
-						const poster = document.querySelector("[data-reel-stage-poster]");
-						if (poster) poster.hidden = true;
-					}).catch(function () {});
+					video.play().then(show).catch(function () {});
+					return;
 				}
+				video.classList.remove("is-on");
+				const poster = document.querySelector("[data-reel-stage-poster]");
+				if (poster) poster.hidden = false;
 			});
 		}
+
+		if (video.readyState >= 2) start();
+		else video.addEventListener("canplay", function onReady() {
+			video.removeEventListener("canplay", onReady);
+			start();
+		});
 	}
 
 	function renderLightbox(index, wantSound, countView) {

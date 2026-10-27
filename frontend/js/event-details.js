@@ -823,6 +823,116 @@ function bindTicketQtyControls() {
  }
 }
 
+function ticketCarouselNav(tList) {
+ return tList && tList.parentElement ? tList.parentElement.querySelector(".ticket-carousel-nav") : null;
+}
+
+function ticketCarouselIndex(tList) {
+ const cards = Array.from(tList.querySelectorAll("[data-ticket-option]"));
+ if (!cards.length) return 0;
+ const edge = tList.getBoundingClientRect().left;
+ let best = 0;
+ let bestDist = Infinity;
+ cards.forEach((card, index) => {
+ const dist = Math.abs(card.getBoundingClientRect().left - edge);
+ if (dist < bestDist) {
+ bestDist = dist;
+ best = index;
+ }
+ });
+ return best;
+}
+
+function scrollTicketCard(tList, card) {
+ if (!tList || !card) return;
+ const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+ const delta = card.getBoundingClientRect().left - tList.getBoundingClientRect().left;
+ tList.scrollTo({ left: tList.scrollLeft + delta, behavior: reduce ? "auto" : "smooth" });
+}
+
+function moveTicketCarousel(tList, direction) {
+ const cards = Array.from(tList.querySelectorAll("[data-ticket-option]"));
+ if (!cards.length) return;
+ const next = Math.max(0, Math.min(cards.length - 1, ticketCarouselIndex(tList) + direction));
+ scrollTicketCard(tList, cards[next]);
+}
+
+function refreshTicketCarousel(tList) {
+ const nav = ticketCarouselNav(tList);
+ const cards = Array.from(tList.querySelectorAll("[data-ticket-option]"));
+ if (!nav || nav.hidden || !cards.length) return;
+ const index = ticketCarouselIndex(tList);
+ nav.querySelectorAll("[data-ticket-dot]").forEach((dot, dotIndex) => {
+ const active = dotIndex === index;
+ dot.classList.toggle("is-active", active);
+ if (active) dot.setAttribute("aria-current", "true");
+ else dot.removeAttribute("aria-current");
+ });
+ const prev = nav.querySelector("[data-ticket-carousel='prev']");
+ const next = nav.querySelector("[data-ticket-carousel='next']");
+ if (prev) prev.disabled = index <= 0;
+ if (next) next.disabled = index >= cards.length - 1;
+ const card = cards[index];
+ if (card && !card.classList.contains("selected")) {
+ selectTicketOption(card, Number(card.dataset.price) || 0, card.dataset.name || "");
+ }
+}
+
+function setupTicketCarousel(tList, count, resetScroll) {
+ if (!tList) return;
+ let nav = ticketCarouselNav(tList);
+ if (count < 2) {
+ tList.classList.remove("is-carousel");
+ tList.removeAttribute("tabindex");
+ if (nav) nav.hidden = true;
+ return;
+ }
+ tList.classList.add("is-carousel");
+ tList.tabIndex = 0;
+ tList.setAttribute("role", "region");
+ tList.setAttribute("aria-label", "Ticket categories");
+ if (!nav) {
+ nav = document.createElement("div");
+ nav.className = "ticket-carousel-nav";
+ nav.innerHTML = '<button type="button" class="ticket-carousel-btn" data-ticket-carousel="prev" aria-label="Previous ticket">&#8249;</button><div class="ticket-carousel-dots"></div><button type="button" class="ticket-carousel-btn" data-ticket-carousel="next" aria-label="Next ticket">&#8250;</button>';
+ tList.insertAdjacentElement("afterend", nav);
+ nav.addEventListener("click", (event) => {
+ const dirBtn = event.target.closest("[data-ticket-carousel]");
+ const dot = event.target.closest("[data-ticket-dot]");
+ if (dirBtn) moveTicketCarousel(tList, dirBtn.dataset.ticketCarousel === "next" ? 1 : -1);
+ else if (dot) {
+ const cards = Array.from(tList.querySelectorAll("[data-ticket-option]"));
+ scrollTicketCard(tList, cards[Number(dot.dataset.ticketDot)]);
+ }
+ });
+ if (!tList.dataset.carouselBound) {
+ tList.dataset.carouselBound = "1";
+ let frame = 0;
+ tList.addEventListener("scroll", () => {
+ if (frame) cancelAnimationFrame(frame);
+ frame = requestAnimationFrame(() => refreshTicketCarousel(tList));
+ }, { passive: true });
+ tList.addEventListener("keydown", (event) => {
+ if (!tList.classList.contains("is-carousel")) return;
+ if (event.key === "ArrowRight") {
+ event.preventDefault();
+ moveTicketCarousel(tList, 1);
+ } else if (event.key === "ArrowLeft") {
+ event.preventDefault();
+ moveTicketCarousel(tList, -1);
+ }
+ });
+ }
+ }
+ nav.hidden = false;
+ const dots = nav.querySelector(".ticket-carousel-dots");
+ dots.innerHTML = Array.from({ length: count }, (_, index) => {
+ return '<button type="button" class="ticket-carousel-dot' + (index === 0 ? " is-active" : "") + '" data-ticket-dot="' + index + '" aria-label="Ticket ' + (index + 1) + ' of ' + count + '"></button>';
+ }).join("");
+ if (resetScroll) tList.scrollLeft = 0;
+ refreshTicketCarousel(tList);
+}
+
 function paintTicketTypes(event) {
  const tList = document.getElementById("ticketsList");
  if (!tList) return;
@@ -836,6 +946,7 @@ function paintTicketTypes(event) {
  if (closedReason) {
  const ended = EP && typeof EP.getEventPhase === "function" && EP.getEventPhase(event) === "ended";
  tList.innerHTML = `<p class="ticket-unavailable">${closedReason}</p>`;
+ setupTicketCarousel(tList, 0, true);
  setBuyTicketEnabled(false, ended ? "Event ended" : "Event live");
  startingTicketPrice = 0;
  setStartingPriceDisplay(0);
@@ -848,6 +959,7 @@ function paintTicketTypes(event) {
  if (!types.length) {
  const hadTimed = Array.isArray(event.ticket_types) && event.ticket_types.length > 0;
  tList.innerHTML = `<p class="ticket-unavailable">${hadTimed ? "This ticket offer is not on sale right now." : "Tickets will be announced soon."}</p>`;
+ setupTicketCarousel(tList, 0, true);
  setBuyTicketEnabled(false, hadTimed ? "Offer closed" : "Unavailable");
  const qtyWrap = document.getElementById("ticketQtyWrap");
  if (qtyWrap) qtyWrap.hidden = true;
@@ -894,7 +1006,10 @@ function paintTicketTypes(event) {
  </div>`;
  }).join("");
  tList.querySelectorAll("[data-ticket-option]").forEach((opt) => {
- opt.addEventListener("click", () => selectTicketOption(opt, Number(opt.dataset.price), opt.dataset.name));
+ opt.addEventListener("click", () => {
+ selectTicketOption(opt, Number(opt.dataset.price), opt.dataset.name);
+ if (tList.classList.contains("is-carousel")) scrollTicketCard(tList, opt);
+ });
  });
  const first = types[0];
  currentSelectedTicketType = first.name || "General Admission";
@@ -905,6 +1020,7 @@ function paintTicketTypes(event) {
  applyTicketPurchaseFromEvent(event);
  updateSelectedPriceUI(currentSelectedPrice, currentSelectedTicketType);
  if (EP && typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
+ setupTicketCarousel(tList, types.length, true);
 }
 
 let ticketPruneBound = false;
@@ -924,6 +1040,7 @@ function syncTicketAvailability(event) {
  paintTicketTypes(event);
  return;
  }
+ setupTicketCarousel(tList, remaining.length, false);
  if (!tList.querySelector(".ticket-type-option.selected") && remaining[0]) {
  remaining[0].click();
  return;

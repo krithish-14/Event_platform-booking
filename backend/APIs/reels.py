@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 router = APIRouter()
 
-ALLOWED_REELS = ("self-grooming", "rotary-meet", "rotary", "marathon", "marathon2", "sandd", "rotaract")
+ALLOWED_REELS = ("dandiya-nights", "self-styling-workshop", "self-grooming", "rotary-meet", "rotary", "marathon", "marathon2", "sandd", "rotaract")
 _LOCK = threading.Lock()
 _STATS_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "data", "reel_stats.json")

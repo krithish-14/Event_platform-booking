@@ -4136,6 +4136,52 @@ async function initOrganizerDashboard() {
 		});
 	}
 
+	document.querySelectorAll(".host-home [data-tab]").forEach((btn) => {
+		if (btn.dataset.hostHomeBound === "1") return;
+		btn.dataset.hostHomeBound = "1";
+		btn.addEventListener("click", (e) => {
+			e.preventDefault();
+			const tab = btn.getAttribute("data-tab");
+			if (tab) switchTab(tab);
+		});
+	});
+	(function bindHostFeeCalculator() {
+		const priceEl = document.getElementById("hostFeePrice");
+		const ticketEl = document.getElementById("hostFeeTicket");
+		const platformEl = document.getElementById("hostFeePlatform");
+		const gstEl = document.getElementById("hostFeeGstAmt");
+		const deductEl = document.getElementById("hostFeeDeductions");
+		const payoutEl = document.getElementById("hostFeePayout");
+		const guestEl = document.getElementById("hostFeeGuest");
+		const guestTicketEl = document.getElementById("hostFeeGuestTicket");
+		const moreBtn = document.getElementById("hostSeeFeatures");
+		if (!priceEl || priceEl.dataset.bound === "1") return;
+		priceEl.dataset.bound = "1";
+		const money = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		const paint = () => {
+			const price = Math.max(0, Number(priceEl.value) || 0);
+			const platform = Math.round(price * 5) / 100;
+			const gst = Math.round(price * 18) / 100;
+			const deductions = Math.round((platform + gst) * 100) / 100;
+			const payout = Math.round((price - deductions) * 100) / 100;
+			if (ticketEl) ticketEl.textContent = money(price);
+			if (platformEl) platformEl.textContent = money(platform);
+			if (gstEl) gstEl.textContent = money(gst);
+			if (deductEl) deductEl.textContent = money(deductions);
+			if (payoutEl) payoutEl.textContent = "INR " + money(payout);
+			if (guestEl) guestEl.textContent = money(price);
+			if (guestTicketEl) guestTicketEl.textContent = money(price);
+		};
+		priceEl.addEventListener("input", paint);
+		if (moreBtn) {
+			moreBtn.addEventListener("click", () => {
+				const features = document.getElementById("hostFeatures");
+				if (features) features.scrollIntoView({ behavior: "smooth", block: "start" });
+			});
+		}
+		paint();
+	})();
+
 	["qaBtnUpdate", "qaBtnManage", "qaBtnDesign", "qaBtnRegForm"].forEach((id) => {
 		const btn = document.getElementById(id);
 		if (!btn) return;

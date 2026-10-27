@@ -513,8 +513,9 @@
 	.collage img:last-child { height: 8rem; }
 	.past-events-card { padding: 1.35rem 1.2rem; }
 	.past-events-copy h2 { font-size: 1.3rem; }
-	.past-events-collage img { height: 8.5rem; }
-	.past-events-collage img:last-child { height: 6.5rem; }
+	.past-events-collage img { height: 5.4rem; }
+	.past-events-collage img:nth-child(4),
+	.past-events-collage img:last-child { height: 6.1rem; grid-column: span 3; }
 	.past-events-collage img:nth-child(2) { margin-top: 0; }
 	.footer-grid {
 		grid-template-columns: 1fr 1fr;

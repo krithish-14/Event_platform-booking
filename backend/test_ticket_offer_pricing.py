@@ -296,7 +296,7 @@ class TicketOfferPricingTests(unittest.TestCase):
             organizer_name="Organizer Name",
         )
         self.assertTrue(pdf.startswith(b"%PDF"))
-        self.assertIn(b"/MediaBox [0 0 760.0 427.5]", pdf)
+        self.assertIn(b"/MediaBox [0 0 760.0 291.2]", pdf)
         self.assertIn(b"Attendee Name", pdf)
         self.assertNotIn(b"attendee@example.com", pdf)
         portrait_pdf = build_mticket_pdf_bytes(

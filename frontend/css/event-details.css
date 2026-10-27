@@ -1686,3 +1686,128 @@ html[data-theme="dark"] .policy-block-body,
 html[data-theme="dark"] .ticket-price {
     color: #ffffff !important;
 }
+
+/* More than one ticket category scrolls sideways instead of stacking. */
+.tickets-section {
+    container-type: inline-size;
+    container-name: tickets;
+}
+
+#ticketsList.is-carousel,
+.tickets-list.is-carousel {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0.65rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    padding-bottom: 0.15rem;
+    -webkit-overflow-scrolling: touch;
+}
+
+#ticketsList.is-carousel::-webkit-scrollbar,
+.tickets-list.is-carousel::-webkit-scrollbar {
+    display: none;
+}
+
+#ticketsList.is-carousel > .ticket-type-option,
+.tickets-list.is-carousel > .ticket-type-option {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: none !important;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    box-sizing: border-box;
+}
+
+@container tickets (min-width: 680px) {
+    #ticketsList.is-carousel > .ticket-type-option,
+    .tickets-list.is-carousel > .ticket-type-option {
+        flex-basis: calc(50% - 0.4rem) !important;
+        width: calc(50% - 0.4rem) !important;
+        min-width: calc(50% - 0.4rem) !important;
+    }
+}
+
+.ticket-carousel-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+}
+
+.ticket-carousel-nav[hidden] {
+    display: none !important;
+}
+
+.ticket-carousel-btn {
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.ticket-carousel-btn:hover:not(:disabled) {
+    border-color: var(--theme-accent, #ff7508);
+    color: var(--theme-accent, #ff7508);
+}
+
+.ticket-carousel-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.ticket-carousel-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ticket-carousel-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: #e2e8f0;
+    cursor: pointer;
+}
+
+.ticket-carousel-dot.is-active {
+    width: 1.15rem;
+    background: var(--theme-accent, #ff7508);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #ticketsList.is-carousel,
+    .tickets-list.is-carousel {
+        scroll-behavior: auto;
+    }
+}
+
+html[data-theme="dark"] .ticket-carousel-btn {
+    background: #0e0c0a;
+    color: #f6f0e8;
+    border-color: rgba(255, 138, 31, 0.32);
+}
+
+html[data-theme="dark"] .ticket-carousel-dot {
+    background: #3a322a;
+}
+
+html[data-theme="dark"] .ticket-carousel-dot.is-active {
+    background: #FFA136;
+}

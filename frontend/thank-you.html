@@ -148,13 +148,44 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
  html[data-theme="dark"] p { color: #d4cbbf !important; }
  html[data-theme="dark"] .timer { color: #b8aea2 !important; }
  html[data-theme="dark"] .mark { background: rgba(22, 101, 52, 0.35); color: #86efac; }
+ .pwd-modal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(15, 23, 42, 0.55); }
+ .pwd-modal[hidden] { display: none !important; }
+ .pwd-card { width: min(420px, 100%); background: #fff; border-radius: 16px; padding: 1.3rem 1.2rem 1.1rem; text-align: left; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25); }
+ .pwd-card h2 { font-size: 1.2rem; margin-bottom: 0.35rem; }
+ .pwd-card p { font-size: 0.9rem; color: #64748b; margin-bottom: 0.85rem; }
+ .pwd-card label { display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 0.25rem; }
+ .pwd-card input { width: 100%; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0.7rem 0.8rem; margin-bottom: 0.7rem; font: inherit; }
+ .pwd-error { color: #b91c1c; font-size: 0.82rem; min-height: 1.1rem; margin: 0 0 0.5rem; }
+ .pwd-actions { display: flex; gap: 0.5rem; }
+ .pwd-actions button { border: 0; border-radius: 10px; padding: 0.75rem 0.9rem; font-weight: 800; cursor: pointer; font: inherit; }
+ .pwd-save { flex: 1; background: #ff7a00; color: #fff; }
+ .pwd-later { background: #fff; border: 1px solid #cbd5e1 !important; color: #334155; }
+ .pwd-save:disabled { opacity: 0.65; cursor: wait; }
+ html[data-theme="dark"] .pwd-card { background: #1c1814; color: #f6f0e8; }
+ html[data-theme="dark"] .pwd-card p, html[data-theme="dark"] .pwd-later { color: #d4cbbf; }
 	</style>
 </head>
 <body>
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) --> <div class="card"> <div class="mark" aria-hidden="true">&#10003;</div> <h1>Payment successful</h1> <p id="thankYouLead">Your QR ticket is ready. We also sent it to your email.</p> <p id="thankYouDetail">Open your ticket below, or find it anytime under Your Orders.</p> <div class="qr-wrap" id="thankYouQrWrap"> <img id="thankYouQrImg" alt="Your ticket QR code" width="200" height="200" /> </div> <a class="ticket-btn" id="thankYouTicket" href="/orders">View my ticket</a> <p class="timer" id="thankYouTimer">Exit available in 5s</p> <a class="exit-btn" id="thankYouExit" href="/">Exit</a> </div> <script> (function () {
+<!-- End Google Tag Manager (noscript) --> <div class="card"> <div class="mark" aria-hidden="true">&#10003;</div> <h1>Payment successful</h1> <p id="thankYouLead">Your QR ticket is ready. We also sent it to your email.</p> <p id="thankYouDetail">Open your ticket below, or find it anytime under Your Orders.</p> <div class="qr-wrap" id="thankYouQrWrap"> <img id="thankYouQrImg" alt="Your ticket QR code" width="200" height="200" /> </div> <a class="ticket-btn" id="thankYouTicket" href="/orders">View my ticket</a> <p class="timer" id="thankYouTimer">Exit available in 5s</p> <a class="exit-btn" id="thankYouExit" href="/">Exit</a> </div>
+ <div class="pwd-modal" id="setPasswordModal" hidden>
+  <div class="pwd-card" role="dialog" aria-modal="true" aria-labelledby="setPasswordTitle">
+   <h2 id="setPasswordTitle">Set a password</h2>
+   <p>Payment is complete. Choose a password so you can log in to this account later. If you skip this, use Forgot password on the login page.</p>
+   <label for="setPasswordInput">Password</label>
+   <input id="setPasswordInput" type="password" autocomplete="new-password" minlength="8" />
+   <label for="setPasswordConfirm">Confirm password</label>
+   <input id="setPasswordConfirm" type="password" autocomplete="new-password" minlength="8" />
+   <p class="pwd-error" id="setPasswordError"></p>
+   <div class="pwd-actions">
+    <button type="button" class="pwd-later" id="setPasswordLater">Not now</button>
+    <button type="button" class="pwd-save" id="setPasswordSave">Save password</button>
+   </div>
+  </div>
+ </div>
+ <script> (function () {
  var timerEl = document.getElementById("thankYouTimer");
  var exitEl = document.getElementById("thankYouExit");
  var ticketBtn = document.getElementById("thankYouTicket");
@@ -203,6 +234,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  : "Your QR ticket is ready. We also sent it to your email.";
  }
  }
+ function startExitTimer() {
+ if (startExitTimer.started) return;
+ startExitTimer.started = true;
  var tick = setInterval(function () {
  remaining -= 1;
  if (remaining <= 0) {
@@ -213,6 +247,78 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  }
  if (timerEl) timerEl.textContent = "Exit available in " + remaining + "s";
  }, 1000);
+ }
+ function apiRoot() {
+ var origin = "";
+ try {
+ origin = (window.JodConfig && window.JodConfig.getApiOrigin && window.JodConfig.getApiOrigin()) || "";
+ } catch (_) {}
+ return String(origin || "").replace(/\/$/, "") + "/api";
+ }
+ function closePasswordModal() {
+ var modal = document.getElementById("setPasswordModal");
+ if (modal) modal.hidden = true;
+ startExitTimer();
+ }
+ var laterBtn = document.getElementById("setPasswordLater");
+ var saveBtn = document.getElementById("setPasswordSave");
+ if (laterBtn) laterBtn.addEventListener("click", closePasswordModal);
+ if (saveBtn) saveBtn.addEventListener("click", async function () {
+ var password = (document.getElementById("setPasswordInput").value || "");
+ var confirmValue = (document.getElementById("setPasswordConfirm").value || "");
+ var errorEl = document.getElementById("setPasswordError");
+ if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+ if (errorEl) errorEl.textContent = "Use at least 8 characters, with a letter and a number.";
+ return;
+ }
+ if (password !== confirmValue) {
+ if (errorEl) errorEl.textContent = "The two passwords do not match.";
+ return;
+ }
+ if (errorEl) errorEl.textContent = "";
+ saveBtn.disabled = true;
+ saveBtn.textContent = "Saving...";
+ try {
+ var res = await fetch(apiRoot() + "/auth/guest/set-password", {
+ method: "POST",
+ credentials: "include",
+ headers: { "Content-Type": "application/json", "Accept": "application/json" },
+ body: JSON.stringify({ password: password })
+ });
+ var data = {};
+ try { data = await res.json(); } catch (_) {}
+ if (!res.ok) {
+ var detail = data && data.detail;
+ if (errorEl) errorEl.textContent = typeof detail === "string" ? detail : "Could not save the password.";
+ saveBtn.disabled = false;
+ saveBtn.textContent = "Save password";
+ return;
+ }
+ if (data.user) {
+ try {
+ localStorage.setItem("jod_user", JSON.stringify(data.user));
+ sessionStorage.setItem("jod_user", JSON.stringify(data.user));
+ } catch (_) {}
+ }
+ closePasswordModal();
+ } catch (_) {
+ if (errorEl) errorEl.textContent = "Could not reach the server. Try again.";
+ saveBtn.disabled = false;
+ saveBtn.textContent = "Save password";
+ }
+ });
+ fetch(apiRoot() + "/auth/me", { credentials: "include", headers: { Accept: "application/json" } })
+ .then(function (res) { return res.ok ? res.json() : null; })
+ .then(function (user) {
+ if (user && user.must_set_password) {
+ var modal = document.getElementById("setPasswordModal");
+ if (modal) modal.hidden = false;
+ if (timerEl) timerEl.textContent = "Set a password to finish your account.";
+ return;
+ }
+ startExitTimer();
+ })
+ .catch(function () { startExitTimer(); });
  })();
 	</script>
 </body>
