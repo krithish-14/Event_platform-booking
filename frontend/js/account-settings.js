@@ -726,10 +726,10 @@
 					const icon = el.querySelector(".rule-icon");
 					if (rules[key]) {
 						el.classList.add("is-valid");
-						icon.textContent = "&#10004;";
+						icon.textContent = "\u2714";
 					} else {
 						el.classList.remove("is-valid");
-						icon.textContent = "&#10006;";
+						icon.textContent = "\u2716";
 					}
 				}
 			}
@@ -773,11 +773,11 @@
 					return;
 				}
 				if (newPw === confirmPw) {
-					el.textContent = "&#10004; Passwords match";
+					el.textContent = "\u2714 Passwords match";
 					el.className = "pw-match-status match";
 					document.getElementById("confirmNewPw").classList.remove("has-error");
 				} else {
-					el.textContent = "&#10006; Passwords do not match";
+					el.textContent = "\u2716 Passwords do not match";
 					el.className = "pw-match-status no-match";
 					document.getElementById("confirmNewPw").classList.add("has-error");
 				}
@@ -794,7 +794,7 @@
 			}
 
 			function showError(el, msg) {
-				el.textContent = "&#9888; " + msg;
+				el.textContent = "\u26A0 " + msg;
 				el.style.display = "block";
 				setTimeout(() => el.style.display = "none", 4000);
 			}

@@ -54,8 +54,11 @@ def agreement_record_payload(org_acc) -> Dict[str, Any]:
         approval = "Pending review"
     else:
         approval = "Not submitted"
+    approved = status == "verified"
     return {
         "accepted": bool(getattr(org_acc, "accepted_agreement", False)) and accepted_at is not None,
+        "approved": approved,
+        "approved_at_utc": verified_at.isoformat() + "Z" if (approved and verified_at) else None,
         "host_legal_name": getattr(org_acc, "org_name", None) or getattr(org_acc, "contact_full_name", None) or "",
         "verified_email": getattr(org_acc, "agreement_accepted_email", None) or getattr(org_acc, "email", None) or "",
         "host_id": getattr(org_acc, "host_id", None) or "",
@@ -82,6 +85,7 @@ def build_agreement_record_pdf_bytes(org_acc) -> bytes:
     record = agreement_record_payload(org_acc)
     accepted_at = getattr(org_acc, "agreement_accepted_at", None)
     otp_at = getattr(org_acc, "agreement_otp_verified_at", None)
+    approved_at = getattr(org_acc, "verified_at", None) if record["approved"] else None
 
     ops: List[str] = []
     ops.append(_rect(0, PAGE_H - 48, PAGE_W, 48, NAVY))
@@ -113,6 +117,7 @@ def build_agreement_record_pdf_bytes(org_acc) -> bytes:
         ("Browser", record["browser"] or "Not recorded"),
         ("Acceptance reference", record["acceptance_reference"] or "-"),
         ("JOD approval", record["jod_approval"]),
+        ("Approved at (UTC)", _utc(approved_at) if record["approved"] else "Awaiting admin approval"),
     ]
     for label, value in rows:
         ops.append(_text(LEFT, y, label, 8, False, MUTED))
@@ -128,9 +133,14 @@ def build_agreement_record_pdf_bytes(org_acc) -> bytes:
         y -= 16
 
     y -= 6
-    status_text = "Accepted" if record["accepted"] else "Not accepted"
+    if record["approved"] and record["accepted"]:
+        status_text, status_rgb = "Approved", GREEN
+    elif record["accepted"]:
+        status_text, status_rgb = "Pending approval", (0.85, 0.47, 0.02)
+    else:
+        status_text, status_rgb = "Not accepted", (0.72, 0.12, 0.12)
     ops.append(_text(LEFT, y, "Status", 8, False, MUTED))
-    ops.append(_text(LEFT + 170, y, status_text, 12, True, GREEN if record["accepted"] else (0.72, 0.12, 0.12)))
+    ops.append(_text(LEFT + 170, y, status_text, 12, True, status_rgb))
     y -= 30
 
     notes = [

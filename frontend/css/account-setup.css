@@ -415,6 +415,47 @@ html[data-theme="dark"] .host-agreement-head { border-color: rgba(255, 138, 31, 
 	background-color: #1d4ed8;
 }
 
+.setup-actions-bar .btn-setup-back,
+.setup-actions-bar .btn-setup-secondary,
+.setup-actions-bar .btn-setup-primary {
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1.2;
+	text-align: center;
+	box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+	.setup-actions-bar {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.6rem;
+		padding: 0 1rem;
+		margin-top: 1.25rem;
+	}
+	.right-action-btns { display: contents; }
+	.setup-actions-bar .btn-setup-back,
+	.setup-actions-bar .btn-setup-secondary,
+	.setup-actions-bar .btn-setup-primary {
+		width: 100%;
+		min-height: 48px;
+		padding: 0.75rem 0.9rem;
+		font-size: 0.95rem;
+		border-radius: 10px;
+		white-space: normal;
+	}
+	.setup-actions-bar .btn-setup-primary {
+		grid-column: 1 / -1;
+		order: -1;
+	}
+	.setup-actions-bar .btn-setup-back[style*="display: none"] + .right-action-btns .btn-setup-secondary,
+	.setup-actions-bar .btn-setup-back[style*="display:none"] + .right-action-btns .btn-setup-secondary {
+		grid-column: 1 / -1;
+	}
+}
+
 /* Modal Styling */
 .doc-modal-backdrop {
 	position: fixed;

@@ -448,3 +448,32 @@
 				font-size: 2.2rem !important;
 			}
 		}
+
+		/* Phones: a 1fr grid column grows to its widest nowrap child, so pin it to the screen width. */
+		@media (max-width: 860px) {
+			.profile-shell { grid-template-columns: minmax(0, 1fr) !important; }
+			.profile-shell > *,
+			.profile-main,
+			.profile-panel,
+			.settings-card,
+			.settings-nav { min-width: 0; max-width: 100%; }
+			.profile-side {
+				-webkit-overflow-scrolling: touch;
+				scrollbar-width: none;
+			}
+			.profile-side::-webkit-scrollbar { display: none; }
+			.profile-side-btn { flex-shrink: 0; }
+		}
+		@media (max-width: 600px) {
+			.profile-workspace { padding: 1rem 0 3rem; }
+			.profile-panel-head h2 { font-size: 1.35rem; }
+			.settings-card { padding: 1.1rem .9rem; }
+			.settings-avatar-flex {
+				flex-direction: column;
+				align-items: flex-start;
+			}
+			.avatar-btns { display: flex; flex-wrap: wrap; gap: .5rem; }
+			.pw-rules-list { grid-template-columns: 1fr; }
+			.pw-rule-item { align-items: flex-start; line-height: 1.35; }
+			.form-input { max-width: 100%; box-sizing: border-box; }
+		}

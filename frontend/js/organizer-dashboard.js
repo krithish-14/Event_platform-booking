@@ -6035,14 +6035,14 @@ async function initOrganizerDashboard() {
 				container.insertBefore(card, container.firstChild ? container.firstChild.nextSibling : null);
 			}
 		}
-		const when = record.accepted_at_utc ? new Date(record.accepted_at_utc) : null;
+		const when = (record.approved_at_utc || record.accepted_at_utc) ? new Date(record.approved_at_utc || record.accepted_at_utc) : null;
 		const whenText = when && !isNaN(when.getTime())
 			? when.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 			: "";
 		const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 		card.innerHTML = `
 			<div>
-				<div style="font-weight:800; font-size:0.98rem; margin-bottom:0.15rem;">Host &amp; Ticketing Agreement accepted</div>
+				<div style="font-weight:800; font-size:0.98rem; margin-bottom:0.15rem;">Host &amp; Ticketing Agreement ${record.approved ? "approved" : "accepted"}</div>
 				<div style="font-size:0.86rem; line-height:1.5; opacity:0.85;">Version ${esc(record.agreement_version)}${whenText ? " &middot; " + esc(whenText) : ""}${record.acceptance_reference ? " &middot; Ref " + esc(record.acceptance_reference) : ""}</div>
 			</div>
 			<button type="button" id="btnDownloadAgreementRecord" style="background:#1e40af; color:#fff; padding:0.5rem 1.05rem; border:none; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer; white-space:nowrap;">Download acceptance record</button>

@@ -193,14 +193,14 @@ document.addEventListener("DOMContentLoaded", async () => {
  step2Section.style.display = "block";
  tabStep1.classList.add("active");
  tabStep2.classList.add("active"); // Match screenshot: step 1 and step 2 active blue
- btnBack.style.display = "inline-block";
+ btnBack.style.display = "inline-flex";
  btnProceed.textContent = "Continue to Sign Agreement";
  } else if (step === 3) {
  step3Section.style.display = "block";
  tabStep1.classList.add("active");
  tabStep2.classList.add("active");
  tabStep3.classList.add("active");
- btnBack.style.display = "inline-block";
+ btnBack.style.display = "inline-flex";
  btnProceed.textContent = "Accept Agreement";
  fillAgreementRecord();
  watchAgreementScroll();

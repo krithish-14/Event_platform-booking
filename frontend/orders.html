@@ -438,7 +438,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				const statusEl = document.getElementById("orderCancelStatus");
 				const confirmBtn = document.getElementById("orderCancelConfirm");
 				if (confirmBtn) confirmBtn.disabled = true;
-				if (statusEl) statusEl.textContent = "Sending your cancellation request&#8230;";
+				if (statusEl) statusEl.textContent = "Sending your cancellation request\u2026";
 				try {
 					const fetchFn = (window.JodAuth && typeof window.JodAuth.fetchAuth === "function")
 						? window.JodAuth.fetchAuth.bind(window.JodAuth)

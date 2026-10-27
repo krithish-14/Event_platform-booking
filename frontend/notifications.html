@@ -269,7 +269,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 			async function bootFeed() {
 				const empty = document.getElementById("notifEmptyState");
-				if (empty) empty.querySelector(".notif-empty-title").textContent = "Loading&#8230;";
+				if (empty) empty.querySelector(".notif-empty-title").textContent = "Loading\u2026";
 
 				const inbox = window.JodInbox;
 				applyItems(inbox ? await inbox.collectItems() : []);

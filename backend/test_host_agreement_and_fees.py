@@ -69,6 +69,21 @@ class AgreementRecordTests(unittest.TestCase):
         record = agreement_record_payload(host_account(agreement_accepted_at=None))
         self.assertFalse(record["accepted"])
 
+    def test_approved_host_pdf_says_approved(self):
+        acc = host_account(status="verified", verified_at=datetime(2026, 10, 28, 9, 15, 0))
+        record = agreement_record_payload(acc)
+        self.assertTrue(record["approved"])
+        self.assertEqual(record["approved_at_utc"], "2026-10-28T09:15:00Z")
+        pdf = build_agreement_record_pdf_bytes(acc)
+        self.assertIn(b"(Approved) Tj", pdf)
+        self.assertIn(b"28 Oct 2026, 09:15:00 UTC", pdf)
+        self.assertNotIn(b"(Accepted) Tj", pdf)
+
+    def test_pending_host_pdf_is_not_marked_approved(self):
+        pdf = build_agreement_record_pdf_bytes(host_account())
+        self.assertIn(b"(Pending approval) Tj", pdf)
+        self.assertNotIn(b"(Approved) Tj", pdf)
+
     def test_pdf_contains_reference_and_version(self):
         pdf = build_agreement_record_pdf_bytes(host_account())
         self.assertTrue(pdf.startswith(b"%PDF-1.4"))
