@@ -446,6 +446,15 @@ def _migrate_tables(engine=None):
                 ("status", "VARCHAR(50)"),
                 ("accepted_agreement", "BOOLEAN"),
                 ("subscription_tier", "VARCHAR(40)"),
+                ("agreement_version", "VARCHAR(40)"),
+                ("agreement_accept_text", "VARCHAR(300)"),
+                ("agreement_accepted_at", "TIMESTAMP" if is_pg else "DATETIME"),
+                ("agreement_accepted_email", "VARCHAR(255)"),
+                ("agreement_accept_ip", "VARCHAR(64)"),
+                ("agreement_accept_user_agent", "VARCHAR(80)"),
+                ("agreement_acceptance_ref", "VARCHAR(40)"),
+                ("agreement_otp_verified_at", "TIMESTAMP" if is_pg else "DATETIME"),
+                ("email_otp_verified_at", "TIMESTAMP" if is_pg else "DATETIME"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in org_migrations:

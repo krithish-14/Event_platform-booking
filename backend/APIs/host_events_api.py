@@ -3500,13 +3500,17 @@ def _active_bookings_for_event(db: Session, event_mgt: EventManagement) -> list:
     return active
 
 
-def _gst_for_booking(booking) -> float:
-    """GST is 18% of that booking's ticket total."""
-    return round(float(booking.total_price or 0.0) * HOST_GST_FEE_PCT / 100, 2)
+def _host_platform_fee(gross: float) -> float:
+    return round(float(gross or 0.0) * HOST_PLATFORM_FEE_PCT / 100, 2)
+
+
+def _host_gst_on_platform_fee(platform_fee: float) -> float:
+    """GST is charged on JOD's commission only, per the Host & Ticketing Agreement."""
+    return round(float(platform_fee or 0.0) * HOST_GST_FEE_PCT / 100, 2)
 
 
 def _host_ticket_fee_breakdown(bookings: list) -> Dict[str, Any]:
-    """Platform 5% and GST 18% applied per booking/ticket sale, then summed."""
+    """Platform 5% per booking, plus 18% GST on that platform fee, then summed."""
     by_type: Dict[str, Dict[str, Any]] = {}
     platform_total = 0.0
     gst_total = 0.0
@@ -3514,8 +3518,8 @@ def _host_ticket_fee_breakdown(bookings: list) -> Dict[str, Any]:
     for booking in bookings:
         gross = round(float(booking.total_price or 0.0), 2)
         qty = max(1, int(booking.quantity or 1))
-        gst = _gst_for_booking(booking)
-        platform = round(gross * HOST_PLATFORM_FEE_PCT / 100, 2)
+        platform = _host_platform_fee(gross)
+        gst = _host_gst_on_platform_fee(platform)
         net = round(gross - platform - gst, 2)
         gross_total += gross
         platform_total += platform
@@ -3542,6 +3546,7 @@ def _host_ticket_fee_breakdown(bookings: list) -> Dict[str, Any]:
         "ticket_fee_rows": list(by_type.values()),
         "platform_fee_pct": HOST_PLATFORM_FEE_PCT,
         "gst_fee_pct": HOST_GST_FEE_PCT,
+        "gst_fee_basis": "platform_fee",
     }
 
 
@@ -3559,6 +3564,7 @@ def _empty_event_report_payload() -> Dict[str, Any]:
         "net_earnings": 0,
         "platform_fee_pct": HOST_PLATFORM_FEE_PCT,
         "gst_fee_pct": HOST_GST_FEE_PCT,
+        "gst_fee_basis": "platform_fee",
         "attendance_rate": 0,
         "conversion_rate": 0,
         "registrations_count": 0,
@@ -3601,8 +3607,8 @@ def _event_report_payload(db: Session, event: EventManagement) -> Dict[str, Any]
         gst_fee = fees["gst_fee"]
         net_earnings = fees["net"]
     else:
-        platform_fee = round(gross_revenue * HOST_PLATFORM_FEE_PCT / 100, 2)
-        gst_fee = round(gross_revenue * HOST_GST_FEE_PCT / 100, 2)
+        platform_fee = _host_platform_fee(gross_revenue)
+        gst_fee = _host_gst_on_platform_fee(platform_fee)
         net_earnings = round(gross_revenue - platform_fee - gst_fee, 2)
     attendance_rate = round((checked / sold * 100) if sold else 0.0, 1)
     conversion_rate = round((sold / max(capacity, 1) * 100), 1)
@@ -3621,6 +3627,7 @@ def _event_report_payload(db: Session, event: EventManagement) -> Dict[str, Any]
         "net_earnings": net_earnings,
         "platform_fee_pct": HOST_PLATFORM_FEE_PCT,
         "gst_fee_pct": HOST_GST_FEE_PCT,
+        "gst_fee_basis": "platform_fee",
         "attendance_rate": attendance_rate,
         "conversion_rate": conversion_rate,
         "registrations_count": live["total_registrations"],

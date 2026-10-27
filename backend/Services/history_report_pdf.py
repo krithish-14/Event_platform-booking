@@ -295,7 +295,7 @@ def build_history_report_pdf_bytes(
     section("3.  REVENUE AND PAYOUT")
     money_row("Gross ticket sales", gross)
     money_row(f"Platform service fee ({platform_pct}%)", f"- {platform}", rgb=RED)
-    money_row(f"Taxes and statutory GST ({gst_pct}%)", f"- {gst}", rgb=RED)
+    money_row(f"GST on platform fee ({gst_pct}%)", f"- {gst}", rgb=RED)
     ops.append(_rule(LEFT, y + 8, RIGHT - LEFT, (0.80, 0.84, 0.89), 0.6))
     y -= 4
     money_row("Net host payout", net, rgb=GREEN, size=12, bold=True)

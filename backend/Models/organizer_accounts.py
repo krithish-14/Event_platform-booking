@@ -43,6 +43,16 @@ class OrganizerAccount(Base):
     cancelled_cheque_url  = Column(String(500), nullable=True)
     # Step 3 of onboarding: digital signature on the partner agreement
     accepted_agreement    = Column(Boolean, nullable=True)
+    # Host & Ticketing Agreement acceptance record (stamped on final submit)
+    agreement_version          = Column(String(40), nullable=True)
+    agreement_accept_text      = Column(String(300), nullable=True)
+    agreement_accepted_at      = Column(DateTime, nullable=True)
+    agreement_accepted_email   = Column(String(255), nullable=True)
+    agreement_accept_ip        = Column(String(64), nullable=True)
+    agreement_accept_user_agent = Column(String(80), nullable=True)
+    agreement_acceptance_ref   = Column(String(40), nullable=True)
+    agreement_otp_verified_at  = Column(DateTime, nullable=True)
+    email_otp_verified_at      = Column(DateTime, nullable=True)
     customer_id           = Column(String(50), ForeignKey("users.customer_id"), nullable=True, index=True)
     host_id               = Column(String(50), nullable=True)
     # free | premium — premium can hide the default JOD logo on host ticket designs

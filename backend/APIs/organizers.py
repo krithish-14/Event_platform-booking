@@ -7,7 +7,7 @@ import sys
 import uuid
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy import or_
@@ -21,6 +21,15 @@ from Utils.id_generator import generate_customer_id, generate_host_id_from_custo
 from Services.email import send_email
 from Services.runtime_env import smtp_configured
 from Utils.categories import ASSET_FILE_LIMITS, is_allowed_kyc_bytes
+from Services.client_meta import get_client_ip, get_user_agent
+from Services.host_agreement import (
+    HOST_AGREEMENT_ACCEPT_TEXT,
+    HOST_AGREEMENT_VERSION,
+    agreement_record_filename,
+    agreement_record_payload,
+    build_agreement_record_pdf_bytes,
+    new_acceptance_reference,
+)
 
 router = APIRouter()
 
@@ -263,6 +272,7 @@ class AccountSetupRequest(BaseModel):
     pan_card_url: Optional[str] = None
     cancelled_cheque_url: Optional[str] = None
     accepted_agreement: bool = False
+    agreement_version: Optional[str] = None
 
     is_final_submit: bool = False
 
@@ -431,6 +441,7 @@ def verify_otp(
         db.add(org_acc)
     elif user and not org_acc.customer_id:
         org_acc.customer_id = user.customer_id
+    org_acc.email_otp_verified_at = datetime.utcnow()
 
     if not user and org_acc and org_acc.customer_id:
         user = db.query(User).filter(User.customer_id == org_acc.customer_id).first()
@@ -450,9 +461,26 @@ def verify_otp(
     return result
 
 
+def _stamp_agreement_acceptance(org_acc: OrganizerAccount, request: Request, email: str) -> None:
+    org_acc.agreement_version = HOST_AGREEMENT_VERSION
+    org_acc.agreement_accept_text = HOST_AGREEMENT_ACCEPT_TEXT
+    org_acc.agreement_accepted_at = datetime.utcnow()
+    org_acc.agreement_accepted_email = email
+    org_acc.agreement_accept_ip = (get_client_ip(request) or "")[:64] or None
+    org_acc.agreement_accept_user_agent = (get_user_agent(request) or "")[:80] or None
+    org_acc.agreement_acceptance_ref = new_acceptance_reference()
+    org_acc.agreement_otp_verified_at = getattr(org_acc, "email_otp_verified_at", None)
+
+
+def _clear_agreement_acceptance(org_acc: OrganizerAccount) -> None:
+    org_acc.agreement_accepted_at = None
+    org_acc.agreement_acceptance_ref = None
+
+
 @router.post("/account-setup")
 def save_account_setup(
     payload: AccountSetupRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -519,6 +547,8 @@ def save_account_setup(
     org_acc.pan_card_url = payload.pan_card_url
     org_acc.cancelled_cheque_url = payload.cancelled_cheque_url
     org_acc.accepted_agreement = payload.accepted_agreement
+    if not payload.accepted_agreement:
+        _clear_agreement_acceptance(org_acc)
 
     if payload.is_final_submit:
         missing = missing_setup_steps(org_acc, strict_agreement=True)
@@ -527,6 +557,12 @@ def save_account_setup(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Please complete the following before finishing setup: " + ", ".join(missing) + "."
             )
+        if payload.agreement_version and payload.agreement_version != HOST_AGREEMENT_VERSION:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The Host & Ticketing Agreement has been updated. Refresh the page and accept the latest version.",
+            )
+        _stamp_agreement_acceptance(org_acc, request, email)
         # Resubmission: if previously rejected/restricted, clear rejection reason
         if (org_acc.status or "").lower() in ("rejected", "restricted"):
             org_acc.rejection_reason = None
@@ -561,6 +597,7 @@ def save_account_setup(
         "setup_complete": is_setup_complete(org_acc),
         "dashboard_access": can_access_host_dashboard(org_acc),
         "missing_steps": missing_setup_steps(org_acc),
+        "agreement_record": agreement_record_payload(org_acc),
         "account": {
             "id": str(org_acc.id),
             "customer_id": org_acc.customer_id,
@@ -594,6 +631,49 @@ def save_account_setup(
             "updated_at": org_acc.updated_at.isoformat() if org_acc.updated_at else None
         }
     }
+
+
+def _organizer_account_for_user(db: Session, current_user: User) -> Optional[OrganizerAccount]:
+    email_clean = current_user.email.lower().strip()
+    return db.query(OrganizerAccount).filter(
+        (OrganizerAccount.customer_id == current_user.customer_id) | (OrganizerAccount.email == email_clean)
+    ).first()
+
+
+@router.get("/agreement-record")
+def get_agreement_record(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """JSON acceptance record for the signed-in host."""
+    org_acc = _organizer_account_for_user(db, current_user)
+    if not org_acc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No host account found.")
+    return agreement_record_payload(org_acc)
+
+
+@router.get("/agreement-record/pdf")
+def download_agreement_record_pdf(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Downloadable acceptance record PDF for the signed-in host."""
+    org_acc = _organizer_account_for_user(db, current_user)
+    if not org_acc or not org_acc.accepted_agreement or not getattr(org_acc, "agreement_accepted_at", None):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No accepted agreement is on record yet. Finish host setup and click Accept Agreement first.",
+        )
+    pdf = build_agreement_record_pdf_bytes(org_acc)
+    filename = agreement_record_filename(agreement_record_payload(org_acc))
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.get("/account-setup")
@@ -632,6 +712,7 @@ def get_account_setup(
         "bank_complete": has_payout_bank(org_acc),
         "documents_complete": has_kyc_documents(org_acc),
         "agreement_signed": has_signed_agreement(org_acc),
+        "agreement_record": agreement_record_payload(org_acc),
         "setup_complete": is_setup_complete(org_acc),
         "dashboard_access": can_access_host_dashboard(org_acc),
         "missing_steps": missing_setup_steps(org_acc),

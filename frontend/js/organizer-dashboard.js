@@ -2971,7 +2971,7 @@ async function initOrganizerDashboard() {
 			const data = await res.json();
 			const gross = Number(data.gross_revenue || 0);
 			const platformFee = Number(data.platform_fee != null ? data.platform_fee : gross * 0.05);
-			const gstFee = Number(data.gst_fee != null ? data.gst_fee : gross * 0.18);
+			const gstFee = Number(data.gst_fee != null ? data.gst_fee : platformFee * 0.18);
 			const net = Number(data.net_earnings != null ? data.net_earnings : gross - platformFee - gstFee);
 			const platformPct = Number(data.platform_fee_pct || 5);
 			const gstPct = Number(data.gst_fee_pct != null ? data.gst_fee_pct : 18);
@@ -2996,7 +2996,7 @@ async function initOrganizerDashboard() {
 			if (gstFeeEl) gstFeeEl.textContent = formatInr(-gstFee, true);
 			if (netPayoutEl) netPayoutEl.textContent = formatInr(net);
 			if (platformLabel) platformLabel.textContent = `Platform Service Fee (${platformPct}%)`;
-			if (gstLabel) gstLabel.textContent = `Taxes & Statutory GST (${gstPct}%)`;
+			if (gstLabel) gstLabel.textContent = `GST on Platform Fee (${gstPct}%)`;
 
 			const ticketRowsEl = document.getElementById("repTicketFeeRows");
 			if (ticketRowsEl) {
@@ -3079,7 +3079,7 @@ async function initOrganizerDashboard() {
 	function fillHistoryReport(data) {
 		const gross = Number(data.gross_revenue || 0);
 		const platformFee = Number(data.platform_fee != null ? data.platform_fee : gross * 0.05);
-		const gstFee = Number(data.gst_fee != null ? data.gst_fee : gross * 0.18);
+		const gstFee = Number(data.gst_fee != null ? data.gst_fee : platformFee * 0.18);
 		const net = Number(data.net_earnings != null ? data.net_earnings : gross - platformFee - gstFee);
 		const platformPct = Number(data.platform_fee_pct || 5);
 		const gstPct = Number(data.gst_fee_pct != null ? data.gst_fee_pct : 18);
@@ -3100,7 +3100,7 @@ async function initOrganizerDashboard() {
 		const platformLabel = document.getElementById("histPlatformFeeLabel");
 		const gstLabel = document.getElementById("histGstFeeLabel");
 		if (platformLabel) platformLabel.textContent = "Platform Service Fee (" + platformPct + "%)";
-		if (gstLabel) gstLabel.textContent = "Taxes & Statutory GST (" + gstPct + "%)";
+		if (gstLabel) gstLabel.textContent = "GST on Platform Fee (" + gstPct + "%)";
 		const citiesEl = document.getElementById("histTopCities");
 		if (citiesEl) {
 			const cities = Array.isArray(data.top_cities) ? data.top_cities : [];
@@ -4161,7 +4161,7 @@ async function initOrganizerDashboard() {
 		const paint = () => {
 			const price = Math.max(0, Number(priceEl.value) || 0);
 			const platform = Math.round(price * 5) / 100;
-			const gst = Math.round(price * 18) / 100;
+			const gst = Math.round(platform * 18) / 100;
 			const deductions = Math.round((platform + gst) * 100) / 100;
 			const payout = Math.round((price - deductions) * 100) / 100;
 			if (ticketEl) ticketEl.textContent = money(price);
@@ -6016,6 +6016,70 @@ async function initOrganizerDashboard() {
 	renderHostSettingsAvatar();
 
 	// Load Profile & Bank Details for Settings Tab (status-aware: only lock when VERIFIED)
+	function renderAgreementRecordCard(container, record) {
+		if (!container) return;
+		let card = document.getElementById("settingsAgreementRecord");
+		if (!record || !record.accepted) {
+			if (card) card.remove();
+			return;
+		}
+		if (!card) {
+			card = document.createElement("div");
+			card.id = "settingsAgreementRecord";
+			card.className = "dash-card";
+			card.style.cssText = "padding:1rem 1.25rem; margin-bottom:1.5rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;";
+			const banner = document.getElementById("settingsVerificationBanner");
+			if (banner && banner.parentNode === container) {
+				container.insertBefore(card, banner.nextSibling);
+			} else {
+				container.insertBefore(card, container.firstChild ? container.firstChild.nextSibling : null);
+			}
+		}
+		const when = record.accepted_at_utc ? new Date(record.accepted_at_utc) : null;
+		const whenText = when && !isNaN(when.getTime())
+			? when.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+			: "";
+		const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+		card.innerHTML = `
+			<div>
+				<div style="font-weight:800; font-size:0.98rem; margin-bottom:0.15rem;">Host &amp; Ticketing Agreement accepted</div>
+				<div style="font-size:0.86rem; line-height:1.5; opacity:0.85;">Version ${esc(record.agreement_version)}${whenText ? " &middot; " + esc(whenText) : ""}${record.acceptance_reference ? " &middot; Ref " + esc(record.acceptance_reference) : ""}</div>
+			</div>
+			<button type="button" id="btnDownloadAgreementRecord" style="background:#1e40af; color:#fff; padding:0.5rem 1.05rem; border:none; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer; white-space:nowrap;">Download acceptance record</button>
+		`;
+		const btn = document.getElementById("btnDownloadAgreementRecord");
+		if (btn) btn.addEventListener("click", () => downloadAgreementRecordPdf(btn));
+	}
+
+	async function downloadAgreementRecordPdf(btn) {
+		const label = btn ? btn.textContent : "";
+		if (btn) { btn.disabled = true; btn.textContent = "Preparing PDF..."; }
+		try {
+			const res = await fetch(`${API_BASE}/agreement-record/pdf`, { headers: getAuthHeaders(), credentials: "include" });
+			if (!res.ok) {
+				let detail = "Could not download the acceptance record.";
+				try { const body = await res.json(); if (body && typeof body.detail === "string") detail = body.detail; } catch (_) {}
+				alert(detail);
+				return;
+			}
+			const blob = await res.blob();
+			const disposition = res.headers.get("Content-Disposition") || "";
+			const match = disposition.match(/filename="([^"]+)"/);
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = match ? match[1] : "JOD-Host-Agreement-Acceptance.pdf";
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			setTimeout(() => URL.revokeObjectURL(url), 2000);
+		} catch (_) {
+			alert("Could not reach the server. Try again.");
+		} finally {
+			if (btn) { btn.disabled = false; btn.textContent = label; }
+		}
+	}
+
 	async function loadProfileAndBankDetails() {
 		const profEmail = document.getElementById("profEmail");
 		if (profEmail) profEmail.value = email;
@@ -6086,6 +6150,7 @@ async function initOrganizerDashboard() {
 			});
 			if (res.ok) {
 				const data = await res.json();
+				renderAgreementRecordCard(sectionSettings, data.agreement_record);
 				if (data.account) {
 					const acc = data.account;
 					const profFirstName = document.getElementById("profFirstName");
@@ -8020,7 +8085,7 @@ async function initOrganizerDashboard() {
 			sections: [
 				{
 					heading: "Financial Calculation Standard",
-					content: "\u2022 <strong>Gross Revenue:</strong> Sum of all ticket tier transactions.<br/>\u2022 <strong>Platform Fee:</strong> 5% service fee on each ticket sale.<br/>\u2022 <strong>Taxes/GST:</strong> 18% statutory tax on each ticket sale.<br/>\u2022 <strong>Net Payout:</strong> Transferred to verified bank account after reconciliation."
+					content: "\u2022 <strong>Gross Revenue:</strong> Sum of all ticket tier transactions.<br/>\u2022 <strong>Platform Fee:</strong> 5% service fee on each ticket sale.<br/>\u2022 <strong>GST:</strong> 18% GST on that 5% platform fee only.<br/>\u2022 <strong>Net Payout:</strong> Transferred to verified bank account after reconciliation."
 				},
 				{
 					heading: "\u26a1 Registration Trend & Velocity",

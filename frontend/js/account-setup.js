@@ -201,9 +201,49 @@ document.addEventListener("DOMContentLoaded", async () => {
  tabStep2.classList.add("active");
  tabStep3.classList.add("active");
  btnBack.style.display = "inline-block";
- btnProceed.textContent = "Complete & Submit";
+ btnProceed.textContent = "Accept Agreement";
+ fillAgreementRecord();
+ watchAgreementScroll();
  }
  window.scrollTo({ top: 0, behavior: "smooth" });
+	}
+
+	const AGREEMENT_VERSION = "JOD-HTA-1.0";
+
+	function fillAgreementRecord() {
+ const setText = (id, value) => {
+ const el = document.getElementById(id);
+ if (el && value) el.textContent = value;
+ };
+ const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+ setText("agreementEffectiveDate", today);
+ setText("agreementVersion", AGREEMENT_VERSION);
+ setText("agreementRecordVersion", AGREEMENT_VERSION);
+ setText("agreementHostName", (document.getElementById("orgName")?.value || "").trim() || (currentUser && currentUser.full_name) || "");
+ setText("agreementHostEmail", (email || contactEmailInput?.value || "").trim());
+ setText("agreementHostId", currentUser && currentUser.customer_id ? String(currentUser.customer_id) : "");
+	}
+
+	function watchAgreementScroll() {
+ const doc = document.getElementById("hostAgreementDoc");
+ const check = document.getElementById("acceptFinalAgreement");
+ const hint = document.getElementById("hostAgreementScrollHint");
+ if (!doc || !check) return;
+ const unlock = () => {
+ check.disabled = false;
+ if (hint) hint.hidden = true;
+ };
+ if (check.checked || doc.scrollHeight - doc.clientHeight <= 8) {
+ unlock();
+ return;
+ }
+ check.disabled = true;
+ if (hint) hint.hidden = false;
+ if (doc.dataset.scrollBound === "1") return;
+ doc.dataset.scrollBound = "1";
+ doc.addEventListener("scroll", () => {
+ if (doc.scrollTop + doc.clientHeight >= doc.scrollHeight - 24) unlock();
+ }, { passive: true });
 	}
 
 	tabStep1.addEventListener("click", () => goToStep(1));
@@ -633,8 +673,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 	function validateStep3() {
  const finalAgreement = document.getElementById("acceptFinalAgreement");
+ if (finalAgreement && finalAgreement.disabled) {
+ showAlert("Scroll to the end of the agreement, then tick the box to accept it.");
+ return false;
+ }
  if (!finalAgreement || !finalAgreement.checked) {
- return focusAndFail(finalAgreement, "Please sign the agreement by accepting the terms to finish your setup.");
+ return focusAndFail(finalAgreement, "Tick \u201CI have read and agree to the JOD Host & Ticketing Agreement\u201D, then click Accept Agreement.");
  }
  return true;
 	}
@@ -675,6 +719,7 @@ document.addEventListener("DOMContentLoaded", async () => {
  pan_card_url: panCardUrl,
  cancelled_cheque_url: cancelledChequeUrl,
  accepted_agreement: document.getElementById("acceptFinalAgreement")?.checked || false,
+ agreement_version: AGREEMENT_VERSION,
  is_final_submit: isFinal
  };
 	}

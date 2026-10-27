@@ -82,6 +82,95 @@
 	padding: 1.8rem;
 }
 
+.host-agreement-wrap {
+	padding: 1.25rem 1.5rem 1.5rem;
+	max-width: 860px;
+	margin: 0 auto;
+}
+.host-agreement-intro {
+	margin: 0 0 1rem;
+	color: #334155;
+	font-size: 1rem;
+}
+.host-agreement-doc {
+	max-height: 460px;
+	overflow-y: auto;
+	background: #ffffff;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	padding: 1.4rem 1.5rem;
+	color: #1e293b;
+	font-size: 0.92rem;
+	line-height: 1.6;
+}
+.host-agreement-doc:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.host-agreement-head {
+	text-align: center;
+	border-bottom: 1px solid #e2e8f0;
+	padding-bottom: 0.9rem;
+	margin-bottom: 1rem;
+}
+.host-agreement-kicker {
+	margin: 0;
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #64748b;
+}
+.host-agreement-head h3 { margin: 0.25rem 0 0.15rem; font-size: 1.3rem; color: #0f172a; }
+.host-agreement-sub { margin: 0; color: #475569; font-weight: 600; }
+.host-agreement-meta { margin: 0.45rem 0 0; color: #64748b; font-size: 0.82rem; }
+.host-agreement-doc h4 { margin: 1.15rem 0 0.35rem; font-size: 1rem; color: #0f172a; }
+.host-agreement-doc p { margin: 0 0 0.6rem; }
+.host-agreement-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 0.4rem 0 0.6rem;
+	font-size: 0.9rem;
+}
+.host-agreement-table td {
+	padding: 0.5rem 0.6rem;
+	border-bottom: 1px solid #e2e8f0;
+}
+.host-agreement-table td:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.host-agreement-table .is-total td { font-weight: 700; border-bottom: 0; background: #f8fafc; }
+.host-agreement-note { color: #64748b; font-size: 0.84rem; }
+.host-agreement-record {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.5rem 1rem;
+	margin: 0.4rem 0 0.8rem;
+}
+.host-agreement-record div {
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 8px;
+	padding: 0.5rem 0.7rem;
+}
+.host-agreement-record dt { font-size: 0.75rem; color: #64748b; font-weight: 600; }
+.host-agreement-record dd { margin: 0.15rem 0 0; font-weight: 600; color: #0f172a; word-break: break-word; }
+.host-agreement-end { text-align: center; color: #94a3b8; font-size: 0.8rem; margin: 0.6rem 0 0; }
+.host-agreement-scroll-hint { margin: 0.7rem 0 0; color: #b45309; font-size: 0.85rem; font-weight: 600; }
+.host-agreement-certify { margin: 0.7rem 0 0; color: #64748b; font-size: 0.88rem; }
+.host-agreement-check { margin-top: 0.8rem; font-weight: 600; }
+.host-agreement-check input:disabled + span { color: #94a3b8; }
+@media (max-width: 640px) {
+	.host-agreement-wrap { padding: 1rem 0.75rem 1.25rem; }
+	.host-agreement-doc { max-height: 60vh; padding: 1rem; }
+	.host-agreement-record { grid-template-columns: 1fr; }
+}
+html[data-theme="dark"] .host-agreement-doc { background: #1c1814; border-color: rgba(255, 138, 31, 0.24); color: #f6f0e8; }
+html[data-theme="dark"] .host-agreement-doc h3,
+html[data-theme="dark"] .host-agreement-doc h4,
+html[data-theme="dark"] .host-agreement-record dd { color: #fff8f0; }
+html[data-theme="dark"] .host-agreement-intro,
+html[data-theme="dark"] .host-agreement-sub { color: #e7ded2; }
+html[data-theme="dark"] .host-agreement-record div,
+html[data-theme="dark"] .host-agreement-table .is-total td { background: #241c16; border-color: rgba(255, 138, 31, 0.2); }
+html[data-theme="dark"] .host-agreement-table td,
+html[data-theme="dark"] .host-agreement-head { border-color: rgba(255, 138, 31, 0.2); }
+
 .setup-section-banner {
 	background-color: #eff6ff;
 	border-left: 4px solid #2563eb;
