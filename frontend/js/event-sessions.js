@@ -27,6 +27,9 @@
 			ends_next_day: false,
 			venue_name: d.venue_name || "",
 			venue_address: d.venue_address || "",
+			venue_lat: d.venue_lat != null ? d.venue_lat : null,
+			venue_lng: d.venue_lng != null ? d.venue_lng : null,
+			venue_place_id: d.venue_place_id || "",
 			capacity: "",
 			eligibility_mode: d.eligibility_mode || "registered",
 			eligible_ticket_types: [],
@@ -82,6 +85,9 @@
 			ends_next_day: !!s.ends_next_day,
 			venue_name: String(s.venue_name || "").trim(),
 			venue_address: String(s.venue_address || "").trim(),
+			venue_lat: Number.isFinite(Number(s.venue_lat)) && s.venue_lat !== null && s.venue_lat !== "" ? Number(s.venue_lat) : null,
+			venue_lng: Number.isFinite(Number(s.venue_lng)) && s.venue_lng !== null && s.venue_lng !== "" ? Number(s.venue_lng) : null,
+			venue_place_id: s.venue_place_id || null,
 			capacity: s.capacity === "" || s.capacity == null ? null : Number(s.capacity),
 			eligibility_mode: s.eligibility_mode,
 			eligible_ticket_types: s.eligibility_mode === "ticket_types" ? (s.eligible_ticket_types || []).slice() : [],
@@ -103,6 +109,9 @@
 			ends_next_day: !!row.ends_next_day,
 			venue_name: row.venue_name || "",
 			venue_address: row.venue_address || "",
+			venue_lat: row.venue_lat == null ? null : Number(row.venue_lat),
+			venue_lng: row.venue_lng == null ? null : Number(row.venue_lng),
+			venue_place_id: row.venue_place_id || "",
 			capacity: row.capacity == null ? "" : String(row.capacity),
 			eligibility_mode: row.eligibility_mode || "registered",
 			eligible_ticket_types: (row.eligible_ticket_types || []).slice(),
@@ -197,9 +206,8 @@
 	}
 
 	function cardHtml(s, index) {
-		var single = state.structure === "single";
 		var badge = s.session_id ? '<span class="evsess-badge is-saved">Saved</span>' : '<span class="evsess-badge">Not saved</span>';
-		var canRemove = !single;
+		var canRemove = state.sessions.length > 1 || !!s.session_id;
 		var statusOpts = STATUSES.map(function (o) { return '<option value="' + o[0] + '"' + (s.status === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("");
 		return '<div class="evsess-card" data-key="' + s._key + '">' +
 			'<div class="evsess-card-head"><strong>Session ' + (index + 1) + "</strong>" + badge +
@@ -211,7 +219,9 @@
 			field(index, s, "end_time", "End Time *", "time") +
 			'<label class="evsess-field evsess-check"><input type="checkbox" data-field="ends_next_day"' + (s.ends_next_day ? " checked" : "") + " /> Ends after midnight</label>" +
 			field(index, s, "venue_name", "Venue Name *", "text", ' maxlength="300" placeholder="e.g. Hall A"') +
-			field(index, s, "venue_address", "Venue Address", "text", ' placeholder="Street, area, city"') +
+			field(index, s, "venue_address", "Venue Location", "text", ' data-venue-search="1" autocomplete="off" placeholder="Search venue or enter address"') +
+			'<div class="evsess-field evsess-span"><div class="evsess-map" data-map-key="' + s._key + '"></div>' +
+			'<small class="evsess-map-hint" data-map-hint="' + s._key + '">' + (s.venue_lat != null ? "Drag the pin to adjust the exact venue." : "Search a venue above. The map pin follows your choice.") + "</small></div>" +
 			field(index, s, "capacity", "Session Capacity (optional)", "number", ' min="1" step="1" placeholder="No limit"') +
 			'<label class="evsess-field"><span class="evsess-label">Session Status</span><select class="setup-select" data-field="status">' + statusOpts + "</select>" + errHtml(index, "status") + "</label>" +
 			field(index, s, "session_description", "Session Description (optional)", "textarea", ' maxlength="4000"') +
@@ -222,22 +232,165 @@
 	function renderBuilder() {
 		var root = builderRoot();
 		if (!root) return;
-		var st = state.structure;
+		var multiple = state.structure === "multiple";
 		var count = state.sessions.length;
 		root.innerHTML =
 			'<div class="evsess-structure"><p class="evsess-q">Does this event contain multiple sessions?</p>' +
-			'<label class="evsess-radio"><input type="radio" name="evsessStructure" value="single"' + (st === "single" ? " checked" : "") + " /> Single Session</label>" +
-			'<label class="evsess-radio"><input type="radio" name="evsessStructure" value="multiple"' + (st === "multiple" ? " checked" : "") + " /> Multiple Sessions</label></div>" +
-			(st === "multiple"
-				? '<label class="evsess-count"><span class="evsess-label">Number of Sessions</span><input type="number" id="evsessCount" class="setup-input" min="2" max="' + MAX_SESSIONS + '" value="' + count + '" /></label>'
-				: "") +
-			(st
-				? '<div id="evsessList">' + state.sessions.map(cardHtml).join("") + "</div>"
-				: '<p class="evsess-note">No session schedule yet. Every ticket is checked in once for the whole event. Choose an option above to set up sessions.</p>') +
-			'<div class="evsess-actions">' +
-			(st === "multiple" ? '<button type="button" class="evsess-btn" data-action="add">+ Add Session</button>' : "") +
-			(st ? '<button type="button" class="evsess-btn is-primary" data-action="save">Save sessions</button>' : "") +
-			'<span id="evsessStatus" class="evsess-status"></span></div>';
+			'<label class="evsess-radio"><input type="radio" name="evsessStructure" value="single"' + (multiple ? "" : " checked") + " /> Single Session</label>" +
+			'<label class="evsess-radio"><input type="radio" name="evsessStructure" value="multiple"' + (multiple ? " checked" : "") + " /> Multiple Sessions</label></div>" +
+			(multiple
+				? '<p class="evsess-intro">Each session has its own date, time, venue and attendees. One ticket QR works for every session the attendee is eligible for.</p>' +
+				  '<label class="evsess-count"><span class="evsess-label">Number of Sessions</span><input type="number" id="evsessCount" class="setup-input" min="1" max="' + MAX_SESSIONS + '" value="' + count + '" /></label>' +
+				  '<div id="evsessList">' + state.sessions.map(cardHtml).join("") + "</div>" +
+				  '<div class="evsess-actions"><button type="button" class="evsess-btn" data-action="add">+ Add Session</button>' +
+				  '<button type="button" class="evsess-btn is-primary" data-action="save">Save sessions</button>' +
+				  '<span id="evsessStatus" class="evsess-status"></span></div>'
+				: '<p class="evsess-note">Single session: the event uses the start date, end date, time and venue below.</p><span id="evsessStatus" class="evsess-status"></span>');
+		syncEventLevel();
+		if (multiple) mountMaps();
+	}
+
+	// Event-level schedule fields follow the sessions when the event has several ───
+	function pad(n) { return (n < 10 ? "0" : "") + n; }
+	function localStamp(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+	function sessionBounds(s) {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(s.session_date || "") || !/^\d{2}:\d{2}$/.test(s.start_time || "") || !/^\d{2}:\d{2}$/.test(s.end_time || "")) return null;
+		var start = new Date(s.session_date + "T" + s.start_time + ":00");
+		var end = new Date(s.session_date + "T" + s.end_time + ":00");
+		if (s.ends_next_day || end <= start) end = new Date(end.getTime() + 86400000);
+		return { start: start, end: end };
+	}
+	function setField(id, value) {
+		var el = byId(id);
+		if (el && value != null && el.value !== String(value)) el.value = String(value);
+	}
+	function syncEventLevel() {
+		var wrap = byId("evsessEventLevelFields");
+		var multiple = state.structure === "multiple";
+		if (wrap) wrap.hidden = multiple;
+		if (!multiple) return;
+		var earliest = null, latest = null;
+		state.sessions.forEach(function (s) {
+			var b = sessionBounds(s);
+			if (!b) return;
+			if (!earliest || b.start < earliest) earliest = b.start;
+			if (!latest || b.end > latest) latest = b.end;
+		});
+		if (earliest) setField("eventDateInput", localStamp(earliest));
+		if (latest) setField("eventEndDateInput", localStamp(latest));
+		var first = state.sessions.filter(function (s) { return String(s.venue_address || s.venue_name || "").trim(); })[0];
+		if (first) {
+			setField("eventLocationInput", String(first.venue_address || first.venue_name).trim());
+			setField("eventVenueLat", first.venue_lat != null ? first.venue_lat : "");
+			setField("eventVenueLon", first.venue_lng != null ? first.venue_lng : "");
+			setField("eventVenuePlaceId", first.venue_place_id || "");
+		}
+		setField("eventDurationInput", state.sessions.length + (state.sessions.length === 1 ? " session" : " sessions"));
+	}
+
+	// Per-session Google map ──────────────────────────────────────────────────
+	var CHENNAI = { lat: 13.0827, lng: 80.2707 };
+	function sessionByKey(key) {
+		for (var i = 0; i < state.sessions.length; i++) if (state.sessions[i]._key === key) return state.sessions[i];
+		return null;
+	}
+	function mapHint(key, text) {
+		var el = document.querySelector('[data-map-hint="' + key + '"]');
+		if (el) el.textContent = text;
+	}
+	function cardInput(key, fieldName) {
+		var card = document.querySelector('.evsess-card[data-key="' + key + '"]');
+		return card ? card.querySelector('[data-field="' + fieldName + '"]') : null;
+	}
+	function applyPlace(key, lat, lng, address, placeId, name) {
+		var s = sessionByKey(key);
+		if (!s) return;
+		s.venue_lat = Math.round(lat * 1e7) / 1e7;
+		s.venue_lng = Math.round(lng * 1e7) / 1e7;
+		if (placeId !== undefined) s.venue_place_id = placeId || "";
+		if (address) {
+			s.venue_address = address;
+			var addrEl = cardInput(key, "venue_address");
+			if (addrEl) addrEl.value = address;
+		}
+		if (name && !String(s.venue_name || "").trim()) {
+			s.venue_name = name;
+			var nameEl = cardInput(key, "venue_name");
+			if (nameEl) nameEl.value = name;
+		}
+		markDirty();
+		syncEventLevel();
+	}
+	function mountMaps() {
+		if (!global.JodGoogleMaps || typeof global.JodGoogleMaps.load !== "function") return;
+		global.JodGoogleMaps.load("places").then(function (maps) {
+			document.querySelectorAll(".evsess-map[data-map-key]").forEach(function (el) {
+				if (el.getAttribute("data-mounted") === "1") return;
+				el.setAttribute("data-mounted", "1");
+				var key = el.getAttribute("data-map-key");
+				var s = sessionByKey(key);
+				if (!s) return;
+				var has = s.venue_lat != null && s.venue_lng != null;
+				var center = has ? { lat: Number(s.venue_lat), lng: Number(s.venue_lng) } : CHENNAI;
+				var map = new maps.Map(el, { center: center, zoom: has ? 16 : 11, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false, gestureHandling: "cooperative" });
+				var marker = null;
+				var geocoder = maps.Geocoder ? new maps.Geocoder() : null;
+				function pin(lat, lng) {
+					var pos = { lat: lat, lng: lng };
+					if (!marker) {
+						marker = new maps.Marker({ map: map, position: pos, draggable: true, title: "Drag to adjust the exact venue" });
+						marker.addListener("dragend", function () {
+							var p = marker.getPosition();
+							if (!p) return;
+							applyPlace(key, p.lat(), p.lng(), "", "");
+							mapHint(key, "Updating the address…");
+							if (!geocoder) return mapHint(key, "Location updated.");
+							geocoder.geocode({ location: { lat: p.lat(), lng: p.lng() } }, function (results, status) {
+								if (status === "OK" && results && results[0]) {
+									applyPlace(key, p.lat(), p.lng(), results[0].formatted_address || "", results[0].place_id || "");
+									mapHint(key, "Drag the pin to adjust the exact venue.");
+								} else mapHint(key, "Location updated. You can still edit the address above.");
+							});
+						});
+					} else marker.setPosition(pos);
+					map.panTo(pos);
+					map.setZoom(Math.max(map.getZoom() || 11, 16));
+				}
+				if (has) pin(center.lat, center.lng);
+				var input = cardInput(key, "venue_address");
+				if (input && maps.places && maps.places.Autocomplete) {
+					var ac = new maps.places.Autocomplete(input, { fields: ["place_id", "formatted_address", "name", "geometry"], componentRestrictions: { country: "in" } });
+					ac.bindTo("bounds", map);
+					ac.addListener("place_changed", function () {
+						var place = ac.getPlace();
+						if (!place || !place.geometry || !place.geometry.location) return mapHint(key, "Select a suggestion to set the venue location.");
+						var loc = place.geometry.location;
+						applyPlace(key, loc.lat(), loc.lng(), place.formatted_address || place.name || input.value, place.place_id || "", place.name || "");
+						pin(loc.lat(), loc.lng());
+						mapHint(key, "Drag the pin to adjust the exact venue.");
+					});
+					input.addEventListener("keydown", function (e) { if (e.key === "Enter") e.preventDefault(); });
+					input.addEventListener("change", function () {
+						var cur = sessionByKey(key);
+						var q = String(input.value || "").trim();
+						if (!cur || q.length < 3 || !geocoder || (cur.venue_lat != null && cur.venue_address === q)) return;
+						geocoder.geocode({ address: q, componentRestrictions: { country: "IN" } }, function (results, status) {
+							if (status !== "OK" || !results || !results[0] || !results[0].geometry) return mapHint(key, "No matching location found. Try a more complete address.");
+							var loc = results[0].geometry.location;
+							applyPlace(key, loc.lat(), loc.lng(), "", results[0].place_id || "");
+							pin(loc.lat(), loc.lng());
+							mapHint(key, "Location found. Drag the pin to adjust the exact venue.");
+						});
+					});
+				}
+			});
+		}).catch(function () {
+			document.querySelectorAll(".evsess-map[data-map-key]").forEach(function (el) {
+				var key = el.getAttribute("data-map-key");
+				el.classList.add("is-unavailable");
+				mapHint(key, "Map is unavailable right now. Type the venue address instead.");
+			});
+		});
 	}
 
 	function cardIndex(el) {
@@ -253,7 +406,7 @@
 		return { session_date: d.session_date || "", start_time: d.start_time || "", end_time: d.end_time || "", venue_name: d.venue_name || "", venue_address: d.venue_address || "" };
 	}
 
-	function markDirty() { state.dirty = true; setStatus("Unsaved session changes", "warn"); }
+	function markDirty() { state.dirty = true; setStatus("Unsaved session changes", "warn"); syncEventLevel(); }
 
 	function onBuilderInput(ev) {
 		var t = ev.target;
@@ -277,6 +430,11 @@
 			if (t.checked) list.push(t.value);
 			s.eligible_ticket_types = list;
 		} else s[key] = t.value;
+		if (key === "venue_address" && ev.type === "input") {
+			s.venue_lat = null;
+			s.venue_lng = null;
+			s.venue_place_id = "";
+		}
 		if (state.errors[idx]) delete state.errors[idx][key];
 		var holder = t.closest(".evsess-field");
 		var shown = holder && holder.querySelector(".evsess-err");
@@ -285,22 +443,50 @@
 		if (key === "eligibility_mode" && ev.type === "change") renderBuilder();
 	}
 
+	function deleteSavedSessions(list) {
+		var eventId = cfg.eventId();
+		return list.reduce(function (p, s) {
+			return p.then(function (ok) {
+				if (!ok) return false;
+				var path = encodeURIComponent(eventId) + "/sessions/" + encodeURIComponent(s.session_id) + "?confirm=true";
+				return request(path, { method: "DELETE" }).then(function (r) { return r.ok; });
+			});
+		}, Promise.resolve(true));
+	}
+
 	function setStructure(value) {
-		if (value === "single" && state.sessions.length > 1) {
-			var saved = state.sessions.filter(function (s, i) { return i > 0 && s.session_id; });
+		if (value === "single") {
+			var saved = state.sessions.filter(function (s) { return s.session_id; });
 			if (saved.length) {
-				alert("Remove the other saved sessions first (use Remove Session), then switch to a single session.");
-				renderBuilder();
+				if (!confirm("Switch to a single session? This removes the " + saved.length + " saved session(s). Their attendance history is kept.")) {
+					renderBuilder();
+					return;
+				}
+				setStatus("Removing sessions…");
+				deleteSavedSessions(saved).then(function (ok) {
+					if (!ok) {
+						cfg.notify("Could not remove every session. Refresh and try again.");
+						return load();
+					}
+					state.structure = "single";
+					state.sessions = [];
+					state.dirty = false;
+					state.errors = {};
+					renderBuilder();
+					setStatus("Switched to a single session.", "ok");
+					refreshOverview();
+				});
 				return;
 			}
-			state.sessions = state.sessions.slice(0, 1);
+			state.structure = "single";
+			state.sessions = [];
+			state.dirty = false;
+			state.errors = {};
+			renderBuilder();
+			return;
 		}
-		state.structure = value;
-		if (!state.sessions.length) {
-			var first = blankSession(Object.assign(defaults(), { session_name: value === "single" ? "Main Session" : "Session 1", eligibility_mode: value === "single" ? "all_attendees" : "registered" }));
-			state.sessions.push(first);
-		}
-		if (value === "multiple" && state.sessions.length < 2) {
+		state.structure = "multiple";
+		if (state.sessions.length < 2) {
 			state.sessions = resizeSessions(state.sessions, 2, defaults()).list;
 		}
 		markDirty();
@@ -308,7 +494,7 @@
 	}
 
 	function applyCount(raw) {
-		var res = resizeSessions(state.sessions, Math.max(2, parseInt(raw, 10) || 2), defaults());
+		var res = resizeSessions(state.sessions, Math.max(1, parseInt(raw, 10) || 1), defaults());
 		state.sessions = res.list;
 		markDirty();
 		renderBuilder();
@@ -321,7 +507,8 @@
 		if (!s.session_id) {
 			state.sessions.splice(idx, 1);
 			state.errors = {};
-			markDirty();
+			if (!state.sessions.length) { state.structure = "single"; state.dirty = false; }
+			else markDirty();
 			renderBuilder();
 			return;
 		}
@@ -340,6 +527,7 @@
 			if (!r.ok) return cfg.notify(detailMessage(r.data, "Could not remove this session."));
 			state.sessions.splice(idx, 1);
 			state.errors = {};
+			if (!state.sessions.length) state.structure = "single";
 			renderBuilder();
 			setStatus("Session removed.", "ok");
 			refreshOverview();
@@ -377,7 +565,7 @@
 	/** Save when there are unsaved changes. `loud` shows field errors; silent saves skip incomplete forms. */
 	function save(loud) {
 		var eventId = cfg.eventId();
-		if (!state.structure || !state.dirty) return Promise.resolve(true);
+		if (state.structure !== "multiple" || !state.dirty || !state.sessions.length) return Promise.resolve(true);
 		if (!eventId) {
 			if (loud) setStatus("Save the event details first, then save sessions.", "warn");
 			return Promise.resolve(false);
@@ -389,7 +577,7 @@
 		}
 		if (state.saving) return state.saving;
 		setStatus("Saving sessions…");
-		var body = { structure: state.structure, sessions: state.sessions.map(toPayload) };
+		var body = { structure: "multiple", sessions: state.sessions.map(toPayload) };
 		state.saving = request(encodeURIComponent(eventId) + "/sessions", { method: "PUT", body: body }).then(function (r) {
 			state.saving = null;
 			if (!r.ok) {
@@ -428,7 +616,7 @@
 			if (state.dirty) return r.data;
 			var rows = (r.data.sessions || []).filter(function (row) { return !row.deleted; });
 			state.sessions = rows.map(fromServer);
-			state.structure = rows.length > 1 ? "multiple" : (rows.length === 1 ? "single" : null);
+			state.structure = rows.length ? "multiple" : "single";
 			state.overview = r.data;
 			state.errors = {};
 			renderBuilder();

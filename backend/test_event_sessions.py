@@ -188,6 +188,19 @@ class MultiSessionConfigTests(SessionTestBase):
         self.assertEqual(listed[2]["venue_name"], "Venue C")
         self.assertEqual(listed[0]["session_id"], saved[0]["session_id"])
 
+    def test_session_venue_map_location_persists(self):
+        res = self.save("multiple", [
+            self.session_body("Morning", "08:00", "09:00", "Venue A", venue_lat=13.0827, venue_lng=80.2707, venue_place_id="place-a"),
+            self.session_body("Afternoon", "11:00", "12:00", "Venue B", venue_lat=12.9716, venue_lng=77.5946),
+        ])
+        self.assertEqual(res.status_code, 200, res.text)
+        listed = self.client.get(f"/api/events/{self.event_id}/sessions").json()["sessions"]
+        self.assertAlmostEqual(listed[0]["venue_lat"], 13.0827)
+        self.assertEqual(listed[0]["venue_place_id"], "place-a")
+        self.assertAlmostEqual(listed[1]["venue_lng"], 77.5946)
+        bad = self.save("multiple", [self.session_body("X", "08:00", "09:00", "V", venue_lat=200, venue_lng=10)])
+        self.assertEqual(bad.status_code, 422)
+
     def test_validation_messages(self):
         res = self.save("multiple", [self.session_body("Late", "10:00", "09:00", "Venue A")])
         self.assertEqual(res.status_code, 422)

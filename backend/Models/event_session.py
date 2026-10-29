@@ -14,7 +14,7 @@ validates both ids against their parent rows before every write.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from Models.base import Base, GUID, JSONType
@@ -38,6 +38,9 @@ class EventSession(Base):
     ends_next_day = Column(Boolean, nullable=False, default=False)
     venue_name = Column(String(300), nullable=False)
     venue_address = Column(Text, nullable=True)
+    venue_lat = Column(Float, nullable=True)
+    venue_lng = Column(Float, nullable=True)
+    venue_place_id = Column(String(255), nullable=True)
     capacity = Column(Integer, nullable=True)
     # all_attendees | registered | ticket_types
     eligibility_mode = Column(String(30), nullable=False, default="registered")

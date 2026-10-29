@@ -45,6 +45,9 @@ class SessionIn(BaseModel):
     ends_next_day: Optional[bool] = None
     venue_name: Optional[str] = None
     venue_address: Optional[str] = None
+    venue_lat: Optional[Any] = None
+    venue_lng: Optional[Any] = None
+    venue_place_id: Optional[str] = None
     capacity: Optional[Any] = None
     eligibility_mode: Optional[str] = None
     eligible_ticket_types: Optional[List[str]] = None

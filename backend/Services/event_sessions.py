@@ -131,6 +131,26 @@ def validate_session_input(data: Dict[str, Any], *, partial_base: Optional[Event
         errors["venue_name"] = "Enter the venue name."
     venue_address = str(pick("venue_address", base.venue_address if base else "") or "").strip()[:2000]
 
+    def coord(key, limit, current):
+        raw = pick(key, current)
+        if raw in (None, ""):
+            return None
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            errors[key] = "Pick the venue on the map again."
+            return None
+        if not -limit <= value <= limit:
+            errors[key] = "Pick the venue on the map again."
+            return None
+        return round(value, 7)
+
+    venue_lat = coord("venue_lat", 90, base.venue_lat if base else None)
+    venue_lng = coord("venue_lng", 180, base.venue_lng if base else None)
+    if (venue_lat is None) != (venue_lng is None):
+        venue_lat = venue_lng = None
+    venue_place_id = _clean_text(pick("venue_place_id", base.venue_place_id if base else None), 255) or None
+
     capacity_raw = pick("capacity", base.capacity if base else None)
     capacity: Optional[int] = None
     if capacity_raw not in (None, ""):
@@ -170,6 +190,9 @@ def validate_session_input(data: Dict[str, Any], *, partial_base: Optional[Event
         "ends_next_day": ends_next_day,
         "venue_name": venue_name,
         "venue_address": venue_address or None,
+        "venue_lat": venue_lat,
+        "venue_lng": venue_lng,
+        "venue_place_id": venue_place_id,
         "capacity": capacity,
         "eligibility_mode": mode,
         "eligible_ticket_types": ticket_types if mode == "ticket_types" else [],
@@ -253,6 +276,9 @@ def serialize_session(session: EventSession, stats: Optional[Dict[str, Any]] = N
         "ends_at": end.isoformat(),
         "venue_name": session.venue_name,
         "venue_address": session.venue_address or "",
+        "venue_lat": session.venue_lat,
+        "venue_lng": session.venue_lng,
+        "venue_place_id": session.venue_place_id or "",
         "capacity": session.capacity,
         "eligibility_mode": session.eligibility_mode,
         "eligible_ticket_types": list(session.eligible_ticket_types or []),

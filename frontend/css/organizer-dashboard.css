@@ -6867,7 +6867,15 @@ html[data-theme="dark"] .host-fee-rows div { color: #f6f0e8; }
 html[data-theme="dark"] .host-home-card { color: #1f2933; }
 
 /* ── Event Schedule & Session Management ─────────────────────────────── */
-.evsess-intro { margin: -0.4rem 0 0.9rem; color: #64748b; font-size: 0.9rem; }
+.evsess-top { margin: 0 0 1.25rem; padding: 0.85rem 1rem; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+.evsess-top .evsess-structure { margin-bottom: 0.4rem; }
+.evsess-top .evsess-note { margin-top: 0.2rem; }
+html[data-theme="dark"] .evsess-top { background: #1c1814; border-color: rgba(255, 138, 31, 0.24); }
+.evsess-subsection { margin: 1.4rem 0 1.6rem; padding-top: 1.1rem; border-top: 1px dashed #e2e8f0; }
+.evsess-subtitle { margin: 0 0 0.35rem; font-size: 1rem; font-weight: 800; color: #0f172a; }
+.evsess-intro { margin: 0 0 0.9rem; color: #64748b; font-size: 0.9rem; }
+html[data-theme="dark"] .evsess-subsection { border-top-color: rgba(255, 138, 31, 0.24); }
+html[data-theme="dark"] .evsess-subtitle { color: #fff8f0; }
 .evsess-builder { margin-bottom: 1.5rem; }
 .evsess-structure { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.2rem; margin-bottom: 0.9rem; }
 .evsess-q { width: 100%; margin: 0; font-weight: 700; color: #0f172a; }
@@ -6886,6 +6894,10 @@ html[data-theme="dark"] .host-home-card { color: #1f2933; }
 .evsess-span { grid-column: 1 / -1; }
 .evsess-check { flex-direction: row; align-items: center; gap: 0.45rem; font-weight: 600; font-size: 0.88rem; align-self: end; padding-bottom: 0.6rem; }
 .evsess-err { color: #dc2626; font-size: 0.78rem; font-weight: 600; }
+.evsess-map { width: 100%; height: 220px; border-radius: 10px; border: 1px solid #e2e8f0; background: #eef2f7; overflow: hidden; }
+.evsess-map.is-unavailable { height: 0; border: 0; }
+.evsess-map-hint { color: #64748b; font-size: 0.8rem; }
+#evsessEventLevelFields[hidden] { display: none !important; }
 .evsess-note { margin: 0.35rem 0 0; color: #64748b; font-size: 0.84rem; }
 .evsess-types { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.4rem; }
 .evsess-chip { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid #cbd5e1; border-radius: 999px; padding: 0.3rem 0.7rem; font-size: 0.84rem; cursor: pointer; background: #f8fafc; }

@@ -554,6 +554,26 @@ def _migrate_tables(engine=None):
                         print(f"  [DB MIGRATION WARN] Could not add column event_volunteers.session_ids: {e}", flush=True)
                 conn.commit()
 
+        if "event_sessions" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("event_sessions")}
+            session_migrations = [
+                ("venue_lat", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("venue_lng", "DOUBLE PRECISION" if is_pg else "FLOAT"),
+                ("venue_place_id", "VARCHAR(255)"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in session_migrations:
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE event_sessions ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE event_sessions ADD COLUMN {col_name} {col_type};"))
+                            print(f"  [DB MIGRATION] Added column event_sessions.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column event_sessions.{col_name}: {e}", flush=True)
+                conn.commit()
+
         if "email_otps" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("email_otps")}
             with engine.connect() as conn:
