@@ -543,6 +543,15 @@ def _migrate_tables(engine=None):
                         print("  [DB MIGRATION] Added column event_volunteers.gate_id", flush=True)
                     except Exception as e:
                         print(f"  [DB MIGRATION WARN] Could not add column event_volunteers.gate_id: {e}", flush=True)
+                if "session_ids" not in existing_cols:
+                    try:
+                        if is_pg:
+                            conn.execute(text("ALTER TABLE event_volunteers ADD COLUMN IF NOT EXISTS session_ids JSONB;"))
+                        else:
+                            conn.execute(text("ALTER TABLE event_volunteers ADD COLUMN session_ids JSON;"))
+                        print("  [DB MIGRATION] Added column event_volunteers.session_ids", flush=True)
+                    except Exception as e:
+                        print(f"  [DB MIGRATION WARN] Could not add column event_volunteers.session_ids: {e}", flush=True)
                 conn.commit()
 
         if "email_otps" in tables:

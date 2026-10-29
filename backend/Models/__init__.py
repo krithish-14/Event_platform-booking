@@ -33,6 +33,7 @@ from Models.payment_proof import PaymentProof
 from Models.support_ticket import SupportTicket
 from Models.notification import EventAnnouncement
 from Models.admin_access import AdminAccess
+from Models.event_session import EventSession, EventSessionRegistration, EventSessionCheckin
 
 __all__ = [
     "Base",
@@ -73,4 +74,7 @@ __all__ = [
     "SupportTicket",
     "EventAnnouncement",
     "AdminAccess",
+    "EventSession",
+    "EventSessionRegistration",
+    "EventSessionCheckin",
 ]

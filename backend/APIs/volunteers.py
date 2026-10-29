@@ -9,7 +9,7 @@ import os
 import secrets
 from datetime import datetime
 from html import escape as html_escape
-from typing import Optional
+from typing import List, Optional
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
@@ -35,6 +35,7 @@ from Models.ticket import Ticket
 from Models.user import User
 from Services.email import send_email
 from Services.runtime_env import is_production, public_app_url
+from Services import event_sessions as session_svc
 
 from APIs.tickets import (
     CANCELLED_TICKET_STATUSES,
@@ -56,12 +57,15 @@ class InviteVolunteerRequest(BaseModel):
     role: str = "SCANNER"
     event_id: Optional[str] = None
     gate_id: Optional[str] = None
+    # Empty / omitted = the volunteer may scan for every session of the event.
+    session_ids: Optional[List[str]] = None
 
 
 class VerifyTicketRequest(BaseModel):
     token: Optional[str] = None
     qr_token: Optional[str] = None
     event_id: Optional[str] = None
+    session_id: Optional[str] = None
     method: Optional[str] = "QR"
 
 
@@ -230,6 +234,7 @@ def _serialize_volunteer(row: EventVolunteer, checkin_count: int = 0, gate: Opti
         "accepted_at": row.accepted_at.isoformat() if row.accepted_at else None,
         "revoked_at": row.revoked_at.isoformat() if row.revoked_at else None,
         "checkins": checkin_count,
+        "session_ids": list(getattr(row, "session_ids", None) or []),
     }
     payload.update(_gate_payload(gate))
     return payload
@@ -511,7 +516,46 @@ def _portal_payload(db: Session, volunteer: EventVolunteer, event: Optional[Even
         "recent": _assignment_recent(db, volunteer.id),
         "status": volunteer.status,
         "organizer_name": event.organizer_name if event else None,
+        "sessions": _volunteer_sessions(db, volunteer, event),
     }
+
+
+def _volunteer_sessions(db: Session, volunteer: EventVolunteer, event: Optional[EventManagement]) -> list:
+    """Sessions this volunteer may scan for, with counts only (no attendee details)."""
+    if not event:
+        return []
+    try:
+        allowed = session_svc.volunteer_allowed_session_ids(volunteer)
+        sessions = [
+            s for s in session_svc.bookable_sessions(db, event.event_id)
+            if allowed is None or session_svc._compact(s.session_id) in allowed
+        ]
+        if not sessions:
+            return []
+        cards = session_svc.sessions_overview(db, event, sessions)["sessions"]
+        keep = (
+            "session_id", "session_name", "session_date", "time_label", "venue_name", "status",
+            "eligible_count", "checked_in_count", "pending_count", "checkin_window",
+        )
+        return [{k: card.get(k) for k in keep} for card in cards]
+    except Exception:
+        db.rollback()
+        return []
+
+
+def _clean_session_scope(db: Session, event: EventManagement, session_ids: Optional[List[str]]) -> Optional[list]:
+    wanted = [str(s).strip() for s in (session_ids or []) if str(s or "").strip()]
+    if not wanted:
+        return None
+    sessions = {session_svc._compact(s.session_id): s for s in session_svc.event_sessions(db, event.event_id)}
+    clean = []
+    for sid in wanted:
+        match = sessions.get(session_svc._compact(sid))
+        if not match:
+            raise HTTPException(status_code=404, detail="One of the selected sessions does not belong to this event.")
+        if str(match.session_id) not in clean:
+            clean.append(str(match.session_id))
+    return clean
 
 
 def _volunteer_checkin_for_ticket(db: Session, ticket_id) -> Optional[VolunteerCheckin]:
@@ -569,6 +613,82 @@ def _duplicate_body(ticket: Optional[Ticket], existing: Optional[VolunteerChecki
     )
 
 
+def _volunteer_today_count(db: Session, volunteer_id) -> int:
+    start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    legacy = (
+        db.query(VolunteerCheckin)
+        .filter(VolunteerCheckin.volunteer_id == volunteer_id, VolunteerCheckin.created_at >= start)
+        .count()
+    )
+    try:
+        from Models.event_session import EventSessionCheckin
+        by_session = (
+            db.query(EventSessionCheckin)
+            .filter(EventSessionCheckin.volunteer_id == volunteer_id, EventSessionCheckin.checkin_time >= start)
+            .count()
+        )
+    except Exception:
+        db.rollback()
+        by_session = 0
+    return legacy + by_session
+
+
+def _verify_for_session(
+    db: Session,
+    assignment: EventVolunteer,
+    tickets: list,
+    method: str,
+    staff_name: str,
+    actor_customer_id: Optional[str],
+    session_id: Optional[str],
+) -> Optional[dict]:
+    """Session-aware check-in. None means the event has no sessions and the legacy flow applies."""
+    event = db.query(EventManagement).filter(EventManagement.event_id == assignment.event_id).first()
+    if not event:
+        return None
+    session, error = session_svc.resolve_scan_session(db, event, session_id)
+    if error is None and session is None:
+        return None
+    if error is None:
+        result = session_svc.perform_session_checkin(
+            db, event, session, tickets, checked_in_by=staff_name, method=method, volunteer=assignment
+        )
+    else:
+        result = error
+    ticket_id = None
+    if result.get("attendee_id"):
+        try:
+            ticket_id = UUID(str(result["attendee_id"]))
+        except ValueError:
+            ticket_id = None
+    _audit(
+        db,
+        event_id=assignment.event_id,
+        volunteer_id=assignment.id,
+        actor_customer_id=actor_customer_id,
+        ticket_id=ticket_id,
+        action="ticket_checked_in" if result.get("success") else "failed_verification",
+        method=method,
+        detail=(
+            f"{result.get('attendee_ref') or ''} · {result.get('session_name') or ''}"
+            if result.get("success")
+            else f"{result.get('error_code')}: {result.get('message')}"
+        )[:500],
+    )
+    db.commit()
+    result["today_checkins"] = _volunteer_today_count(db, assignment.id)
+    result["verified_by"] = staff_name
+    result["method"] = method
+    result.setdefault("booking_ref", result.get("attendee_ref"))
+    if result.get("error_code") == "ALREADY_CHECKED_IN":
+        result["status"] = "ALREADY_USED"
+    elif result.get("error_code") in ("TICKET_CANCELLED",):
+        result["status"] = "CANCELLED"
+    elif result.get("error_code") == "WRONG_EVENT":
+        result["status"] = "WRONG_EVENT"
+    return result
+
+
 def _verify_ticket_for_assignment(
     db: Session,
     assignment: EventVolunteer,
@@ -576,6 +696,7 @@ def _verify_ticket_for_assignment(
     method: str,
     staff_name: str,
     actor_customer_id: Optional[str] = None,
+    session_id: Optional[str] = None,
 ):
     matched = _lookup_matching_tickets(db, token_str, None)
 
@@ -602,6 +723,10 @@ def _verify_ticket_for_assignment(
     scoped = [row for row in matched if _ticket_belongs_to_assignment(db, row, assignment)]
     if not scoped:
         return fail("WRONG_EVENT", "This ticket belongs to another event.", ticket=matched[0])
+
+    session_result = _verify_for_session(db, assignment, scoped, method, staff_name, actor_customer_id, session_id)
+    if session_result is not None:
+        return session_result
 
     already = None
     already_checkin = None
@@ -813,6 +938,7 @@ def invite_volunteer(
 ):
     event = _owned_event(db, current_user, payload.event_id)
     gate = _event_gate(db, event, payload.gate_id)
+    session_scope = _clean_session_scope(db, event, payload.session_ids)
     email = payload.email.lower().strip()
     name = payload.volunteer_name.strip()
     role = (payload.role or "SCANNER").strip().upper() or "SCANNER"
@@ -836,6 +962,7 @@ def invite_volunteer(
         volunteer.volunteer_name = name
         volunteer.role = role
         volunteer.gate_id = gate.gate_id
+        volunteer.session_ids = session_scope
         volunteer.status = "PENDING"
         volunteer.revoked_at = None
         volunteer.accepted_at = None
@@ -849,6 +976,7 @@ def invite_volunteer(
             invited_email=email,
             volunteer_name=name,
             gate_id=gate.gate_id,
+            session_ids=session_scope,
             role=role,
             status="PENDING",
             invited_by_customer_id=current_user.customer_id,
@@ -1151,6 +1279,7 @@ def portal_verify_ticket(
         method,
         staff_name=volunteer.volunteer_name,
         actor_customer_id=volunteer.customer_id,
+        session_id=payload.session_id,
     )
 
 
@@ -1356,4 +1485,5 @@ def volunteer_verify_ticket(
         method,
         staff_name,
         current_user.customer_id,
+        session_id=payload.session_id,
     )

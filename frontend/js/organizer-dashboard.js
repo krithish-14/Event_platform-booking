@@ -361,6 +361,36 @@ async function initOrganizerDashboard() {
 	let hostEventCancelled = false;
 	let activeCustomerId = null;
 	let activeHostId = null;
+
+	if (window.JodEventSessions) {
+		window.JodEventSessions.configure({
+			apiOrigin: () => HOST_EVENTS_API_BASE.replace(/\/api\/host-events\/?$/, ""),
+			authHeaders: () => getAuthHeaders(),
+			eventId: () => activeEventId,
+			notify: (msg) => (typeof window.showNotification === "function" ? window.showNotification(msg) : alert(msg)),
+			ticketTypes: () => {
+				try {
+					return (collectTicketsJson() || [])
+						.map((t) => String((t && (t.name || t.ticket_name)) || "").trim())
+						.filter((name, i, all) => name && all.indexOf(name) === i);
+				} catch (_) {
+					return [];
+				}
+			},
+			eventDefaults: () => {
+				const start = (document.getElementById("eventDateInput") || {}).value || "";
+				const end = (document.getElementById("eventEndDateInput") || {}).value || "";
+				const venue = ((document.getElementById("eventLocationInput") || {}).value || "").trim();
+				return {
+					session_date: start.slice(0, 10),
+					start_time: start.slice(11, 16),
+					end_time: end && end.slice(0, 10) === start.slice(0, 10) ? end.slice(11, 16) : "",
+					venue_name: venue.split(",")[0].trim(),
+					venue_address: venue
+				};
+			}
+		});
+	}
 	let bannerImageUrl = null;
 	let cardImageUrl = null;
 	let galleryImageUrls = [];
@@ -2344,6 +2374,7 @@ async function initOrganizerDashboard() {
 			loadReportsData();
 		} else if (tabName === 'eventday') {
 			syncEventLiveNowBadge();
+			if (window.JodEventSessions) window.JodEventSessions.refreshOverview();
 			loadGates();
 			loadVolunteers();
 			loadEventDayVolunteerStats();
@@ -2815,18 +2846,23 @@ async function initOrganizerDashboard() {
 			if (!res.ok) return;
 			const data = await res.json();
 			applyLiveAttendanceStats(data);
+			if (window.JodEventSessions) window.JodEventSessions.refreshOverview();
 		} catch (err) {
 			console.warn("Could not load attendance data:", err);
 		}
 	}
 
-	function paintCheckinResult(el, ok, message, already) {
+	function paintCheckinResult(el, ok, message, already, tone) {
 		if (!el) return;
 		el.style.display = "block";
 		if (ok) {
 			el.style.background = "#f0fdf4";
 			el.style.borderColor = "#bbf7d0";
 			el.style.color = "#166534";
+		} else if (tone === "yellow") {
+			el.style.background = "#fefce8";
+			el.style.borderColor = "#fde047";
+			el.style.color = "#854d0e";
 		} else if (already) {
 			el.style.background = "#fff7ed";
 			el.style.borderColor = "#fdba74";
@@ -2856,10 +2892,17 @@ async function initOrganizerDashboard() {
 					attendee_email: value.includes("@") ? value : undefined,
 					scan_method: "manual",
 					status: "checked_in",
-					notes: "Validated from organizer dashboard"
+					notes: "Validated from organizer dashboard",
+					session_id: (window.JodEventSessions && window.JodEventSessions.scanSessionId()) || undefined
 				})
 			});
 			const data = await res.json().catch(() => ({}));
+			if (data && data.error_code && data.error_code !== "ALREADY_CHECKED_IN") {
+				const label = data.session_name ? `${data.session_name}: ` : "";
+				paintCheckinResult(resultEl, false, label + (data.message || "Check-in was not recorded."), false, data.result_tone);
+				if (window.JodEventSessions) window.JodEventSessions.refreshOverview();
+				return data;
+			}
 			const status = String(data.status || "").toLowerCase();
 			const already = Boolean(
 				data.already_checked_in
@@ -2883,9 +2926,11 @@ async function initOrganizerDashboard() {
 					? `Duplicate check-in \u2014 ticket ${ticketId}. ${message}`
 					: `Duplicate check-in \u2014 ${message}`;
 			}
+			if (data.session_name && !message.includes(data.session_name)) message = `${data.session_name}: ${message}`;
 			paintCheckinResult(resultEl, ok, (ok ? "\u2713 " : "") + message.replace(/^\u2713\s*/, ""), already);
 			await loadDashboardData();
 			await loadAttendanceData();
+			if (window.JodEventSessions) window.JodEventSessions.refreshOverview();
 			return data;
 		} catch (err) {
 			console.warn("Could not validate QR/check-in:", err);
@@ -4619,6 +4664,7 @@ async function initOrganizerDashboard() {
 					else console.warn(syncMsg);
 					return false;
 				}
+				if (window.JodEventSessions) window.JodEventSessions.save(Boolean(notifyError));
 				return true;
 			}
 			const errMsg = apiErrorMessage(data, "Could not save Manage details.");
@@ -5827,6 +5873,7 @@ async function initOrganizerDashboard() {
 			});
 		}
 		syncManageWizardPreview();
+		if (window.JodEventSessions) window.JodEventSessions.load(event.event_id || activeEventId);
 	}
 
 	if (ticketTiersRows) {
@@ -5880,6 +5927,7 @@ async function initOrganizerDashboard() {
 				agendaRows.innerHTML = "";
 				agendaRows.appendChild(createAgendaRowHtml("", "", ""));
 			}
+			if (window.JodEventSessions) window.JodEventSessions.reset();
 			applySectionActionLabels();
 			renderOverviewState();
 			switchTab("manage");
@@ -7157,7 +7205,8 @@ async function initOrganizerDashboard() {
 						email: volunteerEmail,
 						role,
 						gate_id: gateId,
-						event_id: activeEventId
+						event_id: activeEventId,
+						session_ids: window.JodEventSessions ? window.JodEventSessions.volunteerSessionIds() : undefined
 					})
 				});
 				const data = await res.json().catch(() => ({}));

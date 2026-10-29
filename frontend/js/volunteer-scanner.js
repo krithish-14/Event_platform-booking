@@ -159,9 +159,102 @@
  resumeCamera();
 	}
 
+	// ── session picker (multi-session events) ─────────────────────────────────
+
+	let sessionWrap = null;
+
+	function assignmentSessions() {
+ return (assignment && Array.isArray(assignment.sessions)) ? assignment.sessions : [];
+	}
+
+	function sessionStoreKey() {
+ return "jod_vol_session_" + ((assignment && assignment.event_id) || "");
+	}
+
+	function selectedSessionId() {
+ const sel = document.getElementById("volSessionSelect");
+ return (sel && sel.value) || "";
+	}
+
+	function selectedSession() {
+ const id = selectedSessionId();
+ return assignmentSessions().find((s) => s.session_id === id) || null;
+	}
+
+	function paintSessionInfo() {
+ const info = document.getElementById("volSessionInfo");
+ if (!info) return;
+ const s = selectedSession();
+ if (!s) {
+ info.textContent = assignmentSessions().length > 1 ? "Pick the session you are checking attendees in to." : "";
+ return;
+ }
+ const windowNote = s.checkin_window && s.checkin_window !== "open"
+ ? ` · <span class="vol-session-warn">${V.escapeHtml(String(s.checkin_window).replace("_", " "))}</span>`
+ : "";
+ info.innerHTML = `<strong>${V.escapeHtml(s.session_name)}</strong><br/>${V.escapeHtml(s.session_date || "")} · ${V.escapeHtml(s.time_label || "")} · ${V.escapeHtml(s.venue_name || "")}<br/>Eligible ${Number(s.eligible_count || 0)} · Checked in <span id="volSessionChecked">${Number(s.checked_in_count || 0)}</span>${windowNote}`;
+	}
+
+	function renderSessionPicker() {
+ const list = assignmentSessions();
+ if (!sessionWrap && cameraCard && cameraCard.parentNode) {
+ sessionWrap = document.createElement("div");
+ sessionWrap.className = "vol-session";
+ sessionWrap.innerHTML = '<label for="volSessionSelect">Checking in to</label><select id="volSessionSelect"></select><div class="vol-session-info" id="volSessionInfo"></div>';
+ cameraCard.parentNode.insertBefore(sessionWrap, cameraCard);
+ sessionWrap.querySelector("select").addEventListener("change", (e) => {
+ try { sessionStorage.setItem(sessionStoreKey(), e.target.value || ""); } catch (_) {}
+ paintSessionInfo();
+ });
+ }
+ if (!sessionWrap) return;
+ sessionWrap.hidden = list.length === 0;
+ const sel = sessionWrap.querySelector("select");
+ let stored = "";
+ try { stored = sessionStorage.getItem(sessionStoreKey()) || ""; } catch (_) {}
+ const current = sel.value || stored;
+ sel.innerHTML = (list.length > 1 ? '<option value="">Select a session…</option>' : "") + list.map((s) =>
+ `<option value="${V.escapeHtml(s.session_id)}">${V.escapeHtml(s.session_name)} · ${V.escapeHtml(s.time_label || "")}</option>`
+ ).join("");
+ if (current && list.some((s) => s.session_id === current)) sel.value = current;
+ paintSessionInfo();
+	}
+
 	// ── ticket verification ───────────────────────────────────────────────────
 
+	const SESSION_HOLD_CODES = new Set(["SESSION_REQUIRED", "SESSION_NOT_OPEN", "SESSION_NOT_ACTIVE", "SESSION_FULL"]);
+
 	function renderVerifyResult(data) {
+ const errorCode = String((data && data.error_code) || "").toUpperCase();
+ const sessionName = V.escapeHtml((data && data.session_name) || "");
+ const sessionRow = sessionName ? `<div class="res-row"><span>Session</span><strong>${sessionName}</strong></div>` : "";
+ if (SESSION_HOLD_CODES.has(errorCode)) {
+ showResult("hold", `
+ <div class="res-icon">!</div>
+ <h3>SESSION NOT ACCEPTING CHECK-INS</h3>
+ ${sessionRow}
+ <p>${V.escapeHtml(data.message || "This session is not accepting check-ins right now.")}</p>
+ `);
+ return;
+ }
+ if (errorCode === "SESSION_NOT_ELIGIBLE") {
+ showResult("bad", `
+ <div class="res-icon">✕</div>
+ <h3>NOT REGISTERED FOR THIS SESSION</h3>
+ ${sessionRow}
+ <p class="res-name">${V.escapeHtml((data && (data.customer_name || data.attendee_name)) || "Guest")}</p>
+ <p>This attendee is not registered for this session. Do not admit.</p>
+ `);
+ return;
+ }
+ if (errorCode === "SESSION_NOT_AUTHORIZED" || errorCode === "SESSION_NOT_FOUND") {
+ showResult("bad", `
+ <div class="res-icon">✕</div>
+ <h3>SESSION NOT AVAILABLE</h3>
+ <p>${V.escapeHtml(data.message || "You cannot check in attendees for this session.")}</p>
+ `);
+ return;
+ }
  const statusCode = String((data && data.status) || "").toUpperCase();
  const name = V.escapeHtml((data && (data.customer_name || data.attendee_name)) || "Guest");
  const bookingRef = V.escapeHtml((data && (data.booking_ref || data.ticket_code)) || "");
@@ -179,10 +272,16 @@
  } else {
  setTodayCount(Number(todayCountEl ? todayCountEl.textContent : 0) + 1);
  }
+ const picked = selectedSession();
+ if (picked && data.session_id === picked.session_id) {
+ picked.checked_in_count = Number(picked.checked_in_count || 0) + 1;
+ paintSessionInfo();
+ }
  showResult("ok", `
  <div class="res-icon">✓</div>
  <h3>NEW CHECK-IN</h3>
  <p class="res-name">${name}</p>
+ ${sessionRow}
  ${ticketId ? `<div class="res-row"><span>Ticket ID</span><strong>${ticketId}</strong></div>` : ""}
  ${bookingRef ? `<div class="res-row"><span>Booking ID</span><strong>${bookingRef}</strong></div>` : ""}
  ${category ? `<div class="res-row"><span>Category</span><strong>${category}</strong></div>` : ""}
@@ -194,10 +293,11 @@
  }
 
  if (statusCode === "ALREADY_USED" || statusCode === "DUPLICATE" || statusCode === "ALREADY_CHECKED_IN" || (data && (data.duplicate || data.already_checked_in))) {
- showResult("warn", `
+ showResult(sessionName ? "bad" : "warn", `
  <div class="res-icon">⚠</div>
- <h3>DUPLICATE CHECK-IN</h3>
+ <h3>${sessionName ? "ALREADY CHECKED IN TO THIS SESSION" : "DUPLICATE CHECK-IN"}</h3>
  <p class="res-name">${name}</p>
+ ${sessionRow}
  ${ticketId ? `<div class="res-row"><span>Ticket ID</span><strong>${ticketId}</strong></div>` : ""}
  ${bookingRef ? `<div class="res-row"><span>Booking ID</span><strong>${bookingRef}</strong></div>` : ""}
  <div class="res-row"><span>Checked in at</span><strong>${when}</strong></div>
@@ -243,6 +343,16 @@
  lastToken = token;
  lastTokenAt = now;
 
+ if (assignmentSessions().length > 1 && !selectedSessionId()) {
+ isProcessingToken = false;
+ showResult("hold", `
+ <div class="res-icon">!</div>
+ <h3>SELECT A SESSION</h3>
+ <p>Pick the session you are checking attendees in to, then scan again.</p>
+ `);
+ return;
+ }
+
  pulse(true);
  setHint("Verifying…");
 
@@ -250,7 +360,8 @@
  const { ok, status, data } = await V.verifyPortalTicket({
  token,
  qr_token: token,
- method: method || "TICKET_CODE"
+ method: method || "TICKET_CODE",
+ session_id: selectedSessionId() || undefined
  });
  pulse(false);
 
@@ -312,6 +423,7 @@
  ? `${assignment.volunteer_name} · Ready to scan`
  : "Ready to scan";
  setTodayCount(assignment.today_checkins || 0);
+ renderSessionPicker();
 	}
 
 	async function loadAssignment() {

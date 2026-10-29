@@ -279,6 +279,23 @@ def verify_ticket_token(
     return _serialize_ticket_success(ticket, message="ENTRY ALLOWED — Ticket is valid.")
 
 
+def _event_has_multiple_sessions(db: Session, event_id) -> bool:
+    """Tickets store events.id, which equals event_management.event_id for host events."""
+    try:
+        from Models.event_session import EventSession
+        count = (
+            db.query(EventSession)
+            .filter(EventSession.event_id == event_id)
+            .filter(EventSession.deleted_at.is_(None))
+            .filter(EventSession.status != "cancelled")
+            .count()
+        )
+    except Exception:
+        db.rollback()
+        return False
+    return count > 1
+
+
 # ── Entry Check-in Endpoint ───────────────────────────────────────────────────
 @router.post("/checkin", response_model=TicketResponse)
 def checkin_ticket_entry(
@@ -293,6 +310,13 @@ def checkin_ticket_entry(
     token_str = _extract_token(payload)
     ticket = _lookup_ticket(db, token_str)
     resolved_token = ticket.qr_token if ticket else token_str
+
+    if ticket and _event_has_multiple_sessions(db, ticket.event_id):
+        return {
+            "valid": False,
+            "status": "SESSION_REQUIRED",
+            "message": "This event has several sessions. Check in from the host dashboard or volunteer scanner and pick the session.",
+        }
 
     staff_name = payload.scanned_by
     if not staff_name:

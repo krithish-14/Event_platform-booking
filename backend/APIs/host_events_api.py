@@ -1789,6 +1789,7 @@ class SaveCheckinRequest(BaseModel):
     status: Optional[str] = "checked_in"
     notes: Optional[str] = None
     scanned_by: Optional[str] = None
+    session_id: Optional[str] = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -2787,6 +2788,30 @@ def save_registration_checkin(
 
     ticket = _find_event_ticket(db, event, scan_code)
     if ticket:
+        from Services import event_sessions as session_svc
+
+        session, session_error = session_svc.resolve_scan_session(db, event, payload.session_id)
+        if session is not None or session_error is not None:
+            if session_error is None:
+                result = session_svc.perform_session_checkin(
+                    db, event, session, [ticket], checked_in_by=staff_name,
+                    method=(payload.scan_method or "manual").upper()[:20],
+                )
+            else:
+                result = session_error
+            stats = compute_live_event_stats(db, event)
+            legacy_status = "success" if result.get("success") else (
+                "already_used" if result.get("error_code") == "ALREADY_CHECKED_IN"
+                else ("cancelled" if result.get("error_code") == "TICKET_CANCELLED" else "error")
+            )
+            result.update({
+                "status": legacy_status,
+                "already_checked_in": result.get("error_code") == "ALREADY_CHECKED_IN",
+                "ticket_id": str(ticket.ticket_id),
+                "booking_id": str(ticket.booking_id) if ticket.booking_id else None,
+                **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
+            })
+            return result
         status_now = (ticket.ticket_status or "").upper()
         booking = ticket.booking
         attendee_name = payload.attendee_name or (booking.receiver_name if booking else None) or "Guest"

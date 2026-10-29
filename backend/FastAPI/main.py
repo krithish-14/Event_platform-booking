@@ -31,6 +31,7 @@ configure_logging()
 
 from APIs.auth import router as auth_router
 from APIs.events import router as events_router
+from APIs.event_sessions import router as event_sessions_router
 from APIs.users import router as users_router
 from APIs.location import router as location_router
 from APIs.maps import router as maps_router
@@ -241,6 +242,7 @@ templates = Jinja2Templates(directory=_template_dirs)
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth_router,        prefix="/api/auth",        tags=["Authentication"])
 app.include_router(events_router,      prefix="/api/events",      tags=["Events"])
+app.include_router(event_sessions_router, prefix="/api/events",   tags=["Event Sessions"])
 app.include_router(users_router,       prefix="/api/users",       tags=["Users"])
 app.include_router(location_router,    prefix="/api/location",    tags=["Location"])
 app.include_router(maps_router,        prefix="/api/maps",        tags=["Maps"])

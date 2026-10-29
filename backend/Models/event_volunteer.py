@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import Column, DateTime, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
-from Models.base import Base, GUID
+from Models.base import Base, GUID, JSONType
 
 
 INVITE_TTL_HOURS = 48
@@ -23,6 +23,8 @@ class EventVolunteer(Base):
     invited_email = Column(String(255), nullable=False, index=True)
     volunteer_name = Column(String(200), nullable=False)
     gate_id = Column(GUID, ForeignKey("event_entry_gates.gate_id"), nullable=True, index=True)
+    # Session ids this volunteer may check in to. NULL/empty means every session of the event.
+    session_ids = Column(JSONType, nullable=True)
     role = Column(String(50), default="SCANNER", nullable=False)
     status = Column(String(20), default="PENDING", nullable=False, index=True)
     invited_by_customer_id = Column(String(50), nullable=True)
