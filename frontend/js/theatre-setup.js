@@ -396,7 +396,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		if (res.ok) {
 			const data = await res.json();
 			if (!data.editable) {
-				window.location.replace("theatre-status.html");
+				window.location.replace(data.verification_status === "VERIFIED" ? "theatre-dashboard.html" : "theatre-status.html");
 				return;
 			}
 			if (data.partner) {

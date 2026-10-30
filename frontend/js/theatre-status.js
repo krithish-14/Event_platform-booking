@@ -52,6 +52,10 @@
 			window.location.replace("theatre-setup.html");
 			return;
 		}
+		if (status === "VERIFIED") {
+			window.location.replace("theatre-dashboard.html");
+			return;
+		}
 		facts(data.partner);
 		$("tsReason").hidden = true;
 		$("tsEdit").hidden = true;

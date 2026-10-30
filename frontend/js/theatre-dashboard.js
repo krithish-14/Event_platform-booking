@@ -19,22 +19,33 @@ document.addEventListener("DOMContentLoaded", async () => {
 	function showTab(name) {
 		document.querySelectorAll("[data-td-tab]").forEach((b) => {
 			const on = b.getAttribute("data-td-tab") === name;
-			b.classList.toggle("is-on", on);
+			b.classList.toggle("active", on);
 			b.setAttribute("aria-selected", on ? "true" : "false");
 		});
-		document.querySelectorAll(".td-panel").forEach((p) => { p.hidden = p.id !== "td-" + name; });
+		document.querySelectorAll(".td-panel").forEach((p) => p.classList.toggle("active-tab", p.id === "td-" + name));
+		const content = document.querySelector(".dash-content");
+		if (content) content.scrollTop = 0;
 		try { history.replaceState(null, "", "?tab=" + name); } catch (_) {}
 		if (name === "shows") renderShows();
 		if (name === "bookings") loadBookings();
 	}
-	document.querySelectorAll("[data-td-tab]").forEach((b) => b.addEventListener("click", () => {
-		if (state.dirty && !confirm("You have unsaved seat layout changes. Leave without saving?")) return;
+	function leaveEditorOk() {
+		if (state.dirty && !confirm("You have unsaved seat layout changes. Leave without saving?")) return false;
 		state.dirty = false;
-		showTab(b.getAttribute("data-td-tab"));
-	}));
+		return true;
+	}
+	document.querySelectorAll("[data-td-tab]").forEach((b) => {
+		b.addEventListener("click", (e) => {
+			e.preventDefault();
+			if (leaveEditorOk()) showTab(b.getAttribute("data-td-tab"));
+		});
+		b.addEventListener("keydown", (e) => {
+			if (e.key === "Enter" || e.key === " ") { e.preventDefault(); b.click(); }
+		});
+	});
 	document.addEventListener("click", (e) => {
 		const go = e.target.closest("[data-td-go]");
-		if (go) showTab(go.getAttribute("data-td-go"));
+		if (go && leaveEditorOk()) showTab(go.getAttribute("data-td-go"));
 	});
 
 	/* ── Modal ────────────────────────────────────────────── */
@@ -74,16 +85,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 	function renderOverview() {
 		const t = state.me.theatre;
 		const s = state.me.stats;
-		$("tdTheatreName").textContent = t.name || "Your theatre";
-		$("tdTheatreMeta").textContent = [t.chain, [t.district, t.state].filter(Boolean).join(", "), t.partner_code].filter(Boolean).join(" \u00b7 ");
+		$("tdTheatreName").textContent = t.name || "Theatre Dashboard";
+		$("tdTheatreMeta").textContent = [[t.district, t.state].filter(Boolean).join(", "), t.partner_code].filter(Boolean).join(" \u00b7 ");
+		$("tdStatusBadge").hidden = false;
+		document.title = `${t.name || "Theatre"} \u2014 Theatre Dashboard | JOD Events`;
+		$("tdOverviewSub").textContent = [t.chain, t.address, [t.district, t.state, t.pincode].filter(Boolean).join(", ")].filter(Boolean).join(" \u00b7 ");
+		const icon = (path) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
 		const cards = [
-			["Screens", s.screens, `${s.seats.toLocaleString("en-IN")} seats`, "screens"],
-			["Movies", s.movies, "now playing", "movies"],
-			["Upcoming shows", s.upcoming_shows, "next 30 days", "shows"],
-			["Tickets today", s.tickets_today, C.money(s.sales_today) + " sales", "bookings"],
-			["Your payout", C.money(s.payout_total), `${s.tickets_total} tickets \u00b7 after 5% fee + GST`, "bookings"]
+			["Screens", s.screens, `${s.seats.toLocaleString("en-IN")} seats`, "screens", "icon-attendees", '<path d="M4 18v-2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/><path d="M6 14V9a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v5"/>'],
+			["Movies", s.movies, "now playing", "movies", "icon-days", '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 4v16M17 4v16"/>'],
+			["Upcoming shows", s.upcoming_shows, "next 30 days", "shows", "icon-pending", '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'],
+			["Tickets today", s.tickets_today, C.money(s.sales_today) + " sales", "bookings", "icon-regs", '<path d="M2 9a3 3 0 0 0 0 6v3a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3a3 3 0 0 0 0-6V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/>'],
+			["Your payout", C.money(s.payout_total), `${s.tickets_total} tickets \u00b7 after fees`, "bookings", "icon-sales", '<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>']
 		];
-		$("tdStats").innerHTML = cards.map((c) => `<button type="button" class="td-stat" data-td-go="${c[3]}"><span>${esc(c[0])}</span><strong>${esc(c[1])}</strong><small>${esc(c[2])}</small></button>`).join("");
+		$("tdStats").innerHTML = cards.map((c) => `<button type="button" class="kpi-card td-kpi" data-td-go="${c[3]}"><div class="kpi-icon-circle ${c[4]}">${icon(c[5])}</div><div class="kpi-details"><span class="kpi-label">${esc(c[0])}</span><span class="kpi-value">${esc(c[1])}</span><small class="td-kpi-sub">${esc(c[2])}</small></div></button>`).join("");
 		const steps = [
 			[state.screens.some((x) => x.updated_at), "Check each screen's seat layout and screen position", "screens"],
 			[state.movies.length > 0, "Add the movies you are screening", "movies"],
@@ -389,6 +404,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		$("tdMoviePosterUrl").value = m ? (m.poster_url || "") : "";
 		$("tdMoviePosterPreview").innerHTML = m && m.poster_url ? `<img src="${esc(C.resolveMedia(m.poster_url))}" alt="Poster preview">` : "No poster yet";
 		$("tdMovieSubmit").textContent = m ? "Save movie" : "Add movie";
+		$("tdMovieFormTitle").textContent = m ? `Edit ${m.title}` : "Add a movie";
 		$("tdMovieCancel").hidden = !m;
 		if (m) f.scrollIntoView({ behavior: "smooth", block: "start" });
 	}
@@ -441,14 +457,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 		const screen = screenById($("tdShowScreen").value);
 		const cats = screen && screen.layout ? screen.layout.categories : [];
 		$("tdShowPrices").innerHTML = cats.length
-			? cats.map((c) => `<label class="td-price"><span><i style="background:${esc(c.color)}"></i>${esc(c.name)}</span><input type="number" min="1" max="10000" step="1" required data-price="${esc(c.id)}" placeholder="\u20B9"></label>`).join("")
+			? cats.map((c) => `<label class="td-price"><span><i style="background:${esc(c.color)}"></i>${esc(c.name)}</span><input type="number" class="setup-input" min="1" max="10000" step="1" required data-price="${esc(c.id)}" placeholder="\u20B9"></label>`).join("")
 			: '<p class="td-hint">Pick a screen to set a price for each seat category.</p>';
 	}
 	$("tdShowScreen").addEventListener("change", renderPriceInputs);
 	function addTimeInput(value) {
 		const wrap = document.createElement("span");
 		wrap.className = "td-time";
-		wrap.innerHTML = `<input type="time" required value="${esc(value || "")}"><button type="button" class="td-icon-btn" title="Remove time">&times;</button>`;
+		wrap.innerHTML = `<input type="time" class="setup-input" required value="${esc(value || "")}"><button type="button" class="td-icon-btn" title="Remove time">&times;</button>`;
 		wrap.querySelector("button").addEventListener("click", () => { if ($("tdShowTimes").children.length > 1) wrap.remove(); });
 		$("tdShowTimes").appendChild(wrap);
 	}
@@ -536,7 +552,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 	function editPrices(id) {
 		const s = state.shows.find((x) => x.id === id);
 		if (!s) return;
-		openModal("Update prices", `<form id="tdPriceForm" class="td-form">${Object.entries(s.prices).map(([k, v]) => `<label class="td-price"><span>${esc(categoryName(s.screen_id, k))}</span><input type="number" min="1" max="10000" required data-price="${esc(k)}" value="${esc(v)}"></label>`).join("")}<p class="td-hint">New prices apply to bookings made from now on.</p><button class="td-btn" type="submit">Save prices</button></form>`);
+		openModal("Update prices", `<form id="tdPriceForm" class="td-form">${Object.entries(s.prices).map(([k, v]) => `<label class="td-price"><span>${esc(categoryName(s.screen_id, k))}</span><input type="number" class="setup-input" min="1" max="10000" required data-price="${esc(k)}" value="${esc(v)}"></label>`).join("")}<p class="td-hint">New prices apply to bookings made from now on.</p><button class="publish-gradient-btn" type="submit">Save prices</button></form>`);
 		$("tdPriceForm").addEventListener("submit", async (e) => {
 			e.preventDefault();
 			const prices = {};
@@ -560,6 +576,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			$("tdBookingList").innerHTML = rows.length ? rows.map((b) => `<div class="td-row"><div><strong>${esc(b.booking_code)}</strong><small>${esc(b.name || b.email)} \u00b7 ${esc(b.seats.map((x) => x.id).join(", "))}</small></div><div class="td-row-end"><span>${C.money(b.amount)} <small>(payout ${C.money(b.payout)})</small></span><small>${b.status === "payment_conflict" ? "Needs refund" : b.checked_in_at ? "Checked in" : "Paid"}</small></div></div>`).join("") : '<p class="td-empty">No bookings yet.</p>';
 		} catch (err) { $("tdBookingList").textContent = err.message; }
 	}
+	$("tdRefreshBookings").addEventListener("click", loadBookings);
 	$("tdCheckinForm").addEventListener("submit", async (e) => {
 		e.preventDefault();
 		const code = $("tdCheckinCode").value.trim();
