@@ -51,6 +51,8 @@ from APIs.payments import router as payments_router, razorpay_router
 from APIs.whatsapp import router as whatsapp_router
 from APIs.reels import router as reels_router
 from APIs.theatres import router as theatres_router, admin_router as theatres_admin_router
+from APIs.cinema_owner import router as cinema_owner_router
+from APIs.movies import router as movies_router
 from Models.base import create_tables
 from Models.user import User  # noqa: F401 — registered with SQLAlchemy metadata
 from Models.event import Event  # noqa: F401
@@ -263,6 +265,8 @@ app.include_router(admin_access_public_router, prefix="/api/admin-access", tags=
 app.include_router(theatres_admin_router, prefix="/api/admin/theatres", tags=["Admin"])
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
 app.include_router(theatres_router, prefix="/api/theatres", tags=["Theatres"])
+app.include_router(cinema_owner_router, prefix="/api/cinema", tags=["Theatre dashboard"])
+app.include_router(movies_router, prefix="/api/movies", tags=["Movies"])
 app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
 app.include_router(razorpay_router, prefix="/api", tags=["Razorpay"])
 app.include_router(whatsapp_router, prefix="/api/whatsapp", tags=["WhatsApp"])

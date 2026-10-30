@@ -56,10 +56,12 @@
 		$("tsReason").hidden = true;
 		$("tsEdit").hidden = true;
 		$("tsHelp").hidden = true;
+		$("tsDashboard").hidden = true;
 		if (status === "VERIFIED") {
 			paint("Your theatre is approved", "Approved", "is-ok",
 				"Welcome aboard! Your theatre is now a verified JOD Events partner.",
-				"Movie show listing and seat booking tools are coming soon. We'll email you as soon as you can add your first show.");
+				"Open your theatre dashboard to set each screen's seat layout, add movies and schedule shows. Customers can then book seats live.");
+			$("tsDashboard").hidden = false;
 		} else if (status === "REJECTED") {
 			paint("Changes needed", "Sent back", "is-bad", "Our team reviewed your registration and needs a few changes.", "");
 			$("tsReason").textContent = "Reason: " + (data.review_reason || "No reason provided.");

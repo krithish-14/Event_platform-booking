@@ -204,7 +204,7 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=38"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=39"));
 	const footerEl = document.getElementById("footer");
 	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=14"));
 	const privacyBodyEl = document.getElementById("privacyPolicyBody");

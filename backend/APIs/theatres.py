@@ -395,7 +395,7 @@ def admin_review_theatre(
     name = partner.theatre_name or "your theatre"
     if action in ("approve", "unrestrict"):
         subject = f"{name} is approved on JOD Events"
-        lead = f"Good news — {name} is now an approved JOD Events theatre partner. Movie show listing tools are coming soon; we'll email you when they open."
+        lead = f"Good news — {name} is now an approved JOD Events theatre partner. Open your theatre dashboard to set seat layouts, add movies and schedule shows."
     elif action == "reject":
         subject = f"Changes needed for {name} — JOD Events"
         lead = f"Your theatre registration for {name} needs a few changes before we can approve it. Update the details and submit again."
@@ -409,7 +409,9 @@ def admin_review_theatre(
         f"Hi {partner.contact_full_name or ''},\n\n{lead}{note}\n\n— JOD Events\n",
         f"<p>Hi {html.escape(partner.contact_full_name or '')},</p><p>{html.escape(lead)}</p>"
         + (f"<p><strong>Team note:</strong> {html.escape(reason)}</p>" if reason else "")
-        + "<p><a href='https://jodevents.com/theatre-status'>View your theatre status</a></p><p>— JOD Events</p>",
+        + ("<p><a href='https://jodevents.com/theatre-dashboard'>Open your theatre dashboard</a></p>" if action in ("approve", "unrestrict")
+           else "<p><a href='https://jodevents.com/theatre-status'>View your theatre status</a></p>")
+        + "<p>— JOD Events</p>",
     )
     labels = {"approve": "Theatre approved.", "reject": "Theatre sent back for changes.", "restrict": "Theatre access restricted.", "unrestrict": "Restriction revoked."}
     return {

@@ -347,6 +347,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 			});
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) {
+				if (res.status === 404) {
+					throw new Error("Theatre registration isn't switched on yet on our server. Your details are saved on this browser, so please try again in a few minutes.");
+				}
 				const detail = data.detail;
 				throw new Error(typeof detail === "string" ? detail : Array.isArray(detail) ? detail.map((x) => x.msg || x).join(" ") : "Could not save your theatre details.");
 			}
@@ -415,9 +418,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 				if (missing.length && missing.every((m) => m === "signed agreement")) startStep = 3;
 				else if (missing.length && missing.every((m) => /image|document|signed agreement/.test(m))) startStep = 2;
 			}
+		} else {
+			applyForm(loadLocal());
 		}
 	} catch (_) {
 		applyForm(loadLocal());
 	}
 	goToStep(startStep);
+
+	let draftTimer = null;
+	$("accountSetupForm").addEventListener("input", () => {
+		clearTimeout(draftTimer);
+		draftTimer = setTimeout(saveLocal, 400);
+	});
+	$("accountSetupForm").addEventListener("change", saveLocal);
 });

@@ -35,6 +35,7 @@ from Models.notification import EventAnnouncement
 from Models.admin_access import AdminAccess
 from Models.event_session import EventSession, EventSessionRegistration, EventSessionCheckin
 from Models.theatre_partner import TheatrePartner
+from Models.cinema import CinemaBooking, CinemaMovie, CinemaScreen, CinemaShow, CinemaShowSeat
 
 __all__ = [
     "Base",
@@ -79,4 +80,9 @@ __all__ = [
     "EventSessionRegistration",
     "EventSessionCheckin",
     "TheatrePartner",
+    "CinemaScreen",
+    "CinemaMovie",
+    "CinemaShow",
+    "CinemaShowSeat",
+    "CinemaBooking",
 ]

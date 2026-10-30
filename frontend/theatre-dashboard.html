@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-PFZVZGJR');</script>
+<!-- End Google Tag Manager -->
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1108643598261903');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code --> <meta name="google-site-verification" content="NZqKNPeMc18zMdyTI3izDvSSlpvp-k5-QxDip8XCFw8" /> <style id="jod-header-logo-critical">
+:root{--header-logo-height:4.25rem;--site-header-height:4.6rem}
+#header:empty{min-height:4.6rem;display:block}
+.site-header .brand-logo-slot{display:flex;align-items:center;height:4.25rem!important;max-height:4.25rem!important;max-width:11.2rem!important;overflow:hidden;flex-shrink:0}
+.site-header .brand-logo,.site-header .brand img.brand-logo{height:4.25rem!important;max-height:4.25rem!important;width:auto!important;max-width:11.2rem!important;min-height:0!important;min-width:0!important;object-fit:contain!important;object-position:left center!important;display:block!important}
+@media (max-width:1100px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:3.85rem!important;max-height:3.85rem!important;max-width:10.15rem!important}}
+@media (max-width:800px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:3.5rem!important;max-height:3.5rem!important;max-width:9.2rem!important}}
+@media (max-width:520px){.site-header .brand-logo-slot,.site-header .brand-logo,.site-header .brand img.brand-logo{height:3.1rem!important;max-height:3.1rem!important;max-width:8.2rem!important}}
+.site-header .nav-inner{min-height:0;padding:.2rem 0;align-items:center}
+.site-header .desktop-nav>a,.site-header .nav-auth>a.button{white-space:nowrap}
+</style>
+<link rel="preload" as="image" href="/images/JOD%20Events%20Logo.png" fetchpriority="high" />
+<link rel="stylesheet" href="css/fonts.css?v=2" />
+<script src="js/theme.js?v=30"></script> <script src="js/api-config.js?v=4"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" /> <meta name="description" content="Manage your cinema screens, seat layouts, movies, shows and bookings on JOD Events." /> <title>Theatre Dashboard | JOD Events</title> <link rel="icon" href="/favicon.ico" sizes="any" /><link rel="icon" type="image/png" href="/favicon.png" /><link rel="apple-touch-icon" href="/favicon.png" /> <link rel="stylesheet" href="css/style.css?v=86" /> <link rel="stylesheet" href="css/responsive.css?v=63" /> <link rel="stylesheet" href="css/cinema.css?v=1" />
+</head>
+<body class="sub-page cinema-page">
+
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) --> <div class="site-shell" id="top"> <div id="header"></div>
+<main class="cinema-wrap">
+  <div id="tdLoading" class="td-state">Loading your theatre&hellip;</div>
+  <div id="tdBlocked" class="td-state" hidden><h2>Theatre dashboard</h2><p id="tdBlockedText"></p><a class="td-btn" href="theatre-status.html">View registration status</a></div>
+  <div id="tdApp" hidden>
+    <section class="td-hero">
+      <div><span class="td-kicker">Theatre dashboard</span><h1 id="tdTheatreName">Your theatre</h1><p id="tdTheatreMeta"></p></div>
+      <a class="td-btn" href="movies.html" target="_blank" rel="noopener">View public Movies page</a>
+    </section>
+    <nav class="td-tabs" role="tablist" aria-label="Dashboard sections">
+      <button type="button" class="td-tab is-on" data-td-tab="overview" role="tab">Overview</button>
+      <button type="button" class="td-tab" data-td-tab="screens" role="tab">Screens &amp; seats</button>
+      <button type="button" class="td-tab" data-td-tab="movies" role="tab">Movies</button>
+      <button type="button" class="td-tab" data-td-tab="shows" role="tab">Shows</button>
+      <button type="button" class="td-tab" data-td-tab="bookings" role="tab">Bookings &amp; check-in</button>
+    </nav>
+
+    <section class="td-panel" id="td-overview">
+      <div class="td-stats" id="tdStats"></div>
+      <div class="td-two">
+        <div class="td-card"><h3>Get ready to sell tickets</h3><ol class="td-steps" id="tdSteps"></ol></div>
+        <div class="td-card"><h3>Next shows</h3><div id="tdNextShows"></div></div>
+      </div>
+    </section>
+
+    <section class="td-panel" id="td-screens" hidden>
+      <div class="td-screens">
+        <div>
+          <div class="td-screen-list" id="tdScreenList"></div>
+          <form class="td-card td-form" id="tdNewScreen" style="margin-top:1rem">
+            <h3>Add a screen</h3>
+            <label>Screen name<input id="tdNewScreenName" required maxlength="60" placeholder="e.g. Audi 3"></label>
+            <label>Format<select id="tdNewScreenFormat"><option>2D</option><option>3D</option><option>IMAX</option><option>4DX</option><option>ScreenX</option><option>Dolby Cinema</option></select></label>
+            <div class="td-grid-2"><label>Rows<input id="tdNewScreenRows" type="number" min="1" max="40" value="10"></label><label>Columns<input id="tdNewScreenCols" type="number" min="1" max="60" value="16"></label></div>
+            <button class="td-btn" type="submit">Add screen</button>
+          </form>
+        </div>
+        <div class="td-card" id="tdEditor" hidden>
+          <div class="td-toolbar">
+            <label>Screen name<input id="tdEditorName" maxlength="60"></label>
+            <label>Format<select id="tdEditorFormat"><option>2D</option><option>3D</option><option>IMAX</option><option>4DX</option><option>ScreenX</option><option>Dolby Cinema</option></select></label>
+            <label>Rows<input id="tdRows" type="number" min="1" max="40"></label>
+            <label>Columns<input id="tdCols" type="number" min="1" max="60"></label>
+            <button type="button" class="td-btn is-ghost" id="tdApplySize">Resize</button>
+            <button type="button" class="td-btn is-ghost" id="tdTemplate">Use template</button>
+            <label>Screen position<select id="tdScreenPos"><option value="top">Screen at top</option><option value="bottom">Screen at bottom</option></select></label>
+            <label>Seat numbers<select id="tdNumbering"><option value="ltr">Left to right</option><option value="rtl">Right to left</option></select></label>
+          </div>
+          <p class="td-help">Pick a seat category (or <strong>Aisle / gap</strong>) below, then click or drag across the grid to paint seats. Click a row letter to paint the whole row. Rows are lettered from the screen side, so row A is nearest the screen, and seats are numbered automatically, skipping gaps.</p>
+          <div class="td-cats" id="tdCats"></div>
+          <button type="button" class="td-link" id="tdAddCat">+ Add seat category</button>
+          <div class="seatmap-scroll" style="margin-top:0.8rem"><div id="tdGrid"></div></div>
+          <div class="td-layout-foot">
+            <div class="td-layout-summary" id="tdLayoutSummary"></div>
+            <div style="display:flex;gap:0.6rem;align-items:center">
+              <span class="td-layout-status" id="tdLayoutStatus">Saved</span>
+              <button type="button" class="td-link is-danger" id="tdArchiveScreen">Remove screen</button>
+              <button type="button" class="td-btn" id="tdSaveLayout">Save layout</button>
+            </div>
+          </div>
+          <p class="td-hint">Saved layouts apply to new shows. Shows you already scheduled keep the layout they were created with, so booked seats never move.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="td-panel" id="td-movies" hidden>
+      <div class="td-movies">
+        <form class="td-card td-form" id="tdMovieForm">
+          <h3>Movie details</h3>
+          <input type="hidden" id="tdMovieId"><input type="hidden" id="tdMoviePosterUrl">
+          <label>Title<input id="tdMovieTitle" required maxlength="200"></label>
+          <div class="td-grid-2">
+            <label>Language<input id="tdMovieLang" list="tdMovieLangList" required maxlength="40"></label>
+            <label>Certificate<select id="tdMovieCert"><option value="">Not rated yet</option><option>U</option><option>UA</option><option>UA 7+</option><option>UA 13+</option><option>UA 16+</option><option>A</option><option>S</option></select></label>
+          </div>
+          <datalist id="tdMovieLangList"></datalist>
+          <div class="td-grid-2">
+            <label>Runtime (minutes)<input id="tdMovieRuntime" type="number" min="30" max="300" required></label>
+            <label>Release date<input id="tdMovieRelease" type="date"></label>
+          </div>
+          <label>Genres<input id="tdMovieGenres" maxlength="200" placeholder="Action, Drama"></label>
+          <label>About the movie<textarea id="tdMovieDesc" maxlength="3000"></textarea></label>
+          <label>Poster (JPG, PNG or WEBP, 600 &times; 900 px works well)<input id="tdMoviePoster" type="file" accept=".jpg,.jpeg,.png,.webp"></label>
+          <div class="td-poster-preview" id="tdMoviePosterPreview">No poster yet</div>
+          <div style="display:flex;gap:0.6rem"><button class="td-btn" type="submit" id="tdMovieSubmit">Add movie</button><button class="td-btn is-ghost" type="button" id="tdMovieCancel" hidden>Cancel edit</button></div>
+        </form>
+        <div class="td-movie-list" id="tdMovieList"></div>
+      </div>
+    </section>
+
+    <section class="td-panel" id="td-shows" hidden>
+      <div class="td-shows">
+        <form class="td-card td-form" id="tdShowForm">
+          <h3>Schedule shows</h3>
+          <label>Movie<select id="tdShowMovie" required></select></label>
+          <label>Screen<select id="tdShowScreen" required></select></label>
+          <label>Date<input id="tdShowDate" type="date" required></label>
+          <label>Show times</label>
+          <div class="td-times" id="tdShowTimes"></div>
+          <button type="button" class="td-link" id="tdAddTime" style="align-self:flex-start">+ Add another time</button>
+          <label>Ticket price per seat category</label>
+          <div class="td-prices" id="tdShowPrices"></div>
+          <p class="td-hint">Shows on the same screen need 15 minutes between them for cleaning. Customers pay exactly these prices; your payout is the price minus a 5% platform fee and 18% GST on that fee.</p>
+          <button class="td-btn" type="submit" id="tdShowSubmit">Schedule</button>
+          <div class="td-result" id="tdShowResult"></div>
+        </form>
+        <div class="td-card"><h3>Upcoming shows</h3><div id="tdShowList"></div></div>
+      </div>
+    </section>
+
+    <section class="td-panel" id="td-bookings" hidden>
+      <div class="td-checkin">
+        <form class="td-card td-form" id="tdCheckinForm">
+          <h3>Check in at the entrance</h3>
+          <label>Scan the ticket QR with a scanner, or type the booking code<input id="tdCheckinCode" autocomplete="off" placeholder="MOV-XXXXXXXX"></label>
+          <button class="td-btn" type="submit">Check in</button>
+          <div id="tdCheckinResult"></div>
+        </form>
+        <div class="td-card"><h3>Recent bookings</h3><div id="tdBookingList"></div></div>
+      </div>
+    </section>
+  </div>
+</main>
+<div class="td-modal" id="tdModal" hidden><div class="td-modal-backdrop" data-td-close></div><div class="td-modal-box" role="dialog" aria-modal="true" aria-labelledby="tdModalTitle"><div class="td-modal-head"><h3 id="tdModalTitle"></h3><button type="button" class="td-icon-btn" data-td-close aria-label="Close">&times;</button></div><div id="tdModalBody"></div></div></div>
+<div id="footer"></div> </div> <script src="js/include.js?v=60"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=58"></script> <script src="js/profile.js?v=15"></script> <script src="js/script.js?v=66"></script> <script src="js/cinema-common.js?v=1"></script> <script src="js/seat-map.js?v=1"></script> <script src="js/theatre-dashboard.js?v=1"></script>
+</body>
+</html>
