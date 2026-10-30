@@ -49,6 +49,11 @@ class CinemaMovie(Base):
     description = Column(Text, nullable=True)
     poster_url = Column(String(500), nullable=True)
     release_date = Column(String(10), nullable=True)
+    # [{"name", "role", "photo_url"}]; role is the character for cast, the job for crew.
+    cast_json = Column(Text, nullable=True)
+    crew_json = Column(Text, nullable=True)
+    # [{"youtube_id", "label"}], verified as embeddable when added.
+    trailers_json = Column(Text, nullable=True)
     status = Column(String(20), nullable=False, default="active")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)

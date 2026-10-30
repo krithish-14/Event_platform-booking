@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from APIs.cinema_owner import movie_details
 from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.base import get_db
 from Models.cinema import CinemaBooking, CinemaMovie, CinemaScreen, CinemaShow
@@ -51,6 +52,7 @@ def _movie_card(movie: CinemaMovie) -> dict:
         "description": movie.description,
         "poster_url": movie.poster_url,
         "release_date": movie.release_date,
+        **movie_details(movie),
     }
 
 
@@ -98,6 +100,9 @@ def now_showing(
         entry = grouped.setdefault(key, {"key": key, **_movie_card(movie), "theatres": {}, "next_show": json_datetime(show.starts_at)})
         if not entry.get("poster_url") and movie.poster_url:
             entry["poster_url"] = movie.poster_url
+        for field, value in movie_details(movie).items():
+            if not entry.get(field) and value:
+                entry[field] = value
         theatre = entry["theatres"].setdefault(str(partner.id), {
             "theatre_id": str(partner.id),
             "name": partner.theatre_name,

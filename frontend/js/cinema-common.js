@@ -111,5 +111,38 @@
 		el._t = setTimeout(() => { el.className = "cinema-toast"; }, 4200);
 	}
 
-	global.JodCinema = { origin, api, esc, money, time, day, istDateKey, resolveMedia, param, loggedIn, askLogin, toast };
+	/* Must accept the same links as Services/movie_details.py youtube_id. */
+	const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+	function youtubeId(text) {
+		let raw = String(text == null ? "" : text).trim();
+		if (!raw) return null;
+		if (VIDEO_ID.test(raw)) return raw;
+		if (raw.indexOf("://") === -1) raw = "https://" + raw;
+		let url;
+		try { url = new URL(raw); } catch (_) { return null; }
+		if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+		const host = url.hostname.toLowerCase().replace(/^(www|m|music)\./, "");
+		const parts = url.pathname.split("/").filter(Boolean);
+		let id = null;
+		if (host === "youtu.be") id = parts[0] || null;
+		else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+			if (parts[0] === "watch") id = url.searchParams.get("v");
+			else if (parts.length >= 2 && ["shorts", "embed", "live", "v", "e"].indexOf(parts[0]) !== -1) id = parts[1];
+		}
+		return id && VIDEO_ID.test(id) ? id : null;
+	}
+
+	function youtubeThumb(id) {
+		return "https://i.ytimg.com/vi/" + encodeURIComponent(id) + "/hqdefault.jpg";
+	}
+
+	function youtubeEmbed(id) {
+		return "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(id) + "?autoplay=1&rel=0&modestbranding=1&playsinline=1";
+	}
+
+	function initials(name) {
+		return String(name || "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "?";
+	}
+
+	global.JodCinema = { origin, api, esc, money, time, day, istDateKey, resolveMedia, param, loggedIn, askLogin, toast, youtubeId, youtubeThumb, youtubeEmbed, initials };
 })(window);

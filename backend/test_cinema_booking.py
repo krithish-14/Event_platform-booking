@@ -337,6 +337,69 @@ class CinemaFlowTests(unittest.TestCase):
         self.as_user(self.buyer)
         self.assertEqual(self.client.post(f"/api/movies/shows/{show['id']}/hold", json={"seats": ["A2"]}).status_code, 422)
 
+    def test_cast_crew_and_trailers_saved_and_shown(self):
+        _, movie, _ = self.setup_show()
+        checks = []
+
+        def fake_check(vid):
+            checks.append(vid)
+            return {"AAAAAAAAAAA": ("ok", "Official Trailer"), "BBBBBBBBBBB": ("no_embed", None)}.get(vid, ("missing", None))
+
+        base = {"title": "Example Movie", "language": "Tamil", "certificate": "UA", "duration_min": 150, "genres": "Drama"}
+        details = {
+            "cast": [{"name": " Lead  Actor ", "role": "Hero", "photo_url": "/api/media/abc"}, {"name": "", "role": "blank row"}],
+            "crew": [{"name": "Some Director", "role": "Director"}],
+            "trailers": [{"url": "https://youtu.be/AAAAAAAAAAA?si=x", "label": "Teaser"}, {"url": "https://www.youtube.com/watch?v=AAAAAAAAAAA"}],
+        }
+        with mock.patch("Services.movie_details.check_youtube", side_effect=fake_check):
+            res = self.client.put(f"/api/cinema/movies/{movie['id']}", json={**base, **details})
+            self.assertEqual(res.status_code, 200, res.text)
+            saved = res.json()
+            self.assertEqual(saved["cast"], [{"name": "Lead Actor", "role": "Hero", "photo_url": "/api/media/abc"}])
+            self.assertEqual(saved["crew"][0]["role"], "Director")
+            self.assertEqual(saved["trailers"], [{"youtube_id": "AAAAAAAAAAA", "label": "Teaser"}], "duplicate link dropped")
+
+            self.assertEqual(self.client.put(f"/api/cinema/movies/{movie['id']}", json={**base, **details}).status_code, 200)
+            self.assertEqual(checks, ["AAAAAAAAAAA"], "already saved trailers are not re-checked")
+
+            blocked = self.client.put(f"/api/cinema/movies/{movie['id']}", json={**base, "trailers": [{"url": "youtu.be/BBBBBBBBBBB"}]})
+            self.assertEqual(blocked.status_code, 422)
+            self.assertIn("other websites", blocked.json()["detail"])
+            missing = self.client.put(f"/api/cinema/movies/{movie['id']}", json={**base, "trailers": [{"url": "https://youtu.be/CCCCCCCCCCC"}]})
+            self.assertEqual(missing.status_code, 422)
+            not_youtube = self.client.put(f"/api/cinema/movies/{movie['id']}", json={**base, "trailers": [{"url": "https://vimeo.com/12345"}]})
+            self.assertEqual(not_youtube.status_code, 422)
+            outside_photo = self.client.put(f"/api/cinema/movies/{movie['id']}", json={**base, "cast": [{"name": "X", "photo_url": "https://evil.example/x.jpg"}]})
+            self.assertEqual(outside_photo.status_code, 422)
+
+        kept = self.client.put(f"/api/cinema/movies/{movie['id']}", json=base).json()
+        self.assertEqual(len(kept["trailers"]), 1, "older clients that omit the lists keep them")
+        self.as_user(None)
+        card = self.client.get("/api/movies/now-showing", params={"district": "Chennai"}).json()["movies"][0]
+        self.assertEqual((card["cast"][0]["name"], card["crew"][0]["name"], card["trailers"][0]["youtube_id"]),
+                         ("Lead Actor", "Some Director", "AAAAAAAAAAA"))
+
+
+class YouTubeLinks(unittest.TestCase):
+    def test_link_formats(self):
+        from Services.movie_details import youtube_id
+
+        vid = "dQw4w9WgXcQ"
+        for link in (vid, f"https://www.youtube.com/watch?v={vid}&t=10s", f"https://m.youtube.com/watch?feature=share&v={vid}",
+                     f"youtu.be/{vid}?si=abc", f"https://www.youtube.com/shorts/{vid}", f"https://www.youtube.com/embed/{vid}",
+                     f"https://www.youtube.com/live/{vid}?feature=share", f"https://www.youtube-nocookie.com/embed/{vid}",
+                     f"https://music.youtube.com/watch?v={vid}"):
+            self.assertEqual(youtube_id(link), vid, link)
+        for link in ("", "https://vimeo.com/123", "https://youtube.com/watch?v=short", "https://notyoutube.com/watch?v=dQw4w9WgXcQ",
+                     "javascript:alert(1)", "https://www.youtube.com/@channel", f"ftp://youtube.com/watch?v={vid}"):
+            self.assertIsNone(youtube_id(link), link)
+
+    def test_unreachable_youtube_does_not_block_saving(self):
+        from Services.movie_details import clean_trailers
+
+        rows = clean_trailers([{"url": "https://youtu.be/dQw4w9WgXcQ", "label": "Weird"}], checker=lambda vid: ("unknown", None))
+        self.assertEqual(rows, [{"youtube_id": "dQw4w9WgXcQ", "label": "Trailer"}])
+
 
 if __name__ == "__main__":
     unittest.main()

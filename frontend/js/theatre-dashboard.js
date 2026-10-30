@@ -7,6 +7,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 	const esc = C.esc;
 	const LANGUAGES = ["Tamil", "Telugu", "Malayalam", "Kannada", "Hindi", "English", "Bengali", "Marathi", "Gujarati", "Punjabi", "Odia"];
 	const COLORS = ["#64748b", "#2563eb", "#d97706", "#16a34a", "#db2777", "#7c3aed"];
+	const CREW_JOBS = ["Director", "Producer", "Music Director", "Cinematographer", "Editor", "Writer", "Screenplay", "Dialogues", "Lyricist", "Art Director", "Stunt Director", "Choreographer", "Costume Designer", "Production House"];
+	const TRAILER_LABELS = ["Trailer", "Teaser", "Glimpse", "Song", "Promo", "Making"];
 
 	const state = { me: null, screens: [], movies: [], shows: [], screenId: null, layout: null, tool: null, dirty: false };
 
@@ -365,6 +367,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 	window.addEventListener("beforeunload", (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ""; } });
 
 	/* ── Movies ───────────────────────────────────────────── */
+	function movieExtras(m) {
+		const count = (list, one, many) => (list && list.length ? `${list.length} ${list.length === 1 ? one : many}` : "");
+		const parts = [count(m.trailers, "video", "videos"), count(m.cast, "cast", "cast"), count(m.crew, "crew", "crew")].filter(Boolean);
+		return parts.length ? parts.join(" \u00b7 ") : "No trailer or cast yet";
+	}
 	function renderMovies() {
 		$("tdMovieList").innerHTML = state.movies.map((m) => `
 			<article class="td-movie">
@@ -372,6 +379,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 				<div class="td-movie-body">
 					<strong>${esc(m.title)}</strong>
 					<small>${esc([m.language, m.certificate, m.duration_min + " min", m.genres].filter(Boolean).join(" \u00b7 "))}</small>
+					<small class="td-movie-extras">${esc(movieExtras(m))}</small>
 					<div class="td-movie-actions">
 						<button type="button" class="td-link" data-movie-edit="${m.id}">Edit</button>
 						<button type="button" class="td-link is-danger" data-movie-remove="${m.id}">Remove</button>
@@ -403,6 +411,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 		$("tdMovieDesc").value = m ? (m.description || "") : "";
 		$("tdMoviePosterUrl").value = m ? (m.poster_url || "") : "";
 		$("tdMoviePosterPreview").innerHTML = m && m.poster_url ? `<img src="${esc(C.resolveMedia(m.poster_url))}" alt="Poster preview">` : "No poster yet";
+		fillPeople("cast", m ? m.cast : []);
+		fillPeople("crew", m ? m.crew : []);
+		fillTrailers(m ? m.trailers : []);
 		$("tdMovieSubmit").textContent = m ? "Save movie" : "Add movie";
 		$("tdMovieFormTitle").textContent = m ? `Edit ${m.title}` : "Add a movie";
 		$("tdMovieCancel").hidden = !m;
@@ -410,6 +421,113 @@ document.addEventListener("DOMContentLoaded", async () => {
 	}
 	$("tdMovieCancel").addEventListener("click", () => fillMovieForm(null));
 	$("tdMovieLangList").innerHTML = LANGUAGES.map((l) => `<option value="${l}"></option>`).join("");
+	$("tdCrewJobs").innerHTML = CREW_JOBS.map((j) => `<option value="${j}"></option>`).join("");
+
+	/* Cast and crew rows */
+	function personRow(kind, p) {
+		const row = document.createElement("div");
+		row.className = "td-person";
+		row.dataset.photo = (p && p.photo_url) || "";
+		const rolePh = kind === "cast" ? "Character (optional)" : "Job, e.g. Director";
+		row.innerHTML = `
+			<label class="td-avatar" title="Add photo"><input type="file" accept=".jpg,.jpeg,.png,.webp" hidden><span></span></label>
+			<input class="setup-input" data-p="name" maxlength="80" placeholder="${kind === "cast" ? "Actor name" : "Name"}" aria-label="${kind === "cast" ? "Actor name" : "Crew member name"}">
+			<input class="setup-input" data-p="role" maxlength="80" placeholder="${rolePh}" aria-label="${rolePh}"${kind === "crew" ? ' list="tdCrewJobs"' : ""}>
+			<button type="button" class="td-row-remove" aria-label="Remove">\u00d7</button>`;
+		row.querySelector('[data-p="name"]').value = (p && p.name) || "";
+		row.querySelector('[data-p="role"]').value = (p && p.role) || "";
+		const avatar = row.querySelector(".td-avatar span");
+		const paint = () => {
+			const photo = row.dataset.photo;
+			avatar.innerHTML = photo ? `<img src="${esc(C.resolveMedia(photo))}" alt="">` : esc(C.initials(row.querySelector('[data-p="name"]').value)).replace("?", "+");
+		};
+		paint();
+		row.querySelector('[data-p="name"]').addEventListener("input", () => { if (!row.dataset.photo) paint(); });
+		row.querySelector('input[type="file"]').addEventListener("change", async (e) => {
+			const file = e.target.files[0];
+			if (!file) return;
+			avatar.textContent = "\u2026";
+			const form = new FormData();
+			form.append("file", file);
+			try {
+				row.dataset.photo = (await C.api("/api/cinema/movies/photo", { method: "POST", body: form })).photo_url;
+			} catch (err) { C.toast(err.message, "bad"); }
+			e.target.value = "";
+			paint();
+		});
+		row.querySelector(".td-row-remove").addEventListener("click", () => row.remove());
+		return row;
+	}
+	function fillPeople(kind, rows) {
+		const list = $(kind === "cast" ? "tdCastList" : "tdCrewList");
+		list.innerHTML = "";
+		(rows || []).forEach((p) => list.appendChild(personRow(kind, p)));
+	}
+	function readPeople(kind) {
+		return [...$(kind === "cast" ? "tdCastList" : "tdCrewList").querySelectorAll(".td-person")].map((r) => ({
+			name: r.querySelector('[data-p="name"]').value.trim(),
+			role: r.querySelector('[data-p="role"]').value.trim() || null,
+			photo_url: r.dataset.photo || null
+		})).filter((p) => p.name);
+	}
+	[["cast", "tdCastAdd", "tdCastList", 30], ["crew", "tdCrewAdd", "tdCrewList", 30]].forEach(([kind, btn, list, max]) => {
+		$(btn).addEventListener("click", () => {
+			if ($(list).children.length >= max) return C.toast(`Up to ${max} ${kind} members.`, "bad");
+			const row = personRow(kind, null);
+			$(list).appendChild(row);
+			row.querySelector('[data-p="name"]').focus();
+		});
+	});
+
+	/* YouTube trailers */
+	function trailerRow(t) {
+		const row = document.createElement("div");
+		row.className = "td-trailer";
+		row.innerHTML = `
+			<div class="td-trailer-thumb"><span>Paste a link</span></div>
+			<div class="td-trailer-fields">
+				<input class="setup-input" data-t="url" maxlength="300" inputmode="url" placeholder="https://youtu.be/\u2026" aria-label="YouTube link">
+				<select class="setup-select" data-t="label" aria-label="Video type">${TRAILER_LABELS.map((l) => `<option>${l}</option>`).join("")}</select>
+				<small class="td-trailer-msg"></small>
+			</div>
+			<button type="button" class="td-row-remove" aria-label="Remove video">\u00d7</button>`;
+		const url = row.querySelector('[data-t="url"]');
+		url.value = t ? `https://youtu.be/${t.youtube_id}` : "";
+		row.querySelector('[data-t="label"]').value = (t && t.label) || "Trailer";
+		const preview = () => {
+			const id = C.youtubeId(url.value);
+			const thumb = row.querySelector(".td-trailer-thumb");
+			const msg = row.querySelector(".td-trailer-msg");
+			row.classList.toggle("is-bad", Boolean(url.value.trim()) && !id);
+			if (id) {
+				thumb.innerHTML = `<img src="${esc(C.youtubeThumb(id))}" alt="" loading="lazy"><a href="https://www.youtube.com/watch?v=${encodeURIComponent(id)}" target="_blank" rel="noopener noreferrer" aria-label="Open on YouTube">\u25B6</a>`;
+				msg.textContent = "";
+			} else {
+				thumb.innerHTML = "<span>Paste a link</span>";
+				msg.textContent = url.value.trim() ? "That isn't a YouTube video link." : "";
+			}
+		};
+		url.addEventListener("input", preview);
+		preview();
+		row.querySelector(".td-row-remove").addEventListener("click", () => row.remove());
+		return row;
+	}
+	function fillTrailers(rows) {
+		$("tdTrailerList").innerHTML = "";
+		(rows || []).forEach((t) => $("tdTrailerList").appendChild(trailerRow(t)));
+	}
+	function readTrailers() {
+		return [...$("tdTrailerList").querySelectorAll(".td-trailer")].map((r) => ({
+			url: r.querySelector('[data-t="url"]').value.trim(),
+			label: r.querySelector('[data-t="label"]').value
+		})).filter((t) => t.url);
+	}
+	$("tdTrailerAdd").addEventListener("click", () => {
+		if ($("tdTrailerList").children.length >= 5) return C.toast("Up to 5 YouTube videos per movie.", "bad");
+		const row = trailerRow(null);
+		$("tdTrailerList").appendChild(row);
+		row.querySelector('[data-t="url"]').focus();
+	});
 	$("tdMoviePoster").addEventListener("change", async () => {
 		const file = $("tdMoviePoster").files[0];
 		if (!file) return;
@@ -435,8 +553,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 			genres: $("tdMovieGenres").value.trim() || null,
 			release_date: $("tdMovieRelease").value || null,
 			description: $("tdMovieDesc").value.trim() || null,
-			poster_url: $("tdMoviePosterUrl").value || null
+			poster_url: $("tdMoviePosterUrl").value || null,
+			cast: readPeople("cast"),
+			crew: readPeople("crew"),
+			trailers: readTrailers()
 		};
+		const bad = $("tdTrailerList").querySelector(".td-trailer.is-bad [data-t='url']");
+		if (bad) {
+			bad.focus();
+			return C.toast("Fix or remove the link that isn't a YouTube video.", "bad");
+		}
+		const submit = $("tdMovieSubmit");
+		submit.disabled = true;
 		try {
 			const saved = await C.api(id ? `/api/cinema/movies/${id}` : "/api/cinema/movies", { method: id ? "PUT" : "POST", json: payload });
 			if (id) state.movies = state.movies.map((m) => (m.id === id ? saved : m));
@@ -444,7 +572,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 			fillMovieForm(null);
 			renderMovies();
 			C.toast(id ? "Movie saved." : `${saved.title} added. Schedule its shows next.`, "ok");
-		} catch (err) { C.toast(err.message, "bad"); }
+		} catch (err) {
+			C.toast(err.message, "bad");
+		} finally {
+			submit.disabled = false;
+		}
 	});
 
 	/* ── Shows ────────────────────────────────────────────── */

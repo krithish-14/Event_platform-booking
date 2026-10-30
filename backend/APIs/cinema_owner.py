@@ -19,6 +19,7 @@ from Models.cinema import CinemaBooking, CinemaMovie, CinemaScreen, CinemaShow
 from Models.theatre_partner import TheatrePartner
 from Models.user import User
 from Services import cinema_booking as cb
+from Services import movie_details as md
 from Services.theatre_registration import screens_of
 from Utils.datetimes import json_datetime, utc_now
 
@@ -26,6 +27,8 @@ router = APIRouter()
 
 POSTER_MIN_BYTES = 20 * 1024
 POSTER_MAX_BYTES = 3 * 1024 * 1024
+PHOTO_MIN_BYTES = 2 * 1024
+PHOTO_MAX_BYTES = 2 * 1024 * 1024
 
 
 # ── Access ─────────────────────────────────────────────────────
@@ -76,6 +79,18 @@ def screen_out(screen: CinemaScreen) -> dict:
     }
 
 
+def _json_list(raw) -> list:
+    try:
+        value = json.loads(raw) if raw else []
+    except ValueError:
+        return []
+    return value if isinstance(value, list) else []
+
+
+def movie_details(movie: CinemaMovie) -> dict:
+    return {"cast": _json_list(movie.cast_json), "crew": _json_list(movie.crew_json), "trailers": _json_list(movie.trailers_json)}
+
+
 def movie_out(movie: CinemaMovie) -> dict:
     return {
         "id": str(movie.id),
@@ -87,6 +102,7 @@ def movie_out(movie: CinemaMovie) -> dict:
         "description": movie.description,
         "poster_url": movie.poster_url,
         "release_date": movie.release_date,
+        **movie_details(movie),
         "status": movie.status,
     }
 
@@ -283,6 +299,17 @@ def archive_screen(screen_id: str, db: Session = Depends(get_db), current_user: 
 
 # ── Movies ─────────────────────────────────────────────────────
 
+class PersonIn(BaseModel):
+    name: Optional[str] = Field(None, max_length=120)
+    role: Optional[str] = Field(None, max_length=120)
+    photo_url: Optional[str] = Field(None, max_length=500)
+
+
+class TrailerIn(BaseModel):
+    url: Optional[str] = Field(None, max_length=300)
+    label: Optional[str] = Field(None, max_length=40)
+
+
 class MovieIn(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     language: str = Field(..., min_length=2, max_length=40)
@@ -292,6 +319,10 @@ class MovieIn(BaseModel):
     description: Optional[str] = Field(None, max_length=3000)
     poster_url: Optional[str] = Field(None, max_length=500)
     release_date: Optional[str] = Field(None, max_length=10)
+    # None keeps what is saved, so older dashboard tabs don't wipe these lists.
+    cast: Optional[List[PersonIn]] = Field(None, max_length=60)
+    crew: Optional[List[PersonIn]] = Field(None, max_length=60)
+    trailers: Optional[List[TrailerIn]] = Field(None, max_length=20)
 
 
 def _apply_movie(movie: CinemaMovie, payload: MovieIn) -> None:
@@ -299,6 +330,16 @@ def _apply_movie(movie: CinemaMovie, payload: MovieIn) -> None:
         raise HTTPException(status_code=422, detail="Choose a CBFC certificate: " + ", ".join(cb.CERTIFICATES) + ".")
     if payload.poster_url and not (payload.poster_url.startswith("/api/media/") or payload.poster_url.startswith("https://")):
         raise HTTPException(status_code=422, detail="Upload the poster from the dashboard.")
+    try:
+        if payload.cast is not None:
+            movie.cast_json = json.dumps(md.clean_people([p.model_dump() for p in payload.cast], "cast"))
+        if payload.crew is not None:
+            movie.crew_json = json.dumps(md.clean_people([p.model_dump() for p in payload.crew], "crew"))
+        if payload.trailers is not None:
+            known = [t.get("youtube_id") for t in _json_list(movie.trailers_json)]
+            movie.trailers_json = json.dumps(md.clean_trailers([t.model_dump() for t in payload.trailers], known))
+    except md.DetailError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     movie.title = payload.title.strip()
     movie.language = payload.language.strip()
     movie.certificate = payload.certificate or None
@@ -353,24 +394,39 @@ def archive_movie(movie_id: str, db: Session = Depends(get_db), current_user: Us
     return {"status": "archived"}
 
 
-@router.post("/movies/poster")
-def upload_poster(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    verified_partner(db, current_user)
+def _store_image(db, current_user, file: UploadFile, purpose: str, min_bytes: int, max_bytes: int, size_hint: str) -> str:
     from Utils.categories import is_allowed_image_bytes, is_allowed_image_filename
 
     if not is_allowed_image_filename(file.filename or ""):
-        raise HTTPException(status_code=400, detail="Upload the poster as JPG, PNG or WEBP.")
+        raise HTTPException(status_code=400, detail="Upload a JPG, PNG or WEBP image.")
     data = file.file.read()
-    if not POSTER_MIN_BYTES <= len(data) <= POSTER_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="Poster must be 20 KB to 3 MB. A 600 × 900 px image works well.")
+    if not min_bytes <= len(data) <= max_bytes:
+        raise HTTPException(status_code=400, detail=size_hint)
     if not is_allowed_image_bytes(data, file.content_type or ""):
         raise HTTPException(status_code=400, detail="That file is not a real JPG, PNG or WEBP image.")
     from Services.file_storage import store_public_image
 
-    url = store_public_image(db, data=data, filename=file.filename or "poster.jpg", content_type=file.content_type,
-                             purpose="movie_poster", owner_customer_id=current_user.customer_id, owner_email=current_user.email)
+    url = store_public_image(db, data=data, filename=file.filename or "image.jpg", content_type=file.content_type,
+                             purpose=purpose, owner_customer_id=current_user.customer_id, owner_email=current_user.email)
     db.commit()
+    return url
+
+
+@router.post("/movies/poster")
+def upload_poster(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    verified_partner(db, current_user)
+    url = _store_image(db, current_user, file, "movie_poster", POSTER_MIN_BYTES, POSTER_MAX_BYTES,
+                       "Poster must be 20 KB to 3 MB. A 600 × 900 px image works well.")
     return {"poster_url": url}
+
+
+@router.post("/movies/photo")
+def upload_person_photo(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Cast or crew headshot."""
+    verified_partner(db, current_user)
+    url = _store_image(db, current_user, file, "movie_person", PHOTO_MIN_BYTES, PHOTO_MAX_BYTES,
+                       "Photo must be 2 KB to 2 MB. A square 300 × 300 px image works well.")
+    return {"photo_url": url}
 
 
 # ── Shows ──────────────────────────────────────────────────────

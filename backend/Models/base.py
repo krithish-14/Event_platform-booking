@@ -577,6 +577,21 @@ def _migrate_tables(engine=None):
                             print(f"  [DB MIGRATION WARN] Could not add column event_sessions.{col_name}: {e}", flush=True)
                 conn.commit()
 
+        if "cinema_movies" in tables:
+            existing_cols = {c["name"] for c in inspector.get_columns("cinema_movies")}
+            with engine.connect() as conn:
+                for col_name in ("cast_json", "crew_json", "trailers_json"):
+                    if col_name not in existing_cols:
+                        try:
+                            if is_pg:
+                                conn.execute(text(f"ALTER TABLE cinema_movies ADD COLUMN IF NOT EXISTS {col_name} TEXT;"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE cinema_movies ADD COLUMN {col_name} TEXT;"))
+                            print(f"  [DB MIGRATION] Added column cinema_movies.{col_name}", flush=True)
+                        except Exception as e:
+                            print(f"  [DB MIGRATION WARN] Could not add column cinema_movies.{col_name}: {e}", flush=True)
+                conn.commit()
+
         if "email_otps" in tables:
             existing_cols = {c["name"] for c in inspector.get_columns("email_otps")}
             with engine.connect() as conn:
