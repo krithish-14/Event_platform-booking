@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-PFZVZGJR');</script>
+<!-- End Google Tag Manager -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Your JOD Events theatre partner registration status." />
+<title>Theatre Registration Status &#8212; JOD Events</title> <link rel="icon" href="/favicon.ico" sizes="any" /><link rel="icon" type="image/png" href="/favicon.png" /><link rel="apple-touch-icon" href="/favicon.png" />
+<link rel="stylesheet" href="css/fonts.css?v=2" />
+<script src="js/theme.js?v=30"></script>
+<script src="js/api-config.js?v=4"></script>
+<style> * { box-sizing: border-box; margin: 0; padding: 0; }
+	body { font-family: 'Grift', sans-serif; background: #fffaf4; color: #25211c; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+	.card { width: 100%; max-width: 520px; background: #ffffff; border-radius: 18px; box-shadow: 0 18px 44px rgba(15, 23, 42, 0.1); overflow: hidden; text-align: center; }
+	.head { padding: 1.6rem 1.5rem 1.3rem; background: linear-gradient(135deg, #ff7508 0%, #ff9a1f 55%, #f5b400 100%); color: #fff; }
+	.head .kicker { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.9; }
+	.head h1 { margin-top: 0.3rem; font-size: 1.35rem; font-weight: 800; line-height: 1.3; }
+	.body { padding: 1.4rem 1.5rem 1.6rem; }
+	.pill { display: inline-flex; padding: 0.35rem 0.85rem; border-radius: 999px; font-size: 0.82rem; font-weight: 700; background: #fff7ed; color: #9a3412; margin-bottom: 0.9rem; }
+	.pill.is-ok { background: #dcfce7; color: #166534; }
+	.pill.is-bad { background: #fef2f2; color: #991b1b; }
+	p { font-size: 0.95rem; color: #475569; line-height: 1.6; margin-bottom: 0.7rem; }
+	.lead { color: #334155; font-weight: 600; font-size: 1rem; }
+	.reason { color: #991b1b; font-weight: 700; white-space: pre-wrap; }
+	.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin: 1rem 0 0.4rem; text-align: left; }
+	.facts div { padding: 0.65rem 0.75rem; border-radius: 10px; background: #fffaf4; border: 1px solid #f1e4d4; }
+	.facts dt { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #9a6b3d; }
+	.facts dd { margin-top: 0.15rem; font-size: 0.92rem; font-weight: 700; color: #25211c; overflow-wrap: anywhere; }
+	.actions { display: grid; gap: 0.65rem; margin-top: 1.25rem; }
+	.actions a { display: block; padding: 0.9rem; border-radius: 10px; font-size: 1rem; font-weight: 800; text-decoration: none; }
+	.btn-primary { background: #FF7508; color: #fff; }
+	.btn-secondary { background: #f1f5f9; color: #0f172a; }
+	[hidden] { display: none !important; }
+	html[data-theme="dark"] body { background: #0e0c0a; color: #f6f0e8; }
+	html[data-theme="dark"] .card { background: #1c1814; }
+	html[data-theme="dark"] p { color: #d4cbbf; }
+	html[data-theme="dark"] .lead { color: #f6f0e8; }
+	html[data-theme="dark"] .reason { color: #fca5a5; }
+	html[data-theme="dark"] .facts div { background: #241e18; border-color: rgba(255, 255, 255, 0.08); }
+	html[data-theme="dark"] .facts dd { color: #f6f0e8; }
+	html[data-theme="dark"] .btn-secondary { background: #2a241e; color: #fff8f0; }
+</style>
+</head>
+<body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFZVZGJR"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+<div class="card">
+	<div class="head"><div class="kicker">Theatre partner</div><h1 id="tsTitle">Checking your registration&hellip;</h1></div>
+	<div class="body">
+		<span class="pill" id="tsPill">Loading</span>
+		<p class="lead" id="tsLead"></p>
+		<p id="tsDetail"></p>
+		<p class="reason" id="tsReason" hidden></p>
+		<dl class="facts" id="tsFacts" hidden></dl>
+		<div class="actions">
+			<a class="btn-primary" href="theatre-setup.html" id="tsEdit" hidden>Update my registration</a>
+			<a class="btn-secondary" href="help.html" id="tsHelp" hidden>Raise a support ticket</a>
+			<a class="btn-secondary" href="index.html" id="tsHome">Back to home</a>
+		</div>
+	</div>
+</div>
+<script src="js/health.js?v=3"></script>
+<script src="js/auth.js?v=58"></script>
+<script src="js/theatre-status.js?v=1"></script>
+</body>
+</html>

@@ -903,6 +903,21 @@
 		return res.json();
 	}
 
+	async function loadTheatreData(query) {
+		const qs = query ? `?q=${encodeURIComponent(query)}` : "";
+		try {
+			const res = await adminFetch(`${apiBase()}/api/admin/theatres${qs}`);
+			if (!res.ok) return { theatres: [], pending: 0 };
+			return await res.json();
+		} catch (_) {
+			return { theatres: [], pending: 0 };
+		}
+	}
+
+	function isTheatreRow(row) {
+		return Boolean(row && row.kind === "theatre");
+	}
+
 	function hostStatusLabel(status) {
 		const s = String(status || "").toLowerCase();
 		if (s === "pending" || s === "submitted") return "Pending review";
@@ -925,10 +940,13 @@
 		const canApprove = Boolean(row.can_approve) || status === "pending";
 		const canRestrict = Boolean(row.can_restrict) || status === "approved";
 		const canUnrestrict = Boolean(row.can_unrestrict) || status === "restricted";
+		const theatreTag = isTheatreRow(row)
+			? ` <span class="admin-badge ready" title="Movie / theatre partner">Theatre</span>`
+			: "";
 		return `<tr data-id="${escapeHtml(key)}" data-kind="host-data">
 			<td>
-				<strong>${escapeHtml(name)}</strong>
-				<div class="admin-muted">${escapeHtml(org)}</div>
+				<strong>${escapeHtml(name)}</strong>${theatreTag}
+				<div class="admin-muted">${escapeHtml(org)}${isTheatreRow(row) && row.district ? ` \u00b7 ${escapeHtml(row.district)}, ${escapeHtml(row.state || "")}` : ""}</div>
 				<div class="admin-muted">${escapeHtml(row.host_id || "")}</div>
 			</td>
 			<td>
@@ -1002,13 +1020,26 @@
 			? `<button type="button" class="admin-btn ghost" data-host-doc="${escapeHtml(row.cancelled_cheque_url)}">View cancelled cheque</button>`
 			: "\u2014";
 		const reasonText = row.review_reason || row.rejection_reason || "";
+		const theatre = isTheatreRow(row);
+		const screens = theatre && Array.isArray(row.screens) ? row.screens : [];
+		const licenceLink = theatre && row.licence_url
+			? `<button type="button" class="admin-btn ghost" data-host-doc="${escapeHtml(row.licence_url)}">View cinema licence</button>`
+			: "";
+		const theatreRows = theatre ? `
+			<dt>Type</dt><dd><span class="admin-badge ready">Movie / theatre partner</span></dd>
+			<dt>Theatre</dt><dd>${escapeHtml(row.theatre_name || "\u2014")}${row.chain_name ? ` \u00b7 ${escapeHtml(row.chain_name)}` : ""}</dd>
+			<dt>Theatre address</dt><dd>${escapeHtml(row.theatre_address || "\u2014")}<br>${escapeHtml([row.district, row.state, row.pincode].filter(Boolean).join(", "))}</dd>
+			<dt>Screens</dt><dd>${screens.length ? screens.map((s) => `${escapeHtml(s.name)} \u00b7 ${escapeHtml(s.seats)} seats \u00b7 ${escapeHtml(s.format || "2D")}`).join("<br>") : "\u2014"}<br><strong>Total ${escapeHtml(row.total_seats || 0)} seats</strong></dd>
+			<dt>Cinema licence</dt><dd>${escapeHtml(row.licence_number || "\u2014")} \u00b7 valid till ${escapeHtml(row.licence_valid_till || "\u2014")}</dd>
+		` : "";
+		const orgLabel = theatre ? (row.legal_name || row.org_name) : row.org_name;
 		body.innerHTML = `
-			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(status)}">${escapeHtml(hostStatusLabel(status))}</span></dd>
+			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(status)}">${escapeHtml(hostStatusLabel(status))}</span></dd>${theatreRows}
 			<dt>Application ID</dt><dd>${escapeHtml(appKey)}</dd>
 			<dt>Host ID</dt><dd>${escapeHtml(row.host_id || "\u2014")}</dd>
 			<dt>Email</dt><dd>${escapeHtml(row.email || "\u2014")}</dd>
 			<dt>Contact</dt><dd>${escapeHtml(row.contact_full_name || "\u2014")} \u00b7 ${escapeHtml(row.contact_mobile || "\u2014")}</dd>
-			<dt>Organisation</dt><dd>${escapeHtml(row.org_name || "\u2014")}</dd>
+			<dt>${theatre ? "Business legal name" : "Organisation"}</dt><dd>${escapeHtml(orgLabel || "\u2014")}</dd>
 			<dt>PAN</dt><dd>${escapeHtml(row.pan_number || "\u2014")}</dd>
 			<dt>Address</dt><dd>${escapeHtml(row.org_address || "\u2014")}</dd>
 			<dt>State</dt><dd>${escapeHtml(row.state || "\u2014")}</dd>
@@ -1016,7 +1047,7 @@
 			<dt>Bank</dt><dd>${escapeHtml(row.bank_name || "\u2014")} \u00b7 ${escapeHtml(row.account_type || "")}</dd>
 			<dt>Beneficiary</dt><dd>${escapeHtml(row.beneficiary_name || "\u2014")}</dd>
 			<dt>Account</dt><dd>${escapeHtml(row.account_number || "\u2014")} / IFSC ${escapeHtml(row.bank_ifsc || "\u2014")}</dd>
-			<dt>Documents</dt><dd><div class="admin-host-docs">${panLink} ${chequeLink}</div><div id="hostDocPreview"></div></dd>
+			<dt>Documents</dt><dd><div class="admin-host-docs">${panLink} ${chequeLink} ${licenceLink}</div><div id="hostDocPreview"></div></dd>
 			<dt>Submitted</dt><dd>${escapeHtml(formatWhen(row.submitted_at || row.created_at))}</dd>
 			${row.reviewed_at ? `<dt>Reviewed</dt><dd>${escapeHtml(formatWhen(row.reviewed_at))}${row.reviewed_by ? ` \u00b7 ${escapeHtml(row.reviewed_by)}` : ""}</dd>` : ""}
 			${reasonText ? `<dt>Reason</dt><dd>${escapeHtml(reasonText)}</dd>` : ""}
@@ -1063,7 +1094,7 @@
 			approveBtn.dataset.key = appKey;
 			approveBtn.hidden = !canApprove;
 			approveBtn.disabled = !canApprove;
-			approveBtn.textContent = "Accept host";
+			approveBtn.textContent = theatre ? "Accept theatre" : "Accept host";
 		}
 		if (rejectBtn) {
 			rejectBtn.dataset.key = appKey;
@@ -1115,8 +1146,12 @@
 			btn.disabled = true;
 			btn.textContent = busy;
 		}
+		const reviewed = findHostRow(key);
+		const reviewUrl = isTheatreRow(reviewed)
+			? `${apiBase()}/api/admin/theatres/${encodeURIComponent(reviewed.id)}`
+			: `${apiBase()}/api/admin/hosts/${encodeURIComponent(key)}`;
 		try {
-			const res = await adminFetch(`${apiBase()}/api/admin/hosts/${encodeURIComponent(key)}`, {
+			const res = await adminFetch(reviewUrl, {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload),
@@ -1534,17 +1569,24 @@
 		const query = (document.getElementById("adminSearch") || {}).value || "";
 		if (canManageAccess()) loadAdminAccess();
 		try {
-			const [data, cancelData, supportData, hostData] = await Promise.all([
+			const [data, cancelData, supportData, hostData, theatreData] = await Promise.all([
 				loadRows(query.trim()),
 				loadCancelRequests(query.trim()),
 				loadSupportTickets(query.trim()),
 				loadHostData(query.trim()),
+				loadTheatreData(query.trim()),
 			]);
 			window.__cancelRequests = Array.isArray(cancelData && cancelData.requests) ? cancelData.requests : [];
 			window.__supportTickets = Array.isArray(supportData && supportData.tickets) ? supportData.tickets : [];
 			window.__supportMeta = supportData || { open: 0, total: 0 };
-			window.__hostDataRows = Array.isArray(hostData && hostData.hosts) ? hostData.hosts : [];
-			window.__hostDataMeta = hostData || { pending: 0, total: 0 };
+			const hostRows = Array.isArray(hostData && hostData.hosts) ? hostData.hosts : [];
+			const theatreRows = Array.isArray(theatreData && theatreData.theatres) ? theatreData.theatres : [];
+			window.__hostDataRows = hostRows.concat(theatreRows).sort((a, b) =>
+				String(b.submitted_at || b.created_at || "").localeCompare(String(a.submitted_at || a.created_at || "")));
+			window.__hostDataMeta = {
+				pending: Number((hostData && hostData.pending) || 0) + Number((theatreData && theatreData.pending) || 0),
+				total: window.__hostDataRows.length,
+			};
 			if (data) renderRows(data);
 			else applySection(window.__adminData);
 		} catch (err) {

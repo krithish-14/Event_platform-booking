@@ -34,6 +34,7 @@ from Models.support_ticket import SupportTicket
 from Models.notification import EventAnnouncement
 from Models.admin_access import AdminAccess
 from Models.event_session import EventSession, EventSessionRegistration, EventSessionCheckin
+from Models.theatre_partner import TheatrePartner
 
 __all__ = [
     "Base",
@@ -77,4 +78,5 @@ __all__ = [
     "EventSession",
     "EventSessionRegistration",
     "EventSessionCheckin",
+    "TheatrePartner",
 ]

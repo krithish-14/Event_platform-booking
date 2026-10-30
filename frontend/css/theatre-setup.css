@@ -1,0 +1,29 @@
+/* Theatre partner registration: extends account-setup.css */
+.theatre-kicker { display: inline-block; margin-bottom: 0.4rem; padding: 0.2rem 0.75rem; border-radius: 999px; background: rgba(255, 117, 8, 0.12); color: #c2560a; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.theatre-optional { font-weight: 500; color: #64748b; }
+.theatre-help { margin: -0.4rem 0 1rem; font-size: 0.86rem; color: #64748b; }
+.theatre-prefill-note { margin-bottom: 1.25rem; padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; font-size: 0.9rem; }
+.theatre-prefill-note[hidden] { display: none; }
+
+.theatre-screens { display: flex; flex-direction: column; gap: 0.6rem; }
+.theatre-screen-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.2fr) auto; gap: 0.75rem; align-items: end; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.theatre-screen-row .setup-form-group { margin-bottom: 0; }
+.theatre-remove-screen { width: 2.6rem; height: 2.6rem; border: 1px solid #fecaca; border-radius: 8px; background: #fef2f2; color: #dc2626; font-size: 1.2rem; font-weight: 700; cursor: pointer; }
+.theatre-screens-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0.75rem 0 1.5rem; }
+.theatre-add-screen { border: 0; background: none; color: #2563eb; font: inherit; font-weight: 600; font-size: 0.95rem; cursor: pointer; padding: 0.4rem 0; }
+.theatre-screens-total { font-size: 0.88rem; font-weight: 700; color: #334155; }
+
+.theatre-docs-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+
+@media (max-width: 760px) {
+	.theatre-screen-row { grid-template-columns: 1fr 1fr; }
+	.theatre-screen-row .setup-form-group:first-child { grid-column: 1 / -1; }
+	.theatre-remove-screen { width: 100%; }
+	.theatre-docs-grid { grid-template-columns: 1fr; }
+	.theatre-screens-foot { flex-direction: column; align-items: flex-start; }
+}
+
+html[data-theme="dark"] .theatre-screen-row { background: #1f1a15; border-color: rgba(255, 255, 255, 0.1); }
+html[data-theme="dark"] .theatre-screens-total { color: #f6f0e8; }
+html[data-theme="dark"] .theatre-prefill-note { background: rgba(37, 99, 235, 0.14); border-color: rgba(96, 165, 250, 0.35); color: #bfdbfe; }
+html[data-theme="dark"] .theatre-kicker { background: rgba(255, 117, 8, 0.2); color: #ffb067; }

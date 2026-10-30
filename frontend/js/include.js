@@ -9,6 +9,14 @@
 		document.head.appendChild(guestPwd);
 	}
 
+	if (!document.querySelector("script[data-jod-host-chooser]")) {
+		const hostChooser = document.createElement("script");
+		hostChooser.src = "/js/host-type-chooser.js?v=1";
+		hostChooser.defer = true;
+		hostChooser.setAttribute("data-jod-host-chooser", "1");
+		document.head.appendChild(hostChooser);
+	}
+
 	if (document.getElementById("header") && !document.querySelector("script[data-jod-region-picker]")) {
 		const cityPicker = document.createElement("script");
 		cityPicker.src = "/js/region-picker.js?v=1";

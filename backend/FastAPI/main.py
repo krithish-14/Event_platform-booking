@@ -50,6 +50,7 @@ from APIs.admin_access import router as admin_access_router, public_router as ad
 from APIs.payments import router as payments_router, razorpay_router
 from APIs.whatsapp import router as whatsapp_router
 from APIs.reels import router as reels_router
+from APIs.theatres import router as theatres_router, admin_router as theatres_admin_router
 from Models.base import create_tables
 from Models.user import User  # noqa: F401 — registered with SQLAlchemy metadata
 from Models.event import Event  # noqa: F401
@@ -259,7 +260,9 @@ app.include_router(volunteers_router, prefix="/api/volunteers", tags=["Volunteer
 app.include_router(volunteers_compat_router, tags=["Volunteers"])
 app.include_router(admin_access_router, prefix="/api/admin/access", tags=["Admin Access"])
 app.include_router(admin_access_public_router, prefix="/api/admin-access", tags=["Admin Access"])
+app.include_router(theatres_admin_router, prefix="/api/admin/theatres", tags=["Admin"])
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
+app.include_router(theatres_router, prefix="/api/theatres", tags=["Theatres"])
 app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
 app.include_router(razorpay_router, prefix="/api", tags=["Razorpay"])
 app.include_router(whatsapp_router, prefix="/api/whatsapp", tags=["WhatsApp"])
