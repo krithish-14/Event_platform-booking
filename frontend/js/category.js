@@ -189,6 +189,11 @@
  return EP.fetchPublishedEvents(params);
 	}
 
+	let lastFetchedEvents = null;
+	window.addEventListener("jod:city-changed", () => {
+ if (lastFetchedEvents) renderEvents(lastFetchedEvents);
+	});
+
 	function renderEvents(events) {
  const grid = document.getElementById("categoryEventsGrid");
  const countEl = document.getElementById("resultsCount");
@@ -197,12 +202,16 @@
 
  if (!grid) return;
  if (!events) events = [];
+ lastFetchedEvents = events;
  if (EP && typeof EP.isEventCurrentlyVisible === "function") {
  events = events.filter(EP.isEventCurrentlyVisible);
  }
+ const city = window.JodCityPicker ? window.JodCityPicker.getCity() : null;
+ const beforeCity = events.length;
+ if (city) events = window.JodCityPicker.filterEvents(events, city);
 
  if (countEl) {
- countEl.textContent = `Showing ${events.length} ${events.length === 1 ? "Event" : "Events"}`;
+ countEl.textContent = `Showing ${events.length} ${events.length === 1 ? "Event" : "Events"}${city ? ` in ${city.name}` : ""}`;
  }
 
  // Active tags bar
@@ -223,9 +232,20 @@
  tag.innerHTML = `price: <strong>${formatRs(filterState.priceMin)} - ${formatRs(filterState.priceMax)}</strong> <button type="button" data-clear-key="price">&times;</button>`;
  tagsContainer.appendChild(tag);
  }
+ if (city) {
+ const tag = document.createElement("span");
+ tag.className = "active-tag";
+ tag.innerHTML = `city: <strong></strong> <button type="button" data-clear-key="city">&times;</button>`;
+ tag.querySelector("strong").textContent = city.name;
+ tagsContainer.appendChild(tag);
+ }
  tagsContainer.querySelectorAll("button[data-clear-key]").forEach((btn) => {
  btn.addEventListener("click", () => {
  const k = btn.dataset.clearKey;
+ if (k === "city") {
+ window.JodCityPicker.setCity(null);
+ return;
+ }
  if (k === "price") {
  resetPriceRange();
  updateAndRender();
@@ -252,6 +272,18 @@
  msgEl.textContent = hasFilters
  ? "We couldn't find any published events matching your filters. Try clearing some filters."
  : `No published events in ${catName} yet. Check back later for upcoming events.`;
+ }
+ const oldCta = emptyState.querySelector(".jod-city-empty-cta");
+ if (oldCta) oldCta.remove();
+ if (city && beforeCity > 0) {
+ if (titleEl) titleEl.textContent = `No events in ${city.name} yet`;
+ if (msgEl) msgEl.textContent = `There ${beforeCity === 1 ? "is 1 matching event" : `are ${beforeCity} matching events`} in other cities.`;
+ const cta = document.createElement("button");
+ cta.type = "button";
+ cta.className = "jod-city-empty-cta";
+ cta.textContent = "Show events from all cities";
+ cta.addEventListener("click", () => window.JodCityPicker.setCity(null));
+ emptyState.appendChild(cta);
  }
  emptyState.hidden = false;
  }

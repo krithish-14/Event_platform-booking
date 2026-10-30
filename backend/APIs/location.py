@@ -687,6 +687,23 @@ async def preview_location_coords(lat: float, lon: float):
     )
 
 
+@router.get("/region")
+async def region_for_coords(lat: float, lon: float):
+    """State and district for a point, for the public state/district picker."""
+    from Services.event_region import region_from_address
+
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise HTTPException(status_code=422, detail="Invalid coordinates.")
+    hit = await _nominatim_reverse(lat, lon, zoom=10)
+    address = hit.get("address") or {}
+    state, district = region_from_address(address)
+    return {
+        "state": state,
+        "district": district,
+        "country_code": (address.get("country_code") or "").lower() or None,
+    }
+
+
 @router.get("/venue-reverse", response_model=VenueAddressResponse)
 async def venue_reverse(lat: float, lon: float):
     """Street-level English reverse geocode for the host venue map pin."""

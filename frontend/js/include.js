@@ -9,6 +9,14 @@
 		document.head.appendChild(guestPwd);
 	}
 
+	if (document.getElementById("header") && !document.querySelector("script[data-jod-region-picker]")) {
+		const cityPicker = document.createElement("script");
+		cityPicker.src = "/js/region-picker.js?v=1";
+		cityPicker.defer = true;
+		cityPicker.setAttribute("data-jod-region-picker", "1");
+		document.head.appendChild(cityPicker);
+	}
+
 	if (window.JodTheme && typeof window.JodTheme.sync === "function") {
  window.JodTheme.sync();
 	} else if (window.JodTheme && typeof window.JodTheme.apply === "function") {
@@ -188,7 +196,7 @@
 
 	const promises = [];
 	const headerEl = document.getElementById("header");
-	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=36"));
+	if (headerEl) promises.push(loadComponent("header", "components/header.html?v=38"));
 	const footerEl = document.getElementById("footer");
 	if (footerEl) promises.push(loadComponent("footer", "components/footer.html?v=14"));
 	const privacyBodyEl = document.getElementById("privacyPolicyBody");

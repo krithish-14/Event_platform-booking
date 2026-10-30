@@ -99,6 +99,60 @@
 		return am - bm;
 	}
 
+	let allEvents = [];
+
+	function selectedCity() {
+ return window.JodCityPicker ? window.JodCityPicker.getCity() : null;
+	}
+
+	function paintUpcomingHeading(city) {
+ const section = document.getElementById("upcoming");
+ if (!section) return;
+ const h2 = section.querySelector(".section-heading h2");
+ const pill = section.querySelector(".section-heading .pill");
+ if (h2 && !h2.dataset.baseText) h2.dataset.baseText = h2.textContent;
+ if (pill && !pill.dataset.baseText) pill.dataset.baseText = pill.textContent;
+ if (h2) h2.textContent = city ? `Upcoming Events in ${city.name}` : h2.dataset.baseText;
+ if (pill) pill.textContent = city ? `\u{1F4CD} ${city.name}` : pill.dataset.baseText;
+	}
+
+	function renderCarousel(events) {
+ const track = document.querySelector("[data-carousel-track]");
+ if (!track) return;
+ const city = selectedCity();
+ const list = city ? window.JodCityPicker.filterEvents(events, city) : events;
+ paintUpcomingHeading(city);
+ if (!list.length) {
+ if (city && events.length) {
+ EP.showEmptyState(track, `No upcoming events in ${city.name} yet`, "Try another city, or see what's on across India.");
+ const empty = track.querySelector(".events-empty-state") || track;
+ const cta = document.createElement("button");
+ cta.type = "button";
+ cta.className = "jod-city-empty-cta";
+ cta.textContent = "Show events from all cities";
+ cta.addEventListener("click", () => window.JodCityPicker.setCity(null));
+ empty.appendChild(cta);
+ } else {
+ EP.showEmptyState(track, "No events available", "Published events will appear here.");
+ }
+ return;
+ }
+ track.classList.remove("is-empty");
+ const delays = ["", "reveal-delay-1", "reveal-delay-2", "reveal-delay-3", "reveal-delay-4"];
+ track.innerHTML = list.slice(0, 8).map((ev, i) =>
+ EP.buildCarouselCard(ev, delays[i % delays.length])
+ ).join("");
+ if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === "function") {
+ window.JodWishlist.refreshButtons(track);
+ }
+ if (typeof EP.startCountdownTicker === "function") EP.startCountdownTicker();
+	}
+
+	window.addEventListener("jod:city-changed", () => {
+ if (allEvents.length) renderCarousel(allEvents);
+ else paintUpcomingHeading(selectedCity());
+	});
+
 	async function loadAndRender() {
  const track = document.querySelector("[data-carousel-track]");
  const carouselSection = document.getElementById("upcoming");
@@ -107,6 +161,7 @@
 
  try {
  const events = (await EP.fetchPublishedEvents({ limit: 24 })).sort(bySoonest);
+ allEvents = events;
 
  if (!events.length) {
  stopHeroRotation();
@@ -128,16 +183,7 @@
  startHeroRotation(events);
  if (EP.renderFeaturedPopup) EP.renderFeaturedPopup(featured);
 
- if (track) {
- track.classList.remove("is-empty");
- const delays = ["", "reveal-delay-1", "reveal-delay-2", "reveal-delay-3", "reveal-delay-4"];
- track.innerHTML = events.slice(0, 8).map((ev, i) =>
- EP.buildCarouselCard(ev, delays[i % delays.length])
- ).join("");
- if (window.JodWishlist && typeof window.JodWishlist.refreshButtons === "function") {
- window.JodWishlist.refreshButtons(track);
- }
- }
+ renderCarousel(events);
 
  EP.startCountdownTicker();
 

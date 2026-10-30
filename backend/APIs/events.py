@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -95,6 +95,8 @@ class EventResponse(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     place_id: Optional[str] = None
+    state: Optional[str] = None
+    district: Optional[str] = None
     distance_km: Optional[float] = None
     category: Optional[str]
     image_url: Optional[str]
@@ -497,6 +499,8 @@ def _event_to_response(
         latitude=event.latitude,
         longitude=event.longitude,
         place_id=getattr(event, "place_id", None),
+        state=getattr(event, "state", None),
+        district=getattr(event, "district", None),
         distance_km=round(distance_km, 2) if distance_km is not None else None,
         category=event.category,
         image_url=event.image_url,
@@ -567,6 +571,7 @@ def get_public_events(
     max_price: Optional[float] = None,
     date_filter: Optional[str] = None,
     location: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
 ):
     """Alias for published-only public event listing."""
@@ -579,6 +584,7 @@ def get_public_events(
         max_price=max_price,
         date_filter=date_filter,
         location=location,
+        background_tasks=background_tasks,
         db=db,
     )
 
@@ -653,6 +659,7 @@ def get_events(
     max_price: Optional[float] = None,
     date_filter: Optional[str] = None,
     location: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
 ):
     """List all published events with optional category, format, price, date, and location filters."""
@@ -675,6 +682,12 @@ def get_events(
         )
     except Exception:
         pass
+    if background_tasks is not None:
+        from Services.event_region import fill_missing_regions, needs_region
+
+        pending = [e.id for e in events if needs_region(e)]
+        if pending:
+            background_tasks.add_task(fill_missing_regions, pending)
     return [_event_to_response(e) for e in events]
 
 

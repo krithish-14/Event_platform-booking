@@ -21,6 +21,10 @@ class Event(Base):
     latitude     = Column(Float, nullable=True)
     longitude    = Column(Float, nullable=True)
     place_id     = Column(String(255), nullable=True)
+    # Filled from the venue pin by Services.event_region; region_key marks which pin it came from.
+    state        = Column(String(120), nullable=True)
+    district     = Column(String(120), nullable=True)
+    region_key   = Column(String(40), nullable=True)
     category     = Column(String(100), nullable=True)
     image_url    = Column(String(500), nullable=True)
     card_image   = Column(String(500), nullable=True)

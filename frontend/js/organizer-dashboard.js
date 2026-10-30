@@ -405,8 +405,7 @@ async function initOrganizerDashboard() {
 			needsApproval: () => isPublishedLifecycle() || currentLifecycle === "ended",
 			notify: (msg) => (typeof window.showNotification === "function" ? window.showNotification(msg) : alert(msg)),
 			runCancel: () => {
-				const btn = document.getElementById("btnClearEventData");
-				if (btn) btn.click();
+				if (typeof window.__jodRunApprovedEventCancel === "function") window.__jodRunApprovedEventCancel();
 			}
 		});
 	}
@@ -6380,20 +6379,32 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-	const btnClearEventData = document.getElementById("btnClearEventData");
-	if (btnClearEventData) {
-		btnClearEventData.addEventListener("click", async () => {
-			if (activeEventId && (isPublishedLifecycle() || currentLifecycle === "ended") && window.JodHostSupport) {
-				const gate = await window.JodHostSupport.refreshCancelState();
-				if (!gate || gate.state !== "approved") {
-					window.JodHostSupport.openCategory("event_cancellation");
-					switchTab("support");
-					showNotification(gate && gate.state === "pending"
-						? `Your cancellation request ${gate.ticket_code || ""} is waiting for admin approval.`
-						: "Cancelling a published event needs admin approval. Send an Event cancellation request first.");
-					return;
-				}
+	async function openCancellationRequest() {
+		switchTab("support");
+		if (!window.JodHostSupport) return;
+		window.JodHostSupport.openCategory("event_cancellation");
+		const gate = await window.JodHostSupport.refreshCancelState();
+		const state = gate && gate.state;
+		if (state === "pending") {
+			showNotification(`Your cancellation request ${gate.ticket_code || ""} is waiting for admin approval.`);
+		} else if (state === "approved") {
+			showNotification("An admin approved your cancellation. Use \u201cCancel event now\u201d to finish.");
+		} else {
+			showNotification("Send an Event cancellation request to the admin. You can cancel once it is approved.");
+			const msg = document.getElementById("hostSupportMessage");
+			if (msg) setTimeout(() => msg.focus(), 60);
+		}
+	}
+
+	// Only reachable from Help & Support after an admin approves; the server enforces the same rule.
+	async function runApprovedEventCancel() {
+		if (activeEventId && (isPublishedLifecycle() || currentLifecycle === "ended") && window.JodHostSupport) {
+			const gate = await window.JodHostSupport.refreshCancelState();
+			if (!gate || gate.state !== "approved") {
+				openCancellationRequest();
+				return;
 			}
+		}
 			const cancelOtpOpts = {
 				badge: "Verify to Cancel",
 				title: "Confirm event cancellation",
@@ -6462,6 +6473,14 @@ async function initOrganizerDashboard() {
 				console.warn("Could not cancel event:", err);
 				showNotification((err && err.message) || "Could not cancel event. Please try again.");
 			}
+	}
+	window.__jodRunApprovedEventCancel = runApprovedEventCancel;
+
+	const btnClearEventData = document.getElementById("btnClearEventData");
+	if (btnClearEventData) {
+		btnClearEventData.addEventListener("click", (e) => {
+			e.preventDefault();
+			openCancellationRequest();
 		});
 	}
 

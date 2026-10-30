@@ -125,8 +125,9 @@
 		if (dot) dot.hidden = s.state !== "approved";
 		var settingsBtn = byId("btnClearEventData");
 		if (settingsBtn) {
-			var direct = s.state === "approved" || !cfg.needsApproval();
-			settingsBtn.textContent = direct ? "Cancel Event" : (s.state === "pending" ? "Cancellation pending approval" : "Request cancellation");
+			settingsBtn.textContent = s.state === "approved"
+				? "Finish cancellation in Help & Support"
+				: (s.state === "pending" ? "View cancellation request" : "Request cancellation");
 		}
 		if (!box) return;
 		if (!cfg.eventId() || s.state === "none") {

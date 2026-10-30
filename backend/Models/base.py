@@ -337,6 +337,9 @@ def _migrate_tables(engine=None):
                 ("host_id", "VARCHAR(50)"),
                 ("customer_id", "VARCHAR(100)"),
                 ("card_image", "VARCHAR(500)"),
+                ("state", "VARCHAR(120)"),
+                ("district", "VARCHAR(120)"),
+                ("region_key", "VARCHAR(40)"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in event_migrations:
