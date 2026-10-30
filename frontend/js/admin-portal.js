@@ -1144,8 +1144,24 @@
 		return "Open";
 	}
 
+	function isPendingCancellation(row) {
+		return row && row.category === "event_cancellation" && String(row.decision || "pending").toLowerCase() === "pending";
+	}
+
+	function supportBadge(row) {
+		if (row.category === "event_cancellation") {
+			const d = String(row.decision || "pending").toLowerCase();
+			if (d === "approved") return `<span class="admin-badge ready">Cancellation approved</span>`;
+			if (d === "rejected") return `<span class="admin-badge cancel">Cancellation rejected</span>`;
+			return `<span class="admin-badge pending">Needs decision</span>`;
+		}
+		const status = row.status || "open";
+		return `<span class="admin-badge ${escapeHtml(status)}">${escapeHtml(supportStatusLabel(status))}</span>`;
+	}
+
 	function supportRowHtml(row) {
 		const status = row.status || "open";
+		const pendingCancel = isPendingCancellation(row);
 		const priority = row.priority || "normal";
 		const preview = String(row.message || "");
 		return `<tr data-id="${escapeHtml(row.ticket_code)}" data-kind="support">
@@ -1158,14 +1174,17 @@
 			<td>
 				<button type="button" class="admin-event-title" data-support-view="${escapeHtml(row.ticket_code)}" title="View issue">${escapeHtml(row.subject || "Support issue")}</button>
 				<div class="admin-muted">${escapeHtml(row.category || "")} \u00b7 ${escapeHtml(priority)}</div>
+				${row.event_title ? `<div class="admin-muted">Event: ${escapeHtml(row.event_title)}</div>` : ""}
 			</td>
 			<td>${escapeHtml(preview.slice(0, 90))}${preview.length > 90 ? "\u2026" : ""}</td>
 			<td class="admin-submitted">${escapeHtml(formatWhen(row.created_at))}</td>
-			<td><span class="admin-badge ${escapeHtml(status)}">${escapeHtml(supportStatusLabel(status))}</span></td>
+			<td>${supportBadge(row)}</td>
 			<td>
 				<div class="admin-actions">
 					<button type="button" class="admin-btn ghost" data-support-view="${escapeHtml(row.ticket_code)}">View issue</button>
-					${status !== "resolved" ? `<button type="button" class="admin-btn accept" data-support-resolve="${escapeHtml(row.ticket_code)}">Mark solved</button>` : ""}
+					${pendingCancel
+						? `<button type="button" class="admin-btn accept" data-support-resolve="${escapeHtml(row.ticket_code)}">Review cancellation</button>`
+						: (status !== "resolved" ? `<button type="button" class="admin-btn accept" data-support-resolve="${escapeHtml(row.ticket_code)}">Mark solved</button>` : "")}
 				</div>
 			</td>
 		</tr>`;
@@ -1205,7 +1224,8 @@
 		if (!row || !modal || !body) return;
 		if (title) title.textContent = row.ticket_code || "Support ticket";
 		body.innerHTML = `
-			<dt>Status</dt><dd><span class="admin-badge ${escapeHtml(row.status || "open")}">${escapeHtml(supportStatusLabel(row.status))}</span></dd>
+			<dt>Status</dt><dd>${supportBadge(row)}</dd>
+			${row.event_title || row.event_id ? `<dt>Event</dt><dd>${escapeHtml(row.event_title || "Untitled event")}<br><span class="admin-muted">${escapeHtml(row.event_id || "")}</span></dd>` : ""}
 			<dt>Customer</dt><dd>${escapeHtml(row.name || "")}<br>${escapeHtml(row.email || "")}${row.phone ? `<br><strong>Phone:</strong> <a href="tel:${escapeHtml(row.phone)}">${escapeHtml(row.phone)}</a>` : ""}</dd>
 			<dt>Category / Priority</dt><dd>${escapeHtml(row.category || "")} \u00b7 ${escapeHtml(row.priority || "normal")}</dd>
 			<dt>Subject</dt><dd>${escapeHtml(row.subject || "")}</dd>
@@ -1214,7 +1234,8 @@
 			${row.resolution_note ? `<dt>Resolution note</dt><dd>${escapeHtml(row.resolution_note)}</dd>` : ""}
 			${row.resolved_at ? `<dt>Resolved</dt><dd>${escapeHtml(formatWhen(row.resolved_at))}</dd>` : ""}
 		`;
-		const canResolve = (row.status || "open") !== "resolved";
+		const pendingCancel = isPendingCancellation(row);
+		const canResolve = !pendingCancel && (row.status || "open") !== "resolved";
 		if (resolveWrap) resolveWrap.hidden = !canResolve;
 		if (noteEl) noteEl.value = "";
 		if (resolveBtn) {
@@ -1222,8 +1243,57 @@
 			resolveBtn.disabled = false;
 			resolveBtn.textContent = "Mark as solved & notify";
 		}
+		const decisionWrap = document.getElementById("supportDecisionWrap");
+		const decisionNote = document.getElementById("supportDecisionNote");
+		if (decisionWrap) decisionWrap.hidden = !pendingCancel;
+		if (decisionNote) decisionNote.value = "";
+		["supportApproveBtn", "supportRejectBtn"].forEach((id) => {
+			const btn = document.getElementById(id);
+			if (!btn) return;
+			btn.dataset.code = row.ticket_code;
+			btn.disabled = false;
+			btn.textContent = id === "supportApproveBtn" ? "Approve cancellation" : "Reject";
+		});
 		modal.hidden = false;
 		if (preferResolve && canResolve && noteEl) noteEl.focus();
+		if (preferResolve && pendingCancel && decisionNote) decisionNote.focus();
+	}
+
+	async function decideCancellation(code, action, btn) {
+		const noteEl = document.getElementById("supportDecisionNote");
+		const note = noteEl ? noteEl.value.trim() : "";
+		if (action === "reject" && !note) {
+			alert("Add a short note so the host knows why the cancellation was rejected.");
+			if (noteEl) noteEl.focus();
+			return;
+		}
+		if (action === "approve" && !confirm("Approve this cancellation? The host will then be able to cancel the event and remove it from the site.")) return;
+		const label = btn ? btn.textContent : "";
+		if (btn) {
+			btn.disabled = true;
+			btn.textContent = "Saving\u2026";
+		}
+		try {
+			const res = await adminFetch(`${apiBase()}/api/admin/support-tickets/${encodeURIComponent(code)}/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action, note: note || null }),
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				const detail = data && data.detail;
+				throw new Error(typeof detail === "string" ? detail : "Could not save the decision.");
+			}
+			alert(data.message || "Decision saved.");
+			document.getElementById("supportModal").hidden = true;
+			await refresh();
+		} catch (err) {
+			alert(err.message || "Could not save the decision.");
+			if (btn && btn.isConnected) {
+				btn.disabled = false;
+				btn.textContent = label;
+			}
+		}
 	}
 
 	async function resolveSupportTicket(code, btn) {
@@ -1626,6 +1696,14 @@
 			const btn = event.currentTarget;
 			const code = btn && btn.dataset ? btn.dataset.code : "";
 			if (code) resolveSupportTicket(code, btn);
+		});
+		document.getElementById("supportApproveBtn")?.addEventListener("click", (event) => {
+			const btn = event.currentTarget;
+			if (btn.dataset.code) decideCancellation(btn.dataset.code, "approve", btn);
+		});
+		document.getElementById("supportRejectBtn")?.addEventListener("click", (event) => {
+			const btn = event.currentTarget;
+			if (btn.dataset.code) decideCancellation(btn.dataset.code, "reject", btn);
 		});
 		document.getElementById("hostApproveBtn")?.addEventListener("click", (event) => {
 			const btn = event.currentTarget;

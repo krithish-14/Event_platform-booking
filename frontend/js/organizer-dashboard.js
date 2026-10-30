@@ -250,6 +250,7 @@ function normalizeTab(tabName) {
 	if (t === 'ticket' || t === 'tickets' || t === 'ticketstudio' || t === 'ticket-studio') return 'ticket';
 	if (t === 'manage' || t === 'create') return 'manage';
 	if (t === 'history' || t === 'event-history' || t === 'event_history' || t === 'past') return 'history';
+	if (t === 'support' || t === 'help' || t === 'help-support' || t === 'helpdesk') return 'support';
 	return t;
 }
 
@@ -388,6 +389,24 @@ async function initOrganizerDashboard() {
 					venue_name: venue.split(",")[0].trim(),
 					venue_address: venue
 				};
+			}
+		});
+	}
+	if (window.JodHostSupport) {
+		window.JodHostSupport.configure({
+			apiOrigin: () => HOST_EVENTS_API_BASE.replace(/\/api\/host-events\/?$/, ""),
+			authHeaders: () => getAuthHeaders(),
+			eventId: () => (hasEvent || activeEventId ? activeEventId : null),
+			eventTitle: () => {
+				const typed = ((document.getElementById("eventTitleInput") || {}).value || "").trim();
+				const header = ((document.getElementById("dashEventTitle") || {}).textContent || "").trim();
+				return typed || (header && header !== "My Events Dashboard" ? header : "");
+			},
+			needsApproval: () => isPublishedLifecycle() || currentLifecycle === "ended",
+			notify: (msg) => (typeof window.showNotification === "function" ? window.showNotification(msg) : alert(msg)),
+			runCancel: () => {
+				const btn = document.getElementById("btnClearEventData");
+				if (btn) btn.click();
 			}
 		});
 	}
@@ -2164,6 +2183,7 @@ async function initOrganizerDashboard() {
 	const sectionEventday = document.getElementById("sectionEventday");
 	const sectionAttendance = document.getElementById("sectionAttendance");
 	const sectionHistory = document.getElementById("sectionHistory");
+	const sectionSupport = document.getElementById("sectionSupport");
 	const sidebarRoot = document.querySelector(".dash-sidebar");
 
 	const createEventForm = document.getElementById("createEventForm");
@@ -2181,7 +2201,8 @@ async function initOrganizerDashboard() {
 		sectionReports,
 		sectionEventday,
 		sectionAttendance,
-		sectionHistory
+		sectionHistory,
+		sectionSupport
 	].filter(Boolean);
 
 	// Track whether event has been created for this organizer
@@ -2355,9 +2376,12 @@ async function initOrganizerDashboard() {
 		if (tabName === 'overview') {
 			renderOverviewState();
 			loadDashboardData();
+		} else if (tabName === 'support') {
+			if (window.JodHostSupport) window.JodHostSupport.load();
 		} else if (tabName === 'settings') {
 			renderHostSettingsAvatar();
 			loadProfileAndBankDetails();
+			if (window.JodHostSupport) window.JodHostSupport.refreshCancelState();
 		} else if (tabName === 'registrations') {
 			if (typeof window.renderFormBuilderQuestions === 'function') {
 				window.renderFormBuilderQuestions();
@@ -2429,7 +2453,8 @@ async function initOrganizerDashboard() {
 			reports: sectionReports,
 			eventday: sectionEventday,
 			attendance: sectionAttendance,
-			history: sectionHistory
+			history: sectionHistory,
+			support: sectionSupport
 		};
 
 		const targetSection = targetSections[tabName] || sectionOverview;
@@ -2475,7 +2500,7 @@ async function initOrganizerDashboard() {
 		} catch (_) {}
 
 		try {
-			const sectionIds = ['sectionOverview','sectionManage','sectionSettings','sectionDesign','sectionTicket','sectionRegistrations','sectionExhibitors','sectionCommunicate','sectionReports','sectionEventday','sectionAttendance','sectionHistory'];
+			const sectionIds = ['sectionOverview','sectionManage','sectionSettings','sectionDesign','sectionTicket','sectionRegistrations','sectionExhibitors','sectionCommunicate','sectionReports','sectionEventday','sectionAttendance','sectionHistory','sectionSupport'];
 			const visible = sectionIds.filter(id => {
 				const el = document.getElementById(id);
 				return el && (el.classList.contains('active-tab') || el.style.display === 'block');
@@ -2571,6 +2596,7 @@ async function initOrganizerDashboard() {
 		applyLifecycleStatusBadge();
 		updateLifecycleBanners();
 		applySectionActionLabels();
+		applyLiveOverview();
 	}
 
 	function clearHostWorkspaceForms() {
@@ -2677,6 +2703,8 @@ async function initOrganizerDashboard() {
 					applyLiveAttendanceStats(d);
 					drawTrendChart(d.registration_trend);
 					updateEventPagePreview(d);
+					applyLiveOverview(d);
+					if (window.JodHostSupport) window.JodHostSupport.refreshCancelState();
 
 					// Event Numbers Grid
 					const numSpeakers = document.getElementById("numSpeakers");
@@ -4119,6 +4147,87 @@ async function initOrganizerDashboard() {
 		dashEventStatus.style.borderColor = s.border;
 	}
 
+	// var: renderOverviewState can run during init, before this line is reached.
+	var lastDashboardSummary;
+
+	function eventPageUrl() {
+		return activeEventId ? `event-details.html?id=${encodeURIComponent(activeEventId)}` : "";
+	}
+
+	function formatLocalStamp(value) {
+		const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(value || ""));
+		if (!m) return "";
+		const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+		return d.toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+	}
+
+	function paintLiveEventCard(d) {
+		const setText = (id, value) => {
+			const el = document.getElementById(id);
+			if (el) el.textContent = value;
+		};
+		const live = currentLifecycle === "live";
+		const badge = document.getElementById("liveEventBadge");
+		if (badge) {
+			badge.textContent = live ? "Live now" : "Published \u00b7 upcoming";
+			badge.classList.toggle("is-upcoming", !live);
+		}
+		const cat = document.getElementById("liveEventCategory");
+		if (cat) {
+			cat.textContent = (d && d.event_category) || "";
+			cat.hidden = !(d && d.event_category);
+		}
+		setText("liveEventTitle", (d && d.event_title) || (dashEventTitle && dashEventTitle.textContent) || "Your event");
+		setText("liveEventStart", formatLocalStamp(d && d.event_start_local) || "\u2014");
+		setText("liveEventEnd", formatLocalStamp(d && d.event_end_local) || "\u2014");
+		const venue = [d && d.venue, d && d.address].filter((v, i, all) => v && v !== "Venue TBD" && all.indexOf(v) === i).join(", ");
+		setText("liveEventVenue", venue || "Venue TBD");
+		const banner = document.getElementById("liveEventBanner");
+		if (banner) {
+			const src = (d && (d.banner_image || d.image_url)) || bannerImageUrl || "";
+			if (src) {
+				banner.src = resolveUploadUrl(src);
+				banner.alt = `${(d && d.event_title) || "Event"} banner`;
+			}
+			banner.parentElement.hidden = !src;
+		}
+		const ticketsHost = document.getElementById("liveEventTickets");
+		if (ticketsHost) {
+			const tiers = (Array.isArray(d && d.tickets) ? d.tickets : [])
+				.filter((t) => t && (t.name || t.ticket_name) && (!t.ticket_kind || t.ticket_kind === "main") && t.is_active !== false);
+			ticketsHost.innerHTML = tiers.length
+				? tiers.map((t) => {
+					const price = Number(t.unit_price != null ? t.unit_price : t.price) || 0;
+					const label = price > 0 ? `\u20b9${price.toLocaleString("en-IN")}` : "Free";
+					const qty = Number(t.qty || t.quantity || 0);
+					return `<span class="live-event-ticket"><strong>${escapeHtmlText(t.name || t.ticket_name)}</strong> ${label}${qty ? ` \u00b7 ${qty} seats` : ""}</span>`;
+				}).join("")
+				: "";
+			ticketsHost.hidden = !tiers.length;
+		}
+		const view = document.getElementById("liveEventViewPage");
+		if (view && eventPageUrl()) view.href = eventPageUrl();
+	}
+
+	function applyLiveOverview(d) {
+		if (d) lastDashboardSummary = d;
+		const live = Boolean(hasEvent && activeEventId && isPublishedLifecycle());
+		const hostHome = document.querySelector("#sectionOverview .host-home");
+		if (hostHome) hostHome.hidden = live;
+		const card = document.getElementById("liveEventDetails");
+		if (card) card.hidden = !live;
+		const viewLink = document.getElementById("topViewPageLink");
+		if (viewLink) {
+			viewLink.hidden = !live;
+			if (live) viewLink.href = eventPageUrl();
+		}
+		if (live) paintLiveEventCard(d || lastDashboardSummary);
+	}
+
+	function escapeHtmlText(v) {
+		return String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+	}
+
 	function renderOverviewState() {
 		if (window.__renderingOverview) return;
 		window.__renderingOverview = true;
@@ -4138,6 +4247,7 @@ async function initOrganizerDashboard() {
 			applyLifecycleStatusBadge();
 			updateLifecycleBanners();
 			applySectionActionLabels();
+			applyLiveOverview();
 		} finally {
 			window.__renderingOverview = false;
 		}
@@ -4181,7 +4291,7 @@ async function initOrganizerDashboard() {
 		});
 	}
 
-	document.querySelectorAll(".host-home [data-tab]").forEach((btn) => {
+	document.querySelectorAll(".host-home [data-tab], .live-event-card [data-tab], #btnTopSupport").forEach((btn) => {
 		if (btn.dataset.hostHomeBound === "1") return;
 		btn.dataset.hostHomeBound = "1";
 		btn.addEventListener("click", (e) => {
@@ -6273,6 +6383,17 @@ async function initOrganizerDashboard() {
 	const btnClearEventData = document.getElementById("btnClearEventData");
 	if (btnClearEventData) {
 		btnClearEventData.addEventListener("click", async () => {
+			if (activeEventId && (isPublishedLifecycle() || currentLifecycle === "ended") && window.JodHostSupport) {
+				const gate = await window.JodHostSupport.refreshCancelState();
+				if (!gate || gate.state !== "approved") {
+					window.JodHostSupport.openCategory("event_cancellation");
+					switchTab("support");
+					showNotification(gate && gate.state === "pending"
+						? `Your cancellation request ${gate.ticket_code || ""} is waiting for admin approval.`
+						: "Cancelling a published event needs admin approval. Send an Event cancellation request first.");
+					return;
+				}
+			}
 			const cancelOtpOpts = {
 				badge: "Verify to Cancel",
 				title: "Confirm event cancellation",
@@ -6333,6 +6454,7 @@ async function initOrganizerDashboard() {
 				if (designSaveTimer) clearTimeout(designSaveTimer);
 				clearHostWorkspaceForms();
 				paintEmptyHostDashboard();
+				if (window.JodHostSupport) window.JodHostSupport.load();
 				try { window.dispatchEvent(new Event("jod:inbox-refresh")); } catch (_) {}
 				showNotification("Event cancelled. It is no longer listed on Home, Category, or Event Details.");
 					switchTab("overview");

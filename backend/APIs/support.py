@@ -3,6 +3,7 @@ Help & Support tickets — guests and signed-in users can raise a query.
 Public ticket IDs use THP-#### (separate from booking tickets).
 """
 
+import html
 import os
 import random
 import re
@@ -14,9 +15,9 @@ from sqlalchemy import or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from Authentication.dependencies import get_current_user_optional
+from Authentication.dependencies import get_current_user, get_current_user_optional
 from Models.base import get_db
-from Models.support_ticket import SupportTicket, generate_ticket_code
+from Models.support_ticket import SupportTicket, ensure_support_ticket_columns, generate_ticket_code
 from Models.user import User
 from Services.rate_limit import limit_support
 from Utils.datetimes import json_datetime
@@ -30,6 +31,18 @@ ALLOWED_CATEGORIES = {
 	"hosting",
 	"account",
 	"checkin",
+	"other",
+	"event_cancellation",
+	"event_changes",
+	"payouts",
+}
+HOST_CATEGORIES = {
+	"event_cancellation",
+	"event_changes",
+	"payouts",
+	"tickets",
+	"checkin",
+	"account",
 	"other",
 }
 ALLOWED_PRIORITIES = {"normal", "high", "urgent"}
@@ -61,6 +74,19 @@ class SupportTicketResponse(BaseModel):
 	resolved_at: Optional[str] = None
 	created_at: Optional[str] = None
 	updated_at: Optional[str] = None
+	event_id: Optional[str] = None
+	event_title: Optional[str] = None
+	decision: Optional[str] = None
+	decided_at: Optional[str] = None
+
+
+class HostSupportRequestCreate(BaseModel):
+	category: str = Field(..., min_length=2, max_length=80)
+	subject: str = Field(..., min_length=6, max_length=250)
+	message: str = Field(..., min_length=20, max_length=4000)
+	event_id: Optional[str] = Field(None, max_length=64)
+	priority: str = "normal"
+	phone: Optional[str] = Field(None, max_length=50)
 
 
 def _ensure_support_schema(db: Session) -> None:
@@ -68,26 +94,7 @@ def _ensure_support_schema(db: Session) -> None:
 	global _SCHEMA_READY
 	if _SCHEMA_READY:
 		return
-	statements = [
-		"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolution_note TEXT",
-		"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",
-		"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS phone VARCHAR(50)",
-	]
-	# SQLite does not support IF NOT EXISTS on ADD COLUMN in older versions
-	sqlite_statements = [
-		"ALTER TABLE support_tickets ADD COLUMN resolution_note TEXT",
-		"ALTER TABLE support_tickets ADD COLUMN resolved_at DATETIME",
-		"ALTER TABLE support_tickets ADD COLUMN phone VARCHAR(50)",
-	]
-	bind = db.get_bind()
-	dialect = (bind.dialect.name if bind is not None else "") or ""
-	to_run = statements if dialect == "postgresql" else sqlite_statements
-	for sql in to_run:
-		try:
-			db.execute(text(sql))
-			db.commit()
-		except Exception:
-			db.rollback()
+	ensure_support_ticket_columns(db)
 	_SCHEMA_READY = True
 
 
@@ -151,6 +158,10 @@ def _serialize(ticket: SupportTicket) -> SupportTicketResponse:
 		resolved_at=json_datetime(getattr(ticket, "resolved_at", None)),
 		created_at=json_datetime(ticket.created_at),
 		updated_at=json_datetime(ticket.updated_at),
+		event_id=getattr(ticket, "event_id", None),
+		event_title=getattr(ticket, "event_title", None),
+		decision=getattr(ticket, "decision", None),
+		decided_at=json_datetime(getattr(ticket, "decided_at", None)),
 	)
 
 
@@ -170,7 +181,18 @@ def _notify_admin_new_support_ticket(ticket: SupportTicket) -> bool:
 		return False
 	code = ticket.ticket_code
 	phone_str = ticket.phone or "Not provided"
-	subject = f"[Support Ticket {code}] {ticket.subject} — from {ticket.name}"
+	is_cancel = ticket.category == "event_cancellation"
+	event_line = ""
+	event_html = ""
+	if getattr(ticket, "event_id", None):
+		event_label = f"{ticket.event_title or 'Untitled event'} ({ticket.event_id})"
+		event_line = f"Event: {event_label}\n"
+		event_html = f"<p><strong>Event:</strong> {html.escape(event_label)}</p>"
+	if is_cancel:
+		event_line += "Action needed: approve or reject this event cancellation in the Admin Portal.\n"
+		event_html += "<p style='color:#b91c1c;'><strong>Action needed:</strong> approve or reject this event cancellation in the Admin Portal. The host cannot cancel until you approve.</p>"
+	prefix = "Event Cancellation Request" if is_cancel else "Support Ticket"
+	subject = f"[{prefix} {code}] {ticket.subject} — from {ticket.name}"
 	text_body = (
 		f"A new Help & Support ticket has been submitted.\n\n"
 		f"Ticket ID: {code}\n"
@@ -179,6 +201,7 @@ def _notify_admin_new_support_ticket(ticket: SupportTicket) -> bool:
 		f"Customer Phone: {phone_str}\n"
 		f"Category: {ticket.category}\n"
 		f"Priority: {ticket.priority}\n"
+		f"{event_line}"
 		f"Subject: {ticket.subject}\n\n"
 		f"Message:\n{ticket.message}\n\n"
 		f"View this ticket in Admin Portal:\n"
@@ -190,6 +213,7 @@ def _notify_admin_new_support_ticket(ticket: SupportTicket) -> bool:
 		f"<p><strong>Email:</strong> <a href='mailto:{ticket.email}'>{ticket.email}</a></p>"
 		f"<p><strong>Phone:</strong> {phone_str}</p>"
 		f"<p><strong>Category:</strong> {ticket.category} &middot; <strong>Priority:</strong> {ticket.priority}</p>"
+		f"{event_html}"
 		f"<p><strong>Subject:</strong> {ticket.subject}</p>"
 		f"<hr style='border:0;border-top:1px solid #e2e8f0;margin:16px 0;'/>"
 		f"<p><strong>Message:</strong></p>"
@@ -298,3 +322,129 @@ def lookup_support_ticket(
 	if not row:
 		raise HTTPException(status_code=404, detail="No Help & Support ticket found for that ID.")
 	return _serialize(row)
+
+
+# ── Host Help & Support (dashboard) ───────────────────────────
+
+
+def _owned_host_event(db: Session, event_id: str, current_user: User):
+	from APIs.host_events_api import _event_owned, _lookup_event_by_id
+
+	event = _lookup_event_by_id(db, event_id)
+	if not event:
+		raise HTTPException(status_code=404, detail="That event was not found on your host account.")
+	email_clean = (current_user.email or "").lower().strip()
+	if not _event_owned(event, email_clean, current_user.customer_id, None, current_user):
+		raise HTTPException(status_code=403, detail="You can only raise requests for your own events.")
+	return event
+
+
+def _host_tickets_query(db: Session, current_user: User):
+	return db.query(SupportTicket).filter(
+		or_(
+			SupportTicket.customer_id == current_user.customer_id,
+			SupportTicket.email == (current_user.email or "").lower(),
+		)
+	)
+
+
+@router.get("/host/requests", response_model=List[SupportTicketResponse])
+def list_host_requests(
+	db: Session = Depends(get_db),
+	current_user: User = Depends(get_current_user),
+):
+	_ensure_support_schema(db)
+	rows = _host_tickets_query(db, current_user).order_by(SupportTicket.created_at.desc()).limit(50).all()
+	return [_serialize(row) for row in rows]
+
+
+@router.get("/host/cancellation-status")
+def host_cancellation_status(
+	event_id: str = Query(..., min_length=4, max_length=64),
+	db: Session = Depends(get_db),
+	current_user: User = Depends(get_current_user),
+):
+	from Services.event_cancellation import cancellation_state
+
+	_ensure_support_schema(db)
+	event = _owned_host_event(db, event_id, current_user)
+	state = cancellation_state(db, event.event_id)
+	state["event_id"] = str(event.event_id)
+	state["event_status"] = (event.event_status or "").lower()
+	return state
+
+
+@router.post("/host/requests", response_model=SupportTicketResponse, status_code=status.HTTP_201_CREATED)
+def create_host_request(
+	payload: HostSupportRequestCreate,
+	request: Request,
+	db: Session = Depends(get_db),
+	current_user: User = Depends(get_current_user),
+):
+	from Services.event_cancellation import (
+		CANCEL_CATEGORY,
+		DECISION_APPROVED,
+		DECISION_PENDING,
+		cancellation_state,
+	)
+
+	_ensure_support_schema(db)
+	category = _normalize_category(payload.category)
+	if category not in HOST_CATEGORIES:
+		raise HTTPException(status_code=400, detail="Choose a valid host request category.")
+	email = (current_user.email or "").lower().strip()
+	if not email:
+		raise HTTPException(status_code=400, detail="Your account needs an email address to raise a request.")
+	limit_support(request, email)
+
+	event = None
+	if payload.event_id:
+		event = _owned_host_event(db, payload.event_id, current_user)
+	if category == CANCEL_CATEGORY:
+		if not event:
+			raise HTTPException(status_code=400, detail="Choose the event you want to cancel.")
+		if (event.event_status or "").lower() in ("cancelled", "unpublished"):
+			raise HTTPException(status_code=409, detail="This event is already cancelled.")
+		current = cancellation_state(db, event.event_id)
+		if current["state"] == DECISION_PENDING:
+			raise HTTPException(
+				status_code=409,
+				detail=f"Your cancellation request {current['ticket_code']} is already waiting for admin approval.",
+			)
+		if current["state"] == DECISION_APPROVED:
+			raise HTTPException(
+				status_code=409,
+				detail="Cancellation is already approved. You can cancel the event from Help & Support or Settings.",
+			)
+
+	name = (current_user.full_name or "").strip() or email.split("@")[0]
+	phone = (payload.phone or "").strip() or (str(current_user.phone).strip() if getattr(current_user, "phone", None) else None)
+	ticket = SupportTicket(
+		ticket_code=_unique_code(db),
+		customer_id=current_user.customer_id,
+		name=name[:200],
+		email=email,
+		phone=phone,
+		category=category,
+		priority="high" if category == CANCEL_CATEGORY else _normalize_priority(payload.priority),
+		subject=payload.subject.strip(),
+		message=payload.message.strip(),
+		status="open",
+		event_id=str(event.event_id) if event else None,
+		event_title=(event.event_title or "")[:300] if event else None,
+		decision=DECISION_PENDING if category == CANCEL_CATEGORY else None,
+	)
+	db.add(ticket)
+	try:
+		db.commit()
+	except IntegrityError:
+		db.rollback()
+		ticket.ticket_code = _unique_code(db)
+		db.add(ticket)
+		db.commit()
+	db.refresh(ticket)
+	try:
+		_notify_admin_new_support_ticket(ticket)
+	except Exception:
+		pass
+	return _serialize(ticket)

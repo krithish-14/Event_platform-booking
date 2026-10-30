@@ -1892,26 +1892,9 @@ class SupportResolveRequest(BaseModel):
 
 
 def _ensure_support_ticket_columns(db: Session) -> None:
-    bind = db.get_bind()
-    dialect = (bind.dialect.name if bind is not None else "") or ""
-    if dialect == "postgresql":
-        stmts = [
-            "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolution_note TEXT",
-            "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",
-            "ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS phone VARCHAR(50)",
-        ]
-    else:
-        stmts = [
-            "ALTER TABLE support_tickets ADD COLUMN resolution_note TEXT",
-            "ALTER TABLE support_tickets ADD COLUMN resolved_at DATETIME",
-            "ALTER TABLE support_tickets ADD COLUMN phone VARCHAR(50)",
-        ]
-    for sql in stmts:
-        try:
-            db.execute(text(sql))
-            db.commit()
-        except Exception:
-            db.rollback()
+    from Models.support_ticket import ensure_support_ticket_columns
+
+    ensure_support_ticket_columns(db)
 
 
 def _serialize_support_ticket(row) -> dict:
@@ -1930,7 +1913,39 @@ def _serialize_support_ticket(row) -> dict:
         "resolved_at": json_datetime(getattr(row, "resolved_at", None)),
         "created_at": json_datetime(row.created_at),
         "updated_at": json_datetime(row.updated_at),
+        "event_id": getattr(row, "event_id", None),
+        "event_title": getattr(row, "event_title", None),
+        "decision": getattr(row, "decision", None),
+        "decided_at": json_datetime(getattr(row, "decided_at", None)),
     }
+
+
+def _notify_cancellation_decision(ticket, approved: bool) -> bool:
+    import html as _html
+
+    email_addr = (ticket.email or "").strip()
+    if not email_addr:
+        return False
+    code = ticket.ticket_code
+    title = ticket.event_title or "your event"
+    note = (getattr(ticket, "resolution_note", None) or "").strip()
+    if approved:
+        subject = f"Cancellation approved for {title} ({code}) — JOD Events"
+        lead = (
+            f"Your request to cancel {title} has been approved. "
+            "Open your host dashboard, go to Help & Support (or Settings), and confirm the cancellation with the email OTP."
+        )
+    else:
+        subject = f"Cancellation request {code} was not approved — JOD Events"
+        lead = f"Your request to cancel {title} was not approved, so the event stays live."
+    text_body = f"Hi {ticket.name},\n\n{lead}\n" + (f"\nTeam note:\n{note}\n" if note else "") + "\n— JOD Events Support\n"
+    html_body = (
+        f"<p>Hi {_html.escape(ticket.name or '')},</p><p>{_html.escape(lead)}</p>"
+        + (f"<p><strong>Team note:</strong><br>{_html.escape(note)}</p>" if note else "")
+        + "<p><a href=\"https://jodevents.com/organizer-dashboard.html?tab=support\">Open Help &amp; Support</a></p>"
+        "<p>— JOD Events Support</p>"
+    )
+    return bool(send_email(email_addr, subject, text_body, html_body=html_body))
 
 
 def _notify_support_resolved(ticket) -> bool:
@@ -2019,6 +2034,11 @@ def admin_update_support_ticket(
     row = db.query(SupportTicket).filter(SupportTicket.ticket_code == code).first()
     if not row:
         raise HTTPException(status_code=404, detail="Support ticket not found.")
+    if row.category == "event_cancellation" and (getattr(row, "decision", None) or "pending") == "pending":
+        raise HTTPException(
+            status_code=400,
+            detail="Approve or reject this event cancellation request instead of marking it solved.",
+        )
     note = (payload.resolution_note or "").strip() or None
     row.status = "resolved"
     row.resolution_note = note
@@ -2031,6 +2051,62 @@ def admin_update_support_ticket(
     return {
         "status": "success",
         "message": "Ticket marked as solved." + (" Customer emailed." if emailed else " Email could not be sent (check SMTP)."),
+        "email_sent": emailed,
+        "ticket": _serialize_support_ticket(row),
+    }
+
+
+class CancellationDecisionRequest(BaseModel):
+    action: str  # approve | reject
+    note: Optional[str] = None
+
+
+@router.post("/support-tickets/{ticket_code}/decision")
+def admin_decide_event_cancellation(
+    ticket_code: str,
+    payload: CancellationDecisionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """Approve or reject a host's event cancellation request and email the host."""
+    from Models.support_ticket import SupportTicket
+    from Services.event_cancellation import CANCEL_CATEGORY, DECISION_APPROVED, DECISION_REJECTED
+    from Utils.datetimes import utc_now
+
+    _ensure_support_ticket_columns(db)
+    action = (payload.action or "").strip().lower()
+    if action not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="Choose approve or reject.")
+    code = str(ticket_code or "").strip().upper()
+    row = db.query(SupportTicket).filter(SupportTicket.ticket_code == code).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Support ticket not found.")
+    if row.category != CANCEL_CATEGORY or not row.event_id:
+        raise HTTPException(status_code=400, detail="Only event cancellation requests need a decision.")
+    current = (row.decision or "pending").lower()
+    if current != "pending":
+        raise HTTPException(status_code=409, detail=f"This request was already {current}.")
+    note = (payload.note or "").strip() or None
+    if action == "reject" and not note:
+        raise HTTPException(status_code=400, detail="Add a short note so the host knows why it was rejected.")
+    now = utc_now()
+    row.decision = DECISION_APPROVED if action == "approve" else DECISION_REJECTED
+    row.decided_at = now
+    row.status = "resolved"
+    row.resolution_note = note
+    row.resolved_at = now
+    row.updated_at = now
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    try:
+        emailed = _notify_cancellation_decision(row, action == "approve")
+    except Exception:
+        emailed = False
+    verb = "approved" if action == "approve" else "rejected"
+    return {
+        "status": "success",
+        "message": f"Cancellation {verb}." + (" Host emailed." if emailed else " Email could not be sent (check SMTP)."),
         "email_sent": emailed,
         "ticket": _serialize_support_ticket(row),
     }

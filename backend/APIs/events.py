@@ -813,4 +813,12 @@ def delete_existing_event(
         raise HTTPException(status_code=404, detail="Event not found.")
     if event.customer_id != current_user.customer_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized.")
+    if not current_user.is_admin:
+        from Services.event_cancellation import is_cancellation_approved
+
+        if not is_cancellation_approved(db, event_id):
+            raise HTTPException(
+                status_code=403,
+                detail="An admin must approve the cancellation first. Raise an Event cancellation request in Help & Support.",
+            )
     delete_event(db, event)

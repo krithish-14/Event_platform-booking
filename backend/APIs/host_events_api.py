@@ -3886,6 +3886,11 @@ def get_dashboard_summary(
         "event_start_date": event.event_start_date.isoformat() if event.event_start_date else None,
         "venue": event.venue or "Venue TBD",
         "registration_trend": live.get("registration_trend") or [],
+        "event_start_local": _to_datetime_local_ist(event.event_start_date),
+        "event_end_local": _to_datetime_local_ist(event.event_end_date),
+        "event_category": event.event_category,
+        "address": event.address,
+        "tickets": event.tickets_json,
     }
 
 
@@ -4071,6 +4076,17 @@ def clear_host_events(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="That event was not found on this organizer account.",
+        )
+    from Services.event_cancellation import unapproved_event_ids
+
+    published_events = [ev for ev in events if (ev.event_status or "").lower() == "published"]
+    if unapproved_event_ids(db, [ev.event_id for ev in published_events]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "An admin must approve the cancellation first. Raise an Event cancellation "
+                "request in Help & Support."
+            ),
         )
     cancelled_ids = [ev.event_id for ev in events]
 
