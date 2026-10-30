@@ -423,6 +423,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 	$("tdMovieLangList").innerHTML = LANGUAGES.map((l) => `<option value="${l}"></option>`).join("");
 	$("tdCrewJobs").innerHTML = CREW_JOBS.map((j) => `<option value="${j}"></option>`).join("");
 
+	/* Photos are framed in the cropper first; sizes match the server limits in APIs/cinema_owner.py. */
+	const PHOTO_CROP = { aspect: 1, shape: "circle", width: 400, height: 400, minBytes: 2 * 1024, maxBytes: 2 * 1024 * 1024 };
+	const POSTER_CROP = { aspect: 2 / 3, shape: "rect", width: 600, height: 900, minBytes: 20 * 1024, maxBytes: 3 * 1024 * 1024, title: "Adjust poster" };
+	async function adjustImage(file, opts) {
+		if (!window.JodImageCropper) return file;
+		try {
+			return await window.JodImageCropper.open(file, opts);
+		} catch (err) {
+			C.toast(err.message, "bad");
+			return null;
+		}
+	}
+	function uploadImage(path, blob, base) {
+		const form = new FormData();
+		const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+		form.append("file", blob, `${base}.${ext}`);
+		return C.api(path, { method: "POST", body: form });
+	}
+
 	/* Cast and crew rows */
 	function personRow(kind, p) {
 		const row = document.createElement("div");
@@ -445,14 +464,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 		row.querySelector('[data-p="name"]').addEventListener("input", () => { if (!row.dataset.photo) paint(); });
 		row.querySelector('input[type="file"]').addEventListener("change", async (e) => {
 			const file = e.target.files[0];
-			if (!file) return;
-			avatar.textContent = "\u2026";
-			const form = new FormData();
-			form.append("file", file);
-			try {
-				row.dataset.photo = (await C.api("/api/cinema/movies/photo", { method: "POST", body: form })).photo_url;
-			} catch (err) { C.toast(err.message, "bad"); }
 			e.target.value = "";
+			if (!file) return;
+			const name = row.querySelector('[data-p="name"]').value.trim();
+			const blob = await adjustImage(file, { ...PHOTO_CROP, title: name ? `Adjust ${name}'s photo` : "Adjust photo" });
+			if (!blob) return;
+			avatar.textContent = "\u2026";
+			try {
+				row.dataset.photo = (await uploadImage("/api/cinema/movies/photo", blob, "photo")).photo_url;
+			} catch (err) { C.toast(err.message, "bad"); }
 			paint();
 		});
 		row.querySelector(".td-row-remove").addEventListener("click", () => row.remove());
@@ -530,12 +550,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 	});
 	$("tdMoviePoster").addEventListener("change", async () => {
 		const file = $("tdMoviePoster").files[0];
+		$("tdMoviePoster").value = "";
 		if (!file) return;
+		const blob = await adjustImage(file, POSTER_CROP);
+		if (!blob) return;
 		$("tdMoviePosterPreview").textContent = "Uploading\u2026";
-		const form = new FormData();
-		form.append("file", file);
 		try {
-			const data = await C.api("/api/cinema/movies/poster", { method: "POST", body: form });
+			const data = await uploadImage("/api/cinema/movies/poster", blob, "poster");
 			$("tdMoviePosterUrl").value = data.poster_url;
 			$("tdMoviePosterPreview").innerHTML = `<img src="${esc(C.resolveMedia(data.poster_url))}" alt="Poster preview">`;
 		} catch (err) {
