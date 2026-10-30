@@ -140,9 +140,18 @@
 		return "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(id) + "?autoplay=1&rel=0&modestbranding=1&playsinline=1";
 	}
 
+	/* Same as _norm() in APIs/movies.py: the movie page key is "<title>-<language>", letters and digits only. */
+	function norm(text) {
+		return Array.from(String(text == null ? "" : text).toLowerCase()).filter((ch) => /[\p{L}\p{N}]/u.test(ch)).join("");
+	}
+
+	function movieKey(title, language) {
+		return norm(title) + "-" + norm(language);
+	}
+
 	function initials(name) {
 		return String(name || "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "?";
 	}
 
-	global.JodCinema = { origin, api, esc, money, time, day, istDateKey, resolveMedia, param, loggedIn, askLogin, toast, youtubeId, youtubeThumb, youtubeEmbed, initials };
+	global.JodCinema = { origin, api, esc, money, time, day, istDateKey, resolveMedia, param, loggedIn, askLogin, toast, youtubeId, youtubeThumb, youtubeEmbed, initials, movieKey };
 })(window);

@@ -1,5 +1,6 @@
 /* Movie booking pages: theatre dashboard, movies, seat booking, ticket. */
-.cinema-page main { padding: 1.5rem 0 3rem; }
+/* The site header is position: fixed, so content starts below it. */
+.cinema-page main { padding: calc(var(--site-header-height, 4.6rem) + 1.5rem) 0 3rem; }
 .cinema-wrap { width: min(100% - 2rem, 76rem); margin: 0 auto; }
 .cinema-page [hidden] { display: none !important; }
 
@@ -165,7 +166,7 @@
 .mv-day.is-on { border-color: #ff7508; background: #ff7508; color: #fff; }
 .mv-day.is-on span { color: rgba(255, 255, 255, 0.85); }
 .mv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 1rem; }
-.mv-card { display: flex; flex-direction: column; gap: 0.35rem; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.mv-card { display: flex; flex-direction: column; gap: 0.35rem; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
 .mv-card .mv-poster { width: 100%; border-radius: 0.9rem; font-size: 3rem; transition: transform 0.15s, box-shadow 0.15s; }
 .mv-card:hover .mv-poster, .mv-card.is-on .mv-poster { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(255, 117, 8, 0.22); }
 .mv-card.is-on .mv-poster { outline: 3px solid #ff7508; outline-offset: 2px; }
@@ -223,6 +224,43 @@
 	.mv-detail-head { flex-direction: column; }
 	.mv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Movie page */
+.mp-back { display: inline-flex; align-items: center; gap: 0.3rem; margin-bottom: 0.8rem; font-size: 0.88rem; font-weight: 700; color: #c2560a; text-decoration: none; }
+.mp-back:hover { text-decoration: underline; }
+.mp-hero { position: relative; overflow: hidden; border-radius: 1.4rem; background: #1b1511; color: #fff; }
+.mp-backdrop { position: absolute; inset: -2rem; background-size: cover; background-position: center; filter: blur(28px) saturate(1.2); opacity: 0.45; transform: scale(1.1); }
+.mp-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(27, 21, 17, 0.92) 0%, rgba(27, 21, 17, 0.7) 55%, rgba(27, 21, 17, 0.45) 100%); }
+.mp-hero-inner { position: relative; z-index: 1; display: flex; gap: 1.8rem; align-items: center; padding: 1.8rem; }
+.mv-poster.mp-poster { width: 13rem; border-radius: 1rem; font-size: 4rem; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); }
+.mp-info { display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
+.mp-info .mv-kicker { color: #ffb067; }
+.mp-info h1 { margin: 0; font-size: clamp(1.6rem, 3.5vw, 2.5rem); line-height: 1.1; color: #fff; }
+.mp-facts { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; }
+.mp-facts span { padding: 0.25rem 0.7rem; border-radius: 999px; background: rgba(255, 255, 255, 0.12); font-size: 0.8rem; font-weight: 700; }
+.mp-release { margin: 0; font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); }
+.mp-desc { margin: 0; max-width: 44rem; font-size: 0.95rem; line-height: 1.6; color: rgba(255, 255, 255, 0.85); }
+.mp-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 0.5rem; }
+.mp-book { padding: 0.75rem 1.6rem; border-radius: 0.8rem; background: #ff7508; color: #fff; font-weight: 800; text-decoration: none; box-shadow: 0 8px 22px rgba(255, 117, 8, 0.35); }
+.mp-book:hover { background: #e56600; }
+.mp-trailer-btn { padding: 0.75rem 1.3rem; border: 1.5px solid rgba(255, 255, 255, 0.45); border-radius: 0.8rem; background: rgba(255, 255, 255, 0.08); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+.mp-trailer-btn:hover { background: rgba(255, 255, 255, 0.18); }
+.mp-section { margin-top: 1.4rem; padding: 1.3rem; border-radius: 1.2rem; background: #fff; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05); scroll-margin-top: calc(var(--site-header-height, 4.6rem) + 1rem); }
+.mp-section h2 { margin: 0 0 0.8rem; font-size: 1.15rem; }
+.mp-shows-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.8rem; }
+.mp-shows-head h2 { margin: 0; }
+.mp-shows-head p { margin: 0.2rem 0 0; font-size: 0.85rem; color: rgba(37, 33, 28, 0.6); }
+.mp-empty { margin: 0; color: rgba(37, 33, 28, 0.6); }
+.mp-page .mv-theatre:first-child { border-top: 0; }
+@media (max-width: 700px) {
+	.mp-hero-inner { flex-direction: column; align-items: flex-start; gap: 1.1rem; padding: 1.2rem; }
+	.mv-poster.mp-poster { width: 9rem; }
+	.mp-hero::after { background: linear-gradient(180deg, rgba(27, 21, 17, 0.6) 0%, rgba(27, 21, 17, 0.92) 60%); }
+	.mp-section { padding: 1rem; }
+}
+html[data-theme="dark"] .mp-section { background: #1f1a15; color: #f6f0e8; }
+html[data-theme="dark"] .mp-shows-head p, html[data-theme="dark"] .mp-empty { color: rgba(246, 240, 232, 0.6); }
+html[data-theme="dark"] .mp-back { color: #FFA136; }
 
 /* Seat booking */
 .sb-head { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }

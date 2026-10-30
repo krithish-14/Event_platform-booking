@@ -34,4 +34,9 @@ const vid = "dQw4w9WgXcQ";
 ].forEach((link) => assert.strictEqual(C.youtubeId(link), null, link));
 
 assert.strictEqual(C.initials("  Lead   Actor Name "), "LA");
+
+// Movie page keys must equal APIs/movies.py: f"{_norm(title)}-{_norm(language)}".
+assert.strictEqual(C.movieKey("Jailer 2", "Tamil"), "jailer2-tamil");
+assert.strictEqual(C.movieKey("K.G.F: Chapter 2", "Kannada"), "kgfchapter2-kannada");
+assert.strictEqual(C.movieKey("\u0B9C\u0BC6\u0BAF\u0BBF\u0BB2\u0BB0\u0BCD 2", "Tamil"), "\u0B9C\u0BAF\u0BB2\u0BB02-tamil");
 console.log("youtube_link tests passed");

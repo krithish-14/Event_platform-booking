@@ -29,6 +29,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 		$("sbWhere").textContent = [d.theatre.name, d.screen_name, d.theatre.district].filter(Boolean).join(" \u00b7 ");
 		$("sbPoster").innerHTML = m.poster_url ? `<img src="${esc(C.resolveMedia(m.poster_url))}" alt="">` : `<span>${esc((m.title || "M").slice(0, 1))}</span>`;
 		document.title = `${m.title || "Movie"} \u2014 Book seats | JOD Events`;
+		if (m.title && m.language) {
+			$("sbBack").href = `movie.html?m=${encodeURIComponent(C.movieKey(m.title, m.language))}&day=${encodeURIComponent(C.istDateKey(d.starts_at))}#mpShows`;
+		}
 		$("sbLegend").innerHTML = SM.legendHtml(d.layout, d.prices);
 	}
 
