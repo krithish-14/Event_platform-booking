@@ -1,13 +1,36 @@
 /* "Host Your Event" asks first: event host or movie / theatre partner.
  * Event host keeps the existing account-setup flow; theatre partners go to
  * theatre-setup. Runs in the window capture phase so it decides before the
- * header's own host-link handlers. */
+ * header's own host-link handlers.
+ * Once JOD Events approves an account it skips the question: approved for one
+ * kind goes straight to that dashboard; approved for both picks a dashboard. */
 (function (global) {
 	"use strict";
 
 	var HOST_LINKS = "a[href*='host-your-event'], a[href*='account-setup'], [data-host-flow]";
 	var root = null;
 	var lastFocus = null;
+	var mode = "register";
+	var checking = false;
+	var STATUS_TIMEOUT_MS = 5000;
+	var TEXT = {
+		register: {
+			title: "What would you like to host?",
+			sub: "Choose one to start registration. Both follow the same three steps: your details, documents, and the agreement.",
+			event: "Register as event host &rarr;",
+			theatre: "Register your theatre &rarr;",
+			eventDesc: "Concerts, workshops, conferences, sports and celebrations.",
+			theatreDesc: "Register your cinema to list movie shows on JOD Events."
+		},
+		dashboards: {
+			title: "Open your dashboard",
+			sub: "You're approved as an event host and as a theatre partner. Pick the dashboard you want to manage.",
+			event: "Open event dashboard &rarr;",
+			theatre: "Open theatre dashboard &rarr;",
+			eventDesc: "Manage your events, tickets, attendees and payouts.",
+			theatreDesc: "Manage your screens, movies, shows and seat bookings."
+		}
+	};
 
 	var STYLE = "" +
 		".jod-hostpick{position:fixed;inset:0;z-index:10060;display:flex;align-items:center;justify-content:center;padding:1rem}" +
@@ -35,7 +58,9 @@
 		"html[data-theme=dark] .jod-hostpick-sub,html[data-theme=dark] .jod-hostpick-card span.d,html[data-theme=dark] .jod-hostpick-card ul{color:rgba(246,240,232,.66)}" +
 		"html[data-theme=dark] .jod-hostpick-close{background:rgba(255,255,255,.08)}" +
 		"html[data-theme=dark] .jod-hostpick-new{background:#f6f0e8;color:#15120f}" +
-		"html.jod-hostpick-open{overflow:hidden}";
+		"html.jod-hostpick-open{overflow:hidden}" +
+		"html.jod-hostpick-busy,html.jod-hostpick-busy *{cursor:progress!important}" +
+		".jod-hostpick[data-mode=dashboards] .jod-hostpick-new,.jod-hostpick[data-mode=dashboards] .jod-hostpick-card ul{display:none}";
 
 	function auth() { return global.JodAuth || null; }
 	function loggedIn() {
@@ -58,21 +83,21 @@
 			'<button type="button" class="jod-hostpick-close" data-hostpick-close aria-label="Close">&times;</button>' +
 			'<p class="jod-hostpick-kicker">List with JOD Events</p>' +
 			'<h2 class="jod-hostpick-title" id="jodHostPickTitle">What would you like to host?</h2>' +
-			'<p class="jod-hostpick-sub">Choose one to start registration. Both follow the same three steps: your details, documents, and the agreement.</p>' +
+			'<p class="jod-hostpick-sub" id="jodHostPickSub">Choose one to start registration. Both follow the same three steps: your details, documents, and the agreement.</p>' +
 			'<div class="jod-hostpick-grid">' +
 			'<button type="button" class="jod-hostpick-card" data-hostpick="event">' +
 			'<span class="jod-hostpick-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span>' +
 			"<strong>Event host</strong>" +
-			'<span class="d">Concerts, workshops, conferences, sports and celebrations.</span>' +
+			'<span class="d" data-hostpick-desc="event">Concerts, workshops, conferences, sports and celebrations.</span>' +
 			"<ul><li>Sell tickets and passes</li><li>Registration forms and check-in</li></ul>" +
-			'<span class="jod-hostpick-go">Register as event host &rarr;</span></button>' +
+			'<span class="jod-hostpick-go" data-hostpick-go="event">Register as event host &rarr;</span></button>' +
 			'<button type="button" class="jod-hostpick-card" data-hostpick="theatre">' +
 			'<span class="jod-hostpick-new">New</span>' +
 			'<span class="jod-hostpick-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="15" rx="2"/><path d="M2 9h20M7 5l2 4M12 5l2 4M17 5l2 4"/></svg></span>' +
 			"<strong>Movie / theatre partner</strong>" +
-			'<span class="d">Register your cinema to list movie shows on JOD Events.</span>' +
+			'<span class="d" data-hostpick-desc="theatre">Register your cinema to list movie shows on JOD Events.</span>' +
 			"<ul><li>Add your screens and seats</li><li>Cinema licence verified by our team</li></ul>" +
-			'<span class="jod-hostpick-go">Register your theatre &rarr;</span></button>' +
+			'<span class="jod-hostpick-go" data-hostpick-go="theatre">Register your theatre &rarr;</span></button>' +
 			"</div></div>";
 		document.body.appendChild(root);
 		root.addEventListener("click", function (e) {
@@ -84,8 +109,17 @@
 		return root;
 	}
 
-	function open() {
+	function open(nextMode) {
 		build();
+		mode = nextMode === "dashboards" ? "dashboards" : "register";
+		var t = TEXT[mode];
+		root.setAttribute("data-mode", mode);
+		root.querySelector("#jodHostPickTitle").textContent = t.title;
+		root.querySelector("#jodHostPickSub").textContent = t.sub;
+		root.querySelector('[data-hostpick-go="event"]').innerHTML = t.event;
+		root.querySelector('[data-hostpick-go="theatre"]').innerHTML = t.theatre;
+		root.querySelector('[data-hostpick-desc="event"]').textContent = t.eventDesc;
+		root.querySelector('[data-hostpick-desc="theatre"]').textContent = t.theatreDesc;
 		lastFocus = document.activeElement;
 		root.hidden = false;
 		document.documentElement.classList.add("jod-hostpick-open");
@@ -103,6 +137,10 @@
 	function choose(kind) {
 		close();
 		var a = auth();
+		if (kind === "theatre" && mode === "dashboards") {
+			global.location.href = "theatre-dashboard.html";
+			return;
+		}
 		if (kind === "theatre") {
 			if (loggedIn()) {
 				global.location.href = "theatre-setup.html";
@@ -125,6 +163,55 @@
 		}
 	}
 
+	/* ── Approval checks (a failed or slow check counts as "not approved") ── */
+	function withTimeout(promise) {
+		return Promise.race([
+			Promise.resolve(promise).catch(function () { return false; }),
+			new Promise(function (resolve) { setTimeout(function () { resolve(false); }, STATUS_TIMEOUT_MS); })
+		]);
+	}
+
+	function eventHostApproved() {
+		var a = auth();
+		if (!a || typeof a.fetchOrganizerAccount !== "function" || typeof a.canAccessHostDashboard !== "function") return Promise.resolve(false);
+		return a.fetchOrganizerAccount({ withMeta: true }).then(function (data) {
+			return Boolean(data && data.account && a.canAccessHostDashboard(data));
+		});
+	}
+
+	function theatreApproved() {
+		var a = auth();
+		if (!a || typeof a.fetchAuth !== "function") return Promise.resolve(false);
+		var base = String(a.API_BASE || "").replace(/\/$/, "");
+		return a.fetchAuth(base + "/api/theatres/registration", { headers: { Accept: "application/json" }, cache: "no-store", allowGuest: true })
+			.then(function (res) { return res.ok ? res.json() : null; })
+			.then(function (data) { return String((data && data.verification_status) || "").toUpperCase() === "VERIFIED"; });
+	}
+
+	function start() {
+		if (!loggedIn()) return open("register");
+		if (checking) return;
+		checking = true;
+		document.documentElement.classList.add("jod-hostpick-busy");
+		Promise.all([withTimeout(eventHostApproved()), withTimeout(theatreApproved())]).then(function (result) {
+			var event = result[0];
+			var theatre = result[1];
+			if (event && theatre) {
+				open("dashboards");
+			} else if (theatre) {
+				global.location.href = "theatre-dashboard.html";
+			} else if (event) {
+				mode = "register";
+				choose("event");
+			} else {
+				open("register");
+			}
+		}).finally(function () {
+			checking = false;
+			document.documentElement.classList.remove("jod-hostpick-busy");
+		});
+	}
+
 	global.addEventListener("click", function (e) {
 		if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 		var link = e.target && e.target.closest ? e.target.closest(HOST_LINKS) : null;
@@ -132,8 +219,8 @@
 		e.preventDefault();
 		e.stopPropagation();
 		e.stopImmediatePropagation();
-		open();
+		start();
 	}, true);
 
-	global.JodHostTypeChooser = { open: open, close: close, choose: choose };
+	global.JodHostTypeChooser = { open: open, close: close, choose: choose, start: start };
 })(window);

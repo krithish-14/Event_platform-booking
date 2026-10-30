@@ -11,7 +11,7 @@
 
 	if (!document.querySelector("script[data-jod-host-chooser]")) {
 		const hostChooser = document.createElement("script");
-		hostChooser.src = "/js/host-type-chooser.js?v=1";
+		hostChooser.src = "/js/host-type-chooser.js?v=2";
 		hostChooser.defer = true;
 		hostChooser.setAttribute("data-jod-host-chooser", "1");
 		document.head.appendChild(hostChooser);
