@@ -434,6 +434,14 @@ html[data-theme="dark"] .td-btn.is-ghost { border-color: rgba(255, 255, 255, 0.2
 .theatre-dash .td-day h4 { color: #2563eb; }
 .theatre-dash .td-fill i { background: #10b981; }
 .theatre-dash .td-modal-box { background: #fff; border-radius: 12px; }
+.theatre-dash .td-split.is-solo { grid-template-columns: minmax(0, 1fr); }
+.theatre-dash .td-card-head { gap: 1rem; flex-wrap: wrap; }
+.theatre-dash .td-card-head .td-inline-action { padding: 0.5rem 1rem; }
+.theatre-dash #tdShowList .td-row > div:first-child { flex: 1 1 auto; }
+.theatre-dash .td-edit-btn { flex: 0 0 auto; display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border: 1px solid var(--dash-border, #e2e8f0); border-radius: 8px; background: #fff; color: #2563eb; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.theatre-dash .td-edit-btn:hover, .theatre-dash .td-edit-btn.is-on { background: #eff6ff; border-color: #2563eb; }
+.theatre-dash .td-lock-hint { margin: 0 0 0.8rem; padding: 0.55rem 0.75rem; border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+.theatre-dash #tdShowForm select:disabled, .theatre-dash #tdShowForm input:disabled { opacity: 0.6; cursor: not-allowed; }
 @media (max-width: 1100px) {
 	.theatre-dash .td-split, .theatre-dash .td-grid-2 { grid-template-columns: 1fr; }
 }
@@ -457,3 +465,6 @@ html[data-theme="dark"] .theatre-dash .td-trailer-thumb { background: #15120f; }
 html[data-theme="dark"] .theatre-dash .td-row-remove:hover { background: rgba(220, 38, 38, 0.15); }
 html[data-theme="dark"] .theatre-dash .td-movie-extras { color: #FFA136 !important; }
 html[data-theme="dark"] .mv-person small { color: rgba(246, 240, 232, 0.6); }
+html[data-theme="dark"] .theatre-dash .td-edit-btn { background: #15120f; border-color: rgba(255, 138, 31, 0.24); color: #FFA136; }
+html[data-theme="dark"] .theatre-dash .td-edit-btn:hover, html[data-theme="dark"] .theatre-dash .td-edit-btn.is-on { background: rgba(255, 117, 8, 0.14); border-color: #FF7508; }
+html[data-theme="dark"] .theatre-dash .td-lock-hint { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.35); color: #fcd34d; }

@@ -622,33 +622,130 @@ document.addEventListener("DOMContentLoaded", async () => {
 		$("tdShowTimes").appendChild(wrap);
 	}
 	$("tdAddTime").addEventListener("click", () => addTimeInput(""));
+
+	function todayIst() {
+		return new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+	}
+
+	/* The form shows only while scheduling or editing; otherwise the list uses the full width. */
+	function upcomingShows() {
+		return state.shows.filter((s) => s.status === "scheduled");
+	}
+	function setShowForm(open) {
+		$("tdShowForm").hidden = !open;
+		$("tdShowSplit").classList.toggle("is-solo", !open);
+		$("tdShowNew").hidden = open;
+		$("tdShowCancel").hidden = !upcomingShows().length && !$("tdShowEditId").value;
+		if (open) $("tdShowForm").scrollIntoView({ behavior: "smooth", block: "start" });
+	}
+	function resetShowForm() {
+		$("tdShowEditId").value = "";
+		$("tdShowFormTitle").textContent = "Schedule shows";
+		$("tdShowFormSub").textContent = "Pick a movie and screen, add one or more show times, and set the ticket price for each seat category.";
+		$("tdShowSubmit").textContent = "Schedule";
+		$("tdShowLocked").hidden = true;
+		["tdShowMovie", "tdShowScreen", "tdShowDate"].forEach((id) => { $(id).disabled = false; });
+		$("tdAddTime").hidden = false;
+		$("tdShowTimes").innerHTML = "";
+		addTimeInput("");
+		$("tdShowDate").value = todayIst();
+		$("tdShowResult").innerHTML = "";
+	}
+	function openNewShow() {
+		fillShowSelectsOnce();
+		resetShowForm();
+		setShowForm(true);
+	}
+	function openEditShow(id) {
+		const s = state.shows.find((x) => x.id === id);
+		if (!s) return;
+		fillShowSelectsOnce();
+		resetShowForm();
+		const [date, time] = String(s.starts_at_local || "").split("T");
+		$("tdShowEditId").value = s.id;
+		$("tdShowFormTitle").textContent = `Edit ${s.movie_title} \u00b7 ${C.time(s.starts_at)}`;
+		$("tdShowFormSub").textContent = "Change the movie, screen, time or ticket prices for this show.";
+		$("tdShowSubmit").textContent = "Save changes";
+		$("tdShowMovie").value = s.movie_id;
+		$("tdShowScreen").value = s.screen_id;
+		renderPriceInputs();
+		$("tdShowDate").value = date || todayIst();
+		$("tdShowTimes").innerHTML = "";
+		addTimeInput(time || "");
+		$("tdAddTime").hidden = true;
+		$("tdShowPrices").querySelectorAll("[data-price]").forEach((i) => {
+			const v = (s.prices || {})[i.getAttribute("data-price")];
+			if (v != null) i.value = v;
+		});
+		const locked = s.sold > 0;
+		$("tdShowLocked").hidden = !locked;
+		["tdShowMovie", "tdShowScreen", "tdShowDate"].forEach((fid) => { $(fid).disabled = locked; });
+		$("tdShowTimes").querySelectorAll("input, button").forEach((x) => { x.disabled = locked; });
+		setShowForm(true);
+	}
+	$("tdShowNew").addEventListener("click", openNewShow);
+	$("tdShowCancel").addEventListener("click", () => {
+		resetShowForm();
+		setShowForm(!upcomingShows().length);
+	});
+
 	$("tdShowForm").addEventListener("submit", async (e) => {
 		e.preventDefault();
+		const editId = $("tdShowEditId").value;
 		const date = $("tdShowDate").value;
 		const times = Array.from($("tdShowTimes").querySelectorAll("input")).map((i) => i.value).filter(Boolean);
 		const prices = {};
 		$("tdShowPrices").querySelectorAll("[data-price]").forEach((i) => { prices[i.getAttribute("data-price")] = Number(i.value); });
 		if (!date || !times.length) return C.toast("Pick a date and at least one show time.", "bad");
+		const body = (t) => ({ screen_id: $("tdShowScreen").value, movie_id: $("tdShowMovie").value, starts_at: `${date}T${t}`, prices });
 		const btn = $("tdShowSubmit");
 		btn.disabled = true;
+		if (editId) {
+			try {
+				const updated = await C.api(`/api/cinema/shows/${editId}`, { method: "PUT", json: body(times[0]) });
+				state.shows = state.shows.map((x) => (x.id === editId ? updated : x));
+				state.shows.sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at)));
+				resetShowForm();
+				setShowForm(false);
+				renderShows();
+				C.toast("Show updated.", "ok");
+			} catch (err) {
+				C.toast(err.message, "bad");
+			} finally {
+				btn.disabled = false;
+			}
+			return;
+		}
 		const results = [];
+		let failed = 0;
 		for (const t of times) {
 			try {
-				const show = await C.api("/api/cinema/shows", { method: "POST", json: { screen_id: $("tdShowScreen").value, movie_id: $("tdShowMovie").value, starts_at: `${date}T${t}`, prices } });
+				const show = await C.api("/api/cinema/shows", { method: "POST", json: body(t) });
 				state.shows.push(show);
 				results.push(`<li class="is-ok">${esc(t)} \u2014 scheduled</li>`);
 			} catch (err) {
+				failed += 1;
 				results.push(`<li class="is-bad">${esc(t)} \u2014 ${esc(err.message)}</li>`);
 			}
 		}
 		btn.disabled = false;
-		$("tdShowResult").innerHTML = `<ul>${results.join("")}</ul>`;
 		state.shows.sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at)));
-		renderShows();
+		const scheduled = times.length - failed;
+		if (failed) {
+			$("tdShowResult").innerHTML = `<ul>${results.join("")}</ul>`;
+			renderShows(true);
+		} else {
+			resetShowForm();
+			renderShows();
+			C.toast(scheduled === 1 ? "Show scheduled." : `${scheduled} shows scheduled.`, "ok");
+		}
 	});
 
-	function renderShows() {
+	const EDIT_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+	function renderShows(keepFormOpen) {
 		fillShowSelectsOnce();
+		if (!keepFormOpen && !$("tdShowEditId").value) setShowForm(!upcomingShows().length);
 		const groups = {};
 		state.shows.filter((s) => s.status === "scheduled").forEach((s) => {
 			const key = C.istDateKey(s.starts_at);
@@ -663,12 +760,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 						<small>${esc(s.screen_name)} \u00b7 ${esc(s.format)} \u00b7 ${Object.entries(s.prices || {}).map(([k2, v]) => `${esc(categoryName(s.screen_id, k2))} ${C.money(v)}`).join(", ")}</small></div>
 					<div class="td-row-end"><span class="td-fill"><i style="width:${s.seat_count ? Math.round((s.sold / s.seat_count) * 100) : 0}%"></i></span><small>${s.sold}/${s.seat_count} sold</small>
 						<div class="td-movie-actions"><button type="button" class="td-link" data-show-seats="${s.id}">Seats</button>
-						<button type="button" class="td-link" data-show-prices="${s.id}">Prices</button>
 						<button type="button" class="td-link is-danger" data-show-cancel="${s.id}">Cancel</button></div></div>
+					<button type="button" class="td-edit-btn${s.id === $("tdShowEditId").value ? " is-on" : ""}" data-show-edit="${s.id}" aria-label="Edit ${esc(s.movie_title)} at ${esc(C.time(s.starts_at))}" title="Edit show">${EDIT_ICON}</button>
 				</div>`).join("")}</section>`).join("") : '<p class="td-empty">No upcoming shows. Use the form to schedule one.</p>';
 		$("tdShowList").querySelectorAll("[data-show-seats]").forEach((b) => b.addEventListener("click", () => openShowSeats(b.getAttribute("data-show-seats"))));
 		$("tdShowList").querySelectorAll("[data-show-cancel]").forEach((b) => b.addEventListener("click", () => cancelShow(b.getAttribute("data-show-cancel"))));
-		$("tdShowList").querySelectorAll("[data-show-prices]").forEach((b) => b.addEventListener("click", () => editPrices(b.getAttribute("data-show-prices"))));
+		$("tdShowList").querySelectorAll("[data-show-edit]").forEach((b) => b.addEventListener("click", () => {
+			openEditShow(b.getAttribute("data-show-edit"));
+			renderShowsHighlight();
+		}));
+	}
+	function renderShowsHighlight() {
+		const id = $("tdShowEditId").value;
+		$("tdShowList").querySelectorAll("[data-show-edit]").forEach((b) => b.classList.toggle("is-on", b.getAttribute("data-show-edit") === id));
 	}
 	function categoryName(screenId, catId) {
 		const screen = screenById(screenId);
@@ -698,26 +802,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 		try {
 			await C.api(`/api/cinema/shows/${id}/cancel`, { method: "POST" });
 			s.status = "cancelled";
+			if ($("tdShowEditId").value === id) resetShowForm();
 			renderShows();
 			C.toast("Show cancelled.", "ok");
 		} catch (err) { C.toast(err.message, "bad"); }
-	}
-	function editPrices(id) {
-		const s = state.shows.find((x) => x.id === id);
-		if (!s) return;
-		openModal("Update prices", `<form id="tdPriceForm" class="td-form">${Object.entries(s.prices).map(([k, v]) => `<label class="td-price"><span>${esc(categoryName(s.screen_id, k))}</span><input type="number" class="setup-input" min="1" max="10000" required data-price="${esc(k)}" value="${esc(v)}"></label>`).join("")}<p class="td-hint">New prices apply to bookings made from now on.</p><button class="publish-gradient-btn" type="submit">Save prices</button></form>`);
-		$("tdPriceForm").addEventListener("submit", async (e) => {
-			e.preventDefault();
-			const prices = {};
-			$("tdPriceForm").querySelectorAll("[data-price]").forEach((i) => { prices[i.getAttribute("data-price")] = Number(i.value); });
-			try {
-				const updated = await C.api(`/api/cinema/shows/${id}/prices`, { method: "PUT", json: { prices } });
-				s.prices = updated.prices;
-				closeModal();
-				renderShows();
-				C.toast("Prices updated.", "ok");
-			} catch (err) { C.toast(err.message, "bad"); }
-		});
 	}
 
 	/* ── Bookings & check-in ──────────────────────────────── */
@@ -755,10 +843,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 	if (state.screens[0]) pickScreen(state.screens[0].id);
 	renderMovies();
 	fillMovieForm(null);
-	addTimeInput("");
-	const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
-	$("tdShowDate").min = today;
-	$("tdShowDate").value = today;
+	$("tdShowDate").min = todayIst();
+	resetShowForm();
 	const tab = C.param("tab");
 	showTab(["overview", "screens", "movies", "shows", "bookings"].includes(tab) ? tab : "overview");
 });

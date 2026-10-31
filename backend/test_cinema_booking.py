@@ -337,6 +337,42 @@ class CinemaFlowTests(unittest.TestCase):
         self.as_user(self.buyer)
         self.assertEqual(self.client.post(f"/api/movies/shows/{show['id']}/hold", json={"seats": ["A2"]}).status_code, 422)
 
+    def test_edit_show(self):
+        screen, movie, show = self.setup_show()
+        prices = {"classic": 150, "prime": 250}
+        other = self.client.post("/api/cinema/shows", json={"screen_id": screen["id"], "movie_id": movie["id"],
+                                                           "starts_at": self.ist(timedelta(days=2)), "prices": prices}).json()
+
+        moved = self.client.put(f"/api/cinema/shows/{show['id']}", json={"screen_id": screen["id"], "movie_id": movie["id"],
+                                                                           "starts_at": self.ist(timedelta(days=1, hours=4)), "prices": prices})
+        self.assertEqual(moved.status_code, 200, moved.text)
+        self.assertEqual(moved.json()["starts_at_local"], self.ist(timedelta(days=1, hours=4)))
+
+        clash = self.client.put(f"/api/cinema/shows/{show['id']}", json={"screen_id": screen["id"], "movie_id": movie["id"],
+                                                                           "starts_at": self.ist(timedelta(days=2, hours=1)), "prices": prices})
+        self.assertEqual(clash.status_code, 409)
+        self.assertIn("busy", clash.json()["detail"])
+
+        screen2 = self.client.get("/api/cinema/screens").json()["screens"][1]
+        cats = {c["id"]: 200 for c in screen2["layout"]["categories"]}
+        other_screen = self.client.put(f"/api/cinema/shows/{other['id']}", json={"screen_id": screen2["id"], "movie_id": movie["id"],
+                                                                                 "starts_at": self.ist(timedelta(days=2)), "prices": cats})
+        self.assertEqual(other_screen.status_code, 200, other_screen.text)
+        self.assertEqual((other_screen.json()["screen_id"], other_screen.json()["seat_count"]), (screen2["id"], screen2["seat_count"]))
+
+        self.as_user(self.buyer)
+        self.assertEqual(self.client.post(f"/api/movies/shows/{show['id']}/hold", json={"seats": ["A1"]}).status_code, 200)
+        self.as_user(self.owner)
+        locked = self.client.put(f"/api/cinema/shows/{show['id']}", json={"screen_id": screen["id"], "movie_id": movie["id"],
+                                                                            "starts_at": self.ist(timedelta(days=3)), "prices": prices})
+        self.assertEqual(locked.status_code, 409)
+        self.assertIn("only its prices", locked.json()["detail"])
+        repriced = self.client.put(f"/api/cinema/shows/{show['id']}", json={"screen_id": screen["id"], "movie_id": movie["id"],
+                                                                              "starts_at": self.ist(timedelta(days=1, hours=4)),
+                                                                              "prices": {"classic": 180, "prime": 260}})
+        self.assertEqual(repriced.status_code, 200, repriced.text)
+        self.assertEqual(repriced.json()["prices"], {"classic": 180, "prime": 260})
+
     def test_cast_crew_and_trailers_saved_and_shown(self):
         _, movie, _ = self.setup_show()
         checks = []

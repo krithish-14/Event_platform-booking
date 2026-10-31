@@ -38,7 +38,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <link rel="preload" as="image" href="/images/JOD%20Events%20Logo.png" fetchpriority="high" />
 <link rel="stylesheet" href="css/fonts.css?v=2" />
 <script src="js/theme.js?v=30"></script> <script src="js/api-config.js?v=4"></script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" /> <meta name="description" content="Manage your cinema screens, seat layouts, movies, shows and bookings on JOD Events." /> <title>Theatre Dashboard - JOD Events</title> <link rel="icon" href="/favicon.ico" sizes="any" /><link rel="icon" type="image/png" href="/favicon.png" /><link rel="apple-touch-icon" href="/favicon.png" /> <link rel="stylesheet" href="css/organizer-dashboard.css?v=119" /> <link rel="stylesheet" href="css/cinema.css?v=5" />  </head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" /> <meta name="description" content="Manage your cinema screens, seat layouts, movies, shows and bookings on JOD Events." /> <title>Theatre Dashboard - JOD Events</title> <link rel="icon" href="/favicon.ico" sizes="any" /><link rel="icon" type="image/png" href="/favicon.png" /><link rel="apple-touch-icon" href="/favicon.png" /> <link rel="stylesheet" href="css/organizer-dashboard.css?v=119" /> <link rel="stylesheet" href="css/cinema.css?v=6" />  </head>
 <body class="dashboard-body theatre-dash">
 
 <!-- Google Tag Manager (noscript) -->
@@ -169,12 +169,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       </div>
 
       <div id="td-shows" class="tab-section td-panel">
-        <div class="td-split">
-          <form class="rich-form-container" id="tdShowForm">
+        <div class="td-split" id="tdShowSplit">
+          <form class="rich-form-container" id="tdShowForm" hidden>
             <span class="form-pill-badge">Shows</span>
-            <h2 class="rich-form-title">Schedule shows</h2>
-            <p class="rich-form-subtitle">Pick a movie and screen, add one or more show times, and set the ticket price for each seat category.</p>
+            <h2 class="rich-form-title" id="tdShowFormTitle">Schedule shows</h2>
+            <p class="rich-form-subtitle" id="tdShowFormSub">Pick a movie and screen, add one or more show times, and set the ticket price for each seat category.</p>
+            <input type="hidden" id="tdShowEditId">
             <div class="form-section-divider">1. Movie &amp; screen</div>
+            <p class="td-hint td-lock-hint" id="tdShowLocked" hidden>Tickets are already sold for this show, so only its prices can change.</p>
             <div class="setup-form-group"><label for="tdShowMovie">Movie</label><select id="tdShowMovie" class="setup-select" required></select></div>
             <div class="setup-form-group"><label for="tdShowScreen">Screen</label><select id="tdShowScreen" class="setup-select" required></select></div>
             <div class="form-section-divider">2. Date &amp; times</div>
@@ -184,10 +186,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <div class="form-section-divider">3. Ticket prices</div>
             <div class="td-prices" id="tdShowPrices"></div>
             <p class="td-hint">Shows on the same screen need 15 minutes between them. Customers pay exactly these prices; your payout is the price minus a 5% platform fee and 18% GST on that fee.</p>
-            <div class="td-form-actions"><button class="publish-gradient-btn" type="submit" id="tdShowSubmit">Schedule</button></div>
+            <div class="td-form-actions"><button class="btn-card-action" type="button" id="tdShowCancel">Close</button><button class="publish-gradient-btn" type="submit" id="tdShowSubmit">Schedule</button></div>
             <div class="td-result" id="tdShowResult"></div>
           </form>
-          <div class="dash-card"><div class="dash-card-header"><h3 class="dash-card-title">Upcoming shows</h3></div><div id="tdShowList"></div></div>
+          <div class="dash-card"><div class="dash-card-header td-card-head"><h3 class="dash-card-title">Upcoming shows</h3><button type="button" class="publish-gradient-btn td-inline-action" id="tdShowNew">+ Schedule show</button></div><div id="tdShowList"></div></div>
         </div>
       </div>
 
@@ -208,6 +210,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   </main>
 </div>
 <div class="td-modal" id="tdModal" hidden><div class="td-modal-backdrop" data-td-close></div><div class="td-modal-box" role="dialog" aria-modal="true" aria-labelledby="tdModalTitle"><div class="td-modal-head"><h3 id="tdModalTitle"></h3><button type="button" class="td-icon-btn" data-td-close aria-label="Close">&times;</button></div><div id="tdModalBody"></div></div></div>
-<script src="js/include.js?v=61"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=58"></script> <script src="js/cinema-common.js?v=3"></script> <script src="js/seat-map.js?v=1"></script> <script src="js/image-cropper.js?v=1"></script> <script src="js/theatre-dashboard.js?v=4"></script>
+<script src="js/include.js?v=61"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=58"></script> <script src="js/cinema-common.js?v=3"></script> <script src="js/seat-map.js?v=1"></script> <script src="js/image-cropper.js?v=1"></script> <script src="js/theatre-dashboard.js?v=5"></script>
 </body>
 </html>

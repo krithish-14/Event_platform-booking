@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from Authentication.dependencies import get_current_user
 from Models.base import get_db
-from Models.cinema import CinemaBooking, CinemaMovie, CinemaScreen, CinemaShow
+from Models.cinema import CinemaBooking, CinemaMovie, CinemaScreen, CinemaShow, CinemaShowSeat
 from Models.theatre_partner import TheatrePartner
 from Models.user import User
 from Services import cinema_booking as cb
@@ -461,6 +461,16 @@ def list_shows(
     return {"shows": [show_out(s, screens.get(s.screen_id), movies.get(s.movie_id), sold.get(str(s.id), 0)) for s in shows]}
 
 
+def _ensure_free(db, screen: CinemaScreen, starts, ends, exclude_show_id=None) -> None:
+    clash = cb.find_overlap(db, screen.id, starts, ends, exclude_show_id=exclude_show_id)
+    if clash:
+        other = db.query(CinemaMovie).filter(CinemaMovie.id == clash.movie_id).first()
+        raise HTTPException(status_code=409, detail=(
+            f"{screen.name} is busy then: {other.title if other else 'another show'} at "
+            f"{cb.utc_to_ist_local(clash.starts_at).replace('T', ' ')}. Leave {cb.CLEANING_BUFFER_MIN} minutes between shows."
+        ))
+
+
 @router.post("/shows")
 def create_show(payload: ShowCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     partner = verified_partner(db, current_user)
@@ -477,19 +487,60 @@ def create_show(payload: ShowCreate, db: Session = Depends(get_db), current_user
     if starts <= utc_now() + timedelta(minutes=10):
         raise HTTPException(status_code=422, detail="Schedule shows at least 10 minutes from now.")
     ends = starts + timedelta(minutes=movie.duration_min)
-    clash = cb.find_overlap(db, screen.id, starts, ends)
-    if clash:
-        other = db.query(CinemaMovie).filter(CinemaMovie.id == clash.movie_id).first()
-        raise HTTPException(status_code=409, detail=(
-            f"{screen.name} is busy then: {other.title if other else 'another show'} at "
-            f"{cb.utc_to_ist_local(clash.starts_at).replace('T', ' ')}. Leave {cb.CLEANING_BUFFER_MIN} minutes between shows."
-        ))
+    _ensure_free(db, screen, starts, ends)
     show = CinemaShow(partner_id=partner.id, screen_id=screen.id, movie_id=movie.id, starts_at=starts, ends_at=ends,
                       prices_json=json.dumps(prices), layout_json=json.dumps(layout), seat_count=len(seats))
     db.add(show)
     db.commit()
     db.refresh(show)
     return show_out(show, screen, movie)
+
+
+@router.put("/shows/{show_id}")
+def update_show(show_id: str, payload: ShowCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Edit a show. Movie, screen and time can change only while no seat is booked or held."""
+    partner = verified_partner(db, current_user)
+    show = _owned(db, CinemaShow, partner, show_id, "Show")
+    now = utc_now()
+    if show.status != "scheduled":
+        raise HTTPException(status_code=409, detail="This show is cancelled.")
+    if show.starts_at <= now:
+        raise HTTPException(status_code=409, detail="This show has already started.")
+    screen = _owned(db, CinemaScreen, partner, payload.screen_id, "Screen")
+    movie = _owned(db, CinemaMovie, partner, payload.movie_id, "Movie")
+    try:
+        starts = cb.ist_local_to_utc(payload.starts_at)
+    except cb.BookingError as exc:
+        _fail(exc)
+    moved = screen.id != show.screen_id or movie.id != show.movie_id or starts != show.starts_at
+    if moved:
+        cb.purge_expired_holds(db, show.id, now)
+        if db.query(CinemaShowSeat.id).filter(CinemaShowSeat.show_id == show.id).first():
+            raise HTTPException(status_code=409, detail=(
+                "Seats are already booked or being booked for this show, so only its prices can change. "
+                "Raise a Help & Support request if the show must move."
+            ))
+        if screen.status != "active" or movie.status != "active":
+            raise HTTPException(status_code=409, detail="Pick an active screen and movie.")
+        if starts <= now + timedelta(minutes=10):
+            raise HTTPException(status_code=422, detail="Schedule shows at least 10 minutes from now.")
+        ends = starts + timedelta(minutes=movie.duration_min)
+        _ensure_free(db, screen, starts, ends, exclude_show_id=show.id)
+        if screen.id != show.screen_id:
+            try:
+                layout, seats = cb.normalize_layout(screen.layout_json)
+            except cb.BookingError as exc:
+                _fail(exc)
+            show.layout_json = json.dumps(layout)
+            show.seat_count = len(seats)
+        show.screen_id, show.movie_id, show.starts_at, show.ends_at = screen.id, movie.id, starts, ends
+    try:
+        show.prices_json = json.dumps(cb.clean_prices(payload.prices, json.loads(show.layout_json)))
+    except cb.BookingError as exc:
+        _fail(exc)
+    db.commit()
+    db.refresh(show)
+    return show_out(show, screen, movie, _sold_counts(db, [show.id]).get(str(show.id), 0))
 
 
 @router.put("/shows/{show_id}/prices")
