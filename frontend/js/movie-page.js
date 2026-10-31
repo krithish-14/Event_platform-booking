@@ -5,7 +5,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 	const $ = (id) => document.getElementById(id);
 	const esc = C.esc;
 	const key = C.param("m") || "";
-	const state = { movie: null, day: C.param("day"), region: null, nationwide: false };
+	const listParam = (name) => new Set((C.param(name) || "").split(",").map((v) => v.trim()).filter(Boolean));
+	const state = { movie: null, day: C.param("day"), region: null, nationwide: false, times: listParam("time"), screens: listParam("screen") };
 
 	function show(id) {
 		["mpLoading", "mpMissing", "mpApp"].forEach((x) => { $(x).hidden = x !== id; });
@@ -227,10 +228,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 			state.day = b.getAttribute("data-day");
 			renderShows();
 		}));
-		const theatres = state.movie.theatres
-			.map((t) => ({ ...t, today: t.shows.filter((s) => C.istDateKey(s.starts_at) === state.day) }))
-			.filter((t) => t.today.length);
-		$("mpTheatres").innerHTML = theatres.map((t) => `
+		const filtered = state.times.size > 0 || state.screens.size > 0;
+		const keep = (s) => (!state.times.size || state.times.has(C.timeSlot(s.starts_at))) && (!state.screens.size || state.screens.has(s.format));
+		const onDay = state.movie.theatres.map((t) => ({ ...t, today: t.shows.filter((s) => C.istDateKey(s.starts_at) === state.day) }));
+		const theatres = onDay.map((t) => ({ ...t, today: t.today.filter(keep) })).filter((t) => t.today.length);
+		const hidden = onDay.reduce((n, t) => n + t.today.length, 0) - theatres.reduce((n, t) => n + t.today.length, 0);
+		const labels = [...[...state.times].map((id) => (C.TIME_SLOTS.find((t) => t.id === id) || { label: id }).label), ...state.screens];
+		const note = filtered
+			? `<div class="mp-filter-note"><span>${theatres.length ? "Showing" : "No"} <strong>${esc(labels.join(", "))}</strong> shows${theatres.length ? "" : " on this day"}${hidden ? ` \u00b7 ${hidden} other ${hidden === 1 ? "show" : "shows"} hidden` : ""}</span><button type="button" class="mv-link" id="mpShowAll">Show all times</button></div>`
+			: "";
+		$("mpTheatres").innerHTML = note + theatres.map((t) => `
 			<div class="mv-theatre">
 				<div class="mv-theatre-name"><strong>${esc(t.name)}</strong><small>${esc([t.address, t.district].filter(Boolean).join(", "))}</small></div>
 				<div class="mv-times">${t.today.map((s) => {
@@ -239,6 +246,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 						<strong>${esc(C.time(s.starts_at))}</strong><span>${esc(s.format)}${s.min_price ? ` \u00b7 from ${C.money(s.min_price)}` : ""}</span><em>${esc(label)}</em></a>`;
 				}).join("")}</div>
 			</div>`).join("");
+		const showAll = $("mpShowAll");
+		if (showAll) showAll.addEventListener("click", () => {
+			state.times.clear();
+			state.screens.clear();
+			const qs = new URLSearchParams(window.location.search);
+			qs.delete("time");
+			qs.delete("screen");
+			window.history.replaceState(null, "", window.location.pathname + "?" + qs.toString());
+			renderShows();
+		});
 	}
 
 	/* ── Load ────────────────────────────────────────────── */

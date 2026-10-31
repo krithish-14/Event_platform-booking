@@ -73,6 +73,46 @@
 		return ist.toISOString().slice(0, 10);
 	}
 
+	const TIME_SLOTS = [
+		{ id: "morning", label: "Morning", hint: "Before 12 PM" },
+		{ id: "afternoon", label: "Afternoon", hint: "12 \u2013 4 PM" },
+		{ id: "evening", label: "Evening", hint: "4 \u2013 7 PM" },
+		{ id: "night", label: "Night", hint: "After 7 PM" },
+	];
+
+	function timeSlot(iso) {
+		const d = asDate(iso);
+		if (!d) return "";
+		const hour = new Date(d.getTime() + 330 * 60000).getUTCHours();
+		if (hour >= 5 && hour < 12) return "morning";
+		if (hour >= 12 && hour < 16) return "afternoon";
+		if (hour >= 16 && hour < 19) return "evening";
+		return "night";
+	}
+
+	const GENRE_WORDS = new Set(["action", "adventure", "animation", "biography", "biopic", "comedy", "crime", "devotional", "documentary",
+		"drama", "family", "fantasy", "historical", "history", "horror", "musical", "mystery", "mythology", "period", "political",
+		"romance", "romantic", "sci-fi", "social", "sports", "suspense", "thriller", "war", "western"]);
+
+	function titleCase(text) {
+		return text.toLowerCase().replace(/(^|[\s-])([a-z])/g, (m, sep, ch) => sep + ch.toUpperCase()).replace(/^Sci-Fi$/i, "Sci-Fi");
+	}
+
+	/* "Action, Drama" / "Action Comedy Thriller / Crime" -> ["Action", "Comedy", "Thriller", "Crime"]; "Science Fiction" stays whole. */
+	function splitGenres(text) {
+		const out = [];
+		String(text || "").split(/[,/|&;+]+/).forEach((part) => {
+			const words = part.trim().split(/\s+/).filter(Boolean);
+			if (!words.length) return;
+			const pieces = words.length > 1 && words.every((w) => GENRE_WORDS.has(w.toLowerCase())) ? words : [words.join(" ")];
+			pieces.forEach((p) => {
+				const name = titleCase(p);
+				if (!out.includes(name)) out.push(name);
+			});
+		});
+		return out;
+	}
+
 	function resolveMedia(url) {
 		if (!url) return "";
 		if (/^https?:\/\//i.test(url)) return url;
@@ -153,5 +193,5 @@
 		return String(name || "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "?";
 	}
 
-	global.JodCinema = { origin, api, esc, money, time, day, istDateKey, resolveMedia, param, loggedIn, askLogin, toast, youtubeId, youtubeThumb, youtubeEmbed, initials, movieKey };
+	global.JodCinema = { origin, api, esc, money, time, day, istDateKey, TIME_SLOTS, timeSlot, splitGenres, resolveMedia, param, loggedIn, askLogin, toast, youtubeId, youtubeThumb, youtubeEmbed, initials, movieKey };
 })(window);
