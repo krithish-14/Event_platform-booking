@@ -4,6 +4,7 @@ Theatre dashboard API (approved theatre partners only), mounted at /api/cinema.
 
 import json
 import math
+import re
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -590,7 +591,62 @@ def owner_show_seats(show_id: str, db: Session = Depends(get_db), current_user: 
 # ── Bookings and check-in ──────────────────────────────────────
 
 class CheckinIn(BaseModel):
-    code: str = Field(..., min_length=4, max_length=80)
+    code: str = Field(..., min_length=4, max_length=500)
+    force: bool = False  # check in even though the show is not around now
+
+
+# Entry opens this long before a show starts and closes this long after it ends.
+ENTRY_OPENS_BEFORE = timedelta(hours=2)
+ENTRY_CLOSES_AFTER = timedelta(minutes=30)
+_SCAN_TOKEN_RE = re.compile(r"MOVQR-[A-Za-z0-9_-]{8,}")
+_BOOKING_CODE_RE = re.compile(r"MOV-[A-Z0-9]{6,}", re.I)
+
+
+def _scan_candidates(raw: str) -> List[str]:
+    """The ticket QR holds the token; scanners sometimes add a URL or text around it."""
+    text = (raw or "").strip()
+    found = _SCAN_TOKEN_RE.findall(text) + [m.upper() for m in _BOOKING_CODE_RE.findall(text)]
+    return found or [text, text.upper()]
+
+
+def _find_ticket(db, partner: TheatrePartner, raw: str) -> CinemaBooking:
+    candidates = _scan_candidates(raw)
+    booking = (
+        db.query(CinemaBooking)
+        .filter(CinemaBooking.partner_id == partner.id, or_(CinemaBooking.qr_token.in_(candidates), CinemaBooking.booking_code.in_(candidates)))
+        .first()
+    )
+    if not booking:
+        raise HTTPException(status_code=404, detail="No ticket found for this code at your theatre.")
+    if booking.status == "payment_conflict":
+        raise HTTPException(status_code=409, detail="This booking's payment needs a refund, so it is not a valid ticket. Ask the customer to contact support.")
+    if booking.status != "confirmed":
+        raise HTTPException(status_code=404, detail="This booking was never paid, so it is not a valid ticket.")
+    return booking
+
+
+def _entry_window(show: Optional[CinemaShow], now) -> dict:
+    if not show:
+        return {"entry_ok": False, "entry_note": "The show for this ticket no longer exists."}
+    if show.status != "scheduled":
+        return {"entry_ok": False, "entry_note": "This show was cancelled."}
+    if now < show.starts_at - ENTRY_OPENS_BEFORE:
+        return {"entry_ok": False, "entry_note": "Entry opens 2 hours before the show. This ticket is for a later show."}
+    if now > show.ends_at + ENTRY_CLOSES_AFTER:
+        return {"entry_ok": False, "entry_note": "This show has already ended."}
+    return {"entry_ok": True, "entry_note": None}
+
+
+def _ticket_view(db, booking: CinemaBooking) -> dict:
+    show = db.query(CinemaShow).filter(CinemaShow.id == booking.show_id).first()
+    screen = db.query(CinemaScreen).filter(CinemaScreen.id == show.screen_id).first() if show else None
+    movie = db.query(CinemaMovie).filter(CinemaMovie.id == show.movie_id).first() if show else None
+    return {
+        "booking": booking_out(booking),
+        "show": show_out(show, screen, movie) if show else None,
+        "already_checked_in": booking.checked_in_at is not None,
+        **_entry_window(show, utc_now()),
+    }
 
 
 @router.get("/bookings")
@@ -605,23 +661,41 @@ def list_bookings(
     if show_id:
         query = query.filter(CinemaBooking.show_id == _uuid(show_id))
     rows = query.order_by(CinemaBooking.confirmed_at.desc()).limit(limit).all()
-    return {"bookings": [booking_out(b) for b in rows]}
+    shows = {s.id: s for s in db.query(CinemaShow).filter(CinemaShow.id.in_(list({b.show_id for b in rows}) or [uuid.uuid4()])).all()}
+    movies = {m.id: m for m in db.query(CinemaMovie).filter(CinemaMovie.partner_id == partner.id).all()}
+    screens = {s.id: s for s in db.query(CinemaScreen).filter(CinemaScreen.partner_id == partner.id).all()}
+    out = []
+    for b in rows:
+        item = booking_out(b)
+        show = shows.get(b.show_id)
+        movie = movies.get(show.movie_id) if show else None
+        screen = screens.get(show.screen_id) if show else None
+        item.update({
+            "movie_title": movie.title if movie else None,
+            "starts_at": json_datetime(show.starts_at) if show else None,
+            "screen_name": screen.name if screen else None,
+        })
+        out.append(item)
+    return {"bookings": out}
+
+
+@router.post("/bookings/lookup")
+def lookup_booking(payload: CheckinIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Ticket details for a scanned QR or typed code, without checking it in."""
+    partner = verified_partner(db, current_user)
+    return _ticket_view(db, _find_ticket(db, partner, payload.code))
 
 
 @router.post("/bookings/checkin")
 def checkin_booking(payload: CheckinIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     partner = verified_partner(db, current_user)
-    code = payload.code.strip()
-    booking = (
-        db.query(CinemaBooking)
-        .filter(CinemaBooking.partner_id == partner.id, or_(CinemaBooking.qr_token == code, CinemaBooking.booking_code == code.upper()))
-        .first()
-    )
-    if not booking or booking.status != "confirmed":
-        raise HTTPException(status_code=404, detail="No confirmed ticket found for this code at your theatre.")
-    show = db.query(CinemaShow).filter(CinemaShow.id == booking.show_id).first()
-    already = booking.checked_in_at is not None
-    if not already:
+    booking = _find_ticket(db, partner, payload.code)
+    view = _ticket_view(db, booking)
+    if not view["already_checked_in"]:
+        if not view["entry_ok"] and not payload.force:
+            raise HTTPException(status_code=409, detail=view["entry_note"])
         booking.checked_in_at = utc_now()
         db.commit()
-    return {"already_checked_in": already, "booking": booking_out(booking), "show": show_out(show) if show else None}
+        view = _ticket_view(db, booking)
+        view["already_checked_in"] = False
+    return view

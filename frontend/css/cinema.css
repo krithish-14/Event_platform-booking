@@ -448,6 +448,57 @@ html[data-theme="dark"] .td-btn.is-ghost { border-color: rgba(255, 255, 255, 0.2
 .theatre-dash .td-day h4 { color: #2563eb; }
 .theatre-dash .td-fill i { background: #10b981; }
 .theatre-dash .td-modal-box { background: #fff; border-radius: 12px; }
+/* Check-in: camera scanner, ticket details and the live bookings list */
+.theatre-dash .td-scan { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 1rem; }
+.theatre-dash .td-scan-view { position: relative; overflow: hidden; aspect-ratio: 1 / 1; max-height: 22rem; border-radius: 12px; background: #0f172a; }
+.theatre-dash .td-scan-view video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.theatre-dash .td-scan-frame { position: absolute; top: 50%; left: 50%; width: 62%; aspect-ratio: 1 / 1; transform: translate(-50%, -50%); border-radius: 14px; box-shadow: 0 0 0 999px rgba(15, 23, 42, 0.45); border: 3px solid rgba(255, 255, 255, 0.9); animation: tdScanPulse 1.8s ease-in-out infinite; }
+@keyframes tdScanPulse { 50% { border-color: #60a5fa; } }
+.theatre-dash .td-scan-hint { position: absolute; left: 0; right: 0; bottom: 0.7rem; margin: 0; text-align: center; color: #fff; font-size: 0.85rem; font-weight: 700; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+.theatre-dash .td-scan-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.theatre-dash .td-scan-actions .publish-gradient-btn { flex: 1 1 12rem; margin: 0; }
+.theatre-dash .td-scan-actions .btn-card-action { width: auto; margin: 0; }
+.theatre-dash .td-scan-auto { display: flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; color: var(--dash-text-muted, #64748b); cursor: pointer; }
+.theatre-dash .td-scan-auto input { width: 1rem; height: 1rem; accent-color: #2563eb; }
+.theatre-dash .td-ticket { margin-bottom: 1rem; border: 1px solid var(--dash-border, #e2e8f0); border-radius: 12px; overflow: hidden; background: #fff; }
+.theatre-dash .td-ticket-status { padding: 0.7rem 1rem; font-weight: 800; font-size: 1rem; background: #f1f5f9; color: #334155; }
+.theatre-dash .td-ticket.is-ok .td-ticket-status { background: #dcfce7; color: #166534; }
+.theatre-dash .td-ticket.is-warn .td-ticket-status { background: #fef3c7; color: #92400e; }
+.theatre-dash .td-ticket.is-bad .td-ticket-status { background: #fee2e2; color: #991b1b; }
+.theatre-dash .td-ticket-note { margin: 0; padding: 0.6rem 1rem 0; font-size: 0.85rem; color: #92400e; }
+.theatre-dash .td-ticket.is-bad .td-ticket-note { color: #991b1b; }
+.theatre-dash .td-ticket-body { padding: 0.8rem 1rem 0.2rem; }
+.theatre-dash .td-ticket-movie { display: block; margin-bottom: 0.5rem; font-size: 1.15rem; }
+.theatre-dash .td-ticket-movie small { font-weight: 600; font-size: 0.8rem; color: var(--dash-text-muted, #64748b); }
+.theatre-dash .td-ticket dl { display: grid; gap: 0.45rem; margin: 0; }
+.theatre-dash .td-ticket dl > div { display: grid; grid-template-columns: 5rem minmax(0, 1fr); gap: 0.6rem; }
+.theatre-dash .td-ticket dt { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dash-text-muted, #64748b); padding-top: 0.1rem; }
+.theatre-dash .td-ticket dd { margin: 0; font-size: 0.92rem; font-weight: 600; }
+.theatre-dash .td-ticket dd small { font-weight: 500; color: var(--dash-text-muted, #64748b); }
+.theatre-dash .td-ticket-seats { font-size: 1.05rem !important; font-weight: 800 !important; }
+.theatre-dash .td-ticket-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.8rem 1rem 1rem; }
+.theatre-dash .td-ticket-actions .publish-gradient-btn { flex: 1 1 12rem; margin: 0; }
+.theatre-dash .td-ticket-actions .btn-card-action { width: auto; margin: 0; }
+.theatre-dash .td-force { border-color: #f59e0b !important; color: #92400e !important; }
+.theatre-dash .td-checkin-summary { margin: 0.2rem 0 0; font-size: 0.82rem; color: var(--dash-text-muted, #64748b); }
+.theatre-dash .td-booking { width: 100%; padding: 0.75rem 0.6rem; border: 0; border-bottom: 1px solid rgba(37, 33, 28, 0.08); border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background 0.2s; }
+.theatre-dash .td-booking:hover { background: #f8fafc; }
+.theatre-dash .td-booking.is-ok { background: #f0fdf4; }
+.theatre-dash .td-booking.is-flash { animation: tdFlash 2.4s ease-out; }
+@keyframes tdFlash { 0%, 30% { background: #bbf7d0; box-shadow: inset 4px 0 0 #16a34a; } 100% { background: #f0fdf4; } }
+.theatre-dash .td-booking-name { font-weight: 600; color: var(--dash-text-muted, #64748b); }
+.theatre-dash .td-chip { display: inline-block; margin-top: 0.2rem; padding: 0.15rem 0.55rem; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 0.72rem; font-style: normal; font-weight: 800; white-space: nowrap; }
+.theatre-dash .td-chip.is-ok { background: #dcfce7; color: #166534; }
+.theatre-dash .td-chip.is-bad { background: #fee2e2; color: #991b1b; }
+html[data-theme="dark"] .theatre-dash .td-ticket { background: #1c1814; border-color: rgba(255, 138, 31, 0.24); }
+html[data-theme="dark"] .theatre-dash .td-ticket-status { background: #15120f; color: #f6f0e8; }
+html[data-theme="dark"] .theatre-dash .td-ticket.is-ok .td-ticket-status { background: rgba(22, 163, 74, 0.2); color: #86efac; }
+html[data-theme="dark"] .theatre-dash .td-ticket.is-warn .td-ticket-status { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
+html[data-theme="dark"] .theatre-dash .td-ticket.is-bad .td-ticket-status { background: rgba(220, 38, 38, 0.2); color: #fca5a5; }
+html[data-theme="dark"] .theatre-dash .td-booking:hover { background: rgba(255, 255, 255, 0.04); }
+html[data-theme="dark"] .theatre-dash .td-booking.is-ok { background: rgba(22, 163, 74, 0.1); }
+html[data-theme="dark"] .theatre-dash .td-chip { background: rgba(255, 255, 255, 0.08); color: #e2e8f0; }
+html[data-theme="dark"] .theatre-dash .td-chip.is-ok { background: rgba(22, 163, 74, 0.22); color: #86efac; }
 .theatre-dash .td-split.is-solo { grid-template-columns: minmax(0, 1fr); }
 .theatre-dash .td-card-head { gap: 1rem; flex-wrap: wrap; }
 .theatre-dash .td-card-head .td-inline-action { padding: 0.5rem 1rem; }

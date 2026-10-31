@@ -255,7 +255,7 @@ class CinemaFlowTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/api/movies/shows/{show['id']}").json()["seats"], {"B1": "mine", "B2": "mine"})
 
     def test_payment_confirms_and_owner_checks_in(self):
-        _, _, show = self.setup_show()
+        _, _, show = self.setup_show(when=timedelta(hours=1))
         self.as_user(self.buyer)
         code = self.client.post(f"/api/movies/shows/{show['id']}/hold", json={"seats": ["B1", "B2"]}).json()["booking_code"]
         self.assertEqual(self.pay(code, signature="forged").status_code, 400)
@@ -415,6 +415,41 @@ class CinemaFlowTests(unittest.TestCase):
         self.assertEqual((card["cast"][0]["name"], card["crew"][0]["name"], card["trailers"][0]["youtube_id"]),
                          ("Lead Actor", "Some Director", "AAAAAAAAAAA"))
 
+
+    def test_scanner_lookup_then_checkin(self):
+        _, movie, soon = self.setup_show(when=timedelta(hours=1))
+        later = self.client.post("/api/cinema/shows", json={"screen_id": soon["screen_id"], "movie_id": movie["id"],
+                                                           "starts_at": self.ist(timedelta(days=2)), "prices": {"classic": 150, "prime": 250}}).json()
+        tickets = {}
+        for show in (soon, later):
+            self.as_user(self.buyer)
+            code = self.client.post(f"/api/movies/shows/{show['id']}/hold", json={"seats": ["A1"]}).json()["booking_code"]
+            tickets[show["id"]] = self.pay(code).json()
+        self.as_user(self.owner)
+        now_ticket, later_ticket = tickets[soon["id"]], tickets[later["id"]]
+
+        wrapped = f"https://jodevents.com/movie-ticket?token={now_ticket['qr_token']}"
+        seen = self.client.post("/api/cinema/bookings/lookup", json={"code": wrapped}).json()
+        self.assertEqual((seen["show"]["movie_title"], seen["show"]["screen_name"], seen["entry_ok"]), ("Example Movie", "Screen 1", True))
+        self.assertFalse(seen["already_checked_in"])
+        self.assertIsNone(seen["booking"]["checked_in_at"], "lookup must not check the ticket in")
+
+        done = self.client.post("/api/cinema/bookings/checkin", json={"code": now_ticket["qr_token"]}).json()
+        self.assertFalse(done["already_checked_in"])
+        self.assertIsNotNone(done["booking"]["checked_in_at"])
+        again = self.client.post("/api/cinema/bookings/lookup", json={"code": now_ticket["booking_code"].lower()}).json()
+        self.assertTrue(again["already_checked_in"])
+
+        early = self.client.post("/api/cinema/bookings/checkin", json={"code": later_ticket["qr_token"]})
+        self.assertEqual(early.status_code, 409)
+        self.assertIn("later show", early.json()["detail"])
+        forced = self.client.post("/api/cinema/bookings/checkin", json={"code": later_ticket["qr_token"], "force": True}).json()
+        self.assertIsNotNone(forced["booking"]["checked_in_at"])
+
+        self.assertEqual(self.client.post("/api/cinema/bookings/lookup", json={"code": "MOVQR-notarealtoken123"}).status_code, 404)
+        listed = {b["booking_code"]: b for b in self.client.get("/api/cinema/bookings").json()["bookings"]}
+        self.assertEqual(listed[now_ticket["booking_code"]]["movie_title"], "Example Movie")
+        self.assertIsNotNone(listed[now_ticket["booking_code"]]["starts_at"])
 
     def test_movie_by_key_for_link_previews(self):
         _, movie, show = self.setup_show()

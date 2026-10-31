@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		try { history.replaceState(null, "", "?tab=" + name); } catch (_) {}
 		if (name === "shows") renderShows();
 		if (name === "bookings") loadBookings();
+		else if (typeof stopScanner === "function") stopScanner();
 	}
 	function leaveEditorOk() {
 		if (state.dirty && !confirm("You have unsaved seat layout changes. Leave without saving?")) return false;
@@ -809,31 +810,230 @@ document.addEventListener("DOMContentLoaded", async () => {
 	}
 
 	/* ── Bookings & check-in ──────────────────────────────── */
+	let bookings = [];
+	let flashCode = "";
+	let ticket = null;
+	let ticketCode = "";
+
+	function seatsText(b) {
+		return (b.seats || []).map((x) => x.id).join(", ");
+	}
+	function bookingStatus(b) {
+		if (b.status === "payment_conflict") return ['<em class="td-chip is-bad">Needs refund</em>', "is-bad"];
+		if (b.checked_in_at) return [`<em class="td-chip is-ok">\u2713 Checked in ${esc(C.time(b.checked_in_at))}</em>`, "is-ok"];
+		return ['<em class="td-chip">Not checked in</em>', ""];
+	}
+	function renderBookings() {
+		const today = todayIst();
+		const todays = bookings.filter((b) => b.status === "confirmed" && b.starts_at && C.istDateKey(b.starts_at) === today);
+		const inside = todays.filter((b) => b.checked_in_at);
+		$("tdCheckinSummary").textContent = todays.length
+			? `Today: ${inside.length} of ${todays.length} bookings checked in (${inside.reduce((n, b) => n + (b.seat_count || 0), 0)} of ${todays.reduce((n, b) => n + (b.seat_count || 0), 0)} seats)`
+			: "No bookings for today's shows yet.";
+		$("tdBookingList").innerHTML = bookings.length ? bookings.map((b) => {
+			const [chip, cls] = bookingStatus(b);
+			const show = [b.movie_title, b.starts_at ? `${C.day(b.starts_at)}, ${C.time(b.starts_at)}` : "", b.screen_name].filter(Boolean).join(" \u00b7 ");
+			return `<button type="button" class="td-row td-booking ${cls}${b.booking_code === flashCode ? " is-flash" : ""}" data-booking="${esc(b.booking_code)}">
+				<div><strong>${esc(b.booking_code)} <span class="td-booking-name">${esc(b.name || b.email)}</span></strong>
+					<small>${esc(show)}</small><small>Seats ${esc(seatsText(b))}</small></div>
+				<div class="td-row-end"><span>${C.money(b.amount)} <small>(payout ${C.money(b.payout)})</small></span>${chip}</div>
+			</button>`;
+		}).join("") : '<p class="td-empty">No bookings yet.</p>';
+		$("tdBookingList").querySelectorAll("[data-booking]").forEach((row) => row.addEventListener("click", () => lookupTicket(row.getAttribute("data-booking"), false)));
+		if (flashCode) {
+			const row = $("tdBookingList").querySelector(".is-flash");
+			if (row) row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+			setTimeout(() => { flashCode = ""; const r = $("tdBookingList").querySelector(".is-flash"); if (r) r.classList.remove("is-flash"); }, 2500);
+		}
+	}
 	async function loadBookings() {
-		$("tdBookingList").innerHTML = "Loading\u2026";
+		if (!bookings.length) $("tdBookingList").innerHTML = "Loading\u2026";
 		try {
-			const data = await C.api("/api/cinema/bookings?limit=100");
-			const rows = data.bookings || [];
-			$("tdBookingList").innerHTML = rows.length ? rows.map((b) => `<div class="td-row"><div><strong>${esc(b.booking_code)}</strong><small>${esc(b.name || b.email)} \u00b7 ${esc(b.seats.map((x) => x.id).join(", "))}</small></div><div class="td-row-end"><span>${C.money(b.amount)} <small>(payout ${C.money(b.payout)})</small></span><small>${b.status === "payment_conflict" ? "Needs refund" : b.checked_in_at ? "Checked in" : "Paid"}</small></div></div>`).join("") : '<p class="td-empty">No bookings yet.</p>';
+			bookings = (await C.api("/api/cinema/bookings?limit=200")).bookings || [];
+			renderBookings();
 		} catch (err) { $("tdBookingList").textContent = err.message; }
 	}
 	$("tdRefreshBookings").addEventListener("click", loadBookings);
-	$("tdCheckinForm").addEventListener("submit", async (e) => {
+
+	function updateBookingRow(b) {
+		const i = bookings.findIndex((x) => x.booking_code === b.booking_code);
+		if (i >= 0) bookings[i] = { ...bookings[i], ...b };
+		flashCode = b.booking_code;
+		renderBookings();
+	}
+
+	function feedback(ok) {
+		try { if (navigator.vibrate) navigator.vibrate(ok ? 80 : [60, 60, 60]); } catch (_) {}
+		try {
+			const AC = window.AudioContext || window.webkitAudioContext;
+			if (!AC) return;
+			const ac = feedback.ac || (feedback.ac = new AC());
+			const osc = ac.createOscillator();
+			const gain = ac.createGain();
+			osc.frequency.value = ok ? 880 : 220;
+			gain.gain.setValueAtTime(0.12, ac.currentTime);
+			gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.18);
+			osc.connect(gain).connect(ac.destination);
+			osc.start();
+			osc.stop(ac.currentTime + 0.2);
+		} catch (_) {}
+	}
+
+	/* Ticket details card: scan or type a code -> details -> confirm check-in. */
+	function renderTicket(view, note) {
+		const out = $("tdCheckinResult");
+		if (!view) {
+			out.innerHTML = note ? `<div class="td-ticket is-bad"><div class="td-ticket-status">\u2715 Not a valid ticket</div><p class="td-ticket-note">${esc(note)}</p>
+				<div class="td-ticket-actions"><button type="button" class="btn-card-action" data-ck="next">${scannerOn() ? "Scan next" : "Clear"}</button></div></div>` : "";
+			return;
+		}
+		const b = view.booking;
+		const s = view.show;
+		let cls = "is-ok";
+		let status = "\u2713 Valid ticket";
+		if (view.already_checked_in) {
+			cls = "is-bad";
+			status = `\u2715 Already checked in at ${C.time(b.checked_in_at)}`;
+		} else if (!view.entry_ok) {
+			cls = "is-warn";
+			status = "Not for this show time";
+		}
+		if (view.just_checked_in) {
+			cls = "is-ok";
+			status = "\u2713 Checked in \u2014 allow entry";
+		}
+		const actions = [];
+		if (!view.already_checked_in && !view.just_checked_in) {
+			actions.push(view.entry_ok
+				? '<button type="button" class="publish-gradient-btn" data-ck="confirm">Confirm check-in</button>'
+				: '<button type="button" class="btn-card-action td-force" data-ck="force">Check in anyway</button>');
+		}
+		actions.push(`<button type="button" class="btn-card-action" data-ck="next">${scannerOn() ? "Scan next" : "Done"}</button>`);
+		out.innerHTML = `<div class="td-ticket ${cls}">
+			<div class="td-ticket-status">${esc(status)}</div>
+			${note || view.entry_note ? `<p class="td-ticket-note">${esc(note || view.entry_note)}</p>` : ""}
+			<div class="td-ticket-body">
+				<strong class="td-ticket-movie">${esc((s && s.movie_title) || "Movie")}${s && s.language ? ` <small>${esc(s.language)}</small>` : ""}</strong>
+				<dl>
+					<div><dt>Show</dt><dd>${s ? `${esc(C.day(s.starts_at))}, ${esc(C.time(s.starts_at))} \u00b7 ${esc(s.screen_name || "")} (${esc(s.format || "2D")})` : "\u2014"}</dd></div>
+					<div><dt>Seats</dt><dd class="td-ticket-seats">${esc(seatsText(b))} <small>(${b.seat_count} ${b.seat_count === 1 ? "seat" : "seats"})</small></dd></div>
+					<div><dt>Name</dt><dd>${esc(b.name || "\u2014")}${b.phone ? ` <small>${esc(b.phone)}</small>` : ""}</dd></div>
+					<div><dt>Booking</dt><dd>${esc(b.booking_code)} \u00b7 ${C.money(b.amount)} paid</dd></div>
+				</dl>
+			</div>
+			<div class="td-ticket-actions">${actions.join("")}</div>
+		</div>`;
+		const primary = out.querySelector('[data-ck="confirm"]') || out.querySelector('[data-ck="next"]');
+		if (primary && !scannerOn()) primary.focus();
+	}
+	async function lookupTicket(code, fromScan) {
+		ticketCode = code;
+		$("tdCheckinResult").innerHTML = '<div class="td-ticket"><div class="td-ticket-status">Checking ticket\u2026</div></div>';
+		try {
+			ticket = await C.api("/api/cinema/bookings/lookup", { method: "POST", json: { code } });
+			if (fromScan && $("tdScanAuto").checked && ticket.entry_ok && !ticket.already_checked_in) return checkIn(false);
+			feedback(ticket.entry_ok && !ticket.already_checked_in);
+			renderTicket(ticket);
+			if (fromScan) setScanHint(ticket.already_checked_in ? "Already checked in" : ticket.entry_ok ? "Ticket found" : "Check the show time");
+		} catch (err) {
+			ticket = null;
+			feedback(false);
+			renderTicket(null, err.message);
+			if (fromScan) setScanHint("Not a valid ticket");
+		}
+	}
+	async function checkIn(force) {
+		if (!ticketCode) return;
+		try {
+			const view = await C.api("/api/cinema/bookings/checkin", { method: "POST", json: { code: ticketCode, force } });
+			ticket = { ...view, just_checked_in: !view.already_checked_in };
+			feedback(true);
+			renderTicket(ticket);
+			updateBookingRow({ ...view.booking, movie_title: view.show && view.show.movie_title, starts_at: view.show && view.show.starts_at, screen_name: view.show && view.show.screen_name });
+			setScanHint("Checked in");
+			if (scannerOn() && $("tdScanAuto").checked) setTimeout(nextScan, 1800);
+		} catch (err) {
+			feedback(false);
+			renderTicket(ticket, err.message);
+		}
+	}
+	function nextScan() {
+		ticket = null;
+		ticketCode = "";
+		renderTicket(null);
+		$("tdCheckinCode").value = "";
+		if (scannerOn()) {
+			scanner.resume();
+			setScanHint("Point the camera at the ticket QR");
+		} else {
+			$("tdCheckinCode").focus();
+		}
+	}
+	$("tdCheckinResult").addEventListener("click", (e) => {
+		const btn = e.target.closest("[data-ck]");
+		if (!btn) return;
+		const act = btn.getAttribute("data-ck");
+		if (act === "confirm") checkIn(false);
+		else if (act === "force") {
+			if (confirm("This ticket is not for a show around now. Check it in anyway?")) checkIn(true);
+		} else nextScan();
+	});
+	$("tdCheckinForm").addEventListener("submit", (e) => {
 		e.preventDefault();
 		const code = $("tdCheckinCode").value.trim();
-		if (!code) return;
-		const out = $("tdCheckinResult");
-		try {
-			const data = await C.api("/api/cinema/bookings/checkin", { method: "POST", json: { code } });
-			const b = data.booking;
-			out.className = "td-checkin-result " + (data.already_checked_in ? "is-warn" : "is-ok");
-			out.innerHTML = `<strong>${data.already_checked_in ? "Already checked in" : "Entry allowed"}</strong><span>${esc(b.booking_code)} \u00b7 ${esc(b.name || b.email)}</span><span>Seats ${esc(b.seats.map((x) => x.id).join(", "))}${data.show ? ` \u00b7 ${esc(C.time(data.show.starts_at))}` : ""}</span>`;
-			$("tdCheckinCode").value = "";
-			$("tdCheckinCode").focus();
-		} catch (err) {
-			out.className = "td-checkin-result is-bad";
-			out.innerHTML = `<strong>Not valid</strong><span>${esc(err.message)}</span>`;
+		if (code) lookupTicket(code, false);
+	});
+
+	/* Camera */
+	let scanner = null;
+	function scannerOn() {
+		return Boolean(scanner && scanner.running());
+	}
+	function setScanHint(text) {
+		$("tdScanHint").textContent = text;
+	}
+	function setScanUi(on) {
+		$("tdScanView").hidden = !on;
+		$("tdScanStart").hidden = on;
+		$("tdScanStop").hidden = !on;
+		$("tdScanFlip").hidden = !on;
+	}
+	async function startScanner() {
+		if (!window.JodQrScanner) return C.toast("The QR scanner didn't load. Refresh the page and try again.", "bad");
+		if (!scanner) {
+			scanner = window.JodQrScanner.create($("tdScanVideo"), (value) => {
+				scanner.pause();
+				lookupTicket(value, true);
+			});
 		}
+		const btn = $("tdScanStart");
+		btn.disabled = true;
+		btn.textContent = "Starting camera\u2026";
+		try {
+			await scanner.start();
+			setScanUi(true);
+			setScanHint("Point the camera at the ticket QR");
+		} catch (err) {
+			setScanUi(false);
+			C.toast(err.message, "bad");
+		} finally {
+			btn.disabled = false;
+			btn.textContent = "Scan ticket QR";
+		}
+	}
+	function stopScanner() {
+		if (scanner) scanner.stop();
+		setScanUi(false);
+	}
+	$("tdScanStart").addEventListener("click", startScanner);
+	$("tdScanStop").addEventListener("click", stopScanner);
+	$("tdScanFlip").addEventListener("click", async () => {
+		try { await scanner.flip(); } catch (err) { C.toast(err.message, "bad"); stopScanner(); }
+	});
+	document.addEventListener("visibilitychange", () => { if (document.hidden && scannerOn()) stopScanner(); });
+	try { $("tdScanAuto").checked = localStorage.getItem("jod_td_auto_checkin") === "1"; } catch (_) {}
+	$("tdScanAuto").addEventListener("change", () => {
+		try { localStorage.setItem("jod_td_auto_checkin", $("tdScanAuto").checked ? "1" : "0"); } catch (_) {}
 	});
 
 	/* ── Start ────────────────────────────────────────────── */
