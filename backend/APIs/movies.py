@@ -130,6 +130,36 @@ def now_showing(
     return {"movies": out}
 
 
+@router.get("/by-key/{key}")
+def movie_by_key(key: str, db: Session = Depends(get_db)):
+    """One movie's public details by its page key ("<title>-<language>"), with or without upcoming shows.
+
+    Used for link previews, which keep being opened after a movie's shows end.
+    """
+    wanted = str(key or "").strip().lower()[:300]
+    if not wanted:
+        raise HTTPException(status_code=404, detail="Movie not found.")
+    partner_ids = [p.id for p in db.query(TheatrePartner.id).filter(TheatrePartner.status == "verified").all()]
+    if not partner_ids:
+        raise HTTPException(status_code=404, detail="Movie not found.")
+    rows = (
+        db.query(CinemaMovie)
+        .filter(CinemaMovie.status == "active", CinemaMovie.partner_id.in_(partner_ids))
+        .order_by(CinemaMovie.updated_at.desc())
+        .limit(2000)
+        .all()
+    )
+    matches = [m for m in rows if f"{_norm(m.title)}-{_norm(m.language)}" == wanted]
+    if not matches:
+        raise HTTPException(status_code=404, detail="Movie not found.")
+    card = {"key": wanted, **_movie_card(matches[0])}
+    for other in matches[1:]:
+        for field, value in _movie_card(other).items():
+            if not card.get(field) and value:
+                card[field] = value
+    return card
+
+
 def _show_context(db, show_id):
     show = db.query(CinemaShow).filter(CinemaShow.id == _uuid(show_id)).first()
     if not show:

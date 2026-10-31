@@ -416,6 +416,23 @@ class CinemaFlowTests(unittest.TestCase):
                          ("Lead Actor", "Some Director", "AAAAAAAAAAA"))
 
 
+    def test_movie_by_key_for_link_previews(self):
+        _, movie, show = self.setup_show()
+        self.as_user(None)
+        card = self.client.get("/api/movies/by-key/examplemovie-tamil").json()
+        self.assertEqual((card["title"], card["language"], card["key"]), ("Example Movie", "Tamil", "examplemovie-tamil"))
+        self.as_user(self.owner)
+        self.assertEqual(self.client.post(f"/api/cinema/shows/{show['id']}/cancel").status_code, 200)
+        self.as_user(None)
+        self.assertEqual(self.client.get("/api/movies/by-key/examplemovie-tamil").status_code, 200, "still found without upcoming shows")
+        self.assertEqual(self.client.get("/api/movies/by-key/nosuchmovie-tamil").status_code, 404)
+        db = self.Session()
+        db.query(TheatrePartner).filter(TheatrePartner.email == "owner@example.com").update({"status": "restricted"})
+        db.commit()
+        db.close()
+        self.assertEqual(self.client.get("/api/movies/by-key/examplemovie-tamil").status_code, 404, "hidden once the theatre is not approved")
+
+
 class YouTubeLinks(unittest.TestCase):
     def test_link_formats(self):
         from Services.movie_details import youtube_id

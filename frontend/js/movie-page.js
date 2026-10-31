@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 					<div class="mp-actions">
 						<a class="mp-book" href="#mpShows">Book tickets</a>
 						${trailers.length ? `<button type="button" class="mp-trailer-btn" data-play="0">\u25B6 Watch ${esc(trailers[0].label.toLowerCase())}</button>` : ""}
+						<button type="button" class="mp-trailer-btn mp-share-btn" id="mpShare" aria-haspopup="menu" aria-expanded="false">${SHARE_ICON}<span>Share</span></button>
 					</div>
 				</div>
 			</div>`;
@@ -48,7 +49,103 @@ document.addEventListener("DOMContentLoaded", async () => {
 			e.preventDefault();
 			$("mpShows").scrollIntoView({ behavior: "smooth", block: "start" });
 		});
+		$("mpShare").addEventListener("click", (e) => {
+			e.stopPropagation();
+			shareMovie();
+		});
 	}
+
+	/* ── Share ───────────────────────────────────────────── */
+	const SHARE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>';
+
+	function shareLink() {
+		return `${window.location.origin}/movie?m=${encodeURIComponent(key)}`;
+	}
+	function shareText() {
+		const m = state.movie;
+		return `${m.title}${m.language ? ` (${m.language})` : ""} \u2014 watch the trailer and book tickets on JOD Events`;
+	}
+
+	/* Phones get the system share sheet; desktops get a menu of apps plus copy link. */
+	async function shareMovie() {
+		const url = shareLink();
+		const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+		if (navigator.share && coarse) {
+			try {
+				await navigator.share({ title: state.movie.title, text: shareText(), url });
+				return;
+			} catch (err) {
+				if (err && err.name === "AbortError") return;
+			}
+		}
+		toggleShareMenu();
+	}
+
+	function closeShareMenu() {
+		const menu = document.getElementById("mpShareMenu");
+		if (menu) menu.remove();
+		const btn = $("mpShare");
+		if (btn) btn.setAttribute("aria-expanded", "false");
+	}
+
+	function toggleShareMenu() {
+		if (document.getElementById("mpShareMenu")) return closeShareMenu();
+		const url = shareLink();
+		const text = shareText();
+		const enc = encodeURIComponent;
+		const apps = [
+			["WhatsApp", `https://wa.me/?text=${enc(`${text}\n${url}`)}`, "#25d366"],
+			["Telegram", `https://t.me/share/url?url=${enc(url)}&text=${enc(text)}`, "#229ed9"],
+			["Facebook", `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`, "#1877f2"],
+			["X", `https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}`, "#111"],
+			["Email", `mailto:?subject=${enc(state.movie.title)}&body=${enc(`${text}\n${url}`)}`, "#64748b"]
+		];
+		const menu = document.createElement("div");
+		menu.id = "mpShareMenu";
+		menu.className = "mp-share-menu";
+		menu.setAttribute("role", "menu");
+		menu.innerHTML = `
+			<p class="mp-share-title">Share ${esc(state.movie.title)}</p>
+			<div class="mp-share-apps">${apps.map(([name, href, color]) => `
+				<a role="menuitem" href="${esc(href)}" target="_blank" rel="noopener noreferrer" data-share="${esc(name)}"><i style="background:${color}">${esc(name.slice(0, 1))}</i><span>${esc(name)}</span></a>`).join("")}</div>
+			<div class="mp-share-copy"><input type="text" readonly value="${esc(url)}" aria-label="Movie link"><button type="button" data-share-copy>Copy link</button></div>
+			${navigator.share ? '<button type="button" class="mp-share-more" data-share-more>More options\u2026</button>' : ""}`;
+		document.body.appendChild(menu);
+		const btn = $("mpShare");
+		const r = btn.getBoundingClientRect();
+		const width = Math.min(320, window.innerWidth - 24);
+		menu.style.width = `${width}px`;
+		menu.style.left = `${Math.max(12, Math.min(r.left, window.innerWidth - width - 12))}px`;
+		const below = r.bottom + 8;
+		menu.style.top = `${below + menu.offsetHeight > window.innerHeight - 12 ? Math.max(12, r.top - menu.offsetHeight - 8) : below}px`;
+		btn.setAttribute("aria-expanded", "true");
+		menu.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			if (e.target.closest("[data-share]")) return setTimeout(closeShareMenu, 50);
+			if (e.target.closest("[data-share-more]")) {
+				closeShareMenu();
+				try { await navigator.share({ title: state.movie.title, text, url }); } catch (_) {}
+				return;
+			}
+			const copyBtn = e.target.closest("[data-share-copy]");
+			if (!copyBtn) return;
+			const input = menu.querySelector("input");
+			try {
+				await navigator.clipboard.writeText(url);
+			} catch (_) {
+				input.select();
+				document.execCommand("copy");
+			}
+			copyBtn.textContent = "Copied \u2713";
+			C.toast("Link copied. Paste it anywhere to share.", "ok");
+			setTimeout(closeShareMenu, 900);
+		});
+		menu.querySelector("[data-share]").focus();
+	}
+	document.addEventListener("click", (e) => { if (!e.target.closest("#mpShareMenu")) closeShareMenu(); });
+	document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeShareMenu(); });
+	window.addEventListener("resize", closeShareMenu);
+	window.addEventListener("scroll", closeShareMenu, { passive: true });
 
 	function renderTrailers(m) {
 		const trailers = m.trailers || [];

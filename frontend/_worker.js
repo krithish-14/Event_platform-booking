@@ -79,16 +79,27 @@ async function fetchEvent(eventId, apiOrigin) {
 
 function applyShareTags(html, event, pageUrl, apiOrigin, siteOrigin) {
 	const title = String(event.title || "Event Details").trim() || "Event Details";
-	const description = clipDescription(event.description, title);
-	const image = absoluteMediaUrl(event.image_url || event.card_image || "", apiOrigin, siteOrigin);
-	const docTitle = `${title} — JOD Events`;
+	return fillShareTags(html, {
+ title,
+ description: clipDescription(event.description, title),
+ image: absoluteMediaUrl(event.image_url || event.card_image || "", apiOrigin, siteOrigin),
+ imageAlt: title,
+ pageUrl,
+ docTitle: `${title} — JOD Events`,
+ marker: "jod-og:event",
+	});
+}
+
+/* Replaces the content of the page's existing meta tags; the page must ship default tags for each. */
+function fillShareTags(html, tags) {
+	const { title, description, image, imageAlt, pageUrl, docTitle, marker } = tags;
 	const replacements = [
  ["name", "description", description],
  ["property", "og:title", title],
  ["property", "og:description", description],
  ["property", "og:url", pageUrl],
  ["property", "og:image", image],
- ["property", "og:image:alt", title],
+ ["property", "og:image:alt", imageAlt || title],
  ["name", "twitter:title", title],
  ["name", "twitter:description", description],
  ["name", "twitter:image", image],
@@ -107,10 +118,95 @@ function applyShareTags(html, event, pageUrl, apiOrigin, siteOrigin) {
  /(<link\b[^>]*\brel=["']canonical["'][^>]*\bhref=["'])([^"']*)(["'])/i,
  `$1${escapeAttr(pageUrl)}$3`
 	);
-	if (!out.includes("jod-og:event")) {
- out = out.replace(/<\/head>/i, "<!-- jod-og:event -->\n</head>");
+	if (marker && !out.includes(marker)) {
+ out = out.replace(/<\/head>/i, `<!-- ${marker} -->\n</head>`);
 	}
 	return out;
+}
+
+/* ── /movie?m=<key>: poster, title and details for WhatsApp / social link previews ── */
+function isMoviePath(pathname) {
+	const path = String(pathname || "").replace(/\/$/, "") || "/";
+	return path === "/movie" || path === "/movie.html";
+}
+
+function runtimeText(minutes) {
+	const n = Number(minutes) || 0;
+	return n ? `${Math.floor(n / 60)}h ${n % 60}m` : "";
+}
+
+async function fetchJson(url, timeoutMs) {
+	const ctrl = new AbortController();
+	const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+	try {
+ const res = await fetch(url, {
+ headers: { Accept: "application/json", "User-Agent": "JOD-Events-OG/1.0" },
+ signal: ctrl.signal,
+ cf: { cacheTtl: 300, cacheEverything: true },
+ });
+ return res.ok ? await res.json() : null;
+	} catch (_) {
+ return null;
+	} finally {
+ clearTimeout(timer);
+	}
+}
+
+async function fetchMovie(key, apiOrigin) {
+	const direct = await fetchJson(`${apiOrigin}/api/movies/by-key/${encodeURIComponent(key)}`, 3000);
+	if (direct && direct.title) return direct;
+	const listing = await fetchJson(`${apiOrigin}/api/movies/now-showing`, 3000);
+	return (listing && Array.isArray(listing.movies) ? listing.movies : []).find((m) => m.key === key) || null;
+}
+
+function movieShareTags(movie, pageUrl, apiOrigin, siteOrigin) {
+	const name = `${movie.title}${movie.language ? ` (${movie.language})` : ""}`;
+	const facts = [movie.certificate, movie.language, runtimeText(movie.duration_min), movie.genres].filter(Boolean).join(" · ");
+	const about = clipDescription(movie.description, movie.title);
+	const full = `${facts ? `${facts}. ` : ""}${about}`;
+	const description = full.length > 200 ? `${full.slice(0, 200).replace(/\s+\S*$/, "")}…` : full;
+	return {
+ title: `${name} — Book tickets on JOD Events`,
+ description,
+ image: movie.poster_url ? absoluteMediaUrl(movie.poster_url, apiOrigin, siteOrigin) : FALLBACK_IMAGE,
+ imageAlt: `${movie.title} poster`,
+ pageUrl,
+ docTitle: `${name} — Book tickets | JOD Events`,
+ marker: "jod-og:movie",
+	};
+}
+
+async function handleMovie(request, env) {
+	const url = new URL(request.url);
+	const local = isLocalHost(url.hostname);
+	const apiOrigin = local ? `${url.protocol}//127.0.0.1:8001` : API_ORIGIN;
+	const siteOrigin = local ? url.origin : SITE_ORIGIN;
+	const key = (url.searchParams.get("m") || "").trim().toLowerCase();
+	let assetRes = null;
+	for (const path of ["/movie", "/movie.html"]) {
+ const res = await env.ASSETS.fetch(new URL(path, url.origin).toString(), { method: "GET" });
+ if (res && res.ok) {
+ assetRes = res;
+ break;
+ }
+	}
+	if (!assetRes) return env.ASSETS.fetch(request);
+	if (!key) return assetRes;
+	try {
+ const movie = await fetchMovie(key, apiOrigin);
+ if (!movie) return assetRes;
+ const pageUrl = `${siteOrigin}/movie?m=${encodeURIComponent(key)}`;
+ const html = fillShareTags(await assetRes.text(), movieShareTags(movie, pageUrl, apiOrigin, siteOrigin));
+ return new Response(html, {
+ status: 200,
+ headers: {
+ "content-type": "text/html; charset=utf-8",
+ "cache-control": "public, max-age=60, must-revalidate",
+ },
+ });
+	} catch (_) {
+ return assetRes;
+	}
 }
 
 async function loadEventDetailsHtml(env, origin) {
@@ -162,6 +258,9 @@ export default {
  const url = new URL(request.url);
  if (isEventDetailsPath(url.pathname)) {
  return handleEventDetails(request, env);
+ }
+ if (isMoviePath(url.pathname) && env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
+ return handleMovie(request, env);
  }
  if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
  return env.ASSETS.fetch(request);

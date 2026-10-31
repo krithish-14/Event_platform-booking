@@ -275,6 +275,20 @@ html[data-theme="dark"] .jod-crop-tools input[type="range"] { accent-color: #FF7
 .mp-book:hover { background: #e56600; }
 .mp-trailer-btn { padding: 0.75rem 1.3rem; border: 1.5px solid rgba(255, 255, 255, 0.45); border-radius: 0.8rem; background: rgba(255, 255, 255, 0.08); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
 .mp-trailer-btn:hover { background: rgba(255, 255, 255, 0.18); }
+.mp-share-btn { display: inline-flex; align-items: center; gap: 0.45rem; }
+.mp-share-menu { position: fixed; z-index: 10090; padding: 0.9rem; border-radius: 0.9rem; background: #fff; color: #25211c; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22); border: 1px solid rgba(37, 33, 28, 0.08); }
+.mp-share-title { margin: 0 0 0.7rem; font-size: 0.88rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-share-apps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.3rem; margin-bottom: 0.8rem; }
+.mp-share-apps a { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.35rem 0.1rem; border-radius: 0.6rem; color: inherit; font-size: 0.7rem; font-weight: 600; text-decoration: none; }
+.mp-share-apps a:hover, .mp-share-apps a:focus-visible { background: rgba(255, 117, 8, 0.08); outline: none; }
+.mp-share-apps i { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%; color: #fff; font-style: normal; font-weight: 800; font-size: 0.95rem; }
+.mp-share-copy { display: flex; gap: 0.4rem; }
+.mp-share-copy input { flex: 1; min-width: 0; padding: 0.5rem 0.6rem; border: 1px solid rgba(37, 33, 28, 0.15); border-radius: 0.55rem; background: #faf7f2; color: inherit; font: inherit; font-size: 0.78rem; }
+.mp-share-copy button { padding: 0.5rem 0.8rem; border: 0; border-radius: 0.55rem; background: #ff7508; color: #fff; font: inherit; font-size: 0.8rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.mp-share-more { width: 100%; margin-top: 0.55rem; padding: 0.45rem; border: 1px solid rgba(37, 33, 28, 0.12); border-radius: 0.55rem; background: transparent; color: inherit; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+html[data-theme="dark"] .mp-share-menu { background: #1f1a15; color: #f6f0e8; border-color: rgba(255, 255, 255, 0.08); }
+html[data-theme="dark"] .mp-share-copy input { background: #15120f; border-color: rgba(255, 255, 255, 0.14); }
+html[data-theme="dark"] .mp-share-more { border-color: rgba(255, 255, 255, 0.14); }
 .mp-section { margin-top: 1.4rem; padding: 1.3rem; border-radius: 1.2rem; background: #fff; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05); scroll-margin-top: calc(var(--site-header-height, 4.6rem) + 1rem); }
 .mp-section h2 { margin: 0 0 0.8rem; font-size: 1.15rem; }
 .mp-shows-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.8rem; }
