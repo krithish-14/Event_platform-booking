@@ -19,12 +19,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 		const qr = b.qr_token ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(b.qr_token)}` : "";
 		return `
 			<article class="mt-ticket">
-				<div class="mt-top">
-					<div class="mv-poster">${m.poster_url ? `<img src="${esc(C.resolveMedia(m.poster_url))}" alt="">` : `<span>${esc((m.title || "M").slice(0, 1))}</span>`}</div>
-					<div><p class="mt-kicker">${b.status === "confirmed" ? "Booking confirmed" : b.status === "payment_conflict" ? "Needs attention" : esc(b.status)}</p>
-						<h1>${esc(m.title || "Movie")}</h1>
-						<p class="mt-meta">${esc([m.certificate, m.language, sh.format].filter(Boolean).join(" \u00b7 "))}</p></div>
-				</div>
+				<header class="mt-top">
+					<span class="mt-slot" aria-hidden="true"></span>
+					<div class="mt-brand-row">
+						<p class="mt-kicker">${b.status === "confirmed" ? "Booking confirmed" : b.status === "payment_conflict" ? "Needs attention" : esc(b.status)}</p>
+						<img class="mt-logo" data-no-cdn="1" src="/images/JOD%20Events%20Logo%20White.png" alt="JOD Events" width="96" height="34">
+					</div>
+					<div class="mt-hero">
+						<div class="mv-poster">${m.poster_url ? `<img src="${esc(C.resolveMedia(m.poster_url))}" alt="">` : `<span>${esc((m.title || "M").slice(0, 1))}</span>`}</div>
+						<div><h1>${esc(m.title || "Movie")}</h1>
+							<p class="mt-meta">${esc([m.certificate, m.language, sh.format].filter(Boolean).join(" \u00b7 "))}</p></div>
+					</div>
+				</header>
 				<dl class="mt-facts">
 					<div><dt>Date</dt><dd>${esc(C.day(sh.starts_at))}</dd></div>
 					<div><dt>Time</dt><dd>${esc(C.time(sh.starts_at))}</dd></div>
@@ -34,7 +40,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 				</dl>
 				<div class="mt-cut" aria-hidden="true"></div>
 				${b.status === "confirmed" ? `
-				<div class="mt-qr"><img src="${qr}" alt="Entry QR for booking ${esc(b.booking_code)}" width="220" height="220">
+				<div class="mt-qr"><img src="${qr}" alt="Entry QR for booking ${esc(b.booking_code)}" width="180" height="180">
 					<p>Show this QR at the theatre entrance.</p></div>` : `<p class="mt-warn">This booking is not confirmed. If money was debited, contact support with booking code ${esc(b.booking_code)}.</p>`}
 				<div class="mt-foot"><span>Booking code <strong>${esc(b.booking_code)}</strong></span><span>Paid <strong>${C.money(b.amount)}</strong></span></div>
 				${b.checked_in_at ? '<p class="mt-used">Checked in at the theatre</p>' : ""}

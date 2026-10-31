@@ -331,19 +331,26 @@ html[data-theme="dark"] .mp-back { color: #FFA136; }
 }
 
 /* Ticket */
-.mt-ticket { max-width: 30rem; margin: 0 auto; border-radius: 1.3rem; background: #fff; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.1); overflow: hidden; }
-.mt-top { display: flex; gap: 1rem; padding: 1.3rem; background: linear-gradient(135deg, #25211c, #3b2f24); color: #fff; }
-.mt-top h1 { margin: 0.15rem 0; font-size: 1.4rem; color: #fff; }
-.mt-kicker { margin: 0; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #ffb067; }
+.mt-ticket { position: relative; width: min(100%, 22.5rem); margin: 0 auto; border: 1px solid rgba(37, 33, 28, 0.12); border-radius: 1.25rem; background: #fff; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.12); overflow: hidden; }
+.mt-top { position: relative; padding: 1.7rem 1.2rem 1.2rem; background: linear-gradient(150deg, #25211c, #3b2f24 70%, #4a3626); color: #fff; }
+.mt-slot { position: absolute; top: 0.65rem; left: 50%; width: 3.4rem; height: 0.55rem; transform: translateX(-50%); border-radius: 999px; background: #fff; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45); }
+.mt-brand-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; margin-bottom: 1rem; }
+.mt-logo { display: block; height: 2.1rem; width: auto; object-fit: contain; }
+.mt-hero { display: flex; align-items: center; gap: 0.9rem; }
+.mt-hero .mv-poster { width: 4.4rem; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35); }
+.mt-top h1 { margin: 0 0 0.2rem; font-size: 1.35rem; line-height: 1.2; color: #fff; }
+.mt-kicker { margin: 0; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #ffb067; }
 .mt-meta { margin: 0; font-size: 0.85rem; opacity: 0.8; }
-.mt-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin: 0; padding: 1.2rem 1.3rem; }
+.mt-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 0; padding: 1.1rem 1.2rem; }
 .mt-facts .is-wide { grid-column: 1 / -1; }
 .mt-facts dt { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(37, 33, 28, 0.55); }
 .mt-facts dd { margin: 0.15rem 0 0; font-weight: 800; }
 .mt-facts dd small { display: block; font-weight: 500; font-size: 0.8rem; color: rgba(37, 33, 28, 0.6); }
-.mt-cut { height: 0; margin: 0 1.3rem; border-top: 2px dashed rgba(37, 33, 28, 0.15); }
-.mt-qr { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 1.2rem; text-align: center; font-size: 0.85rem; color: rgba(37, 33, 28, 0.65); }
-.mt-foot { display: flex; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.3rem; background: #fffaf4; font-size: 0.85rem; }
+.mt-cut { height: 0; margin: 0 1.2rem; border-top: 2px dashed rgba(37, 33, 28, 0.15); }
+.mt-qr { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 1.1rem 1.2rem; text-align: center; font-size: 0.82rem; color: rgba(37, 33, 28, 0.65); }
+.mt-qr img { width: 11.25rem; height: 11.25rem; padding: 0.35rem; border: 1px solid rgba(37, 33, 28, 0.12); border-radius: 0.8rem; background: #fff; }
+.mt-qr p { margin: 0; }
+.mt-foot { display: flex; justify-content: space-between; gap: 1rem; padding: 0.85rem 1.2rem; background: #fffaf4; font-size: 0.85rem; }
 .mt-warn { padding: 1rem 1.3rem; color: #b91c1c; font-weight: 600; }
 .mt-used { margin: 0; padding: 0.6rem; text-align: center; background: #dcfce7; color: #166534; font-weight: 700; font-size: 0.85rem; }
 .mt-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; margin-top: 1.2rem; }
@@ -351,8 +358,16 @@ html[data-theme="dark"] .mp-back { color: #FFA136; }
 .mt-row { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.9rem 1rem; margin-bottom: 0.6rem; border-radius: 0.9rem; background: #fff; color: inherit; text-decoration: none; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
 .mt-row span { font-size: 0.85rem; color: rgba(37, 33, 28, 0.65); }
 @media print {
-	.site-header, #header, #footer, .mt-actions { display: none !important; }
-	.mt-ticket { box-shadow: none; }
+	/* Zero page margin also removes the browser's date, title, URL and page-number lines. */
+	@page { size: A4 portrait; margin: 0; }
+	html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; background: #fff !important; }
+	body > *:not(.site-shell), .site-shell > *:not(main), .site-header, .site-footer, .mt-actions { display: none !important; }
+	.site-shell, .cinema-wrap { width: auto !important; max-width: none !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; }
+	.cinema-wrap { padding-top: 16mm !important; }
+	.mt-ticket, html[data-theme="dark"] .mt-ticket { width: 92mm; max-width: none; margin: 0 auto; box-shadow: none; border: 0.3mm solid #d6cfc6; background: #fff; color: #25211c; break-inside: avoid; page-break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+	html[data-theme="dark"] .mt-foot { background: #fffaf4; color: #25211c; }
+	html[data-theme="dark"] .mt-facts dt { color: rgba(37, 33, 28, 0.55); }
+	.mt-top, .mt-foot, .mt-used, .mv-poster { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
 /* Dark theme */
@@ -360,6 +375,9 @@ html[data-theme="dark"] .td-card, html[data-theme="dark"] .td-stat, html[data-th
 html[data-theme="dark"] .mv-day, html[data-theme="dark"] .mv-detail, html[data-theme="dark"] .mv-empty, html[data-theme="dark"] .sb-card,
 html[data-theme="dark"] .mt-ticket, html[data-theme="dark"] .mt-row, html[data-theme="dark"] .td-state { background: #1f1a15; color: #f6f0e8; }
 html[data-theme="dark"] .td-modal-box, html[data-theme="dark"] .mt-foot { background: #15120f; color: #f6f0e8; }
+html[data-theme="dark"] .mt-ticket { border-color: rgba(255, 255, 255, 0.1); }
+html[data-theme="dark"] .mt-slot { background: #0f0c0a; }
+@media print { html[data-theme="dark"] .mt-slot { background: #fff; } }
 html[data-theme="dark"] .td-form input, html[data-theme="dark"] .td-form select, html[data-theme="dark"] .td-form textarea,
 html[data-theme="dark"] .td-toolbar input, html[data-theme="dark"] .td-toolbar select, html[data-theme="dark"] .td-cat input[type="text"] { background: #15120f !important; color: #f6f0e8 !important; border-color: rgba(255, 255, 255, 0.14) !important; }
 html[data-theme="dark"] .td-tab { background: rgba(255, 255, 255, 0.06); }
