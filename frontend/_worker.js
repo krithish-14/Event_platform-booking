@@ -240,14 +240,17 @@ async function handleEventDetails(request, env) {
 	try {
  const event = await fetchEvent(eventId, apiOrigin);
  if (!event) return assetRes;
- const html = applyShareTags(await assetRes.text(), event, pageUrl, apiOrigin, siteOrigin);
- return new Response(html, {
- status: 200,
- headers: {
+ let html = applyShareTags(await assetRes.text(), event, pageUrl, apiOrigin, siteOrigin);
+ const headers = {
  "content-type": "text/html; charset=utf-8",
  "cache-control": "public, max-age=60, must-revalidate",
- },
- });
+ };
+ if (event.is_private) {
+ // Link-only events: link previews still work, but search engines must not list the page.
+ html = html.replace(/<\/head>/i, '<meta name="robots" content="noindex, nofollow">\n</head>');
+ headers["x-robots-tag"] = "noindex, nofollow";
+ }
+ return new Response(html, { status: 200, headers });
 	} catch (_) {
  return assetRes;
 	}

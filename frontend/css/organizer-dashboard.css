@@ -6977,6 +6977,16 @@ html[data-theme="dark"] .evsess-table td { border-color: rgba(255, 138, 31, 0.14
 .live-event-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .live-event-badge.is-upcoming { background: #e0f2fe; color: #075985; }
 .live-event-cat { padding: 0.22rem 0.7rem; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 0.78rem; font-weight: 600; }
+.live-event-private { padding: 0.22rem 0.7rem; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 0.78rem; font-weight: 700; }
+.live-event-private[hidden] { display: none; }
+.event-visibility-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.65rem; }
+.setup-form-group .event-visibility-option { display: flex; align-items: flex-start; gap: 0.6rem; margin: 0; padding: 0.8rem 0.9rem; font-size: 0.9rem; font-weight: 500; text-transform: none; letter-spacing: normal; border: 1.5px solid #e2e8f0; border-radius: 10px; background: #fff; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.event-visibility-option:hover { border-color: rgba(255, 117, 8, 0.5); }
+.event-visibility-option:has(input:checked) { border-color: #FF7508; background: #fff7ed; }
+.event-visibility-option input { width: 1.05rem; height: 1.05rem; margin-top: 0.15rem; flex: 0 0 auto; accent-color: #FF7508; }
+.event-visibility-option span { display: flex; flex-direction: column; gap: 0.2rem; }
+.event-visibility-option strong { font-size: 0.92rem; color: #0f172a; }
+.event-visibility-option small { font-size: 0.8rem; font-weight: 500; line-height: 1.45; color: #64748b; }
 .live-event-title { margin: 0; font-size: 1.45rem; font-weight: 800; color: #0f172a; overflow-wrap: anywhere; }
 .live-event-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem 1rem; margin: 0; }
 .live-event-facts .is-wide { grid-column: 1 / -1; }
@@ -7058,5 +7068,10 @@ html[data-theme="dark"] .host-support-cat,
 html[data-theme="dark"] .host-support-event-name,
 html[data-theme="dark"] .host-support-row-note { background: #241e18; border-color: rgba(255, 138, 31, 0.24); color: #f6f0e8; }
 html[data-theme="dark"] .host-support-row { border-color: rgba(255, 138, 31, 0.18); }
+html[data-theme="dark"] .setup-form-group .event-visibility-option { background: #241e18; border-color: rgba(255, 138, 31, 0.24); }
+html[data-theme="dark"] .event-visibility-option:has(input:checked) { border-color: #FF7508; background: rgba(255, 117, 8, 0.14); }
+html[data-theme="dark"] .event-visibility-option strong { color: #f6f0e8; }
+html[data-theme="dark"] .event-visibility-option small { color: #c8bfb4; }
+html[data-theme="dark"] .live-event-private { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
 html[data-theme="dark"] .live-event-btn.is-primary,
 html[data-theme="dark"] .host-support-cat.is-on { background: #FF7508; border-color: #FF7508; color: #fff8f0; }

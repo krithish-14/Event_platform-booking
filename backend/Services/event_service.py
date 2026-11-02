@@ -222,11 +222,17 @@ def _not_ended_clause(now=None):
     )
 
 
+def listed_clause():
+    """Private (link-only) events never appear in public lists, search or recommendations."""
+    return or_(Event.is_private.is_(False), Event.is_private.is_(None))
+
+
 def _published_events_query(db: Session):
     now = datetime.utcnow()
     return db.query(Event).filter(
         Event.is_published == True,
         or_(Event.is_cancelled.is_(False), Event.is_cancelled.is_(None)),
+        listed_clause(),
         _not_ended_clause(now),
     )
 
@@ -393,6 +399,7 @@ def search_events(
         .filter(
             Event.is_published == True,
             Event.is_cancelled == False,
+            listed_clause(),
             _not_ended_clause(datetime.utcnow()),
         )
     )

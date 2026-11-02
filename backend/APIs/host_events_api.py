@@ -1433,6 +1433,20 @@ def sync_unpublished_event_from_catalog(db: Session, event_mgt: EventManagement,
     db.commit()
 
 
+def sync_event_visibility_to_catalog(db: Session, event_mgt: EventManagement):
+    """Apply the host's Public / Private (link-only) choice to the live catalog row right away."""
+    from Models.event import Event
+
+    try:
+        for public_event in _public_event_id_matches(db, Event, event_mgt.event_id):
+            public_event.is_private = bool(getattr(event_mgt, "is_private", False))
+            public_event.updated_at = datetime.utcnow()
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        print(f"[EVENT VISIBILITY] catalog sync failed event_id={event_mgt.event_id}: {exc}", flush=True)
+
+
 def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManagement):
     """
     Bridge function: When a host publishes an event, sync its details
@@ -1552,6 +1566,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             duration=getattr(event_mgt, "duration", None),
             is_published=True,
             is_cancelled=False,
+            is_private=bool(getattr(event_mgt, "is_private", False)),
             customer_id=event_mgt.customer_id,
             host_id=event_mgt.host_id,
             organizer_id=organizer_id,
@@ -1588,6 +1603,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
         public_event.price = min_price
         public_event.is_published = True
         public_event.is_cancelled = False
+        public_event.is_private = bool(getattr(event_mgt, "is_private", False))
         public_event.customer_id = event_mgt.customer_id
         public_event.host_id = event_mgt.host_id
         if organizer_id:
@@ -1644,6 +1660,7 @@ class SaveManageEventRequest(BaseModel):
     agenda_json: Optional[List[Dict[str, Any]]] = None
     policies_json: Optional[Dict[str, Any]] = None
     about_event: Optional[str] = None
+    is_private: Optional[bool] = None
 
 
 class SaveEventDesignRequest(BaseModel):
@@ -1918,6 +1935,8 @@ def save_manage_event(
         event.place_id = sanitize_place_id(payload.place_id)
     if payload.organizer_name: event.organizer_name = payload.organizer_name
     if payload.organizer_phone: event.organizer_phone = payload.organizer_phone
+    if payload.is_private is not None:
+        event.is_private = bool(payload.is_private)
     if payload.event_status:
         incoming = payload.event_status.lower()
         current = (event.event_status or "draft").lower()
@@ -2018,6 +2037,8 @@ def save_manage_event(
             catalog_synced = False
             catalog_sync_error = str(exc)
             print(f"[EVENT PUBLISH] catalog sync failed event_id={event.event_id}: {exc}", flush=True)
+    elif payload.is_private is not None:
+        sync_event_visibility_to_catalog(db, event)
 
     life = _lifecycle_payload(event, db, email_clean, customer_id, host_id)
     return {
@@ -2044,6 +2065,7 @@ def save_manage_event(
             "longitude": getattr(event, "longitude", None),
             "place_id": getattr(event, "place_id", None),
             "event_status": event.event_status,
+            "is_private": bool(getattr(event, "is_private", False)),
             "duration": getattr(event, "duration", None),
             "tickets": event.tickets_json,
             "agenda": event.agenda_json,
@@ -2417,6 +2439,7 @@ def get_current_host_event(
             "organizer_email": event.organizer_email,
             "organizer_phone": event.organizer_phone,
             "event_status": event.event_status,
+            "is_private": bool(getattr(event, "is_private", False)),
             "lifecycle": life["lifecycle"],
             "event_start_date": start_local,
             "event_end_date": end_local,
@@ -3862,6 +3885,7 @@ def get_dashboard_summary(
         "event_id": str(event.event_id),
         "event_title": event.event_title,
         "event_status": event.event_status,
+        "is_private": bool(getattr(event, "is_private", False)),
         "lifecycle": compute_event_lifecycle(event),
         "customer_id": event.customer_id or customer_id,
         "host_id": event.host_id or host_id,

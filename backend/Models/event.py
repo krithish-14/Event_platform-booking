@@ -43,6 +43,8 @@ class Event(Base):
     terms        = Column(Text, nullable=True)
     is_published = Column(Boolean, default=False, nullable=True)
     is_cancelled = Column(Boolean, default=False, nullable=True)
+    # Private (link-only): bookable from its own page but left out of every public list and search.
+    is_private   = Column(Boolean, default=False, nullable=True)
     organizer_id = Column(GUID, ForeignKey("users.id"), nullable=True)
     customer_id  = Column(String(50), ForeignKey("users.customer_id", onupdate="CASCADE", ondelete="CASCADE"), nullable=True, index=True)
     host_id      = Column(String(50), nullable=True, index=True)

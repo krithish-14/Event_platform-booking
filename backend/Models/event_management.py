@@ -4,7 +4,7 @@ EventManagement SQLAlchemy model.
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Float
+from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Float, Boolean
 from sqlalchemy.orm import relationship
 
 from Models.base import Base, GUID, JSONType
@@ -34,6 +34,7 @@ class EventManagement(Base):
     organizer_email  = Column(String(255), nullable=False)
     organizer_phone  = Column(String(50), nullable=True)
     event_status     = Column(String(50), default="draft", nullable=True)  # draft / published / cancelled; live/ended computed from dates
+    is_private       = Column(Boolean, default=False, nullable=True)
     published_at     = Column(DateTime, nullable=True)
     tickets_json     = Column(JSONType, nullable=True)
     agenda_json      = Column(JSONType, nullable=True)

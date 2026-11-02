@@ -340,6 +340,7 @@ def _migrate_tables(engine=None):
                 ("state", "VARCHAR(120)"),
                 ("district", "VARCHAR(120)"),
                 ("region_key", "VARCHAR(40)"),
+                ("is_private", "BOOLEAN DEFAULT FALSE"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in event_migrations:
@@ -497,6 +498,7 @@ def _migrate_tables(engine=None):
                 ("tickets_json", "JSON" if is_pg else "TEXT"),
                 ("agenda_json", "JSON" if is_pg else "TEXT"),
                 ("policies_json", "JSON" if is_pg else "TEXT"),
+                ("is_private", "BOOLEAN DEFAULT FALSE"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in em_migrations:

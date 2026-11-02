@@ -40,7 +40,8 @@ def get_recommended_events(
     # TODO: Replace with personalized ML-based recommendations
     return (
         db.query(Event)
-        .filter(Event.is_published == True, Event.is_cancelled == False)
+        .filter(Event.is_published == True, Event.is_cancelled == False,
+                (Event.is_private.is_(False)) | (Event.is_private.is_(None)))
         .order_by(Event.created_at.desc())
         .limit(limit)
         .all()

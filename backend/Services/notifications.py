@@ -76,6 +76,8 @@ def ensure_published_event_announcement(
     # Never create "upcoming" announcements for events that have already ended.
     if event is not None and _event_has_ended(event):
         return None
+    if event is not None and getattr(event, "is_private", False):
+        return None
 
     place = pretty_event_location(venue=venue, address=address, location=location)
     row = EventAnnouncement(

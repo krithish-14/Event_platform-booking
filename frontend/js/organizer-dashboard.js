@@ -4153,6 +4153,42 @@ async function initOrganizerDashboard() {
 		return activeEventId ? `event-details.html?id=${encodeURIComponent(activeEventId)}` : "";
 	}
 
+	function shareableEventUrl() {
+		return activeEventId ? `${window.location.origin}/event-details?id=${encodeURIComponent(activeEventId)}` : "";
+	}
+
+	function readIsPrivate() {
+		const picked = document.querySelector('input[name="eventVisibility"]:checked');
+		return !!(picked && picked.value === "private");
+	}
+
+	function setVisibilityUi(isPrivate) {
+		const value = isPrivate ? "private" : "public";
+		document.querySelectorAll('input[name="eventVisibility"]').forEach((input) => {
+			input.checked = input.value === value;
+		});
+		const badge = document.getElementById("liveEventPrivate");
+		if (badge) badge.hidden = !isPrivate;
+	}
+
+	async function copyEventLink() {
+		const link = shareableEventUrl();
+		if (!link) return;
+		try {
+			await navigator.clipboard.writeText(link);
+		} catch (_) {
+			window.prompt("Copy this event link:", link);
+			return;
+		}
+		showNotification(readIsPrivate()
+			? "Private event link copied. Only people you share it with can open and book."
+			: "Event link copied.");
+	}
+
+	document.addEventListener("click", (e) => {
+		if (e.target.closest && e.target.closest("#liveEventCopyLink")) copyEventLink();
+	});
+
 	function formatLocalStamp(value) {
 		const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(value || ""));
 		if (!m) return "";
@@ -4206,6 +4242,8 @@ async function initOrganizerDashboard() {
 		}
 		const view = document.getElementById("liveEventViewPage");
 		if (view && eventPageUrl()) view.href = eventPageUrl();
+		const privateBadge = document.getElementById("liveEventPrivate");
+		if (privateBadge) privateBadge.hidden = !(d && typeof d.is_private === "boolean" ? d.is_private : readIsPrivate());
 	}
 
 	function applyLiveOverview(d) {
@@ -4646,6 +4684,7 @@ async function initOrganizerDashboard() {
 					const catSel = document.getElementById("eventCategorySelect");
 					if (catSel) catSel.value = hostData.event.event_category;
 				}
+				setVisibilityUi(!!hostData.event.is_private);
 				const durationInput = document.getElementById("eventDurationInput");
 				if (durationInput) durationInput.value = hostData.event.duration || "";
 				if (hostData.event.policies) {
@@ -4735,7 +4774,8 @@ async function initOrganizerDashboard() {
 			tickets_json: collectTicketsJson(),
 			agenda_json: collectAgendaJson(),
 			policies_json: collectPoliciesJson(),
-			about_event: readAboutEventHtml() || undefined
+			about_event: readAboutEventHtml() || undefined,
+			is_private: readIsPrivate()
 		};
 
 		try {
@@ -5917,6 +5957,7 @@ async function initOrganizerDashboard() {
 		}
 		const catSel = document.getElementById("eventCategorySelect");
 		if (catSel && event.event_category) catSel.value = event.event_category;
+		if (typeof event.is_private === "boolean") setVisibilityUi(event.is_private);
 		const formatInput = document.getElementById("eventFormatInput");
 		const mode = event.event_mode || "Hybrid";
 		if (formatInput) formatInput.value = mode;
@@ -6027,6 +6068,7 @@ async function initOrganizerDashboard() {
 			if (eventTitleInput) eventTitleInput.value = "";
 			const catSel = document.getElementById("eventCategorySelect");
 			if (catSel) catSel.value = "";
+			setVisibilityUi(false);
 			if (ticketTiersRows) {
 				ticketTiersRows.innerHTML = "";
 				ticketTiersRows.appendChild(createTicketTierRowHtml("", "", ""));
@@ -7866,7 +7908,9 @@ async function initOrganizerDashboard() {
 				<div style="padding:1.5rem 1.75rem;">
 					<p style="margin:0 0 0.75rem; color:#334155; line-height:1.55; font-size:0.95rem;">
 						You are about to publish <strong style="color:#0f172a;">${manageData.event_title || "your event"}</strong>.
-						Once published, attendees can discover and register for it.
+						${readIsPrivate()
+							? "This is a <strong style=\"color:#92400e;\">private (link-only)</strong> event: it will not appear on the home page, categories or search. Share the event link and attendees can open it and book."
+							: "Once published, attendees can discover and register for it."}
 					</p>
 					${readyNote}
 				</div>
@@ -7964,7 +8008,8 @@ async function initOrganizerDashboard() {
 						tickets_json: collectTicketsJson(),
 						agenda_json: collectAgendaJson(),
 						policies_json: collectPoliciesJson(),
-						about_event: readAboutEventHtml() || undefined
+						about_event: readAboutEventHtml() || undefined,
+						is_private: readIsPrivate()
 				};
 
 				const res = await fetch(`${HOST_EVENTS_API_BASE}/manage`, {

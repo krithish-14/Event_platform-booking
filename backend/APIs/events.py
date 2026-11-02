@@ -121,6 +121,7 @@ class EventResponse(BaseModel):
     ticket_purchase: Optional[Any] = None
     is_published: bool
     is_cancelled: bool
+    is_private: bool = False
     customer_id: Optional[str] = None
     created_at: datetime
 
@@ -525,6 +526,7 @@ def _event_to_response(
         ticket_purchase=ticket_purchase or {"mode": "single", "per_person_limit": 1},
         is_published=event.is_published,
         is_cancelled=event.is_cancelled,
+        is_private=bool(getattr(event, "is_private", False)),
         customer_id=getattr(event, "customer_id", None) or "CUST-SYSTEM",
         created_at=_as_utc(event.created_at) or datetime.now(timezone.utc),
     )
