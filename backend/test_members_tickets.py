@@ -93,6 +93,14 @@ class MembersTickets(unittest.TestCase):
         ok = calculate_order_price(self.db, str(self.event_id), offer_id=self.members["offer_id"], access_key=KEY)
         self.assertEqual(ok.offer_name, "Members")
 
+    def test_private_event_link_unlocks_members_offers(self):
+        host = self.db.query(EventManagement).filter(EventManagement.event_id == self.event_id).one()
+        host.is_private = True
+        self.db.commit()
+        self.assertEqual(self.names(), ["General", "Members"])
+        ok = calculate_order_price(self.db, str(self.event_id), offer_id=self.members["offer_id"], access_key="")
+        self.assertEqual(ok.offer_name, "Members")
+
     def test_no_key_means_no_access(self):
         host = self.db.query(EventManagement).filter(EventManagement.event_id == self.event_id).one()
         host.members_key = None

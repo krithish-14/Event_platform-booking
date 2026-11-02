@@ -996,7 +996,7 @@ function paintTicketTypes(event) {
  : (isEarlyBird && percentOff
  ? ("Early Bird \u00b7 " + percentOff + "% off")
  : (t.availability || (timed ? "Limited-time offer" : "Available")));
- const statusLabel = t.members_only ? ("Members only \u00b7 " + baseStatus) : baseStatus;
+ const statusLabel = t.members_only && !event.is_private ? ("Members only \u00b7 " + baseStatus) : baseStatus;
  const ticketNote = String(t.price_note || "").trim();
  return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" data-offer-id="${offerId}" data-pricing="${pricing}" data-package-qty="${packageQty}" data-max-per-order="${maxAttr}" data-note="${escape(ticketNote)}">
  <div>

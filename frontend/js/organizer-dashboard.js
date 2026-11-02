@@ -4178,6 +4178,13 @@ async function initOrganizerDashboard() {
 		});
 		const badge = document.getElementById("liveEventPrivate");
 		if (badge) badge.hidden = !isPrivate;
+		syncPrivateTicketOptions();
+	}
+
+	// A private event's own link already limits who can book, so members-only offers don't apply there.
+	function syncPrivateTicketOptions() {
+		document.body.classList.toggle("event-is-private", readIsPrivate());
+		renderMembersLinkPanel();
 	}
 
 	async function copyEventLink() {
@@ -4293,6 +4300,7 @@ async function initOrganizerDashboard() {
 		if (!target) return;
 		if (target.name === "eventVisibility") {
 			paintLinkedEventPanel();
+			syncPrivateTicketOptions();
 			return;
 		}
 		if (target.id !== "linkedEventSelect") return;
@@ -4414,7 +4422,7 @@ async function initOrganizerDashboard() {
 				}
 			});
 		}
-		const show = !!document.querySelector("#ticketTiersRows .ticket-members-input:checked");
+		const show = !readIsPrivate() && !!document.querySelector("#ticketTiersRows .ticket-members-input:checked");
 		panel.hidden = !show;
 		if (!show) return;
 		const link = membersLinkUrl();
@@ -6098,7 +6106,7 @@ async function initOrganizerDashboard() {
 					<label>Offer status</label>
 					<label class="ticket-active-label"><input type="checkbox" class="ticket-active-input" ${active} /> Active</label>
 				</div>
-				<div class="setup-form-group">
+				<div class="setup-form-group ticket-members-group">
 					<label>Who can book</label>
 					<label class="ticket-active-label"><input type="checkbox" class="ticket-members-input" ${membersOnly} /> Members only (private link)</label>
 					<p class="ticket-offer-hint">Hidden on the public page. Only people with your members link can book it.</p>

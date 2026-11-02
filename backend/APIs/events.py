@@ -596,11 +596,9 @@ def get_public_events(
 
 
 def _members_access(db: Session, event_id, access: Optional[str]) -> bool:
-    """True when ?access= matches the host's members link key."""
-    if not access:
-        return False
+    """True when ?access= matches the host's members link key, or the event itself is private."""
     from Models.event_management import EventManagement
-    from Services.ticket_pricing import members_key_matches
+    from Services.ticket_pricing import members_access_granted
     for cand in _design_lookup_candidates(event_id):
         try:
             host = db.query(EventManagement).filter(EventManagement.event_id == cand).first()
@@ -608,7 +606,7 @@ def _members_access(db: Session, event_id, access: Optional[str]) -> bool:
             db.rollback()
             host = None
         if host:
-            return members_key_matches(host, access)
+            return members_access_granted(host, access)
     return False
 
 

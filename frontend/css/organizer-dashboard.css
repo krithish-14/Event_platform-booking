@@ -7019,6 +7019,7 @@ html[data-theme="dark"] .evsess-table td { border-color: rgba(255, 138, 31, 0.14
 .members-link-copy { padding: 0 1rem; min-height: 40px; border: none; border-radius: 8px; background: #FF7508; color: #fff; font: inherit; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
 .members-link-copy:hover { background: #e56600; }
 .members-link-wait { font-style: italic; }
+.event-is-private .ticket-members-group { display: none; }
 .linked-event-panel { margin-top: 0.85rem; padding: 0.9rem 1rem; border: 1.5px solid #c7d2fe; border-radius: 10px; background: #eef2ff; }
 .linked-event-panel[hidden], .link-requests-panel[hidden], .linked-event-status[hidden] { display: none; }
 .linked-event-optional { font-weight: 500; text-transform: none; letter-spacing: 0; color: #64748b; }

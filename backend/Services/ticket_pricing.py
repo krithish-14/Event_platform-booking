@@ -448,6 +448,11 @@ def members_key_matches(host, access_key) -> bool:
     return bool(expected and given) and hmac.compare_digest(expected, given)
 
 
+def members_access_granted(host, access_key) -> bool:
+    """Members-only offers unlock with the members link key, or for anyone on a private event's own link."""
+    return bool(getattr(host, "is_private", False)) or members_key_matches(host, access_key)
+
+
 def public_ticket_rows(rows, *, show_members: bool = False) -> list:
     """Ticket offers a visitor may see. Members-only offers need the host's members link."""
     if not isinstance(rows, list):
@@ -456,7 +461,7 @@ def public_ticket_rows(rows, *, show_members: bool = False) -> list:
 
 
 def assert_offer_access(host, offer, access_key) -> None:
-    if is_members_offer(offer) and not members_key_matches(host, access_key):
+    if is_members_offer(offer) and not members_access_granted(host, access_key):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This ticket is only for invited members. Open the members link the host shared with you.",
