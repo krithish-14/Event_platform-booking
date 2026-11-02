@@ -482,6 +482,55 @@ function initFormBuilder() {
 		if (qid) focusPreviewQuestion(qid);
 	}
 
+	const DEFAULT_OPTION_RE = /^option\s*\d+$/i;
+
+	/* One option per line or tab cell; strips bullets / numbering ("1.", "a)", "-", "\u2022"). */
+	function splitOptionLines(text) {
+		return String(text || "")
+			.split(/\r?\n|\r|\t/)
+			.map((line) => line.replace(/^\s*(?:[-*\u2022\u25AA\u25E6\u2013\u2014]+|\(?\d{1,3}[.)\]]|\(?[a-zA-Z][.)\]])\s+/, "").trim())
+			.filter(Boolean)
+			.map((line) => line.slice(0, 200));
+	}
+
+	function dedupeOptions(list) {
+		const seen = new Set();
+		return list.filter((opt) => {
+			const key = String(opt || "").trim().toLowerCase();
+			if (!key || seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
+	}
+
+	/* Paste into option oIdx: placeholders are replaced, real options kept. Returns the index to focus. */
+	function insertOptionLines(q, oIdx, lines) {
+		const current = Array.isArray(q.options) ? q.options.slice() : [];
+		const allDefault = current.every((opt) => !String(opt || "").trim() || DEFAULT_OPTION_RE.test(String(opt).trim()));
+		if (allDefault) {
+			q.options = dedupeOptions(lines);
+			return q.options.length - 1;
+		}
+		const here = String(current[oIdx] || "").trim();
+		const replaceHere = !here || DEFAULT_OPTION_RE.test(here);
+		const before = current.slice(0, oIdx);
+		const after = current.slice(oIdx + 1);
+		const middle = replaceHere ? lines : [current[oIdx]].concat(lines);
+		const existing = new Set(before.concat(after).map((o) => String(o || "").trim().toLowerCase()));
+		const fresh = dedupeOptions(middle).filter((o, i) => (!replaceHere && i === 0) || !existing.has(o.toLowerCase()));
+		q.options = before.concat(fresh, after);
+		return before.length + fresh.length - 1;
+	}
+
+	function focusOptionInput(qid, idx) {
+		const input = document.querySelector(`.builder-question-card[data-qid="${CSS.escape(String(qid))}"] .q-option-input[data-opt-idx="${idx}"]`);
+		if (input) {
+			input.focus();
+			const end = input.value.length;
+			try { input.setSelectionRange(end, end); } catch (_) {}
+		}
+	}
+
 	function renderBuilderQuestions() {
 		if (!questions || !Array.isArray(questions) || questions.length === 0) {
 			questions = [
@@ -633,7 +682,18 @@ function initFormBuilder() {
 									</div>
 								`).join('')}
 							</div>
-							<button type="button" class="btn-add-option" style="background: #ffffff; border: 1px dashed #3b82f6; color: #2563eb; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.7rem; border-radius: 6px; cursor: pointer; margin-top: 0.5rem;">+ Add Option</button>
+							<div class="q-options-actions">
+								<button type="button" class="btn-add-option">+ Add Option</button>
+								<button type="button" class="btn-bulk-options" aria-expanded="false">Paste list</button>
+							</div>
+							<p class="q-options-tip">Tip: paste a list (one option per line, e.g. from Excel or Google Docs) into any option box and every line becomes its own option.</p>
+							<div class="q-bulk-options" hidden>
+								<textarea class="setup-input q-bulk-text" rows="6" placeholder="Paste or type one option per line"></textarea>
+								<div class="q-bulk-row">
+									<label class="q-bulk-replace"><input type="checkbox" class="q-bulk-replace-check" /> Replace current options</label>
+									<button type="button" class="btn-bulk-apply">Add options</button>
+								</div>
+							</div>
 						</div>
 					` : ''}
 					</div>
@@ -728,7 +788,47 @@ function initFormBuilder() {
 							q.options[oIdx] = e.target.value;
 							renderLivePreview();
 						});
+						optInput.addEventListener("paste", (e) => {
+							const text = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+							const lines = splitOptionLines(text);
+							if (lines.length < 2) return;
+							e.preventDefault();
+							const oIdx = parseInt(optInput.getAttribute("data-opt-idx"));
+							const focusIdx = insertOptionLines(q, oIdx, lines);
+							renderBuilderQuestions();
+							renderLivePreview();
+							focusOptionInput(q.id, focusIdx);
+						});
+						optInput.addEventListener("keydown", (e) => {
+							if (e.key !== "Enter" || e.isComposing) return;
+							e.preventDefault();
+							const oIdx = parseInt(optInput.getAttribute("data-opt-idx"));
+							q.options.splice(oIdx + 1, 0, "");
+							renderBuilderQuestions();
+							renderLivePreview();
+							focusOptionInput(q.id, oIdx + 1);
+						});
 					});
+
+					const bulkBtn = card.querySelector(".btn-bulk-options");
+					const bulkBox = card.querySelector(".q-bulk-options");
+					if (bulkBtn && bulkBox) {
+						bulkBtn.addEventListener("click", () => {
+							bulkBox.hidden = !bulkBox.hidden;
+							bulkBtn.setAttribute("aria-expanded", String(!bulkBox.hidden));
+							if (!bulkBox.hidden) bulkBox.querySelector(".q-bulk-text")?.focus();
+						});
+						bulkBox.querySelector(".btn-bulk-apply")?.addEventListener("click", () => {
+							const lines = splitOptionLines(bulkBox.querySelector(".q-bulk-text")?.value || "");
+							if (!lines.length) return;
+							const replace = !!bulkBox.querySelector(".q-bulk-replace-check")?.checked;
+							q.options = replace ? dedupeOptions(lines) : dedupeOptions((q.options || []).filter((o) => String(o || "").trim()).concat(lines));
+							if (!q.options.length) q.options = ["Option 1"];
+							renderBuilderQuestions();
+							renderLivePreview();
+							if (window.showNotification) window.showNotification(`\u2713 ${q.options.length} options in "${q.title || "this question"}".`);
+						});
+					}
 
 					card.querySelectorAll(".btn-del-option").forEach(btn => {
 						btn.addEventListener("click", (e) => {

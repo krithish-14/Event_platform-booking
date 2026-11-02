@@ -4104,7 +4104,13 @@ async function initOrganizerDashboard() {
 		}
 		const btnPublish = document.getElementById("btnPublishForm");
 		if (btnPublish && published) {
-			btnPublish.innerHTML = "Update &amp; Republish";
+			btnPublish.innerHTML = "Update Event";
+			btnPublish.title = "Save every section and update the live event page. No OTP needed.";
+		}
+		const btnTop = document.getElementById("btnTopPublish");
+		if (btnTop && published) {
+			btnTop.innerHTML = "Update Event";
+			btnTop.title = "Save every section and update the live event page. No OTP needed.";
 		}
 	}
 
@@ -4794,7 +4800,7 @@ async function initOrganizerDashboard() {
 	// \u2500\u2500 Live Auto-Save / UPSERT Synchronization \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	let autoSaveTimer = null;
 
-	async function autoSaveManageEvent(notifyError = false) {
+	async function autoSaveManageEvent(notifyError = false, syncLive = false) {
 		if (!email) return false;
 		if (hostEventCancelled && !notifyError) return false;
 		if (hostEventCancelled && notifyError) hostEventCancelled = false;
@@ -4823,7 +4829,8 @@ async function initOrganizerDashboard() {
 			agenda_json: collectAgendaJson(),
 			policies_json: collectPoliciesJson(),
 			about_event: readAboutEventHtml() || undefined,
-			is_private: readIsPrivate()
+			is_private: readIsPrivate(),
+			sync_live: syncLive ? true : undefined
 		};
 
 		try {
@@ -5175,7 +5182,7 @@ async function initOrganizerDashboard() {
 		}
 	}
 
-	async function autoSaveEventDesign(notifyError = false) {
+	async function autoSaveEventDesign(notifyError = false, syncLive = false) {
 		if (!email) return false;
 		if (hostEventCancelled && !notifyError) return false;
 		if (!activeEventId) {
@@ -5193,7 +5200,8 @@ async function initOrganizerDashboard() {
 			sponsor_details: collectSponsorDetails(),
 			speaker_details: collectSpeakerDetails(),
 			performers_title: collectPerformersTitle(),
-			about_event: readAboutEventHtml() || undefined
+			about_event: readAboutEventHtml() || undefined,
+			sync_live: syncLive ? true : undefined
 		};
 
 		try {
@@ -5223,8 +5231,42 @@ async function initOrganizerDashboard() {
 		}
 	}
 
-	async function saveFullEventDesign(notifyError = false) {
-		return autoSaveEventDesign(notifyError);
+	async function saveFullEventDesign(notifyError = false, syncLive = false) {
+		return autoSaveEventDesign(notifyError, syncLive);
+	}
+
+	function isLiveForUpdates() {
+		return isPublishedLifecycle() || currentLifecycle === "ended";
+	}
+
+	/* Published events: save every section and refresh the public page. No OTP — that is only for the first publish. */
+	async function updateLiveEvent() {
+		if (!validateManageWizardStep()) {
+			switchTab("manage");
+			return false;
+		}
+		const buttons = [document.getElementById("btnPublishForm"), document.getElementById("btnTopPublish")];
+		buttons.forEach((b) => setWizardNavBusy(b, true, "<span>Updating\u2026</span>"));
+		try {
+			const manageOk = await autoSaveManageEvent(true, true);
+			if (!manageOk) return false;
+			const designOk = await saveFullEventDesign(true, true);
+			if (!designOk) return false;
+			if (window.JodFormBuilder && typeof window.JodFormBuilder.saveDraft === "function") {
+				const formOk = await window.JodFormBuilder.saveDraft();
+				if (formOk === false) return false;
+			}
+			if (ticketDraftDirty) {
+				const ticketsOk = await publishTicketLayout(true);
+				if (!ticketsOk) return false;
+			}
+			showNotification("\u2713 Event updated. Manage, Design, Tickets and Registration Form changes are live \u2014 no OTP needed.");
+			renderOverviewState();
+			return true;
+		} finally {
+			buttons.forEach((b) => setWizardNavBusy(b, false));
+			applySectionActionLabels();
+		}
 	}
 
 	function validateManageWizardStep() {
@@ -5330,7 +5372,7 @@ async function initOrganizerDashboard() {
 		const btn = document.getElementById("btnManageNext");
 		setWizardNavBusy(btn, true, "<span>Saving\u2026</span>");
 		try {
-			const saved = await autoSaveManageEvent(true);
+			const saved = await autoSaveManageEvent(true, isLiveForUpdates());
 			syncManageWizardPreview();
 			if (!saved) {
 				// autoSaveManageEvent(true) already shows the real API/network error.
@@ -5351,7 +5393,7 @@ async function initOrganizerDashboard() {
 		const btn = document.getElementById("btnSaveDesign");
 		setWizardNavBusy(btn, true, "<span>Saving\u2026</span>");
 		try {
-			const saved = await saveFullEventDesign(true);
+			const saved = await saveFullEventDesign(true, isLiveForUpdates());
 			if (!saved) {
 				showNotification("Could not save Design details. Stay on this section and try again.");
 				return;
@@ -7986,6 +8028,15 @@ async function initOrganizerDashboard() {
 
 	async function handleFinalPublish() {
 		if (_publishInFlight) return;
+		if (isLiveForUpdates()) {
+			_publishInFlight = true;
+			try {
+				await updateLiveEvent();
+			} finally {
+				_publishInFlight = false;
+			}
+			return;
+		}
 		if (VERIFICATION_UI_ENABLED) {
 		const info = await fetchVerificationStatus(true);
 		const statusKey = info ? info.verification_status : "NOT_SUBMITTED";

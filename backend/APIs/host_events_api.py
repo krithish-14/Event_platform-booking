@@ -1662,6 +1662,8 @@ class SaveManageEventRequest(BaseModel):
     policies_json: Optional[Dict[str, Any]] = None
     about_event: Optional[str] = None
     is_private: Optional[bool] = None
+    # Explicit "Update" on a published event: refresh the public event page now (no OTP republish).
+    sync_live: Optional[bool] = None
 
 
 class SaveEventDesignRequest(BaseModel):
@@ -1684,6 +1686,7 @@ class SaveEventDesignRequest(BaseModel):
     ticket_layout_json: Optional[Dict[str, Any]] = None
     ticket_layout_draft_json: Optional[Dict[str, Any]] = None
     publish_ticket_layout: Optional[bool] = False
+    sync_live: Optional[bool] = False
 
 
 class SaveRegistrationFormRequest(BaseModel):
@@ -2040,6 +2043,14 @@ def save_manage_event(
             catalog_synced = False
             catalog_sync_error = str(exc)
             print(f"[EVENT PUBLISH] catalog sync failed event_id={event.event_id}: {exc}", flush=True)
+    elif payload.sync_live and status_lower == "published":
+        try:
+            sync_published_event_to_public_catalog(db, event)
+        except Exception as exc:
+            db.rollback()
+            catalog_synced = False
+            catalog_sync_error = str(exc)
+            print(f"[EVENT UPDATE] live catalog sync failed event_id={event.event_id}: {exc}", flush=True)
     elif payload.is_private is not None:
         sync_event_visibility_to_catalog(db, event)
 
@@ -2224,6 +2235,17 @@ def save_event_design(
     db.commit()
     db.refresh(design)
 
+    catalog_synced = True
+    catalog_sync_error = None
+    if payload.sync_live and (event.event_status or "").lower() == "published":
+        try:
+            sync_published_event_to_public_catalog(db, event)
+        except Exception as exc:
+            db.rollback()
+            catalog_synced = False
+            catalog_sync_error = str(exc)
+            print(f"[EVENT UPDATE] design catalog sync failed event_id={event.event_id}: {exc}", flush=True)
+
     premium = _organizer_is_premium(db, email_clean, customer_id, host_id)
     return {
         "status": "success",
@@ -2233,6 +2255,8 @@ def save_event_design(
         "customer_id": design.customer_id,
         "host_id": design.host_id,
         "is_premium": premium,
+        "catalog_synced": catalog_synced,
+        "catalog_sync_error": catalog_sync_error,
         "design": {
             "design_id": str(design.design_id),
             "theme_color": design.theme_color,
