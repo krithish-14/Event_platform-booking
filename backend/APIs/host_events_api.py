@@ -7,6 +7,7 @@ API endpoints for Host Event Creation Workflow — Live Auto-Save & UPSERT for:
 
 import os
 import re
+import secrets
 import uuid
 import uuid as uuid_mod
 from datetime import datetime, date, timedelta, timezone
@@ -706,7 +707,7 @@ def _extract_min_ticket_price(event_mgt: EventManagement) -> float:
         return 0.0
     prices = []
     for t in tickets:
-        if isinstance(t, dict) and t.get("price") is not None:
+        if isinstance(t, dict) and t.get("price") is not None and t.get("members_only") is not True:
             try:
                 prices.append(float(t["price"]))
             except (TypeError, ValueError):
@@ -1964,8 +1965,10 @@ def save_manage_event(
             pass
     # Do not invent start+4h when end is blank — that prematurely ended live events.
     if payload.tickets_json is not None:
-        from Services.ticket_pricing import normalize_ticket_list
+        from Services.ticket_pricing import is_members_offer, normalize_ticket_list
         event.tickets_json = normalize_ticket_list(payload.tickets_json, event.tickets_json)
+        if not getattr(event, "members_key", None) and any(is_members_offer(t) for t in event.tickets_json or []):
+            event.members_key = secrets.token_urlsafe(12)
     if payload.agenda_json is not None: event.agenda_json = payload.agenda_json
     if payload.policies_json is not None:
         policies = dict(payload.policies_json)
@@ -2066,6 +2069,7 @@ def save_manage_event(
             "place_id": getattr(event, "place_id", None),
             "event_status": event.event_status,
             "is_private": bool(getattr(event, "is_private", False)),
+            "members_key": getattr(event, "members_key", None),
             "duration": getattr(event, "duration", None),
             "tickets": event.tickets_json,
             "agenda": event.agenda_json,
@@ -2440,6 +2444,7 @@ def get_current_host_event(
             "organizer_phone": event.organizer_phone,
             "event_status": event.event_status,
             "is_private": bool(getattr(event, "is_private", False)),
+            "members_key": getattr(event, "members_key", None),
             "lifecycle": life["lifecycle"],
             "event_start_date": start_local,
             "event_end_date": end_local,

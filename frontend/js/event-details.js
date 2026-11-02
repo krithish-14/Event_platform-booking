@@ -19,6 +19,8 @@ let galleryImages = [];
 let galleryIndex = 0;
 let galleryLightboxBound = false;
 let hasIssuedTicket = false;
+// Members booking link (?access=KEY) unlocks members-only ticket offers.
+const membersAccessKey = (new URLSearchParams(window.location.search).get("access") || "").trim().slice(0, 64);
 
 function setupViewTicketLinks() {
  const ordersHref = ordersPageHref();
@@ -142,7 +144,7 @@ function showEventContent() {
 async function loadEventFromBackend(eventId) {
  const EP = window.JodEventsPublic;
  try {
- const data = await EP.fetchPublishedEventById(eventId);
+ const data = await EP.fetchPublishedEventById(eventId, membersAccessKey);
  currentEventData = data;
  renderEventDOM(data);
  showEventContent();
@@ -989,11 +991,12 @@ function paintTicketTypes(event) {
  : (pricing === "package"
  ? ("\u20b9" + Number(price).toLocaleString("en-IN") + " for " + packageQty + " people")
  : ("\u20b9" + Number(price).toLocaleString("en-IN") + (pricing === "per_person" ? " per person" : "")));
- const statusLabel = pricing === "package"
+ const baseStatus = pricing === "package"
  ? ("Group ticket \u00b7 " + packageQty + " tickets")
  : (isEarlyBird && percentOff
  ? ("Early Bird \u00b7 " + percentOff + "% off")
  : (t.availability || (timed ? "Limited-time offer" : "Available")));
+ const statusLabel = t.members_only ? ("Members only \u00b7 " + baseStatus) : baseStatus;
  const ticketNote = String(t.price_note || "").trim();
  return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" data-offer-id="${offerId}" data-pricing="${pricing}" data-package-qty="${packageQty}" data-max-per-order="${maxAttr}" data-note="${escape(ticketNote)}">
  <div>
@@ -1539,6 +1542,7 @@ async function triggerBookingModal() {
  packageQuantity: (selectedOfferMeta().packageQty) || Number(matchedTicket && matchedTicket.package_quantity) || 0,
  bulkOffers: (selectedOfferMeta().pricing === "per_person" || selectedOfferMeta().pricing === "package") ? [] : bulkOffersFromPurchase(currentTicketPurchase),
  paymentQrUrl: pendingQr,
+ accessKey: membersAccessKey,
  priceNote: String((selectedOpt && selectedOpt.dataset && selectedOpt.dataset.note)
  || (currentTicketPurchase && currentTicketPurchase.price_note)
  || (currentEventData && currentEventData.ticket_purchase && currentEventData.ticket_purchase.price_note)

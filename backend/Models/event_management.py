@@ -35,6 +35,8 @@ class EventManagement(Base):
     organizer_phone  = Column(String(50), nullable=True)
     event_status     = Column(String(50), default="draft", nullable=True)  # draft / published / cancelled; live/ended computed from dates
     is_private       = Column(Boolean, default=False, nullable=True)
+    # Secret for the members booking link (event-details?id=...&access=KEY). Members-only ticket offers need it.
+    members_key      = Column(String(40), nullable=True)
     published_at     = Column(DateTime, nullable=True)
     tickets_json     = Column(JSONType, nullable=True)
     agenda_json      = Column(JSONType, nullable=True)

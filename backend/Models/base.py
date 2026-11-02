@@ -499,6 +499,7 @@ def _migrate_tables(engine=None):
                 ("agenda_json", "JSON" if is_pg else "TEXT"),
                 ("policies_json", "JSON" if is_pg else "TEXT"),
                 ("is_private", "BOOLEAN DEFAULT FALSE"),
+                ("members_key", "VARCHAR(40)"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in em_migrations:

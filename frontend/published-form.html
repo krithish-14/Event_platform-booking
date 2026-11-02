@@ -578,10 +578,20 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				return !isHostReadOnly && Boolean(eventId || (formData && formData.event_id));
 			}
 
+			function pendingAccessKey() {
+				try {
+					const bill = JSON.parse(sessionStorage.getItem("jod_pending_ticket_bill") || "{}") || {};
+					return String(bill.accessKey || "").slice(0, 64);
+				} catch (_) {
+					return "";
+				}
+			}
+
 			async function loadEventMeta(id) {
 				if (!id) return;
 				try {
-					const res = await fetch(`${EVENTS_API}/public/${encodeURIComponent(id)}`, {
+					const access = pendingAccessKey();
+					const res = await fetch(`${EVENTS_API}/public/${encodeURIComponent(id)}${access ? "?access=" + encodeURIComponent(access) : ""}`, {
 						cache: "no-store",
 						headers: { Accept: "application/json" }
 					});
@@ -661,6 +671,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					paymentQrUrl: paymentQrForTicket(ticketName),
 					priceNote: prev.priceNote || "",
 					offerId: prev.offerId || "",
+					accessKey: prev.accessKey || "",
 					pricingType: prev.pricingType || "",
 					packageQuantity: Number(prev.packageQuantity) || 0,
 					bulkOffers: Array.isArray(prev.bulkOffers) ? prev.bulkOffers : []

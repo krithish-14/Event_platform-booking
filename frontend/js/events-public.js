@@ -271,8 +271,9 @@
 		return list.filter(isEventCurrentlyVisible);
 	}
 
-	async function fetchPublishedEventById(eventId) {
-		const res = await fetch(`${getApiBase()}/api/events/public/${encodeURIComponent(eventId)}`, {
+	async function fetchPublishedEventById(eventId, accessKey) {
+		const access = accessKey ? `?access=${encodeURIComponent(accessKey)}` : "";
+		const res = await fetch(`${getApiBase()}/api/events/public/${encodeURIComponent(eventId)}${access}`, {
 			cache: "no-store",
 			headers: { Accept: "application/json" }
 		});

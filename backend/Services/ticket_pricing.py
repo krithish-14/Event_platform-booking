@@ -8,6 +8,7 @@ All money math uses integer paise.
 
 from __future__ import annotations
 
+import hmac
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -100,6 +101,10 @@ def normalize_offer(raw: dict, previous: Optional[dict] = None) -> dict:
     out["sales_start"] = sales_start
     out["sales_end"] = sales_end
     out["is_active"] = is_active
+    if str(raw.get("members_only")).strip().lower() in ("1", "true", "yes", "on"):
+        out["members_only"] = True
+    else:
+        out.pop("members_only", None)
     capacity = raw.get("qty", raw.get("quantity", previous.get("qty")))
     if capacity not in (None, ""):
         out["qty"] = max(0, _as_int(capacity, 0))
@@ -433,6 +438,31 @@ def _load_host_tickets(db, event_id) -> tuple[Any, list]:
     return host, [row for row in raw if isinstance(row, dict)]
 
 
+def is_members_offer(offer) -> bool:
+    return isinstance(offer, dict) and offer.get("members_only") is True
+
+
+def members_key_matches(host, access_key) -> bool:
+    expected = str(getattr(host, "members_key", None) or "")
+    given = str(access_key or "").strip()
+    return bool(expected and given) and hmac.compare_digest(expected, given)
+
+
+def public_ticket_rows(rows, *, show_members: bool = False) -> list:
+    """Ticket offers a visitor may see. Members-only offers need the host's members link."""
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict) and (show_members or not is_members_offer(row))]
+
+
+def assert_offer_access(host, offer, access_key) -> None:
+    if is_members_offer(offer) and not members_key_matches(host, access_key):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This ticket is only for invited members. Open the members link the host shared with you.",
+        )
+
+
 def find_offer(rows: list, *, offer_id: str = "", ticket_name: str = "") -> Optional[dict]:
     wanted_id = str(offer_id or "").strip()
     if wanted_id:
@@ -459,6 +489,7 @@ def calculate_order_price(
     ticket_name: str = "",
     purchase_quantity: int = 1,
     now: Optional[datetime] = None,
+    access_key: str = "",
 ) -> PriceQuote:
     host, rows = _load_host_tickets(db, event_id)
     if not rows and not str(offer_id or "").strip():
@@ -486,6 +517,7 @@ def calculate_order_price(
     offer = find_offer(rows, offer_id=offer_id, ticket_name="" if offer_id else ticket_name)
     if offer is None:
         raise HTTPException(status_code=400, detail="Ticket offer was not found for this event.")
+    assert_offer_access(host, offer, access_key)
     if str(offer.get("pricing_type") or "") in ("per_person", "package"):
         try:
             if host is not None:

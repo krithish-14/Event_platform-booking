@@ -6987,6 +6987,15 @@ html[data-theme="dark"] .evsess-table td { border-color: rgba(255, 138, 31, 0.14
 .event-visibility-option span { display: flex; flex-direction: column; gap: 0.2rem; }
 .event-visibility-option strong { font-size: 0.92rem; color: #0f172a; }
 .event-visibility-option small { font-size: 0.8rem; font-weight: 500; line-height: 1.45; color: #64748b; }
+.members-link-panel { margin: 0.25rem 0 1rem; padding: 0.9rem 1rem; border: 1.5px dashed #f59e0b; border-radius: 10px; background: #fffbeb; }
+.members-link-panel[hidden] { display: none; }
+.members-link-panel strong { display: block; font-size: 0.92rem; color: #92400e; }
+.members-link-panel p { margin: 0.3rem 0 0.6rem; font-size: 0.82rem; line-height: 1.45; color: #78350f; }
+.members-link-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.members-link-row .setup-input { flex: 1 1 18rem; min-width: 0; padding-left: 0.8rem; font-size: 0.82rem; }
+.members-link-copy { padding: 0 1rem; min-height: 40px; border: none; border-radius: 8px; background: #FF7508; color: #fff; font: inherit; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+.members-link-copy:hover { background: #e56600; }
+.members-link-wait { font-style: italic; }
 .live-event-title { margin: 0; font-size: 1.45rem; font-weight: 800; color: #0f172a; overflow-wrap: anywhere; }
 .live-event-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem 1rem; margin: 0; }
 .live-event-facts .is-wide { grid-column: 1 / -1; }
@@ -7073,5 +7082,8 @@ html[data-theme="dark"] .event-visibility-option:has(input:checked) { border-col
 html[data-theme="dark"] .event-visibility-option strong { color: #f6f0e8; }
 html[data-theme="dark"] .event-visibility-option small { color: #c8bfb4; }
 html[data-theme="dark"] .live-event-private { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
+html[data-theme="dark"] .members-link-panel { background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.5); }
+html[data-theme="dark"] .members-link-panel strong { color: #fcd34d; }
+html[data-theme="dark"] .members-link-panel p { color: #fde68a; }
 html[data-theme="dark"] .live-event-btn.is-primary,
 html[data-theme="dark"] .host-support-cat.is-on { background: #FF7508; border-color: #FF7508; color: #fff8f0; }

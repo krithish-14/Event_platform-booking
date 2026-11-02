@@ -477,7 +477,10 @@ def _event_to_response(
     performers_title: Optional[str] = None,
     ticket_types: Optional[Any] = None,
     ticket_purchase: Optional[Any] = None,
+    show_members: bool = False,
 ) -> EventResponse:
+    from Services.ticket_pricing import public_ticket_rows
+
     terms = event.terms
     if not terms and policies:
         terms = _format_policies_text(policies)
@@ -491,6 +494,7 @@ def _event_to_response(
         resolved_tickets = _parse_json_field(resolved_tickets)
     if not isinstance(resolved_tickets, list):
         resolved_tickets = []
+    resolved_tickets = public_ticket_rows(resolved_tickets, show_members=show_members)
     return EventResponse(
         id=str(event.id),
         title=event.title,
@@ -591,9 +595,26 @@ def get_public_events(
     )
 
 
+def _members_access(db: Session, event_id, access: Optional[str]) -> bool:
+    """True when ?access= matches the host's members link key."""
+    if not access:
+        return False
+    from Models.event_management import EventManagement
+    from Services.ticket_pricing import members_key_matches
+    for cand in _design_lookup_candidates(event_id):
+        try:
+            host = db.query(EventManagement).filter(EventManagement.event_id == cand).first()
+        except Exception:
+            db.rollback()
+            host = None
+        if host:
+            return members_key_matches(host, access)
+    return False
+
+
 @router.get("/public/{event_id}", response_model=EventResponse)
-def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
-    """Get a single published event for public event details pages."""
+def get_public_event(event_id: UUID, access: Optional[str] = Query(default=None, max_length=64), db: Session = Depends(get_db)):
+    """Get a single published event for public event details pages. ?access= unlocks members-only tickets."""
     event = get_public_event_by_id(db, event_id)
     if not event:
         print(f"[EVENT DETAILS] unavailable event_id={event_id}", flush=True)
@@ -648,6 +669,7 @@ def get_public_event(event_id: UUID, db: Session = Depends(get_db)):
         performers_title=performers_title,
         ticket_types=host_tickets,
         ticket_purchase=ticket_purchase,
+        show_members=_host_call(lambda: _members_access(db, event.id, access), False),
     )
 
 
@@ -694,7 +716,7 @@ def get_events(
 
 
 @router.get("/{event_id}", response_model=EventResponse)
-def get_event(event_id: UUID, db: Session = Depends(get_db)):
+def get_event(event_id: UUID, access: Optional[str] = Query(default=None, max_length=64), db: Session = Depends(get_db)):
     """Get a single published event by ID (public catalog)."""
     event = get_public_event_by_id(db, event_id)
     if not event:
@@ -720,6 +742,7 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
         performers_title=performers_title,
         ticket_types=_host_tickets_for_event(db, event.id),
         ticket_purchase=_host_ticket_purchase_for_event(db, event.id),
+        show_members=_members_access(db, event.id, access),
     )
 
 

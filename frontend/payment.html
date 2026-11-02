@@ -501,6 +501,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  const qrFromUrl = params.get("qr") || saved.paymentQrUrl || "";
  const qty = Number(saved.quantity || 1) || 1;
  const offerId = saved.offerId || "";
+ const accessKey = String(saved.accessKey || "").slice(0, 64);
  const pricingType = saved.pricingType || "";
  const packagePeople = Number(saved.packageQuantity) || 0;
  const bulkOffers = Array.isArray(saved.bulkOffers) ? saved.bulkOffers : [];
@@ -650,7 +651,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  method: "POST",
  allowGuest: true,
  headers: { "Content-Type": "application/json", Accept: "application/json" },
- body: JSON.stringify({ event_id: eventId, ticket_type: ticket, offer_id: offerId, quantity: qty || 1, coupon_code: code })
+ body: JSON.stringify({ event_id: eventId, ticket_type: ticket, offer_id: offerId, quantity: qty || 1, coupon_code: code, access_key: accessKey || undefined })
  });
  const data = await res.json().catch(() => ({}));
  if (!res.ok) throw new Error(apiErrorMessage(data, "This coupon code could not be applied."));
@@ -758,6 +759,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  offer_id: offerId,
  quantity: qty || 1,
  coupon_code: couponCode || undefined,
+ access_key: accessKey || undefined,
  attendee_name: user.full_name || user.username || "",
  attendee_phone: user.phone || user.mobile || ""
  })
@@ -825,7 +827,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  ticket_type: ticket,
  offer_id: offerId,
  quantity: qty || 1,
- coupon_code: couponCode || undefined
+ coupon_code: couponCode || undefined,
+ access_key: accessKey || undefined
  })
  });
  const data = await res.json().catch(() => ({}));
@@ -890,7 +893,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  ticket_type: ticket,
  offer_id: offerId,
  quantity: qty || 1,
- coupon_code: couponCode || undefined
+ coupon_code: couponCode || undefined,
+ access_key: accessKey || undefined
  })
  });
  const order = await createRes.json().catch(() => ({}));
@@ -948,6 +952,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  offer_id: offerId,
  quantity: qty || 1,
  coupon_code: couponCode || undefined,
+ access_key: accessKey || undefined,
  amount: billAmountRupees(),
  attendee_name: user.full_name || user.username || "",
  attendee_phone: user.phone || user.mobile || ""
@@ -1116,7 +1121,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  return;
  }
  try {
- const res = await fetch(apiBase + "/api/events/public/" + encodeURIComponent(eventId));
+ const res = await fetch(apiBase + "/api/events/public/" + encodeURIComponent(eventId) + (accessKey ? "?access=" + encodeURIComponent(accessKey) : ""));
  if (!res.ok) throw new Error("Event unavailable");
  const data = await res.json();
  if (eventEl) eventEl.textContent = data.title || saved.eventTitle || "Event";
@@ -1223,6 +1228,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
  body.append("amount", String(billAmountRupees()));
  body.append("quantity", String(qty || 1));
  if (couponCode) body.append("coupon_code", couponCode);
+ if (accessKey) body.append("access_key", accessKey);
  body.append("attendee_name", document.getElementById("payName").value.trim());
  body.append("attendee_email", document.getElementById("payEmail").value.trim());
  body.append("attendee_phone", document.getElementById("payNumber").value.trim());

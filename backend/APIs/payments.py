@@ -116,6 +116,7 @@ class CreateOrderRequest(BaseModel):
     offer_id: Optional[str] = Field(default=None, max_length=64)
     quantity: Optional[int] = Field(default=1, ge=1, le=100000)
     coupon_code: Optional[str] = Field(default=None, max_length=40)
+    access_key: Optional[str] = Field(default=None, max_length=64)
 
 
 class CouponCheckRequest(BaseModel):
@@ -124,6 +125,7 @@ class CouponCheckRequest(BaseModel):
     offer_id: Optional[str] = Field(default=None, max_length=64)
     quantity: Optional[int] = Field(default=1, ge=1, le=100000)
     coupon_code: str = Field(..., min_length=1, max_length=40)
+    access_key: Optional[str] = Field(default=None, max_length=64)
 
 
 class VerifyPaymentRequest(BaseModel):
@@ -138,6 +140,7 @@ class VerifyPaymentRequest(BaseModel):
     attendee_name: Optional[str] = Field(default=None, max_length=120)
     attendee_phone: Optional[str] = Field(default=None, max_length=40)
     coupon_code: Optional[str] = Field(default=None, max_length=40)
+    access_key: Optional[str] = Field(default=None, max_length=64)
 
 
 class ClaimFreeTicketRequest(BaseModel):
@@ -148,6 +151,7 @@ class ClaimFreeTicketRequest(BaseModel):
     attendee_name: Optional[str] = Field(default=None, max_length=120)
     attendee_phone: Optional[str] = Field(default=None, max_length=40)
     coupon_code: Optional[str] = Field(default=None, max_length=40)
+    access_key: Optional[str] = Field(default=None, max_length=64)
 
 
 def _ticket_label(item: dict) -> str:
@@ -776,6 +780,7 @@ async def claim_free_ticket(
         ticket_type,
         payload.quantity or 1,
         coupon_code=payload.coupon_code,
+        access_key=payload.access_key,
     )
     qty = quote.attendee_count
     if quote.total_paise > 0:
@@ -880,7 +885,7 @@ def _clamp_purchase_quantity(db: Session, event_id: str, requested) -> int:
     return min(qty, limit)
 
 
-def _checkout_quote(db, event_id, offer_id, ticket_type, quantity, client_rupees=None, enforce_client=False, coupon_code=None):
+def _checkout_quote(db, event_id, offer_id, ticket_type, quantity, client_rupees=None, enforce_client=False, coupon_code=None, access_key=None):
     from Services.ticket_pricing import apply_coupon, assert_client_amount, calculate_order_price
     quote = calculate_order_price(
         db,
@@ -888,6 +893,7 @@ def _checkout_quote(db, event_id, offer_id, ticket_type, quantity, client_rupees
         offer_id=offer_id or "",
         ticket_name=ticket_type or "",
         purchase_quantity=int(quantity or 1),
+        access_key=str(access_key or "")[:64],
     )
     if coupon_code:
         quote = apply_coupon(db, event_id, quote, coupon_code)
@@ -911,6 +917,7 @@ async def submit_payment_proof(
     transaction_id: str = Form(...),
     screenshot: UploadFile = File(...),
     coupon_code: str = Form(""),
+    access_key: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -968,6 +975,7 @@ async def submit_payment_proof(
         client_rupees=amount,
         enforce_client=True,
         coupon_code=sanitize_text(coupon_code or "", max_length=40),
+        access_key=access_key,
     )
 
     if submission is not None and getattr(submission, "id", None) is not None:
@@ -1078,6 +1086,7 @@ async def create_razorpay_order(
             payload.ticket_type or "",
             payload.quantity or 1,
             coupon_code=payload.coupon_code,
+            access_key=payload.access_key,
         )
         amount_paise = int(checkout_quote.total_paise)
     if amount_paise < 100:
@@ -1239,6 +1248,7 @@ async def verify_razorpay_payment(
                 client_rupees=amount_rupees,
                 enforce_client=True,
                 coupon_code=payload.coupon_code,
+                access_key=payload.access_key,
             )
         amount_rupees = checkout_quote.total_rupees
         try:
@@ -1412,6 +1422,7 @@ async def complete_local_checkout(
         payload.ticket_type or "",
         payload.quantity or 1,
         coupon_code=payload.coupon_code,
+        access_key=payload.access_key,
     )
     payment_id = "LOCAL-" + secrets.token_hex(8).upper()
     row, submission_id = _record_razorpay_payment(
@@ -1454,6 +1465,7 @@ async def check_coupon(payload: CouponCheckRequest, request: Request, db: Sessio
         sanitize_text(payload.ticket_type or "", max_length=100),
         payload.quantity or 1,
         coupon_code=sanitize_text(payload.coupon_code or "", max_length=40),
+        access_key=payload.access_key,
     )
     from Services.ticket_pricing import _load_event_coupons, paise_to_rupees
     note = next(

@@ -944,6 +944,7 @@ async function initOrganizerDashboard() {
 				sales_start: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-start-input")?.value || "") || null,
 				sales_end: toIstIsoFromDatetimeLocal(row.querySelector(".ticket-offer-end-input")?.value || "") || null,
 				is_active: row.querySelector(".ticket-active-input") ? row.querySelector(".ticket-active-input").checked : true,
+				members_only: !!(row.querySelector(".ticket-members-input") && row.querySelector(".ticket-members-input").checked),
 				section_id: row.dataset.sectionId
 			};
 			if (maxRaw !== undefined && String(maxRaw).trim() !== "") shared.max_per_order = Number(maxRaw);
@@ -965,6 +966,7 @@ async function initOrganizerDashboard() {
 					ticket_kind: kind,
 					section_id: shared.section_id,
 					is_active: shared.is_active,
+					members_only: shared.members_only,
 					sales_start: toIstIsoFromDatetimeLocal(subtypeValue(card, "subtype-start-input")) || shared.sales_start,
 					sales_end: toIstIsoFromDatetimeLocal(subtypeValue(card, "subtype-end-input")) || shared.sales_end
 				};
@@ -1121,6 +1123,7 @@ async function initOrganizerDashboard() {
 						subs: [],
 						max_per_order: ticket.max_per_order,
 						is_active: ticket.is_active !== false,
+						members_only: ticket.members_only === true,
 						offer_id: ""
 					}
 				});
@@ -4189,6 +4192,50 @@ async function initOrganizerDashboard() {
 		if (e.target.closest && e.target.closest("#liveEventCopyLink")) copyEventLink();
 	});
 
+	// var: init code can call renderMembersLinkPanel before this line runs.
+	var activeMembersKey = "";
+
+	function membersLinkUrl() {
+		if (!activeEventId || !activeMembersKey) return "";
+		return `${shareableEventUrl()}&access=${encodeURIComponent(activeMembersKey)}`;
+	}
+
+	function renderMembersLinkPanel() {
+		const rows = document.getElementById("ticketTiersRows");
+		if (!rows) return;
+		let panel = document.getElementById("membersLinkPanel");
+		if (!panel) {
+			panel = document.createElement("div");
+			panel.id = "membersLinkPanel";
+			panel.className = "members-link-panel";
+			rows.insertAdjacentElement("afterend", panel);
+			panel.addEventListener("click", async (e) => {
+				if (!e.target.closest("[data-members-copy]")) return;
+				const link = membersLinkUrl();
+				if (!link) return;
+				try {
+					await navigator.clipboard.writeText(link);
+					showNotification("Members link copied. Share it only with your members.");
+				} catch (_) {
+					window.prompt("Copy the members booking link:", link);
+				}
+			});
+		}
+		const show = !!document.querySelector("#ticketTiersRows .ticket-members-input:checked");
+		panel.hidden = !show;
+		if (!show) return;
+		const link = membersLinkUrl();
+		panel.innerHTML = `<strong>Members booking link</strong>
+			<p>Members-only tickets are hidden on the public event page. Share this link only with your members so they can book them.</p>
+			${link
+				? `<div class="members-link-row"><input type="text" class="setup-input" readonly value="${attrEscape(link)}" aria-label="Members booking link" /><button type="button" class="members-link-copy" data-members-copy>Copy link</button></div>`
+				: `<p class="members-link-wait">Saving\u2026 your members link will appear here in a moment.</p>`}`;
+	}
+
+	document.addEventListener("change", (e) => {
+		if (e.target && e.target.classList && e.target.classList.contains("ticket-members-input")) renderMembersLinkPanel();
+	});
+
 	function formatLocalStamp(value) {
 		const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(value || ""));
 		if (!m) return "";
@@ -4685,6 +4732,7 @@ async function initOrganizerDashboard() {
 					if (catSel) catSel.value = hostData.event.event_category;
 				}
 				setVisibilityUi(!!hostData.event.is_private);
+				activeMembersKey = hostData.event.members_key || "";
 				const durationInput = document.getElementById("eventDurationInput");
 				if (durationInput) durationInput.value = hostData.event.duration || "";
 				if (hostData.event.policies) {
@@ -4790,6 +4838,10 @@ async function initOrganizerDashboard() {
 				if (data.event_id) {
 					activeEventId = data.event_id;
 					sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
+				}
+				if (data.event && data.event.members_key) {
+					activeMembersKey = data.event.members_key;
+					renderMembersLinkPanel();
 				}
 				if (data.lifecycle) currentLifecycle = data.lifecycle;
 				rememberEventSchedule(data);
@@ -5770,6 +5822,7 @@ async function initOrganizerDashboard() {
 		}
 		const maxOrder = saved.max_per_order != null && saved.max_per_order !== "" ? saved.max_per_order : "";
 		const active = saved.is_active === false ? "" : "checked";
+		const membersOnly = saved.members_only === true ? "checked" : "";
 		const div = document.createElement("div");
 		div.className = "ticket-tier-row";
 		div.dataset.sectionId = saved.section_id || newTicketSectionId();
@@ -5810,6 +5863,11 @@ async function initOrganizerDashboard() {
 				<div class="setup-form-group">
 					<label>Offer status</label>
 					<label class="ticket-active-label"><input type="checkbox" class="ticket-active-input" ${active} /> Active</label>
+				</div>
+				<div class="setup-form-group">
+					<label>Who can book</label>
+					<label class="ticket-active-label"><input type="checkbox" class="ticket-members-input" ${membersOnly} /> Members only (private link)</label>
+					<p class="ticket-offer-hint">Hidden on the public page. Only people with your members link can book it.</p>
 				</div>
 			</div>
 			<div class="setup-grid-2 ticket-tier-offer">
@@ -6012,6 +6070,8 @@ async function initOrganizerDashboard() {
 			const coupons = event.policies && Array.isArray(event.policies._coupons) ? event.policies._coupons : [];
 			placeSavedCoupons(coupons);
 		}
+		if (event.members_key) activeMembersKey = event.members_key;
+		renderMembersLinkPanel();
 		if (agendaRows && Array.isArray(event.agenda) && event.agenda.length) {
 			agendaRows.innerHTML = "";
 			event.agenda.forEach((a) => {
