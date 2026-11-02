@@ -864,6 +864,12 @@
 		return Number.isFinite(scale) && Math.abs(scale - 1) > 0.02;
 	};
 
+	// Text uses the same px table as the PDF (_canvas_font_px), so an unset size still matches the issued ticket.
+	TicketCanvasController.prototype.usesFontPx = function (item) {
+		if (!item) return false;
+		return this.hasCustomFont(item) || (this.isTextElement(item.type) && item.type !== "jod_logo");
+	};
+
 	TicketCanvasController.prototype.markFontMenu = function (px) {
 		const menu = this.root && this.root.querySelector("#ticketElFontMenu");
 		if (!menu) return;
@@ -872,10 +878,70 @@
 		});
 	};
 
+	// Card size the PDF ticket is laid out at (Services/ticket_pdf.py). The editor scales this box to
+	// fit the screen, so wrapping and positions match the issued ticket at any width.
+	TicketCanvasController.prototype.designSize = function () {
+		const L = this.layout || {};
+		if (L.canvas_mode === "custom") {
+			return L.orientation === "portrait" ? { w: 570, h: 760, maxW: 420 } : { w: 760, h: 291.2, maxW: 760 };
+		}
+		const id = (this.currentTemplate() || {}).id || "";
+		if (id === "midnight") return { w: 760, h: 280, maxW: 760 };
+		if (id === "sunset") return { w: 820, h: 250, maxW: 820 };
+		if (id === "vip_gold") return { w: 820, h: 240, maxW: 820 };
+		return { w: 340, h: 520, maxW: 380 };
+	};
+
+	TicketCanvasController.prototype.fitCardToStage = function () {
+		const stage = this.root && this.root.querySelector("#ticketCanvasStage");
+		const card = this.root && this.root.querySelector("#ticketLiveCard");
+		if (!stage || !card) return;
+		const size = this.designSize();
+		const cs = window.getComputedStyle(stage);
+		const avail = stage.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+		if (!(avail > 40)) return;
+		const scale = Math.min(size.maxW, avail) / size.w;
+		const set = function (prop, value) { card.style.setProperty(prop, value, "important"); };
+		set("width", size.w + "px");
+		set("height", size.h + "px");
+		set("max-width", "none");
+		set("min-width", "0");
+		set("aspect-ratio", "auto");
+		set("flex-shrink", "0");
+		set("animation", "none");
+		set("transition", "none");
+		set("transform-origin", "top left");
+		set("transform", "scale(" + scale.toFixed(4) + ")");
+		set("margin-right", (size.w * (scale - 1)).toFixed(2) + "px");
+		set("margin-bottom", (size.h * (scale - 1)).toFixed(2) + "px");
+		this._cardScale = scale;
+		if (!this._fitObserver && typeof ResizeObserver === "function") {
+			const self = this;
+			this._fitObserver = new ResizeObserver(function () { self.fitCardToStage(); });
+			this._fitObserver.observe(stage);
+		}
+	};
+
+	TicketCanvasController.prototype.focusTextInput = function () {
+		const self = this;
+		const item = this.findById(this.selectedId);
+		if (!item || !this.isEditableText(item.type)) return;
+		if (this.isDrawerMode() && !this.toolsOpen) this.setToolsOpen(true);
+		const focusNow = function () {
+			const input = self.root && self.root.querySelector("#ticketItemText");
+			if (!input || document.activeElement === input) return;
+			input.focus();
+			if (item.type === "text" && input.value === "Your text") input.select();
+			if (input.scrollIntoView) input.scrollIntoView({ block: "nearest" });
+		};
+		window.requestAnimationFrame(focusNow);
+		// The tools drawer slides in; its input cannot take focus until it is visible.
+		window.setTimeout(focusNow, 350);
+	};
+
 	TicketCanvasController.prototype.growBoxForFont = function (item, fontPx) {
 		if (!item) return;
-		const card = this.root && this.root.querySelector("#ticketLiveCard");
-		const cardH = card && card.clientHeight ? card.clientHeight : 240;
+		const cardH = this.designSize().h;
 		const twoLine = ["name", "email", "phone", "date", "venue", "price", "seat", "booking_id"].indexOf(item.type) >= 0;
 		const lines = twoLine ? 2.2 : 1.3;
 		const needed = Math.ceil((fontPx * lines / cardH) * 100);
@@ -1031,7 +1097,7 @@
 		node.style.top = item.y + "%";
 		node.style.width = item.w + "%";
 		node.style.height = item.h + "%";
-		const customFont = this.hasCustomFont(item);
+		const customFont = this.usesFontPx(item);
 		const px = this.fontPxFor(item);
 		node.classList.toggle("has-font-size", customFont);
 		node.style.setProperty("--tc-font-scale", customFont ? "1" : String(item.fontScale || 1));
@@ -1941,7 +2007,11 @@
 				return '<div class="ticket-palette-group"><h4>' + escapeHtml(group.title) + "</h4><div class=\"ticket-palette-chips\">" + chips + "</div></div>";
 			}).join("");
 			dataHost.querySelectorAll("[data-add-type]").forEach(function (btn) {
-				btn.addEventListener("click", function () { self.addElement(btn.getAttribute("data-add-type")); });
+				btn.addEventListener("click", function () {
+					const type = btn.getAttribute("data-add-type");
+					self.addElement(type);
+					if (type === "text") self.focusTextInput();
+				});
 			});
 		}
 		if (shapeHost) {
@@ -1967,6 +2037,10 @@
 						return;
 					}
 					self.addElement(type);
+					if (type === "text") {
+						self.focusTextInput();
+						return;
+					}
 					if (self.toolsOpen) self.setToolsOpen(false);
 				});
 			});
@@ -2300,7 +2374,7 @@
 			const selected = self.selectedId === el.id;
 			const def = DEF_BY_TYPE[el.type] || {};
 			const isLine = el.type === "line" || el.type === "dashed_line";
-			const customFont = self.hasCustomFont(el);
+			const customFont = self.usesFontPx(el);
 			const fontPx = self.fontPxFor(el);
 			const scale = customFont ? 1 : (Number.isFinite(Number(el.fontScale)) ? el.fontScale : 1);
 			const align = self.isTextElement(el.type) ? sanitizeAlign(el.align, el.type) : "";
@@ -2367,7 +2441,22 @@
 				ev.stopPropagation();
 				self.onDragStart(ev, node);
 			});
+			node.addEventListener("dblclick", function (ev) {
+				const id = node.getAttribute("data-id");
+				const item = self.findById(id);
+				if (!item || !self.isEditableText(item.type)) return;
+				ev.preventDefault();
+				ev.stopPropagation();
+				if (self.selectedId !== id) {
+					self.selectedId = id;
+					self.canvasSelected = false;
+					self.updateSelectionStyles();
+					self.syncSelectedPanel();
+				}
+				self.focusTextInput();
+			});
 		});
+		this.fitCardToStage();
 	};
 
 	TicketCanvasController.prototype.clearGuides = function () {

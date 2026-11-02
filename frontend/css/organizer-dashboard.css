@@ -2504,6 +2504,31 @@ html[data-theme="dark"] .ticket-subtype-computed {
 	box-sizing: border-box;
 }
 
+.event-category-custom {
+	margin-top: 0.65rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+
+.event-category-custom[hidden] {
+	display: none !important;
+}
+
+.event-category-custom label {
+	font-size: 0.78rem;
+	font-weight: 700;
+	color: #475569;
+	letter-spacing: 0.02em;
+}
+
+.event-category-custom-help {
+	margin: 0;
+	font-size: 0.75rem;
+	color: #64748b;
+	line-height: 1.35;
+}
+
 .setup-input:focus, .setup-select:focus, .setup-textarea:focus {
 	outline: none;
 	border-color: #2563eb;
@@ -6381,10 +6406,12 @@ html[data-theme="dark"] .ticket-float-close {
 	height: auto;
 	aspect-ratio: 3 / 4;
 }
+/* Frame is an inset shadow, not a border: element % positions span the whole card, like the PDF. */
 .ticket-live-card.is-custom.is-orient-landscape {
-	border: 10px solid var(--ticket-accent, #ff8fb3);
+	border: 0;
 	box-sizing: border-box;
 	border-radius: 18px;
+	--ticket-inset-accent: inset 0 0 0 10px var(--ticket-accent, #ff8fb3);
 }
 .ticket-live-card.is-custom.is-orient-landscape .tc-perf {
 	position: absolute;

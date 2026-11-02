@@ -1,5 +1,7 @@
 """Canonical event categories shared by host dashboard and public pages."""
 
+import re
+
 # Stored exactly as event.category / event_management.event_category
 CANONICAL_CATEGORIES = (
     "Sports",
@@ -18,6 +20,10 @@ _LEGACY_CATEGORIES = (
 _CANONICAL_LOOKUP = {
     name.lower(): name for name in CANONICAL_CATEGORIES + _LEGACY_CATEGORIES
 }
+
+# Hosts may type a custom category via the Manage "Others" field. These labels are never stored.
+_OTHERS_LABELS = {"others", "other", "other category", "custom", "custom category"}
+_CUSTOM_CATEGORY_MAX = 80
 
 INVALID_IMAGE_TYPE_MESSAGE = (
     "Your image is not in this standard file type. Please use JPG, JPEG, PNG, or WEBP."
@@ -46,10 +52,22 @@ ASSET_FILE_LIMITS = {
 
 
 def normalize_category(value):
-    """Return the canonical category name, or None if unknown/empty."""
+    """Return a storeable category name, or None if empty / the Others placeholder."""
     if not value or not str(value).strip():
         return None
-    return _CANONICAL_LOOKUP.get(str(value).strip().lower())
+    raw = re.sub(r"\s+", " ", str(value).strip())
+    key = raw.lower()
+    if key in _OTHERS_LABELS:
+        return None
+    known = _CANONICAL_LOOKUP.get(key)
+    if known:
+        return known
+    # Custom host-typed category (from Manage → Others).
+    cleaned = re.sub(r"[^\w\s&/'+\-.,()]", "", raw, flags=re.UNICODE).strip(" .-_,")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if not cleaned or cleaned.lower() in _OTHERS_LABELS:
+        return None
+    return cleaned[:_CUSTOM_CATEGORY_MAX]
 
 
 def is_allowed_image_filename(filename: str) -> bool:

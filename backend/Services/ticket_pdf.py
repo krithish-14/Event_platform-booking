@@ -886,16 +886,13 @@ def _canvas_font_px(el, template_id: str) -> float:
         return 28
     if template_id == "vip_gold" and etype == "title":
         return 12
+    # Keep in step with defaultFontPx() in frontend/js/ticket-canvas.js.
     if template_id == "midnight" and etype == "name":
         return 18
     if template_id == "midnight" and etype == "ticket_type":
-        return 22
+        return 16
     if template_id == "midnight" and etype == "title":
         return 12
-    if template_id == "midnight" and etype in {"email", "phone", "venue"}:
-        return 11
-    if template_id == "midnight" and etype == "stub":
-        return 10
     if etype in {"ticket_type", "title", "name"}:
         return 16
     if etype in {"stub", "badge"}:
@@ -923,41 +920,129 @@ def _split_to_width(text: str, max_chars: int) -> list[str]:
     return lines or [""]
 
 
-def _draw_text_box(ops, text, x, y, w, h, size, rgb, align, font="/F1"):
-    """Draw the full string inside the canvas box, shrinking the type so nothing is clipped."""
+# Standard 14 font widths (1/1000 em) for ASCII 32..126. /F1 is Helvetica-Bold, /F2 is Helvetica.
+_HELVETICA_WIDTHS = (
+    278, 278, 355, 556, 556, 889, 667, 222, 333, 333, 389, 584, 278, 333, 278, 278,
+    556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556,
+    1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778,
+    667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556,
+    222, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556,
+    556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
+)
+_HELVETICA_BOLD_WIDTHS = (
+    278, 333, 474, 556, 556, 889, 722, 278, 333, 333, 389, 584, 278, 333, 278, 278,
+    556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584, 584, 611,
+    975, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778,
+    667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333, 278, 333, 584, 556,
+    278, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, 611, 611,
+    611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584,
+)
+# Same line height as the designer's sized text (.tc-node.has-font-size: line-height 1.15).
+_TEXT_LINE_HEIGHT = 1.15
+_CAP_HEIGHT = 0.718
+
+
+def text_width(text: str, size: float, font: str = "/F2") -> float:
+    table = _HELVETICA_BOLD_WIDTHS if font == "/F1" else _HELVETICA_WIDTHS
+    total = 0
+    for ch in str(text or ""):
+        code = ord(ch)
+        total += table[code - 32] if 32 <= code <= 126 else 556
+    return total * float(size) / 1000.0
+
+
+def _wrap_to_width(text: str, max_w: float, size: float, font: str) -> tuple[list[str], bool]:
+    """Word-wrap by measured width. A word wider than the box continues on the next line.
+
+    Returns (lines, split_word) so callers can shrink the type instead of breaking a word.
+    """
+    words = _ascii_text(text, "").split()
+    lines: list[str] = []
+    current = ""
+    split_word = False
+    for word in words:
+        trial = f"{current} {word}" if current else word
+        if text_width(trial, size, font) <= max_w:
+            current = trial
+            continue
+        if current:
+            lines.append(current)
+            current = ""
+        piece = ""
+        for ch in word:
+            if piece and text_width(piece + ch, size, font) > max_w:
+                lines.append(piece)
+                piece = ch
+                split_word = True
+            else:
+                piece += ch
+        current = piece
+    if current:
+        lines.append(current)
+    return lines or [""], split_word
+
+
+def _draw_text_box(ops, text, x, y, w, h, size, rgb, align, font="/F1", nowrap=False):
+    """Draw the full string inside the canvas box, shrinking the type so nothing is clipped.
+
+    nowrap matches designer rows (white-space: nowrap): one line, shrunk to the box width.
+    """
     text = _ascii_text(text, "")
     if not text or w < 4 or h < 4:
         return
     size = min(72.0, max(6.0, float(size or 10)))
-    lines = [text]
-    char_w = size * 0.5
-    while size >= 5.0:
-        char_w = max(1.6, size * 0.46)
-        max_chars = max(4, int((w - 2.0) / char_w))
-        line_h = size * 1.08
-        max_lines = max(1, int(h / max(line_h, 1.0)))
-        lines = _split_to_width(text, max_chars)
-        if len(lines) <= max_lines:
-            break
-        size -= 0.35
-    line_h = max(size * 1.08, 5.5)
-    # Keep every line. A tiny box shrinks the type instead of dropping the rest of the name.
-    if len(lines) * line_h > h and len(lines) > 1:
-        line_h = max(5.0, h / len(lines))
-        size = min(size, line_h / 1.08)
-        char_w = max(1.6, size * 0.46)
+    inner_w = max(2.0, w - 2.0)
+    if nowrap:
+        while size > 5.0 and (text_width(text, size, font) > inner_w or size * _TEXT_LINE_HEIGHT > h + 0.01):
+            size = max(5.0, size - 0.35)
+        lines = [text]
+    else:
+        lines, split_word = _wrap_to_width(text, inner_w, size, font)
+        while size > 5.0 and (len(lines) * size * _TEXT_LINE_HEIGHT > h + 0.01 or (split_word and size > 6.0)):
+            size = max(5.0, size - 0.35)
+            lines, split_word = _wrap_to_width(text, inner_w, size, font)
+    line_h = size * _TEXT_LINE_HEIGHT
+    # Keep every line. A tiny box packs the lines tighter instead of dropping the rest of the name.
+    if len(lines) * line_h > h:
+        line_h = max(size, h / len(lines))
     block = line_h * len(lines)
+    block_top = y + h - max(0.0, (h - block) / 2.0)
     ops.append("BT")
-    ops.append(f"{font} {size:.1f} Tf {rgb} rg")
+    ops.append(f"{font} {size:.2f} Tf {rgb} rg")
     for index, line in enumerate(lines):
-        line_y = y + max(0.0, (h - block) / 2.0) + (len(lines) - 1 - index) * line_h
+        slot_mid = block_top - index * line_h - line_h / 2.0
+        baseline = slot_mid - size * _CAP_HEIGHT / 2.0
+        line_w = text_width(line, size, font)
         if align == "center":
-            ops.append(_tj_center(x + w / 2.0, line_y, line, char_w))
+            line_x = x + (w - line_w) / 2.0
         elif align == "right":
-            ops.append(_tj_right(x + w - 1.0, line_y, line, char_w))
+            line_x = x + w - 1.0 - line_w
         else:
-            ops.append(f"1 0 0 1 {x + 1.0:.1f} {line_y:.1f} Tm ({_pdf_escape(line)}) Tj")
+            line_x = x + 1.0
+        ops.append(f"1 0 0 1 {line_x:.2f} {baseline:.2f} Tm ({_pdf_escape(line)}) Tj")
     ops.append("ET")
+
+
+_ROW_LABELS = {"name": "Name", "phone": "Phone", "email": "Email", "price": "Price"}
+
+
+def _rotation_matrix(deg: float, cx: float, cy: float) -> str:
+    """Designer rotation is clockwise on screen (y down). PDF y points up, so the angle flips."""
+    import math
+    rad = math.radians(-float(deg))
+    cos_r, sin_r = math.cos(rad), math.sin(rad)
+    e = cx - cx * cos_r + cy * sin_r
+    f = cy - cx * sin_r - cy * cos_r
+    return f"{cos_r:.5f} {sin_r:.5f} {-sin_r:.5f} {cos_r:.5f} {e:.2f} {f:.2f} cm"
+
+
+def _close_rotation(ops: list, pending) -> None:
+    if not pending:
+        return
+    start, matrix = pending
+    if len(ops) > start:
+        ops.insert(start, f"q {matrix}")
+        ops.append("Q")
 
 
 def _render_canvas_ticket(
@@ -1029,7 +1114,8 @@ def _render_canvas_ticket(
         return f"{rgb[0]:.3f} {rgb[1]:.3f} {rgb[2]:.3f}"
 
     text_paint = _rgb(text_rgb)
-    muted_paint = _rgb(muted_rgb)
+    # E-ticket designer greys venue, quantity, seat and row labels with #4b5563; other cards use the text color.
+    eticket_muted = _rgb(hex_to_rgb01_safe("#4b5563"))
     radius = max(8.0, card_h * (22.0 / 280.0)) if template_id == "midnight" else (8.0 if template_id == "vip_gold" else 12.0)
     ops = [
         f"{_rgb(page_rgb)} rg 0 0 {page_w:.1f} {page_h:.1f} re f",
@@ -1176,7 +1262,10 @@ def _render_canvas_ticket(
         elif guest_name_text:
             values["name"] = guest_name_text.upper()
 
+    pending_rotation = None
     for el in elements:
+        _close_rotation(ops, pending_rotation)
+        pending_rotation = None
         etype = str(el.get("type") or "").strip().lower()
         if not etype or etype in hidden:
             continue
@@ -1184,6 +1273,12 @@ def _render_canvas_ticket(
         if flag and not bool(layout.get(flag, True)):
             continue
         x, y, w, h = canvas_element_box(el, card_x, card_y, card_w, card_h)
+        try:
+            rotation = float(el.get("rotation") or 0)
+        except (TypeError, ValueError):
+            rotation = 0.0
+        if abs(rotation) > 0.01:
+            pending_rotation = (len(ops), _rotation_matrix(rotation, x + w / 2.0, y + h / 2.0))
         own = str(el.get("color") or "").strip()
         paint = text_paint
         if own.startswith("#"):
@@ -1262,7 +1357,8 @@ def _render_canvas_ticket(
                 ops.append(_cover_image(name, x, y, w, h, iw, ih, 4))
             continue
         if etype == "text":
-            _draw_text_box(ops, str(el.get("text") or ""), x, y, w, h, size, paint, align, "/F1")
+            weight = "/F1" if str(el.get("fontWeight") or "") in {"600", "700", "800"} else "/F2"
+            _draw_text_box(ops, str(el.get("text") or ""), x, y, w, h, size, paint, align, weight)
             continue
         if etype == "stub":
             stub = str(el.get("text") or "").strip() or " ".join(part for part in (type_label, title) if part)
@@ -1285,22 +1381,31 @@ def _render_canvas_ticket(
         value = values.get(etype, "")
         if not value:
             continue
-        if eticket and etype == "price":
-            _draw_text_box(ops, "Total Amount", x, y, w, h, size, paint, "left", "/F1")
-            _draw_text_box(ops, value, x, y, w, h, size, paint, "right", "/F1")
-            continue
-        if eticket and etype in {"name", "phone", "email"}:
-            label_w = w * 0.26
-            _draw_text_box(ops, etype.capitalize(), x, y, label_w, h, size, muted_paint, "left", "/F2")
-            _draw_text_box(ops, value, x + label_w, y, w - label_w, h, size, paint, "left", "/F1")
+        if etype in _ROW_LABELS and template_id not in plain_types:
+            # Designer rows: label on the left, value pushed to the right edge (.tc-el-row strong).
+            label = "Total Amount" if (eticket and etype == "price") else _ROW_LABELS[etype]
+            label_paint = eticket_muted if (eticket and etype != "price") else paint
+            row_value = price_text if etype == "price" else value
+            label_size = size * 0.72
+            label_w = min(w * 0.45, text_width(label, label_size, "/F1") + 2.0)
+            gap = 12.0 * (card_h / css_h)
+            _draw_text_box(ops, label, x, y, label_w, h, label_size, label_paint, "left", "/F1", nowrap=True)
+            _draw_text_box(ops, row_value, x + label_w + gap, y, max(4.0, w - label_w - gap), h, size, paint, "right", "/F1", nowrap=True)
             continue
         if eticket and etype == "booking_id":
             value = f"BOOKING ID: #{value}"
         if custom and custom_orient == "landscape" and etype == "ticket_type":
             value = value.upper()
-        font = "/F1" if etype in {"title", "ticket_type", "name", "booking_id", "price", "ticket_id"} or str(el.get("fontWeight") or "") in {"600", "700", "800"} else "/F2"
-        use_paint = muted_paint if etype in {"date", "venue", "qty", "seat", "footer"} and template_id not in plain_types else paint
+        chosen_weight = str(el.get("fontWeight") or "")
+        if chosen_weight in {"400", "500"}:
+            font = "/F2"
+        elif chosen_weight in {"600", "700", "800"} or etype in {"title", "ticket_type", "name", "booking_id", "price", "ticket_id"}:
+            font = "/F1"
+        else:
+            font = "/F2"
+        use_paint = eticket_muted if eticket and etype in {"venue", "qty", "seat"} else paint
         _draw_text_box(ops, value, x, y, w, h, size, use_paint, align, font)
+    _close_rotation(ops, pending_rotation)
 
     return {
         "ops": ops,

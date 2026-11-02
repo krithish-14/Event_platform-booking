@@ -1422,6 +1422,61 @@ async function initOrganizerDashboard() {
 		return out;
 	}
 
+	const EVENT_CATEGORY_OTHERS = "__others__";
+	const EVENT_CATEGORY_PRESETS = new Set([
+		"Sports",
+		"Conferences",
+		"Performances",
+		"Parties",
+		"Workshops",
+		"Experiences",
+		"Expositions"
+	]);
+
+	function syncEventCategoryCustomVisibility(focusCustom) {
+		const select = document.getElementById("eventCategorySelect");
+		const wrap = document.getElementById("eventCategoryCustomWrap");
+		const custom = document.getElementById("eventCategoryCustom");
+		if (!select || !wrap) return;
+		const isOther = select.value === EVENT_CATEGORY_OTHERS;
+		wrap.hidden = !isOther;
+		if (!isOther && custom) custom.value = "";
+		if (isOther && focusCustom && custom) custom.focus();
+	}
+
+	function collectEventCategory() {
+		const select = document.getElementById("eventCategorySelect");
+		const custom = document.getElementById("eventCategoryCustom");
+		if (!select) return "";
+		if (select.value === EVENT_CATEGORY_OTHERS) {
+			return (custom && custom.value.trim()) || "";
+		}
+		return String(select.value || "").trim();
+	}
+
+	function applyEventCategory(category) {
+		const select = document.getElementById("eventCategorySelect");
+		const custom = document.getElementById("eventCategoryCustom");
+		const wrap = document.getElementById("eventCategoryCustomWrap");
+		if (!select) return;
+		const value = String(category || "").trim();
+		if (!value) {
+			select.value = "";
+			if (custom) custom.value = "";
+			if (wrap) wrap.hidden = true;
+			return;
+		}
+		if (EVENT_CATEGORY_PRESETS.has(value) || Array.from(select.options).some((opt) => opt.value === value && opt.value !== EVENT_CATEGORY_OTHERS)) {
+			select.value = value;
+			if (custom) custom.value = "";
+			if (wrap) wrap.hidden = true;
+			return;
+		}
+		select.value = EVENT_CATEGORY_OTHERS;
+		if (custom) custom.value = value;
+		if (wrap) wrap.hidden = false;
+	}
+
 	function collectPerformersTitle() {
 		const select = document.getElementById("performersTitleSelect");
 		const custom = document.getElementById("performersTitleCustom");
@@ -2613,8 +2668,7 @@ async function initOrganizerDashboard() {
 		if (ticketStudio) ticketStudio.innerHTML = "";
 		if (createEventForm) createEventForm.reset();
 		if (eventTitleInput) eventTitleInput.value = "";
-		const catSel = document.getElementById("eventCategorySelect");
-		if (catSel) catSel.value = "";
+		applyEventCategory("");
 		["eventDescInput", "eventDateInput", "eventEndDateInput", "eventLocationInput", "eventDurationInput", "eventVenueLat", "eventVenueLon", "eventVenuePlaceId", "policyEventInput", "policyCancellationInput", "policyRefundInput", "policyTermsInput", "policyPrivacyInput", "policyAgeInput", "ticketPriceNoteInput"].forEach((id) => {
 			const el = document.getElementById(id);
 			if (el) el.value = "";
@@ -4929,8 +4983,7 @@ async function initOrganizerDashboard() {
 					setPublishedHeaderTitle(hostData.event.event_title);
 				}
 				if (hostData.event.event_category) {
-					const catSel = document.getElementById("eventCategorySelect");
-					if (catSel) catSel.value = hostData.event.event_category;
+					applyEventCategory(hostData.event.event_category);
 				}
 				setVisibilityUi(!!hostData.event.is_private);
 				activeMembersKey = hostData.event.members_key || "";
@@ -5006,12 +5059,12 @@ async function initOrganizerDashboard() {
 		const endDateInput = document.getElementById("eventEndDateInput");
 		const event_start_date = toIstIsoFromDatetimeLocal(dateInput && dateInput.value);
 		const event_end_date = toIstIsoFromDatetimeLocal(endDateInput && endDateInput.value);
-		const categoryEl = document.getElementById("eventCategorySelect");
+		const categoryValue = collectEventCategory();
 		const payload = {
 			event_id: activeEventId,
 			organizer_email: email,
 			event_title: eventTitleInput ? eventTitleInput.value.trim() : "",
-			event_category: categoryEl && categoryEl.value ? categoryEl.value : undefined,
+			event_category: categoryValue || undefined,
 			event_mode: document.getElementById("eventFormatInput") ? document.getElementById("eventFormatInput").value : "Hybrid",
 			venue: document.getElementById("eventLocationInput") ? document.getElementById("eventLocationInput").value : "",
 			address: document.getElementById("eventLocationInput") ? document.getElementById("eventLocationInput").value : "",
@@ -5477,9 +5530,15 @@ async function initOrganizerDashboard() {
 			return false;
 		}
 		const categoryEl = document.getElementById("eventCategorySelect");
-		if (!categoryEl || !categoryEl.value) {
-			showNotification("Please select an event category before continuing to Design.");
-			if (categoryEl) categoryEl.focus();
+		const categoryValue = collectEventCategory();
+		if (!categoryValue) {
+			const pickingOther = categoryEl && categoryEl.value === EVENT_CATEGORY_OTHERS;
+			showNotification(pickingOther
+				? "Please type your custom event category before continuing to Design."
+				: "Please select an event category before continuing to Design.");
+			const customEl = document.getElementById("eventCategoryCustom");
+			if (pickingOther && customEl) customEl.focus();
+			else if (categoryEl) categoryEl.focus();
 			return false;
 		}
 		const dateInput = document.getElementById("eventDateInput");
@@ -6255,8 +6314,7 @@ async function initOrganizerDashboard() {
 			eventTitleInput.value = event.event_title;
 			setPublishedHeaderTitle(event.event_title);
 		}
-		const catSel = document.getElementById("eventCategorySelect");
-		if (catSel && event.event_category) catSel.value = event.event_category;
+		if (event.event_category) applyEventCategory(event.event_category);
 		if (typeof event.is_private === "boolean") setVisibilityUi(event.is_private);
 		if ("link_status" in event) applyEventLink(event);
 		else paintLinkedEventPanel();
@@ -6370,8 +6428,7 @@ async function initOrganizerDashboard() {
 			if (createEventForm) createEventForm.reset();
 			writeAboutEventHtml("");
 			if (eventTitleInput) eventTitleInput.value = "";
-			const catSel = document.getElementById("eventCategorySelect");
-			if (catSel) catSel.value = "";
+			applyEventCategory("");
 			setVisibilityUi(false);
 			applyEventLink({ linked_event_id: null, link_status: null, linked_event: null });
 			if (ticketTiersRows) {
@@ -7194,6 +7251,19 @@ async function initOrganizerDashboard() {
 		if (!artistsRows.children.length) {
 			artistsRows.appendChild(createArtistRowHtml());
 		}
+	}
+
+	const eventCategorySelect = document.getElementById("eventCategorySelect");
+	const eventCategoryCustom = document.getElementById("eventCategoryCustom");
+	if (eventCategorySelect) {
+		eventCategorySelect.addEventListener("change", () => {
+			syncEventCategoryCustomVisibility(true);
+			if (eventCategorySelect.value !== EVENT_CATEGORY_OTHERS) triggerLiveAutoSave();
+		});
+	}
+	if (eventCategoryCustom) {
+		eventCategoryCustom.addEventListener("input", triggerLiveAutoSave);
+		eventCategoryCustom.addEventListener("change", triggerLiveAutoSave);
 	}
 
 	const performersTitleSelect = document.getElementById("performersTitleSelect");
@@ -8299,14 +8369,13 @@ async function initOrganizerDashboard() {
 					const dateInput = document.getElementById("eventDateInput");
 					const endDateInput = document.getElementById("eventEndDateInput");
 					const locationInput = document.getElementById("eventLocationInput");
-					const categorySelect = document.getElementById("eventCategorySelect");
 					const formatInput = document.getElementById("eventFormatInput");
 
 				const payload = {
 					organizer_email: email,
 					event_id: event_id || undefined,
 					event_title: manageData.event_title,
-						event_category: categorySelect ? categorySelect.value : undefined,
+						event_category: collectEventCategory() || undefined,
 						event_mode: formatInput ? formatInput.value : undefined,
 						venue: locationInput ? locationInput.value.trim() : undefined,
 						address: locationInput ? locationInput.value.trim() : undefined,

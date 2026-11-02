@@ -1934,7 +1934,11 @@ def save_manage_event(
     event.host_id = host_id
     if payload.event_title: event.event_title = sanitize_text(payload.event_title, max_length=200)
     if payload.event_category:
-        event.event_category = normalize_category(payload.event_category) or payload.event_category
+        # normalize_category maps presets, accepts custom host-typed names, and
+        # rejects the Manage "Others" placeholder so it is never stored.
+        _cat = normalize_category(payload.event_category)
+        if _cat:
+            event.event_category = _cat
     if payload.event_type: event.event_type = sanitize_text(payload.event_type, max_length=80)
     if payload.event_mode: event.event_mode = sanitize_text(payload.event_mode, max_length=80)
     if payload.venue:
