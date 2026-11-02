@@ -488,13 +488,15 @@
 
  const attendeeName = data.receiver_name || "Guest";
  if (recName) recName.textContent = attendeeName;
- if (recEmail) recEmail.textContent = data.receiver_email || "—";
- if (recPhone) recPhone.textContent = data.receiver_phone || "—";
+ const shownEmail = data.receiver_email || data.receiver_email_masked || "—";
+ const shownPhone = (data.receiver_phone && data.receiver_phone !== "N/A" ? data.receiver_phone : "") || data.receiver_phone_masked || "—";
+ if (recEmail) recEmail.textContent = shownEmail;
+ if (recPhone) recPhone.textContent = shownPhone;
  const attendeeNameEl = document.getElementById("ticketAttendeeName");
  const attendeePhoneEl = document.getElementById("ticketAttendeePhone");
  const attendeeEmailEl = document.getElementById("ticketAttendeeEmail");
- const attendeePhone = data.receiver_phone || "—";
- const attendeeEmail = data.receiver_email || "—";
+ const attendeePhone = shownPhone;
+ const attendeeEmail = shownEmail;
  const displayName = data.guest_label ? `${attendeeName} (${data.guest_label})` : attendeeName;
  if (attendeeNameEl) attendeeNameEl.textContent = displayName;
  if (attendeePhoneEl) attendeePhoneEl.textContent = attendeePhone;

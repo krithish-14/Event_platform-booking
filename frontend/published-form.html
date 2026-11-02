@@ -1093,6 +1093,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					}
 				});
 
+				const contact = contactFromSchema(schema, answers);
+				if (contact.name) answers._contact_name = contact.name;
+				if (contact.email) answers._contact_email = contact.email;
+				if (contact.phone) answers._contact_phone = contact.phone;
+
 				// Fallback to standalone email if no email field in schema
 				if (!userEmail && attendeeEmailInput && attendeeEmailInput.value) {
 					userEmail = attendeeEmailInput.value.trim();
@@ -1175,6 +1180,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			});
 
 			function guestPhoneFromAnswers(answers) {
+				if (answers && answers._contact_phone) return String(answers._contact_phone).slice(0, 20);
 				const entries = Object.entries(answers || {});
 				for (let i = 0; i < entries.length; i++) {
 					const title = String(entries[i][0] || "").toLowerCase();
@@ -1186,7 +1192,44 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				return "";
 			}
 
+			// Ticket name/email/phone, picked in form order. Same ranking as backend Utils/form_contact.py.
+			const NOT_ATTENDEE_WORDS = ["club", "company", "organisation", "organization", "org name", "institution", "institute", "college", "school", "university", "business", "firm", "team", "district", "zone", "chapter", "branch", "father", "mother", "spouse", "husband", "wife", "guardian", "parent", "emergency", "nominee", "reference", "user", "bank", "file", "event", "ticket", "pass", "brand", "shop", "store", "group", "society", "association", "department", "designation", "city", "venue", "hotel", "project", "product", "pet", "vehicle", "account"];
+			const PERSON_WORDS = ["full", "your", "attendee", "participant", "guest", "delegate", "member", "rotarian", "rotaractor", "student", "player", "applicant", "candidate", "visitor", "speaker", "volunteer", "registrant", "first", "person", "holder", "passenger"];
+			const EXACT_NAME_LABELS = ["name", "full name", "fullname", "your name", "attendee name", "attendee", "participant name", "guest name", "first name"];
+			const CHOICE_TYPES = ["dropdown", "radio", "checkbox", "terms", "email", "phone", "date", "time", "number", "file"];
+
+			function nameLabelRank(title) {
+				const label = String(title || "").replace(/[\s_]+/g, " ").trim().toLowerCase();
+				if (label.indexOf("name") === -1 && label !== "attendee") return 99;
+				if (NOT_ATTENDEE_WORDS.some((w) => label.indexOf(w) !== -1)) return 9;
+				if (EXACT_NAME_LABELS.indexOf(label) !== -1) return 0;
+				if (["last", "surname", "middle", "nick", "family"].some((w) => label.indexOf(w) !== -1)) return 5;
+				if (PERSON_WORDS.some((w) => label.indexOf(w) !== -1)) return 1;
+				return 3;
+			}
+
+			function contactFromSchema(schema, answers) {
+				const out = { name: "", email: "", phone: "" };
+				let bestRank = 99;
+				(schema || []).forEach((q, idx) => {
+					const title = q.title || `Question ${idx + 1}`;
+					const raw = answers[title];
+					const value = Array.isArray(raw) ? raw.join(", ") : String(raw == null ? "" : raw).trim();
+					if (!value) return;
+					if (q.type === "email" && !out.email) out.email = value;
+					if (q.type === "phone" && !out.phone) out.phone = value;
+					if (CHOICE_TYPES.indexOf(q.type) !== -1) return;
+					const rank = nameLabelRank(title);
+					if (rank < bestRank) {
+						bestRank = rank;
+						out.name = value.slice(0, 200);
+					}
+				});
+				return out;
+			}
+
 			function guestNameFromAnswers(answers) {
+				if (answers && answers._contact_name) return String(answers._contact_name).slice(0, 200);
 				const entries = Object.entries(answers || {});
 				for (let i = 0; i < entries.length; i++) {
 					const title = String(entries[i][0] || "").toLowerCase();

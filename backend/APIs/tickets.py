@@ -424,7 +424,7 @@ def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
     """Open a ticket from the emailed / WhatsApp QR link without signing in.
 
     Returns only fields needed to render the attendee ticket page.
-    Does not expose email, phone, customer_id, or payment identifiers.
+    Email and phone are masked; customer_id and payment identifiers are not exposed.
     """
     from APIs.bookings import _serialize_booking
 
@@ -484,7 +484,12 @@ def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
         "hero_image",
         "agenda",
     }
-    return {key: full.get(key) for key in allowed if key in full}
+    from Utils.form_contact import mask_email, mask_phone
+
+    public = {key: full.get(key) for key in allowed if key in full}
+    public["receiver_email_masked"] = mask_email(full.get("receiver_email") or "")
+    public["receiver_phone_masked"] = mask_phone(full.get("receiver_phone") or "")
+    return public
 
 # ── Additional Query Endpoints ────────────────────────────────────────────────
 def _assert_ticket_owner(ticket: Ticket, current_user: User) -> None:

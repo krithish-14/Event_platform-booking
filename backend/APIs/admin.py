@@ -724,15 +724,11 @@ def _form_guest_identity(answers: Any, fallback_email: str = "") -> tuple:
     from APIs.forms import _pick_answer
     from Utils.text_sanitize import looks_like_email, looks_like_person_name
 
+    from Utils.form_contact import pick_attendee_email, pick_attendee_name, pick_attendee_phone
+
     answers = answers if isinstance(answers, dict) else {}
-    name = _answer_value(answers, NAME_KEYS) or _pick_answer(
-        answers, "full name", "attendee name", "your name", "participant name", "guest name"
-    )
-    if not name:
-        maybe = _pick_answer(answers, "name")
-        if maybe and not any(tok in maybe.lower() for tok in ("pass", "ticket", "general admission")):
-            name = maybe
-    email = _answer_value(answers, EMAIL_KEYS) or _pick_answer(
+    name = pick_attendee_name(answers)
+    email = pick_attendee_email(answers) or _answer_value(answers, EMAIL_KEYS) or _pick_answer(
         answers, "email", "e-mail", "mail id", "mailid", "email id"
     )
     if not email:
@@ -755,7 +751,7 @@ def _form_guest_identity(answers: Any, fallback_email: str = "") -> tuple:
                 name = text
                 break
     _ = fallback_email
-    phone = _answer_value(answers, PHONE_KEYS) or _pick_answer(
+    phone = pick_attendee_phone(answers) or _answer_value(answers, PHONE_KEYS) or _pick_answer(
         answers, "phone", "mobile", "whatsapp", "contact number"
     )
     return name, email, phone

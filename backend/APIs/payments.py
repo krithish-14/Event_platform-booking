@@ -395,18 +395,14 @@ def _attendee_from_host_form(
             detail="Submit the host registration form with attendee name and email before booking.",
         )
 
+    from Utils.form_contact import form_contact
+
     answers = _form_answers(submission)
-    form_name = _answer_value(answers, NAME_KEYS) or _pick_answer(
-        answers, "full name", "attendee name", "your name", "participant name", "guest name"
-    )
-    if not form_name:
-        maybe = _pick_answer(answers, "name")
-        if maybe and not any(tok in maybe.lower() for tok in ("pass", "ticket", "general admission")):
-            form_name = maybe
-    form_email = _answer_value(answers, EMAIL_KEYS) or _pick_answer(
+    form_name, form_email, form_phone = form_contact(answers)
+    form_email = form_email or _answer_value(answers, EMAIL_KEYS) or _pick_answer(
         answers, "email", "e-mail", "mail id", "mailid"
     )
-    form_phone = _answer_value(answers, PHONE_KEYS) or _pick_answer(
+    form_phone = form_phone or _answer_value(answers, PHONE_KEYS) or _pick_answer(
         answers, "phone", "mobile", "whatsapp", "contact number"
     )
 
@@ -1318,15 +1314,14 @@ async def verify_razorpay_payment(
                     ticket_type=payload.ticket_type,
                 )
                 answers = _form_answers(form)
-                from APIs.admin import NAME_KEYS, PHONE_KEYS, EMAIL_KEYS, _answer_value
+                from APIs.admin import PHONE_KEYS, EMAIL_KEYS, _answer_value
                 from APIs.forms import _pick_answer
-                form_name = _answer_value(answers, NAME_KEYS) or _pick_answer(
-                    answers, "full name", "attendee name", "your name", "name"
-                )
-                form_email = _answer_value(answers, EMAIL_KEYS) or _pick_answer(
+                from Utils.form_contact import form_contact
+                form_name, form_email, form_phone = form_contact(answers)
+                form_email = form_email or _answer_value(answers, EMAIL_KEYS) or _pick_answer(
                     answers, "email", "e-mail", "mail id"
                 )
-                form_phone = _answer_value(answers, PHONE_KEYS) or _pick_answer(
+                form_phone = form_phone or _answer_value(answers, PHONE_KEYS) or _pick_answer(
                     answers, "phone", "mobile", "whatsapp"
                 )
                 if form_name and form_email and "@" in str(form_email):

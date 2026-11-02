@@ -1171,15 +1171,17 @@ def _serialize_submission(
 	submitted = row.submission_time
 	ticket_type = _submission_ticket(db, row, answers, ticket_cache, event)
 	# Host-form guest fields win over login profile (one buyer, many guests).
+	from Utils.form_contact import form_contact
+	form_name, form_email, form_phone = form_contact(answers)
 	name, email, phone = pick_attendee_identity(
-		names=(
-			_pick_answer(answers, "full name", "attendee name", "your name", "participant name", "guest name", "name"),
-		),
+		names=(form_name,),
 		emails=(
+			form_email,
 			_pick_answer(answers, "email", "email address", "e-mail", "mail id", "email id"),
 			row.user_email,
 		),
 		phones=(
+			form_phone,
 			_pick_answer(answers, "phone", "mobile", "whatsapp", "contact number", "number"),
 		),
 	)
