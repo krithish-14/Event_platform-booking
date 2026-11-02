@@ -472,65 +472,63 @@ html[data-theme="dark"] .reels-strip-nav:hover {
 .clients-group {
 	display: flex;
 	align-items: center;
-	gap: 3rem;
+	gap: 1.25rem;
 	margin: 0;
-	padding: 0 3rem 0 0;
+	padding: 0.35rem 1.25rem 0.85rem 0;
 	list-style: none;
 	flex-shrink: 0;
 }
 
+/* Every logo sits on the same white tile in light and dark mode, so white-background
+   PNGs, transparent marks and dark lettering all read the same. */
 .client-logo {
 	position: relative;
 	flex: 0 0 auto;
-	width: auto;
-	height: auto;
+	width: 10rem;
+	height: 5rem;
 	margin: 0;
+	padding: 0.6rem 0.9rem;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	box-sizing: border-box;
+	border: 1px solid rgba(37, 33, 28, 0.08);
+	border-radius: 16px;
+	background: #ffffff;
+	box-shadow: 0 6px 18px rgba(37, 33, 28, 0.08);
 	isolation: isolate;
+	transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
-.client-logo::before {
-	content: "";
-	position: absolute;
-	inset: 6%;
-	z-index: -1;
-	border-radius: 50%;
-	background: radial-gradient(circle, rgba(255, 117, 8, 0.26) 0%, rgba(255, 138, 31, 0.12) 42%, rgba(255, 138, 31, 0) 70%);
-	filter: blur(14px);
-	opacity: 0;
-	transform: scale(0.75);
-	transition: opacity 0.3s ease, transform 0.3s ease;
-	pointer-events: none;
-}
-
-.client-logo:hover::before {
-	opacity: 1;
-	transform: scale(1.05);
+.client-logo:hover {
+	transform: translateY(-4px);
+	border-color: rgba(255, 117, 8, 0.55);
+	box-shadow: 0 12px 28px rgba(255, 117, 8, 0.22);
 }
 
 .client-logo img {
-	width: auto;
-	height: 4.5rem;
-	max-width: none;
+	width: 100%;
+	height: 100%;
+	max-width: 100%;
 	object-fit: contain;
 	display: block;
+	/* Blends a logo's own white background into the white tile (isolated per tile). */
 	mix-blend-mode: multiply;
-	transition: transform 0.3s ease;
-}
-
-.client-logo:hover img {
-	transform: translateY(-3px) scale(1.06);
 }
 
 .client-logo-plate img {
 	mix-blend-mode: normal;
-	border-radius: 14px;
+	border-radius: 10px;
 }
 
-html[data-theme="dark"] .client-logo img {
-	mix-blend-mode: normal;
+html[data-theme="dark"] .client-logo {
+	border-color: rgba(255, 255, 255, 0.1);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme="dark"] .client-logo:hover {
+	border-color: rgba(255, 138, 31, 0.7);
+	box-shadow: 0 12px 30px rgba(255, 117, 8, 0.28);
 }
 
 @keyframes jodClientsScroll {
@@ -540,11 +538,14 @@ html[data-theme="dark"] .client-logo img {
 
 @media (max-width: 640px) {
 	.clients-group {
-		gap: 1.75rem;
-		padding-right: 1.75rem;
+		gap: 0.85rem;
+		padding-right: 0.85rem;
 	}
-	.client-logo img {
-		height: 3.25rem;
+	.client-logo {
+		width: 8.25rem;
+		height: 4.25rem;
+		padding: 0.5rem 0.7rem;
+		border-radius: 12px;
 	}
 	.clients-track {
 		animation-duration: 24s;
