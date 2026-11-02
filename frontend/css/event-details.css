@@ -991,6 +991,8 @@ body.category-theme-workshop .performer-avatar {
     color: #c2410c;
     margin-bottom: 0.28rem;
     letter-spacing: 0.01em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 .ticket-unavailable {

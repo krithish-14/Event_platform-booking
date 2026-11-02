@@ -598,7 +598,9 @@
 		el.hidden = false;
 		const endMs = parseEventMs(end);
 		const parts = getCountdownParts(endMs);
-		el.textContent = `Offer ends in ${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m : ${pad(parts.seconds)}s`;
+		const timer = `${pad(parts.days)}d : ${pad(parts.hours)}h : ${pad(parts.minutes)}m : ${pad(parts.seconds)}s`;
+		el.textContent = timer;
+		el.setAttribute("aria-label", `Offer ends in ${timer}`);
 	}
 
 	function startCountdownTicker() {
