@@ -689,6 +689,68 @@ def _verify_for_session(
     return result
 
 
+def _verify_linked_ticket(
+    db: Session,
+    assignment: EventVolunteer,
+    tickets: list,
+    method: str,
+    staff_name: str,
+    actor_customer_id: Optional[str],
+    session_id: Optional[str],
+) -> Optional[dict]:
+    """Tickets of a private event linked (and approved) to this event. None when not linked."""
+    from Services import event_links as link_svc
+
+    event = db.query(EventManagement).filter(EventManagement.event_id == assignment.event_id).first()
+    if not event:
+        return None
+    ticket, source = None, None
+    for row in tickets:
+        source = link_svc.source_for_ticket(db, event, row)
+        if source is not None:
+            ticket = row
+            break
+    if ticket is None:
+        return None
+
+    session, error = session_svc.resolve_scan_session(db, event, session_id)
+    if error is None and session is not None:
+        allowed = session_svc.volunteer_allowed_session_ids(assignment)
+        if allowed is not None and session_svc._compact(session.session_id) not in allowed:
+            error = session_svc._fail("SESSION_NOT_AUTHORIZED", "You are not assigned to check in attendees for this session.")
+    result = error if error is not None else link_svc.perform_link_checkin(
+        db, event, source, ticket, checked_in_by=staff_name, method=method, session=session,
+    )
+    _audit(
+        db,
+        event_id=assignment.event_id,
+        volunteer_id=assignment.id,
+        actor_customer_id=actor_customer_id,
+        ticket_id=ticket.ticket_id,
+        action="ticket_checked_in" if result.get("success") else "failed_verification",
+        method=method,
+        detail=(
+            f"Linked event · {source.event_title or ''}"
+            if result.get("success")
+            else f"{result.get('error_code')}: {result.get('message')}"
+        )[:500],
+    )
+    db.commit()
+    result["today_checkins"] = _volunteer_today_count(db, assignment.id)
+    result["verified_by"] = staff_name
+    result["method"] = method
+    result.update(_volunteer_ticket_extra(ticket))
+    code = result.get("error_code")
+    if code == "ALREADY_CHECKED_IN":
+        result["status"] = "ALREADY_USED"
+        result["check_in_type"] = "duplicate"
+    elif code == "TICKET_CANCELLED":
+        result["status"] = "CANCELLED"
+    elif result.get("success"):
+        result["status"] = "VALID"
+    return result
+
+
 def _verify_ticket_for_assignment(
     db: Session,
     assignment: EventVolunteer,
@@ -722,6 +784,9 @@ def _verify_ticket_for_assignment(
 
     scoped = [row for row in matched if _ticket_belongs_to_assignment(db, row, assignment)]
     if not scoped:
+        linked = _verify_linked_ticket(db, assignment, matched, method, staff_name, actor_customer_id, session_id)
+        if linked is not None:
+            return linked
         return fail("WRONG_EVENT", "This ticket belongs to another event.", ticket=matched[0])
 
     session_result = _verify_for_session(db, assignment, scoped, method, staff_name, actor_customer_id, session_id)

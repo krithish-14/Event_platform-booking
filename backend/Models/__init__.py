@@ -34,6 +34,7 @@ from Models.support_ticket import SupportTicket
 from Models.notification import EventAnnouncement
 from Models.admin_access import AdminAccess
 from Models.event_session import EventSession, EventSessionRegistration, EventSessionCheckin
+from Models.event_link import EventLinkCheckin
 from Models.theatre_partner import TheatrePartner
 from Models.cinema import CinemaBooking, CinemaMovie, CinemaScreen, CinemaShow, CinemaShowSeat
 
@@ -79,6 +80,7 @@ __all__ = [
     "EventSession",
     "EventSessionRegistration",
     "EventSessionCheckin",
+    "EventLinkCheckin",
     "TheatrePartner",
     "CinemaScreen",
     "CinemaMovie",

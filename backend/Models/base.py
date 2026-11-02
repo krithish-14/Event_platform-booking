@@ -500,6 +500,10 @@ def _migrate_tables(engine=None):
                 ("policies_json", "JSON" if is_pg else "TEXT"),
                 ("is_private", "BOOLEAN DEFAULT FALSE"),
                 ("members_key", "VARCHAR(40)"),
+                ("linked_event_id", "VARCHAR(64)"),
+                ("link_status", "VARCHAR(20)"),
+                ("link_requested_at", "TIMESTAMP" if is_pg else "DATETIME"),
+                ("link_decided_at", "TIMESTAMP" if is_pg else "DATETIME"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in em_migrations:

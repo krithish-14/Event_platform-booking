@@ -228,6 +228,8 @@
  const errorCode = String((data && data.error_code) || "").toUpperCase();
  const sessionName = V.escapeHtml((data && data.session_name) || "");
  const sessionRow = sessionName ? `<div class="res-row"><span>Session</span><strong>${sessionName}</strong></div>` : "";
+ const linkedTitle = V.escapeHtml((data && data.linked_event_title) || "");
+ const linkedRow = linkedTitle ? `<div class="res-row"><span>Linked event</span><strong>${linkedTitle}</strong></div>` : "";
  if (SESSION_HOLD_CODES.has(errorCode)) {
  showResult("hold", `
  <div class="res-icon">!</div>
@@ -282,6 +284,7 @@
  <h3>NEW CHECK-IN</h3>
  <p class="res-name">${name}</p>
  ${sessionRow}
+ ${linkedRow}
  ${ticketId ? `<div class="res-row"><span>Ticket ID</span><strong>${ticketId}</strong></div>` : ""}
  ${bookingRef ? `<div class="res-row"><span>Booking ID</span><strong>${bookingRef}</strong></div>` : ""}
  ${category ? `<div class="res-row"><span>Category</span><strong>${category}</strong></div>` : ""}

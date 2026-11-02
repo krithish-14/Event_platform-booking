@@ -4198,6 +4198,193 @@ async function initOrganizerDashboard() {
 		if (e.target.closest && e.target.closest("#liveEventCopyLink")) copyEventLink();
 	});
 
+	// var: init code can hydrate the link before this line runs.
+	var activeLinkedEventId = "";
+	var activeLinkStatus = "";
+	var activeLinkedEvent = null;
+	var linkableEventsLoaded = false;
+	var linkableEventsLoading = false;
+
+	function linkedEventOptionLabel(ev) {
+		const when = ev.event_start_date ? formatLocalStamp(ev.event_start_date) : "";
+		const parts = [ev.event_title || "Untitled event", when, ev.venue, ev.organizer_name ? `by ${ev.organizer_name}` : ""];
+		return parts.filter(Boolean).join(" \u00b7 ");
+	}
+
+	function applyEventLink(event) {
+		if (!event) return;
+		activeLinkedEventId = event.linked_event_id || "";
+		activeLinkStatus = event.link_status || "";
+		activeLinkedEvent = event.linked_event || null;
+		const select = document.getElementById("linkedEventSelect");
+		if (select && linkableEventsLoaded) {
+			ensureLinkedOption(select);
+			select.value = activeLinkedEventId;
+		}
+		paintLinkedEventPanel();
+	}
+
+	function ensureLinkedOption(select) {
+		if (!activeLinkedEventId || [...select.options].some((o) => o.value === activeLinkedEventId)) return;
+		const opt = document.createElement("option");
+		opt.value = activeLinkedEventId;
+		opt.textContent = activeLinkedEvent ? linkedEventOptionLabel(activeLinkedEvent) : "Connected event";
+		select.appendChild(opt);
+	}
+
+	async function loadLinkableEvents() {
+		if (linkableEventsLoading || !email) return;
+		linkableEventsLoading = true;
+		const select = document.getElementById("linkedEventSelect");
+		try {
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/linkable-events?email=${encodeURIComponent(email)}`, {
+				headers: getAuthHeaders(),
+				credentials: "include"
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(apiErrorMessage(data, "Could not load public events."));
+			if (!select) return;
+			const events = Array.isArray(data.events) ? data.events : [];
+			select.innerHTML = `<option value="">Not connected</option>` + events
+				.map((ev) => `<option value="${attrEscape(ev.event_id)}">${escapeHtmlText(linkedEventOptionLabel(ev))}</option>`)
+				.join("");
+			linkableEventsLoaded = true;
+			ensureLinkedOption(select);
+			select.value = activeLinkedEventId;
+			if (!events.length && !activeLinkedEventId) {
+				select.options[0].textContent = "No live public events right now";
+			}
+		} catch (err) {
+			console.warn("Linkable events:", err);
+		} finally {
+			linkableEventsLoading = false;
+		}
+	}
+
+	function readLinkedEventId() {
+		if (!readIsPrivate() || !linkableEventsLoaded) return undefined;
+		const select = document.getElementById("linkedEventSelect");
+		return select ? select.value : undefined;
+	}
+
+	function paintLinkedEventPanel() {
+		const panel = document.getElementById("linkedEventPanel");
+		if (!panel) return;
+		const show = readIsPrivate();
+		panel.hidden = !show;
+		if (!show) return;
+		if (!linkableEventsLoaded) loadLinkableEvents();
+		const statusEl = document.getElementById("linkedEventStatus");
+		if (!statusEl) return;
+		const title = (activeLinkedEvent && activeLinkedEvent.event_title) || "the selected event";
+		const messages = {
+			pending: `Request sent. Waiting for the host of ${title} to approve. Your QR tickets will work at their check-in once approved.`,
+			approved: `Connected \u2713 Your attendees' QR tickets also work at ${title} check-in.`,
+			rejected: `The host of ${title} declined this connection. Pick another event or leave it unconnected.`
+		};
+		const text = activeLinkedEventId ? messages[activeLinkStatus] || "" : "";
+		statusEl.hidden = !text;
+		statusEl.textContent = text;
+		statusEl.className = `linked-event-status${activeLinkStatus ? ` is-${activeLinkStatus}` : ""}`;
+	}
+
+	document.addEventListener("change", async (e) => {
+		const target = e.target;
+		if (!target) return;
+		if (target.name === "eventVisibility") {
+			paintLinkedEventPanel();
+			return;
+		}
+		if (target.id !== "linkedEventSelect") return;
+		e.stopPropagation();
+		clearTimeout(autoSaveTimer);
+		const ok = await autoSaveManageEvent(true);
+		if (!ok) {
+			target.value = activeLinkedEventId;
+			return;
+		}
+		if (activeLinkStatus === "pending") showNotification("Connection request sent. The public event's host needs to approve it.");
+		else if (!activeLinkedEventId) showNotification("Event is no longer connected.");
+	}, true);
+
+	function linkRequestRowHtml(req) {
+		const status = req.link_status || "pending";
+		const when = req.private_event_start_date ? formatLocalStamp(req.private_event_start_date) : "";
+		const who = [req.organizer_name, req.organizer_email].filter(Boolean).join(" \u00b7 ");
+		const buttons = status === "pending"
+			? `<button type="button" class="link-req-btn is-approve" data-link-decide="approve">Approve</button><button type="button" class="link-req-btn" data-link-decide="reject">Decline</button>`
+			: status === "approved"
+				? `<button type="button" class="link-req-btn" data-link-decide="reject">Disconnect</button>`
+				: `<button type="button" class="link-req-btn is-approve" data-link-decide="approve">Approve</button>`;
+		const chip = { pending: "Waiting for you", approved: "Connected", rejected: "Declined" }[status] || status;
+		return `<div class="link-req-row" data-private-event="${attrEscape(req.private_event_id)}">
+			<div class="link-req-info">
+				<strong>${escapeHtmlText(req.private_event_title || "Private event")}</strong>
+				<small>${escapeHtmlText([when, who].filter(Boolean).join(" \u00b7 "))}</small>
+				<small>Wants its QR tickets to work at <b>${escapeHtmlText(req.target_event_title || "your event")}</b> check-in.</small>
+			</div>
+			<span class="link-req-chip is-${attrEscape(status)}">${escapeHtmlText(chip)}</span>
+			<div class="link-req-actions">${buttons}</div>
+		</div>`;
+	}
+
+	var linkRequestsNotified = false;
+
+	async function loadLinkRequests() {
+		const panel = document.getElementById("linkRequestsPanel");
+		if (!panel || !email) return;
+		try {
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/link-requests?email=${encodeURIComponent(email)}`, {
+				headers: getAuthHeaders(),
+				credentials: "include"
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(apiErrorMessage(data, "Could not load link requests."));
+			const rows = Array.isArray(data.requests) ? data.requests : [];
+			panel.hidden = !rows.length;
+			if (!rows.length) {
+				panel.innerHTML = "";
+				return;
+			}
+			panel.innerHTML = `<strong class="link-req-title">Private events connected to your event</strong>
+				<p class="link-req-help">Approve only organisers you trust. Approved events' QR tickets are accepted at your check-in, each once.</p>
+				${rows.map(linkRequestRowHtml).join("")}`;
+			const pending = rows.filter((r) => r.link_status === "pending").length;
+			if (pending && !linkRequestsNotified) {
+				linkRequestsNotified = true;
+				showNotification(`${pending} private event${pending > 1 ? "s want" : " wants"} to connect to your event. Review it in Manage.`);
+			}
+		} catch (err) {
+			console.warn("Link requests:", err);
+		}
+	}
+
+	document.addEventListener("click", async (e) => {
+		const btn = e.target.closest && e.target.closest("[data-link-decide]");
+		if (!btn) return;
+		const row = btn.closest("[data-private-event]");
+		if (!row) return;
+		const approve = btn.getAttribute("data-link-decide") === "approve";
+		btn.disabled = true;
+		try {
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/link-requests/${encodeURIComponent(row.getAttribute("data-private-event"))}/decision`, {
+				method: "POST",
+				headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+				credentials: "include",
+				body: JSON.stringify({ organizer_email: email, approve: approve })
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(apiErrorMessage(data, "Could not update this connection."));
+			showNotification(approve
+				? "Connected. Their QR tickets now work at your check-in."
+				: "Connection removed. Their QR tickets no longer work at your check-in.");
+			await loadLinkRequests();
+		} catch (err) {
+			showNotification((err && err.message) || "Could not update this connection.");
+			btn.disabled = false;
+		}
+	});
+
 	// var: init code can call renderMembersLinkPanel before this line runs.
 	var activeMembersKey = "";
 
@@ -4739,6 +4926,7 @@ async function initOrganizerDashboard() {
 				}
 				setVisibilityUi(!!hostData.event.is_private);
 				activeMembersKey = hostData.event.members_key || "";
+				applyEventLink(hostData.event);
 				const durationInput = document.getElementById("eventDurationInput");
 				if (durationInput) durationInput.value = hostData.event.duration || "";
 				if (hostData.event.policies) {
@@ -4792,6 +4980,8 @@ async function initOrganizerDashboard() {
 			}
 			applySectionActionLabels();
 			updateLifecycleBanners();
+			paintLinkedEventPanel();
+			loadLinkRequests();
 		}
 	} catch (err) {
 		console.warn("Could not fetch current host event:", err);
@@ -4830,6 +5020,7 @@ async function initOrganizerDashboard() {
 			policies_json: collectPoliciesJson(),
 			about_event: readAboutEventHtml() || undefined,
 			is_private: readIsPrivate(),
+			linked_event_id: readLinkedEventId(),
 			sync_live: syncLive ? true : undefined
 		};
 
@@ -4850,6 +5041,7 @@ async function initOrganizerDashboard() {
 					activeMembersKey = data.event.members_key;
 					renderMembersLinkPanel();
 				}
+				if (data.event && "link_status" in data.event) applyEventLink(data.event);
 				if (data.lifecycle) currentLifecycle = data.lifecycle;
 				rememberEventSchedule(data);
 				if (typeof data.can_publish_new === "boolean") canPublishNew = data.can_publish_new;
@@ -6058,6 +6250,8 @@ async function initOrganizerDashboard() {
 		const catSel = document.getElementById("eventCategorySelect");
 		if (catSel && event.event_category) catSel.value = event.event_category;
 		if (typeof event.is_private === "boolean") setVisibilityUi(event.is_private);
+		if ("link_status" in event) applyEventLink(event);
+		else paintLinkedEventPanel();
 		const formatInput = document.getElementById("eventFormatInput");
 		const mode = event.event_mode || "Hybrid";
 		if (formatInput) formatInput.value = mode;
@@ -6171,6 +6365,7 @@ async function initOrganizerDashboard() {
 			const catSel = document.getElementById("eventCategorySelect");
 			if (catSel) catSel.value = "";
 			setVisibilityUi(false);
+			applyEventLink({ linked_event_id: null, link_status: null, linked_event: null });
 			if (ticketTiersRows) {
 				ticketTiersRows.innerHTML = "";
 				ticketTiersRows.appendChild(createTicketTierRowHtml("", "", ""));

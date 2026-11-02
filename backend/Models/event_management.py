@@ -37,6 +37,11 @@ class EventManagement(Base):
     is_private       = Column(Boolean, default=False, nullable=True)
     # Secret for the members booking link (event-details?id=...&access=KEY). Members-only ticket offers need it.
     members_key      = Column(String(40), nullable=True)
+    # Private event linked to another host's public event: its tickets also pass that event's check-in once approved.
+    linked_event_id   = Column(String(64), nullable=True, index=True)
+    link_status       = Column(String(20), nullable=True)  # pending / approved / rejected
+    link_requested_at = Column(DateTime, nullable=True)
+    link_decided_at   = Column(DateTime, nullable=True)
     published_at     = Column(DateTime, nullable=True)
     tickets_json     = Column(JSONType, nullable=True)
     agenda_json      = Column(JSONType, nullable=True)

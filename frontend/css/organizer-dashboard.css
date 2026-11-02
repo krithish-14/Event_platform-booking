@@ -7019,6 +7019,28 @@ html[data-theme="dark"] .evsess-table td { border-color: rgba(255, 138, 31, 0.14
 .members-link-copy { padding: 0 1rem; min-height: 40px; border: none; border-radius: 8px; background: #FF7508; color: #fff; font: inherit; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
 .members-link-copy:hover { background: #e56600; }
 .members-link-wait { font-style: italic; }
+.linked-event-panel { margin-top: 0.85rem; padding: 0.9rem 1rem; border: 1.5px solid #c7d2fe; border-radius: 10px; background: #eef2ff; }
+.linked-event-panel[hidden], .link-requests-panel[hidden], .linked-event-status[hidden] { display: none; }
+.linked-event-optional { font-weight: 500; text-transform: none; letter-spacing: 0; color: #64748b; }
+.linked-event-help { margin: 0.25rem 0 0.6rem; font-size: 0.82rem; line-height: 1.45; color: #3730a3; }
+.linked-event-status { margin: 0.6rem 0 0; padding: 0.5rem 0.7rem; border-radius: 8px; font-size: 0.82rem; font-weight: 600; line-height: 1.4; background: #fff; color: #334155; }
+.linked-event-status.is-pending { background: #fffbeb; color: #92400e; }
+.linked-event-status.is-approved { background: #ecfdf5; color: #065f46; }
+.linked-event-status.is-rejected { background: #fef2f2; color: #991b1b; }
+.link-requests-panel { margin-top: 0.85rem; padding: 0.9rem 1rem; border: 1.5px solid #bbf7d0; border-radius: 10px; background: #f0fdf4; }
+.link-req-title { display: block; font-size: 0.92rem; color: #14532d; }
+.link-req-help { margin: 0.25rem 0 0.6rem; font-size: 0.8rem; line-height: 1.45; color: #166534; }
+.link-req-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 0.9rem; padding: 0.65rem 0; border-top: 1px solid #dcfce7; }
+.link-req-info { flex: 1 1 16rem; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.link-req-info strong { font-size: 0.9rem; color: #0f172a; overflow-wrap: anywhere; }
+.link-req-info small { font-size: 0.78rem; color: #475569; overflow-wrap: anywhere; }
+.link-req-chip { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: #fef3c7; color: #92400e; }
+.link-req-chip.is-approved { background: #dcfce7; color: #166534; }
+.link-req-chip.is-rejected { background: #fee2e2; color: #991b1b; }
+.link-req-actions { display: flex; gap: 0.4rem; }
+.link-req-btn { min-height: 36px; padding: 0 0.9rem; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; font: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
+.link-req-btn.is-approve { border-color: #16a34a; background: #16a34a; color: #fff; }
+.link-req-btn:disabled { opacity: 0.6; cursor: wait; }
 .live-event-title { margin: 0; font-size: 1.45rem; font-weight: 800; color: #0f172a; overflow-wrap: anywhere; }
 .live-event-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem 1rem; margin: 0; }
 .live-event-facts .is-wide { grid-column: 1 / -1; }
@@ -7109,5 +7131,19 @@ html[data-theme="dark"] .members-link-panel { background: rgba(245, 158, 11, 0.1
 html[data-theme="dark"] .q-options-tip, html[data-theme="dark"] .q-bulk-replace { color: #c8bfb4; }
 html[data-theme="dark"] .members-link-panel strong { color: #fcd34d; }
 html[data-theme="dark"] .members-link-panel p { color: #fde68a; }
+html[data-theme="dark"] .linked-event-panel { background: rgba(99, 102, 241, 0.12); border-color: rgba(129, 140, 248, 0.45); }
+html[data-theme="dark"] .linked-event-help { color: #c7d2fe; }
+html[data-theme="dark"] .linked-event-optional { color: #a8a29e; }
+html[data-theme="dark"] .linked-event-status { background: rgba(255, 255, 255, 0.06); color: #e7e5e4; }
+html[data-theme="dark"] .linked-event-status.is-pending { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+html[data-theme="dark"] .linked-event-status.is-approved { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
+html[data-theme="dark"] .linked-event-status.is-rejected { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+html[data-theme="dark"] .link-requests-panel { background: rgba(34, 197, 94, 0.1); border-color: rgba(74, 222, 128, 0.4); }
+html[data-theme="dark"] .link-req-title { color: #86efac; }
+html[data-theme="dark"] .link-req-help, html[data-theme="dark"] .link-req-info small { color: #bbf7d0; }
+html[data-theme="dark"] .link-req-info strong { color: #f5f5f4; }
+html[data-theme="dark"] .link-req-row { border-top-color: rgba(74, 222, 128, 0.2); }
+html[data-theme="dark"] .link-req-btn { background: transparent; border-color: rgba(255, 255, 255, 0.25); color: #e7e5e4; }
+html[data-theme="dark"] .link-req-btn.is-approve { background: #16a34a; border-color: #16a34a; color: #fff; }
 html[data-theme="dark"] .live-event-btn.is-primary,
 html[data-theme="dark"] .host-support-cat.is-on { background: #FF7508; border-color: #FF7508; color: #fff8f0; }

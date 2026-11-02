@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import or_, and_, String, cast, func, text
 from sqlalchemy.orm import Session, joinedload
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from Models import (
     get_db,
@@ -969,6 +969,16 @@ def _ticket_matches_scan(ticket, raw: str, needle: str) -> bool:
     return bool(needle and len(needle) >= 6 and (tid_n.startswith(needle) or bid_n.startswith(needle)))
 
 
+def _event_link_summary(db: Session, event: EventManagement) -> Dict[str, Any]:
+    try:
+        from Services.event_links import link_summary
+        return link_summary(db, event)
+    except Exception as exc:
+        db.rollback()
+        print(f"[EVENT LINK] summary failed event_id={getattr(event, 'event_id', None)}: {exc}", flush=True)
+        return {"linked_event_id": None, "link_status": None, "linked_event": None}
+
+
 def _find_event_ticket(db: Session, event_mgt: EventManagement, code: str):
     from Models.ticket import Ticket
     from APIs.tickets import extract_scan_token
@@ -1003,12 +1013,18 @@ def _find_event_ticket(db: Session, event_mgt: EventManagement, code: str):
             if receiver == email:
                 return ticket
 
+    # Fallback lookups search every event, so only accept tickets that belong to this one.
+    own_ids = _host_event_id_compacts(db, event_mgt)
+
+    def _own(ticket) -> bool:
+        return bool(ticket) and str(ticket.event_id or "").replace("-", "").lower() in own_ids
+
     try:
         global_match = db.query(Ticket).options(joinedload(Ticket.booking)).filter(Ticket.qr_token == raw).first()
     except Exception:
         db.rollback()
         global_match = None
-    if global_match:
+    if _own(global_match):
         return global_match
 
     if needle and len(needle) >= 6:
@@ -1029,7 +1045,7 @@ def _find_event_ticket(db: Session, event_mgt: EventManagement, code: str):
         except Exception:
             db.rollback()
             prefix_match = None
-        if prefix_match:
+        if _own(prefix_match):
             return prefix_match
     return None
 
@@ -1662,6 +1678,8 @@ class SaveManageEventRequest(BaseModel):
     policies_json: Optional[Dict[str, Any]] = None
     about_event: Optional[str] = None
     is_private: Optional[bool] = None
+    # Private events only: another host's public event to link to ("" clears the link).
+    linked_event_id: Optional[str] = Field(None, max_length=64)
     # Explicit "Update" on a published event: refresh the public event page now (no OTP republish).
     sync_live: Optional[bool] = None
 
@@ -1941,6 +1959,13 @@ def save_manage_event(
     if payload.organizer_phone: event.organizer_phone = payload.organizer_phone
     if payload.is_private is not None:
         event.is_private = bool(payload.is_private)
+    if payload.linked_event_id is not None or payload.is_private is False:
+        from Services import event_links as link_svc
+        wanted = payload.linked_event_id if payload.linked_event_id is not None else getattr(event, "linked_event_id", None)
+        try:
+            link_svc.set_link(db, event, wanted, bool(getattr(event, "is_private", False)))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
     if payload.event_status:
         incoming = payload.event_status.lower()
         current = (event.event_status or "draft").lower()
@@ -2081,6 +2106,7 @@ def save_manage_event(
             "event_status": event.event_status,
             "is_private": bool(getattr(event, "is_private", False)),
             "members_key": getattr(event, "members_key", None),
+            **_event_link_summary(db, event),
             "duration": getattr(event, "duration", None),
             "tickets": event.tickets_json,
             "agenda": event.agenda_json,
@@ -2469,6 +2495,7 @@ def get_current_host_event(
             "event_status": event.event_status,
             "is_private": bool(getattr(event, "is_private", False)),
             "members_key": getattr(event, "members_key", None),
+            **_event_link_summary(db, event),
             "lifecycle": life["lifecycle"],
             "event_start_date": start_local,
             "event_end_date": end_local,
@@ -2839,6 +2866,31 @@ def save_registration_checkin(
     now_utc = datetime.utcnow()
 
     ticket = _find_event_ticket(db, event, scan_code)
+    if not ticket and scan_code:
+        from Services import event_links as link_svc
+        from Services import event_sessions as session_svc
+
+        linked_ticket, source = link_svc.find_linked_ticket(db, event, scan_code)
+        if linked_ticket is not None:
+            session, session_error = session_svc.resolve_scan_session(db, event, payload.session_id)
+            result = session_error if session_error is not None else link_svc.perform_link_checkin(
+                db, event, source, linked_ticket,
+                checked_in_by=staff_name,
+                method=(payload.scan_method or "manual"),
+                session=session,
+            )
+            stats = compute_live_event_stats(db, event)
+            if not result.get("success") and result.get("status") not in ("cancelled", "already_used", "error"):
+                code = result.get("error_code")
+                result["status"] = (
+                    "already_used" if code == "ALREADY_CHECKED_IN"
+                    else ("cancelled" if code == "TICKET_CANCELLED" else "error")
+                )
+            result.setdefault("already_checked_in", result.get("error_code") == "ALREADY_CHECKED_IN")
+            if result.get("already_checked_in"):
+                result["check_in_type"] = "duplicate"
+            result.update({k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")})
+            return result
     if ticket:
         from Services import event_sessions as session_svc
 
@@ -3750,6 +3802,75 @@ def get_reports_summary(
     if not event:
         return _empty_event_report_payload()
     return _event_report_payload(db, event)
+
+
+class LinkDecisionRequest(BaseModel):
+    organizer_email: str
+    approve: bool
+
+
+@router.get("/linkable-events")
+def list_linkable_public_events(
+    email: str = Query(..., description="Organizer email address"),
+    q: Optional[str] = Query(None, max_length=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Live / upcoming public events (other hosts') a private event can link to."""
+    from Services import event_links as link_svc
+
+    email_clean = _bound_email(email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
+    own_ids = {str(ev.event_id) for ev in _host_events_query(db, email_clean, customer_id, host_id).all()}
+    return {"events": link_svc.linkable_events(db, own_ids, email_clean, q or "")}
+
+
+@router.get("/link-requests")
+def list_event_link_requests(
+    email: str = Query(..., description="Organizer email address"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Private events (other hosts') asking to link to this host's public events."""
+    from Services import event_links as link_svc
+
+    email_clean = _bound_email(email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
+    own = [
+        ev for ev in _host_events_query(db, email_clean, customer_id, host_id).all()
+        if not bool(getattr(ev, "is_private", False))
+        and compute_event_lifecycle(ev) not in ("cancelled", "unpublished")
+    ]
+    return {"requests": link_svc.incoming_requests(db, own)}
+
+
+@router.post("/link-requests/{private_event_id}/decision")
+def decide_event_link_request(
+    private_event_id: str,
+    payload: LinkDecisionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Public event's host approves (or rejects / revokes) a private event's link."""
+    from Services import event_links as link_svc
+
+    email_clean = _bound_email(payload.organizer_email, current_user)
+    customer_id, host_id = resolve_host_identifiers(db, email_clean, current_user)
+    row = _lookup_event_by_id(db, private_event_id)
+    if not row or not getattr(row, "linked_event_id", None):
+        raise HTTPException(status_code=404, detail="Link request not found.")
+    target = _lookup_event_by_id(db, row.linked_event_id)
+    if not target or not _event_owned(target, email_clean, customer_id, host_id, current_user):
+        raise HTTPException(status_code=403, detail="Only the public event's host can decide this link.")
+    if payload.approve and not bool(getattr(row, "is_private", False)):
+        raise HTTPException(status_code=400, detail="Only private events can be linked.")
+    link_svc.decide(row, payload.approve)
+    db.commit()
+    return {
+        "status": "success",
+        "private_event_id": str(row.event_id),
+        "link_status": row.link_status,
+    }
 
 
 @router.get("/history")
