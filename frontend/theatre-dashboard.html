@@ -38,7 +38,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 <link rel="preload" as="image" href="/images/JOD%20Events%20Logo.png" fetchpriority="high" />
 <link rel="stylesheet" href="css/fonts.css?v=2" />
 <script src="js/theme.js?v=30"></script> <script src="js/api-config.js?v=4"></script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" /> <meta name="description" content="Manage your cinema screens, seat layouts, movies, shows and bookings on JOD Events." /> <title>Theatre Dashboard - JOD Events</title> <link rel="icon" href="/favicon.ico" sizes="any" /><link rel="icon" type="image/png" href="/favicon.png" /><link rel="apple-touch-icon" href="/favicon.png" /> <link rel="stylesheet" href="css/organizer-dashboard.css?v=121" /> <link rel="stylesheet" href="css/cinema.css?v=10" />  </head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" /> <meta name="description" content="Manage your cinema screens, seat layouts, movies, shows and bookings on JOD Events." /> <title>Theatre Dashboard - JOD Events</title> <link rel="icon" href="/favicon.ico" sizes="any" /><link rel="icon" type="image/png" href="/favicon.png" /><link rel="apple-touch-icon" href="/favicon.png" /> <link rel="stylesheet" href="css/organizer-dashboard.css?v=121" /> <link rel="stylesheet" href="css/cinema.css?v=11" />  </head>
 <body class="dashboard-body theatre-dash">
 
 <!-- Google Tag Manager (noscript) -->
@@ -194,32 +194,40 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       </div>
 
       <div id="td-bookings" class="tab-section td-panel">
-        <div class="td-split">
-          <form class="rich-form-container" id="tdCheckinForm">
-            <span class="form-pill-badge">Show day</span>
-            <h2 class="rich-form-title">Check in at the entrance</h2>
-            <p class="rich-form-subtitle">Scan the ticket QR with this device's camera, or type the booking code.</p>
-            <div class="td-scan">
-              <div class="td-scan-view" id="tdScanView" hidden><video id="tdScanVideo" muted playsinline></video><span class="td-scan-frame" aria-hidden="true"></span><p class="td-scan-hint" id="tdScanHint">Point the camera at the ticket QR</p></div>
-              <div class="td-scan-actions">
-                <button type="button" class="publish-gradient-btn" id="tdScanStart">Scan ticket QR</button>
-                <button type="button" class="btn-card-action" id="tdScanFlip" hidden>Switch camera</button>
-                <button type="button" class="btn-card-action" id="tdScanStop" hidden>Stop camera</button>
-              </div>
-              <label class="td-scan-auto"><input type="checkbox" id="tdScanAuto"> Check in automatically after each scan</label>
+        <form class="rich-form-container td-checkin-form" id="tdCheckinForm">
+          <span class="form-pill-badge">Show day</span>
+          <h2 class="rich-form-title">Check in at the entrance</h2>
+          <p class="rich-form-subtitle">Scan the ticket QR with this device's camera, or type the booking code. Ticket details open in a popup you can close with ×, then scan the next guest.</p>
+          <div class="td-scan">
+            <div class="td-scan-view" id="tdScanView" hidden><video id="tdScanVideo" muted playsinline></video><span class="td-scan-frame" aria-hidden="true"></span><p class="td-scan-hint" id="tdScanHint">Point the camera at the ticket QR</p></div>
+            <div class="td-scan-actions">
+              <button type="button" class="publish-gradient-btn" id="tdScanStart">Scan ticket QR</button>
+              <button type="button" class="btn-card-action" id="tdScanFlip" hidden>Switch camera</button>
+              <button type="button" class="btn-card-action" id="tdScanStop" hidden>Stop camera</button>
             </div>
-            <div id="tdCheckinResult" aria-live="polite"></div>
-            <div class="form-section-divider">Or type the booking code</div>
-            <div class="setup-form-group"><label for="tdCheckinCode">Booking code</label><input id="tdCheckinCode" class="setup-input" autocomplete="off" placeholder="MOV-XXXXXXXX"></div>
-            <div class="td-form-actions"><button class="publish-gradient-btn" type="submit">Find ticket</button></div>
-          </form>
-          <div class="dash-card"><div class="dash-card-header td-card-head"><div><h3 class="dash-card-title">Recent bookings</h3><p class="td-checkin-summary" id="tdCheckinSummary"></p></div><button type="button" class="btn-card-action td-inline-action" id="tdRefreshBookings">Refresh</button></div><div id="tdBookingList"></div></div>
-        </div>
+            <label class="td-scan-auto"><input type="checkbox" id="tdScanAuto"> Check in automatically after each scan</label>
+          </div>
+          <div id="tdCheckinResult" aria-live="polite" hidden></div>
+          <div class="form-section-divider">Or type the booking code</div>
+          <div class="setup-form-group"><label for="tdCheckinCode">Booking code</label><input id="tdCheckinCode" class="setup-input" autocomplete="off" placeholder="MOV-XXXXXXXX"></div>
+          <div class="td-form-actions"><button class="publish-gradient-btn" type="submit">Find ticket</button></div>
+        </form>
       </div>
     </div>
   </main>
 </div>
 <div class="td-modal" id="tdModal" hidden><div class="td-modal-backdrop" data-td-close></div><div class="td-modal-box" role="dialog" aria-modal="true" aria-labelledby="tdModalTitle"><div class="td-modal-head"><h3 id="tdModalTitle"></h3><button type="button" class="td-icon-btn" data-td-close aria-label="Close">&times;</button></div><div id="tdModalBody"></div></div></div>
-<script src="js/include.js?v=61"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=58"></script> <script src="js/cinema-common.js?v=4"></script> <script src="js/seat-map.js?v=1"></script> <script src="js/image-cropper.js?v=1"></script> <script src="js/qr-scanner.js?v=1"></script> <script src="js/theatre-dashboard.js?v=6"></script>
+<div class="td-modal td-checkin-modal" id="tdCheckinModal" hidden>
+  <div class="td-modal-backdrop" data-ck-close></div>
+  <div class="td-modal-box td-checkin-modal-box" role="dialog" aria-modal="true" aria-labelledby="tdCheckinModalStatus">
+    <div class="td-modal-head">
+      <h3 id="tdCheckinModalStatus">Ticket</h3>
+      <button type="button" class="td-icon-btn" data-ck-close aria-label="Close">&times;</button>
+    </div>
+    <div id="tdCheckinModalBody"></div>
+    <div class="td-checkin-modal-actions" id="tdCheckinModalActions"></div>
+  </div>
+</div>
+<script src="js/include.js?v=61"></script> <script src="js/health.js?v=3"></script> <script src="js/auth.js?v=58"></script> <script src="js/cinema-common.js?v=4"></script> <script src="js/seat-map.js?v=1"></script> <script src="js/image-cropper.js?v=1"></script> <script src="js/qr-scanner.js?v=1"></script> <script src="js/theatre-dashboard.js?v=7"></script>
 </body>
 </html>

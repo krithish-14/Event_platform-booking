@@ -442,9 +442,13 @@ class CinemaFlowTests(unittest.TestCase):
 
         early = self.client.post("/api/cinema/bookings/checkin", json={"code": later_ticket["qr_token"]})
         self.assertEqual(early.status_code, 409)
-        self.assertIn("later show", early.json()["detail"])
+        self.assertIn("Show not started yet", early.json()["detail"])
         forced = self.client.post("/api/cinema/bookings/checkin", json={"code": later_ticket["qr_token"], "force": True}).json()
         self.assertIsNotNone(forced["booking"]["checked_in_at"])
+        dup = self.client.post("/api/cinema/bookings/checkin", json={"code": now_ticket["qr_token"]}).json()
+        self.assertTrue(dup["already_checked_in"])
+        self.assertEqual(dup.get("entry_reason"), "duplicate")
+        self.assertIn("Duplicate", dup.get("entry_note") or "")
 
         self.assertEqual(self.client.post("/api/cinema/bookings/lookup", json={"code": "MOVQR-notarealtoken123"}).status_code, 404)
         listed = {b["booking_code"]: b for b in self.client.get("/api/cinema/bookings").json()["bookings"]}

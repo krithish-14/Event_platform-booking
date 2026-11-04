@@ -627,26 +627,30 @@ def _find_ticket(db, partner: TheatrePartner, raw: str) -> CinemaBooking:
 
 def _entry_window(show: Optional[CinemaShow], now) -> dict:
     if not show:
-        return {"entry_ok": False, "entry_note": "The show for this ticket no longer exists."}
+        return {"entry_ok": False, "entry_note": "The show for this ticket no longer exists.", "entry_reason": "missing"}
     if show.status != "scheduled":
-        return {"entry_ok": False, "entry_note": "This show was cancelled."}
+        return {"entry_ok": False, "entry_note": "This show was cancelled.", "entry_reason": "cancelled"}
     if now < show.starts_at - ENTRY_OPENS_BEFORE:
-        return {"entry_ok": False, "entry_note": "Entry opens 2 hours before the show. This ticket is for a later show."}
+        return {"entry_ok": False, "entry_note": "Show not started yet", "entry_reason": "not_started"}
     if now > show.ends_at + ENTRY_CLOSES_AFTER:
-        return {"entry_ok": False, "entry_note": "This show has already ended."}
-    return {"entry_ok": True, "entry_note": None}
+        return {"entry_ok": False, "entry_note": "This show has already ended.", "entry_reason": "ended"}
+    return {"entry_ok": True, "entry_note": None, "entry_reason": None}
 
 
 def _ticket_view(db, booking: CinemaBooking) -> dict:
     show = db.query(CinemaShow).filter(CinemaShow.id == booking.show_id).first()
     screen = db.query(CinemaScreen).filter(CinemaScreen.id == show.screen_id).first() if show else None
     movie = db.query(CinemaMovie).filter(CinemaMovie.id == show.movie_id).first() if show else None
-    return {
+    view = {
         "booking": booking_out(booking),
         "show": show_out(show, screen, movie) if show else None,
         "already_checked_in": booking.checked_in_at is not None,
         **_entry_window(show, utc_now()),
     }
+    if view["already_checked_in"]:
+        view["entry_note"] = "Duplicate scan"
+        view["entry_reason"] = "duplicate"
+    return view
 
 
 @router.get("/bookings")
@@ -691,11 +695,15 @@ def checkin_booking(payload: CheckinIn, db: Session = Depends(get_db), current_u
     partner = verified_partner(db, current_user)
     booking = _find_ticket(db, partner, payload.code)
     view = _ticket_view(db, booking)
-    if not view["already_checked_in"]:
-        if not view["entry_ok"] and not payload.force:
-            raise HTTPException(status_code=409, detail=view["entry_note"])
-        booking.checked_in_at = utc_now()
-        db.commit()
-        view = _ticket_view(db, booking)
-        view["already_checked_in"] = False
+    if view["already_checked_in"]:
+        view["entry_note"] = "Duplicate scan"
+        view["entry_reason"] = "duplicate"
+        return view
+    if not view["entry_ok"] and not payload.force:
+        raise HTTPException(status_code=409, detail=view["entry_note"] or "Show not started yet")
+    booking.checked_in_at = utc_now()
+    db.commit()
+    view = _ticket_view(db, booking)
+    view["already_checked_in"] = False
+    view["just_checked_in"] = True
     return view
