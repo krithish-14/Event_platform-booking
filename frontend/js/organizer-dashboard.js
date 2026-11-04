@@ -5260,6 +5260,27 @@ async function initOrganizerDashboard() {
 		return found;
 	}
 
+	function formatTicketCanvasWhen(datetimeLocal) {
+		const raw = String(datetimeLocal || "").trim();
+		const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(raw);
+		if (!m) {
+			return { date: "Sat, Apr 18, 2026, 6:30 PM", time: "6:30 PM" };
+		}
+		const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+		const datePart = d.toLocaleDateString("en-US", {
+			weekday: "short",
+			month: "short",
+			day: "numeric",
+			year: "numeric"
+		});
+		const timePart = d.toLocaleTimeString("en-US", {
+			hour: "numeric",
+			minute: "2-digit",
+			hour12: true
+		});
+		return { date: datePart + ", " + timePart, time: timePart };
+	}
+
 	function ensureTicketCanvas() {
 		const host = document.getElementById("ticketDesignStudioHost");
 		if (!host || !window.JodTicketCanvas) return;
@@ -5275,6 +5296,15 @@ async function initOrganizerDashboard() {
 		const sampleTitle = (eventTitleInput && eventTitleInput.value.trim()) || "Your Event Title";
 		let sampleVenue = (document.getElementById("eventLocationInput") && document.getElementById("eventLocationInput").value.trim()) || "Venue TBA";
 		if (sampleVenue.length > 90) sampleVenue = sampleVenue.slice(0, 87).trim() + "…";
+		const sampleWhen = formatTicketCanvasWhen(
+			document.getElementById("eventDateInput") && document.getElementById("eventDateInput").value
+		);
+		const samplePayload = {
+			title: sampleTitle,
+			venue: sampleVenue,
+			date: sampleWhen.date,
+			time: sampleWhen.time
+		};
 		const formFields = detectHostFormIdentityFields();
 		if (!ticketCanvasCtrl) {
 			ticketCanvasCtrl = window.JodTicketCanvas.create({
@@ -5283,7 +5313,7 @@ async function initOrganizerDashboard() {
 				templates: ticketTemplatesCatalog,
 				layout: ticketLayoutState,
 				formFields: formFields,
-				sample: { title: sampleTitle, venue: sampleVenue },
+				sample: samplePayload,
 				onUploadImage: function (file) { return uploadDesignAsset(file, "ticket"); },
 				onChange: function (layout) {
 					if (ticketLayoutEventId && activeEventId && !sameTicketEvent(ticketLayoutEventId, activeEventId)) {
@@ -5304,7 +5334,7 @@ async function initOrganizerDashboard() {
 			ticketCanvasCtrl.setTemplates(ticketTemplatesCatalog);
 			ticketCanvasCtrl.setFormFields(formFields);
 			if (ticketLayoutState) ticketCanvasCtrl.setLayout(ticketLayoutState);
-			ticketCanvasCtrl.setSample({ title: sampleTitle, venue: sampleVenue });
+			ticketCanvasCtrl.setSample(samplePayload);
 		}
 		const resetBtn = document.getElementById("ticketStudioResetBtn");
 		if (resetBtn && !resetBtn._wired) {

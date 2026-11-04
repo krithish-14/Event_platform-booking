@@ -558,6 +558,15 @@
 			.replace(/"/g, "&quot;");
 	}
 
+	function sampleDateWithTime(sample) {
+		const date = String((sample && sample.date) || "").trim();
+		const time = String((sample && sample.time) || "").trim();
+		if (!date) return time || "Date TBA";
+		if (!time) return date;
+		if (/(\d{1,2}:\d{2}\s*[AP]M|\d{1,2}:\d{2})/i.test(date)) return date;
+		return date + ", " + time;
+	}
+
 	function TicketCanvasController(opts) {
 		this.root = opts.root;
 		this.isPremium = !!opts.isPremium;
@@ -566,7 +575,7 @@
 		this.formFields = Object.assign({ name: true, email: true, phone: true }, opts.formFields || {});
 		this.sample = Object.assign({
 			title: "Your Event Title",
-			date: "Sat, Apr 18, 2026",
+			date: "Sat, Apr 18, 2026, 6:30 PM",
 			time: "6:30 PM",
 			venue: "Venue name",
 			ticketType: "General Admission",
@@ -2159,12 +2168,13 @@
 				return '<div class="tc-el-image is-empty">Organizer logo</div>';
 			}
 			case "date": {
-				if (isVip) return vgDetail("DATE", s.date);
-				if (isSunset) return sgDetail("DATE", s.date);
-				if (isMidnight) return '<div class="ms-meta"><strong>' + escapeHtml(s.date) + "</strong></div>";
-				if (portraitCard) return field("Date", s.date);
-				if (landscapeCard) return '<div class="tc-kicker">' + escapeHtml(s.date) + "</div>";
-				return '<div class="tc-el-text">' + escapeHtml(s.date) + "</div>";
+				const dateLabel = sampleDateWithTime(s);
+				if (isVip) return vgDetail("DATE", dateLabel);
+				if (isSunset) return sgDetail("DATE", dateLabel);
+				if (isMidnight) return '<div class="ms-meta"><strong>' + escapeHtml(dateLabel) + "</strong></div>";
+				if (portraitCard) return field("Date", dateLabel);
+				if (landscapeCard) return '<div class="tc-kicker">' + escapeHtml(dateLabel) + "</div>";
+				return '<div class="tc-el-text">' + escapeHtml(dateLabel) + "</div>";
 			}
 			case "venue": return isVip
 				? vgDetail("VENUE", s.venue)

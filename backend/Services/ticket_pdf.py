@@ -1228,7 +1228,11 @@ def _render_canvas_ticket(
     qty_text = "1 Ticket" if qty == 1 else f"{qty} Tickets"
     date_value = date_label
     time_value = ""
-    if custom and date_label.count(",") >= 3:
+    # Only peel time into a separate field when the layout actually has a time block.
+    # Default e-ticket shows date + start time on the same date line.
+    canvas_els = layout.get("canvas_elements") if isinstance(layout.get("canvas_elements"), list) else []
+    has_time_el = any(isinstance(el, dict) and el.get("type") == "time" for el in canvas_els)
+    if custom and has_time_el and date_label.count(",") >= 3:
         date_value, time_value = date_label.rsplit(",", 1)
         date_value = date_value.strip()
         time_value = time_value.strip()
