@@ -1119,14 +1119,12 @@
 		this.applyFlagsToElements();
 		this.root.innerHTML = [
 			'<div class="ticket-design-studio is-studio-layout">',
-			'  <div class="ticket-studio-toolbar">',
-			'    <div class="ticket-canvas-controls ticket-studio-controls-top">',
+			'  <div class="ticket-studio-toolbar" id="ticketStudioToolbar" hidden>',
+			'    <div class="ticket-canvas-controls ticket-studio-controls-top" id="ticketStudioControls">',
 			'      <div class="ticket-tool-block" id="ticketElementPanel">',
 			'        <div class="ticket-palette-title">Add elements</div>',
 			'        <div class="ticket-element-palette" id="ticketElementPalette"></div>',
-			'      </div>',
-			'      <div class="ticket-tool-block">',
-			'        <div class="ticket-palette-title">Show on ticket</div>',
+			'        <div class="ticket-palette-title ticket-show-title">Show on ticket</div>',
 			'        <div class="ticket-toggle-grid">',
 			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowDate" /> Date</label>',
 			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowTime" /> Time</label>',
@@ -1159,8 +1157,9 @@
 			'    <div class="ticket-tools-backdrop" id="ticketToolsBackdrop" hidden></div>',
 			'    <aside class="ticket-float-card" id="ticketFloatCard" aria-label="Ticket editing tools">',
 			'      <div class="ticket-float-head"><span>Tools</span><button type="button" class="ticket-float-close" id="ticketToolsClose" aria-label="Close tools">&times;</button></div>',
-			'      <p class="ticket-float-hint">Add text or shapes, then click a section to change color and alignment.</p>',
-			'      <div class="ticket-float-section">',
+			'      <p class="ticket-float-hint">Toggle fields on the ticket, then click a section to change color and alignment.</p>',
+			'      <div id="ticketToolsControlsSlot" class="ticket-tools-controls-slot"></div>',
+			'      <div class="ticket-float-section" id="ticketShapeToolsSection" hidden>',
 			'        <div class="ticket-palette-title">Add</div>',
 			'        <div class="ticket-float-add" id="ticketShapePalette"></div>',
 			'      </div>',
@@ -1765,12 +1764,14 @@
 
 	TicketCanvasController.prototype.placeFieldControls = function () {
 		if (!this.root) return;
-		const controls = this.root.querySelector(".ticket-studio-controls-top");
+		const controls = this.root.querySelector("#ticketStudioControls") || this.root.querySelector(".ticket-studio-controls-top");
+		const slot = this.root.querySelector("#ticketToolsControlsSlot");
 		const card = this.root.querySelector("#ticketFloatCard");
-		const toolbar = this.root.querySelector(".ticket-studio-toolbar");
-		if (!controls || !card || !toolbar) return;
-		const target = this.isDrawerMode() ? card : toolbar;
-		if (controls.parentElement !== target) target.appendChild(controls);
+		const toolbar = this.root.querySelector("#ticketStudioToolbar") || this.root.querySelector(".ticket-studio-toolbar");
+		if (!controls) return;
+		const target = slot || card;
+		if (target && controls.parentElement !== target) target.appendChild(controls);
+		if (toolbar) toolbar.hidden = true;
 	};
 
 	TicketCanvasController.prototype.syncTemplateCarousel = function () {
@@ -2000,9 +2001,8 @@
 		if (dataHost) {
 			const groups = [
 				{ title: "Event information", types: ["poster", "title", "date", "time", "venue", "ticket_type", "qty", "seat", "price", "organizer"] },
-				{ title: "Attendee information", types: ["name", "phone", "email", "booking_id", "ticket_id", "qr"] },
+				{ title: "Attendee information", types: ["name", "phone", "email", "ticket_id", "qr"] },
 				{ title: "Branding", types: ["jod_logo", "organizer_logo"] },
-				{ title: "Design elements", types: ["text", "image", "line", "dashed_line", "rectangle", "circle"] },
 			];
 			dataHost.innerHTML = groups.map(function (group) {
 				const chips = group.types.map(function (type) {
@@ -2023,37 +2023,7 @@
 				});
 			});
 		}
-		if (shapeHost) {
-			const tools = CUSTOM_DEFS.concat(SHAPE_DEFS);
-			const preview = function (type) {
-				if (type === "text") return '<span class="ticket-tool-preview is-text">text</span>';
-				if (type === "image") return '<span class="ticket-tool-preview is-text">image</span>';
-				if (type === "line") return '<span class="ticket-tool-preview is-line" aria-hidden="true"></span>';
-				if (type === "dashed_line") return '<span class="ticket-tool-preview is-dashed">---------</span>';
-				if (type === "rectangle") return '<span class="ticket-tool-preview is-box" aria-hidden="true"></span>';
-				if (type === "circle") return '<span class="ticket-tool-preview is-circle" aria-hidden="true"></span>';
-				return "";
-			};
-			shapeHost.innerHTML = tools.map(function (def) {
-				return '<button type="button" class="ticket-tool-sample" data-add-shape="' + def.type + '" aria-label="Add ' + escapeHtml(def.label) + '">' + preview(def.type) + "</button>";
-			}).join("");
-			shapeHost.querySelectorAll("[data-add-shape]").forEach(function (btn) {
-				btn.addEventListener("click", function () {
-					const type = btn.getAttribute("data-add-shape");
-					if (type === "image") {
-						const picker = self.root.querySelector("#ticketItemImage");
-						if (picker) picker.click();
-						return;
-					}
-					self.addElement(type);
-					if (type === "text") {
-						self.focusTextInput();
-						return;
-					}
-					if (self.toolsOpen) self.setToolsOpen(false);
-				});
-			});
-		}
+		if (shapeHost) shapeHost.innerHTML = "";
 	};
 
 	TicketCanvasController.prototype.renderTemplatePicker = function () {

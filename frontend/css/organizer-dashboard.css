@@ -6382,11 +6382,11 @@ html[data-theme="dark"] .ticket-float-close {
 	border-color: #0f172a;
 }
 .ticket-palette-group {
-	margin: 0 0 0.7rem;
+	margin: 0 0 0.45rem;
 }
 .ticket-palette-group h4 {
-	margin: 0 0 0.35rem;
-	font-size: 0.72rem;
+	margin: 0 0 0.28rem;
+	font-size: 0.68rem;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
 	color: #64748b;
@@ -6394,7 +6394,39 @@ html[data-theme="dark"] .ticket-float-close {
 .ticket-palette-chips {
 	display: flex;
 	flex-wrap: wrap;
+	gap: 0.28rem;
+}
+.ticket-tools-controls-slot {
+	display: flex;
+	flex-direction: column;
 	gap: 0.35rem;
+	min-width: 0;
+}
+.ticket-float-card .ticket-studio-controls-top {
+	gap: 0.45rem;
+}
+.ticket-float-card .ticket-tool-block {
+	gap: 0.35rem;
+}
+.ticket-float-card .ticket-palette-title {
+	margin-top: 0;
+}
+.ticket-float-card .ticket-show-title {
+	margin-top: 0.45rem;
+}
+.ticket-float-card .ticket-toggle-grid {
+	gap: 0.28rem 0.5rem;
+}
+.ticket-float-card .ticket-toggle {
+	font-size: 0.74rem;
+}
+.ticket-float-card .ticket-premium-hint {
+	margin-top: 0.15rem;
+	font-size: 0.7rem;
+}
+.ticket-float-card .ticket-palette-chip {
+	padding: 0.28rem 0.55rem;
+	font-size: 0.68rem;
 }
 .ticket-design-studio.is-studio-layout .ticket-live-card.is-canvas.is-custom.is-orient-landscape {
 	width: min(100%, 760px);
