@@ -2936,7 +2936,31 @@ async function initOrganizerDashboard() {
 		}
 	}
 
-	function paintCheckinResult(el, ok, message, already, tone) {
+	function escapeCheckinHtml(value) {
+		return String(value == null ? "" : value)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
+	function checkinDetailRows(data) {
+		if (!data || typeof data !== "object") return [];
+		const when = data.session_start_display || data.event_start_display || "";
+		const rows = [
+			["Name", data.attendee_name || data.customer_name || ""],
+			["Event", data.event_title || data.linked_event_title || ""],
+			["Time", when],
+			["Session", data.session_name || ""],
+			["Venue", data.venue || ""],
+			["Ticket", data.ticket_type || ""],
+			["Seat", data.seat_number || ""],
+			["Ticket ID", data.ticket_id || data.attendee_ref || ""]
+		];
+		return rows.filter((pair) => String(pair[1] || "").trim());
+	}
+
+	function paintCheckinResult(el, ok, message, already, tone, data) {
 		if (!el) return;
 		el.style.display = "block";
 		if (ok) {
@@ -2956,7 +2980,21 @@ async function initOrganizerDashboard() {
 			el.style.borderColor = "#fecaca";
 			el.style.color = "#b91c1c";
 		}
-		el.textContent = message;
+		const rows = checkinDetailRows(data);
+		const headline = (ok ? "\u2713 " : already ? "\u26a0 " : "\u2715 ") + String(message || "").replace(/^[\u2713\u26a0\u2715]\s*/, "");
+		if (!rows.length) {
+			el.textContent = headline;
+			return;
+		}
+		el.innerHTML = `<div style="font-weight:800;margin-bottom:0.45rem;">${escapeCheckinHtml(headline)}</div>`
+			+ `<dl style="display:grid;gap:0.28rem;margin:0;">`
+			+ rows.map(([label, value]) => (
+				`<div style="display:grid;grid-template-columns:5.2rem minmax(0,1fr);gap:0.45rem;">`
+				+ `<dt style="font-size:0.72rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;opacity:0.75;padding-top:0.1rem;">${escapeCheckinHtml(label)}</dt>`
+				+ `<dd style="margin:0;font-size:0.9rem;font-weight:700;">${escapeCheckinHtml(value)}</dd>`
+				+ `</div>`
+			)).join("")
+			+ `</dl>`;
 	}
 
 	async function performTicketCheckin(code, resultEl) {
@@ -2983,7 +3021,7 @@ async function initOrganizerDashboard() {
 			const data = await res.json().catch(() => ({}));
 			if (data && data.error_code && data.error_code !== "ALREADY_CHECKED_IN") {
 				const label = data.session_name ? `${data.session_name}: ` : "";
-				paintCheckinResult(resultEl, false, label + (data.message || "Check-in was not recorded."), false, data.result_tone);
+				paintCheckinResult(resultEl, false, label + (data.message || "Check-in was not recorded."), false, data.result_tone, data);
 				if (window.JodEventSessions) window.JodEventSessions.refreshOverview();
 				return data;
 			}
@@ -2998,20 +3036,15 @@ async function initOrganizerDashboard() {
 			);
 			const ok = res.ok && data.valid !== false && !already && status !== "cancelled";
 			const detail = typeof data.detail === "string" ? data.detail : "";
-			const ticketId = data.ticket_id ? String(data.ticket_id) : "";
-			let message = data.message || detail || (ok ? `${value} checked in successfully.` : "Could not validate this ticket.");
+			const name = data.attendee_name || data.customer_name || "";
+			let message = data.message || detail || (ok ? `${name || value} checked in successfully.` : "Could not validate this ticket.");
 			if (ok && !/^new check-in/i.test(message)) {
-				message = ticketId
-					? `New check-in \u2014 ticket ${ticketId}. ${message}`
-					: `New check-in \u2014 ${message}`;
+				message = name ? `New check-in \u2014 ${name}` : `New check-in \u2014 ${message}`;
 			}
 			if (already && !/duplicate/i.test(message)) {
-				message = ticketId
-					? `Duplicate check-in \u2014 ticket ${ticketId}. ${message}`
-					: `Duplicate check-in \u2014 ${message}`;
+				message = name ? `Duplicate scan \u2014 ${name}` : `Duplicate scan \u2014 ${message}`;
 			}
-			if (data.session_name && !message.includes(data.session_name)) message = `${data.session_name}: ${message}`;
-			paintCheckinResult(resultEl, ok, (ok ? "\u2713 " : "") + message.replace(/^\u2713\s*/, ""), already);
+			paintCheckinResult(resultEl, ok, message.replace(/^\u2713\s*/, ""), already, null, data);
 			await loadDashboardData();
 			await loadAttendanceData();
 			if (window.JodEventSessions) window.JodEventSessions.refreshOverview();
@@ -7691,15 +7724,29 @@ async function initOrganizerDashboard() {
 		};
 	}
 
-	function _addHistoryRow(code, status, name) {
+	function _addHistoryRow(code, status, data) {
 		if (!scanHistoryWrap || !scanHistoryList) return;
 		scanHistoryWrap.style.display = "block";
 		const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 		const color = status === "valid" ? "#10b981" : (status === "invalid" ? "#f87171" : "#f59e0b");
 		const label = status === "valid" ? "\u2714 Valid" : (status === "invalid" ? "\u2716 Invalid" : "\u26a0 Duplicate");
+		const name = (data && (data.attendee_name || data.customer_name)) || "Attendee";
+		const eventTitle = (data && (data.event_title || data.linked_event_title)) || "";
+		const when = (data && (data.session_start_display || data.event_start_display)) || "";
+		const seat = (data && data.seat_number) || "";
+		const ticketType = (data && data.ticket_type) || "";
+		const meta = [eventTitle, when, seat && seat !== "General Admission" ? `Seat ${seat}` : "", ticketType].filter(Boolean).join(" \u00b7 ");
 		const row = document.createElement("div");
-		row.style.cssText = "display:flex;justify-content:space-between;align-items:center;background:#1e293b;border-radius:6px;padding:0.4rem 0.7rem;font-size:0.8rem;";
-		row.innerHTML = `<span style="color:#f1f5f9;font-weight:600;">${escapeVolunteerHtml(name)}</span><span style="color:#94a3b8;font-size:0.75rem;">${escapeVolunteerHtml(String(code).slice(0,18))}\u2026</span><span style="color:${color};font-weight:700;">${label}</span><span style="color:#64748b;font-size:0.72rem;">${escapeVolunteerHtml(now)}</span>`;
+		row.style.cssText = "display:flex;flex-direction:column;gap:0.2rem;background:#1e293b;border-radius:8px;padding:0.55rem 0.75rem;font-size:0.8rem;";
+		row.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">`
+			+ `<span style="color:#f1f5f9;font-weight:700;">${escapeVolunteerHtml(name)}</span>`
+			+ `<span style="color:${color};font-weight:700;white-space:nowrap;">${label}</span>`
+			+ `</div>`
+			+ (meta ? `<div style="color:#94a3b8;font-size:0.74rem;line-height:1.35;">${escapeVolunteerHtml(meta)}</div>` : "")
+			+ `<div style="display:flex;justify-content:space-between;gap:0.5rem;color:#64748b;font-size:0.72rem;">`
+			+ `<span>${escapeVolunteerHtml(String(code).slice(0, 22))}${String(code).length > 22 ? "\u2026" : ""}</span>`
+			+ `<span>${escapeVolunteerHtml(now)}</span>`
+			+ `</div>`;
 		scanHistoryList.insertBefore(row, scanHistoryList.firstChild);
 	}
 
@@ -7713,14 +7760,13 @@ async function initOrganizerDashboard() {
 				return;
 			}
 			const data = await performTicketCheckin(code, modalScanResult);
-			const name = (data && (data.attendee_name || data.customer_name)) || "Attendee";
 			const status = String((data && data.status) || "").toLowerCase();
 			if (data && (data.valid || status === "success")) {
-				_addHistoryRow(code, "valid", name);
+				_addHistoryRow(code, "valid", data);
 			} else if (data && (data.already_checked_in || data.duplicate || status === "already_used" || status === "duplicate")) {
-				_addHistoryRow(code, "duplicate", name);
+				_addHistoryRow(code, "duplicate", data);
 			} else {
-				_addHistoryRow(code, "invalid", name);
+				_addHistoryRow(code, "invalid", data || { attendee_name: "Attendee" });
 			}
 			cameraQrInput.value = "";
 			cameraQrInput.focus();

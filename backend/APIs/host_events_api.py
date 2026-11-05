@@ -2851,6 +2851,73 @@ def save_registration_attendee(
     return {"status": "success", "registration_id": str(registration.id), "message": "Registration saved"}
 
 
+def _event_start_display(event) -> str:
+    """Host-facing event start label for scanner results."""
+    try:
+        from Utils.datetimes import format_host_event_when, format_utc_naive_as_ist_when
+        label = format_host_event_when(
+            getattr(event, "event_start_date", None),
+            getattr(event, "event_start_time", None),
+        )
+        if label:
+            return label
+        return format_utc_naive_as_ist_when(getattr(event, "event_start_date", None)) or ""
+    except Exception:
+        return ""
+
+
+def _session_start_display(session) -> str:
+    if not session:
+        return ""
+    try:
+        from Services.event_sessions import session_window
+        start, _end = session_window(session)
+        if not start:
+            return ""
+        return start.strftime("%a, %d %b %Y, %I:%M %p").lstrip("0").replace(" 0", " ")
+    except Exception:
+        return ""
+
+
+def _checkin_ticket_details(db, event, ticket=None, session=None, registration=None) -> dict:
+    """Details shown on the host Event Day scanner after each scan."""
+    booking = getattr(ticket, "booking", None) if ticket is not None else None
+    seat = ""
+    if ticket is not None:
+        seat = (getattr(ticket, "seat_number", None) or "").strip()
+    if not seat and booking is not None:
+        seat = (getattr(booking, "seat_number", None) or "").strip()
+    ticket_type = ""
+    if ticket is not None:
+        ticket_type = (getattr(ticket, "ticket_type", None) or "").strip()
+    if not ticket_type and registration is not None:
+        ticket_type = (getattr(registration, "ticket_type", None) or "").strip()
+    venue = ""
+    if session is not None:
+        venue = (getattr(session, "venue_name", None) or getattr(session, "venue_address", None) or "").strip()
+    if not venue:
+        venue = (getattr(event, "venue", None) or getattr(event, "address", None) or "").strip()
+    details = {
+        "event_title": (getattr(event, "event_title", None) or "").strip() or "Event",
+        "event_start_display": _event_start_display(event),
+        "venue": venue,
+        "ticket_type": ticket_type or "General Admission",
+        "seat_number": seat or "General Admission",
+    }
+    if session is not None:
+        details["session_id"] = str(getattr(session, "session_id", "") or "")
+        details["session_name"] = (getattr(session, "session_name", None) or "").strip()
+        details["session_start_display"] = _session_start_display(session)
+    return details
+
+
+def _with_checkin_details(payload: dict, db, event, ticket=None, session=None, registration=None) -> dict:
+    details = _checkin_ticket_details(db, event, ticket=ticket, session=session, registration=registration)
+    for key, value in details.items():
+        payload.setdefault(key, value)
+    return payload
+
+
 @router.post("/registrations/checkin")
 def save_registration_checkin(
     payload: SaveCheckinRequest,
@@ -2894,7 +2961,7 @@ def save_registration_checkin(
             if result.get("already_checked_in"):
                 result["check_in_type"] = "duplicate"
             result.update({k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")})
-            return result
+            return _with_checkin_details(result, db, event, ticket=linked_ticket, session=session)
     if ticket:
         from Services import event_sessions as session_svc
 
@@ -2919,7 +2986,7 @@ def save_registration_checkin(
                 "booking_id": str(ticket.booking_id) if ticket.booking_id else None,
                 **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
             })
-            return result
+            return _with_checkin_details(result, db, event, ticket=ticket, session=session)
         status_now = (ticket.ticket_status or "").upper()
         booking = ticket.booking
         attendee_name = payload.attendee_name or (booking.receiver_name if booking else None) or "Guest"
@@ -2930,18 +2997,18 @@ def save_registration_checkin(
         )
         if status_now in _CANCELLED_STATUSES:
             stats = compute_live_event_stats(db, event)
-            return {
+            return _with_checkin_details({
                 "status": "cancelled",
                 "valid": False,
                 "message": "This ticket has been cancelled.",
                 "attendee_name": attendee_name,
                 "attendee_email": attendee_email,
                 **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
-            }
+            }, db, event, ticket=ticket)
         if status_now in _CHECKED_IN_STATUSES:
             stats = compute_live_event_stats(db, event)
             when = ticket.used_at.strftime("%I:%M %p, %b %d") if ticket.used_at else "earlier"
-            return {
+            return _with_checkin_details({
                 "status": "already_used",
                 "valid": False,
                 "already_checked_in": True,
@@ -2949,12 +3016,12 @@ def save_registration_checkin(
                 "check_in_type": "duplicate",
                 "ticket_id": str(ticket.ticket_id),
                 "booking_id": str(ticket.booking_id) if ticket.booking_id else None,
-                "message": f"Duplicate check-in — ticket {ticket.ticket_id} was already checked in at {when}.",
+                "message": f"Duplicate check-in — {attendee_name} was already checked in at {when}.",
                 "attendee_name": attendee_name,
                 "attendee_email": attendee_email,
                 "used_at": ticket.used_at.isoformat() if ticket.used_at else None,
                 **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
-            }
+            }, db, event, ticket=ticket)
 
         ticket.ticket_status = "USED"
         ticket.used_at = now_utc
@@ -2982,18 +3049,18 @@ def save_registration_checkin(
             ))
         db.commit()
         stats = compute_live_event_stats(db, event)
-        return {
+        return _with_checkin_details({
             "status": "success",
             "valid": True,
             "check_in_type": "new",
-            "message": f"New check-in — {attendee_name} (ticket {ticket.ticket_id}).",
+            "message": f"New check-in — {attendee_name}.",
             "attendee_name": attendee_name,
             "attendee_email": attendee_email,
             "ticket_id": str(ticket.ticket_id),
             "booking_id": str(ticket.booking_id) if ticket.booking_id else None,
             "ticket_status": "USED",
             **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
-        }
+        }, db, event, ticket=ticket)
 
     registration = None
     if payload.registration_id:
@@ -3014,7 +3081,7 @@ def save_registration_checkin(
 
     if registration and (registration.checkin_status or "").lower() in ("checked_in", "used"):
         stats = compute_live_event_stats(db, event)
-        return {
+        return _with_checkin_details({
             "status": "already_used",
             "valid": False,
             "already_checked_in": True,
@@ -3023,7 +3090,7 @@ def save_registration_checkin(
             "attendee_name": registration.attendee_name,
             "attendee_email": registration.attendee_email,
             **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
-        }
+        }, db, event, registration=registration)
 
     checkin = EventAttendanceCheckin(
         id=uuid.uuid4(),
@@ -3046,7 +3113,7 @@ def save_registration_checkin(
     db.refresh(checkin)
     stats = compute_live_event_stats(db, event)
     name = checkin.attendee_name or scan_code
-    return {
+    return _with_checkin_details({
         "status": "success",
         "valid": True,
         "checkin_id": str(checkin.id),
@@ -3054,7 +3121,7 @@ def save_registration_checkin(
         "attendee_name": checkin.attendee_name,
         "attendee_email": checkin.attendee_email,
         **{k: stats[k] for k in ("checked_in", "yet_to_checkin", "tickets_sold", "total_registrations")},
-    }
+    }, db, event, registration=registration)
 
 
 def _serialize_cancellation_request(db: Session, booking, event_mgt: EventManagement) -> dict:
