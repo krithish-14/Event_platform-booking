@@ -40,6 +40,7 @@ _MB = 1024 * 1024
 # min bytes, max bytes, message. The window is the recommended start through the maximum upload.
 ASSET_FILE_LIMITS = {
     "banner": (500 * _KB, 5 * _MB, "Event banner must be 500 KB to 5 MB. Recommended 500 KB-1 MB."),
+    "details_banner": (500 * _KB, 5 * _MB, "Event details banner must be 500 KB to 5 MB. Recommended 500 KB-1 MB."),
     "card_image": (200 * _KB, 2 * _MB, "Event card image must be 200 KB to 2 MB. Recommended 200-500 KB."),
     "sponsor_logo": (50 * _KB, 1 * _MB, "Sponsor logo must be 50 KB to 1 MB. Recommended 50-200 KB."),
     "artist_photo": (200 * _KB, 2 * _MB, "Artist photo must be 200 KB to 2 MB. Recommended 200-500 KB."),

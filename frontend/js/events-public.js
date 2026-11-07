@@ -433,7 +433,7 @@
 		const url = eventDetailsUrl(event);
 		const title = escapeHtml(event.title || "Featured Event");
 		const category = escapeHtml(event.category || "Event");
-		const img = resolveImage(event.image_url);
+		const img = resolveImage(event.home_banner || event.image_url);
 		const dateStr = formatDateTimeIST(event.start_date);
 		const venue = escapeHtml(event.venue || event.location || "Venue TBA");
 
@@ -731,7 +731,7 @@
 		const countdownEl = document.getElementById("featuredModalCountdown");
 		const ctaEl = document.getElementById("featuredModalCta");
 
-		const img = resolveImage(event.image_url);
+		const img = resolveImage(event.home_banner || event.image_url);
 		if (imgEl) {
 			imgEl.src = img;
 			imgEl.alt = event.title || "Featured event";

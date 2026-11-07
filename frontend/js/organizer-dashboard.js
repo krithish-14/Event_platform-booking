@@ -410,6 +410,7 @@ async function initOrganizerDashboard() {
 		});
 	}
 	let bannerImageUrl = null;
+	let detailsBannerImageUrl = null;
 	let cardImageUrl = null;
 	let galleryImageUrls = [];
 	let pendingHostDesignData = null;
@@ -1252,6 +1253,7 @@ async function initOrganizerDashboard() {
 	/* Recommended band through the maximum upload. Files outside this window are rejected. */
 	const IMAGE_FILE_LIMITS = {
 		banner: { min: 500 * KB, max: 5 * MB, recommended: "500 KB\u20131 MB", maximum: "5 MB" },
+		details_banner: { min: 500 * KB, max: 5 * MB, recommended: "500 KB\u20131 MB", maximum: "5 MB" },
 		card_image: { min: 200 * KB, max: 2 * MB, recommended: "200\u2013500 KB", maximum: "2 MB" },
 		profile: { min: 100 * KB, max: 2 * MB, recommended: "100\u2013300 KB", maximum: "2 MB" },
 		gallery: { min: 500 * KB, max: 5 * MB, recommended: "500 KB\u20131.5 MB", maximum: "5 MB" },
@@ -1363,7 +1365,7 @@ async function initOrganizerDashboard() {
 	async function uploadDesignAsset(file, assetType) {
 		if (!file || !email) throw new Error("Missing file or organizer email.");
 		await validateImageFile(file, {
-			requireBannerSize: assetType === "banner",
+			requireBannerSize: assetType === "banner" || assetType === "details_banner",
 			requireCardSize: assetType === "card_image",
 			limitKey: assetType
 		});
@@ -2586,7 +2588,8 @@ async function initOrganizerDashboard() {
 				: "event-details.html";
 		}
 		if (banner) {
-			const imgSrc = (data && (data.banner_image || data.image_url))
+			const imgSrc = (data && (data.details_banner_image || data.banner_image || data.image_url))
+				|| detailsBannerImageUrl
 				|| bannerImageUrl
 				|| (window.JodConfig && window.JodConfig.assetUrl
 					? window.JodConfig.assetUrl("images/hero-event.jpg")
@@ -2662,6 +2665,7 @@ async function initOrganizerDashboard() {
 		pendingRegistrationForm = null;
 		resetTicketLayoutState();
 		bannerImageUrl = null;
+		detailsBannerImageUrl = null;
 		cardImageUrl = null;
 		galleryImageUrls = [];
 		const ticketStudio = document.getElementById("ticketDesignStudioHost");
@@ -2695,6 +2699,12 @@ async function initOrganizerDashboard() {
 		if (bannerPreviewBoxEl) bannerPreviewBoxEl.style.display = "none";
 		if (bannerPreviewImgEl) bannerPreviewImgEl.removeAttribute("src");
 		if (bannerDropzoneContentEl) bannerDropzoneContentEl.style.display = "";
+		const detailsPreviewBoxEl = document.getElementById("detailsBannerPreviewBox");
+		const detailsPreviewImgEl = document.getElementById("detailsBannerPreviewImg");
+		const detailsDropzoneContentEl = document.getElementById("detailsBannerDropzoneContent");
+		if (detailsPreviewBoxEl) detailsPreviewBoxEl.style.display = "none";
+		if (detailsPreviewImgEl) detailsPreviewImgEl.removeAttribute("src");
+		if (detailsDropzoneContentEl) detailsDropzoneContentEl.style.display = "";
 		const cardPreviewBox = document.getElementById("cardImagePreviewBox");
 		const cardPreviewImg = document.getElementById("cardImagePreviewImg");
 		if (cardPreviewBox) cardPreviewBox.style.display = "none";
@@ -4554,7 +4564,10 @@ async function initOrganizerDashboard() {
 		setText("liveEventVenue", venue || "Venue TBD");
 		const banner = document.getElementById("liveEventBanner");
 		if (banner) {
-			const src = (d && (d.banner_image || d.image_url)) || bannerImageUrl || "";
+			const src = (d && (d.details_banner_image || d.banner_image || d.image_url))
+				|| detailsBannerImageUrl
+				|| bannerImageUrl
+				|| "";
 			if (src) {
 				banner.src = resolveUploadUrl(src);
 				banner.alt = `${(d && d.event_title) || "Event"} banner`;
@@ -5511,6 +5524,7 @@ async function initOrganizerDashboard() {
 			theme_color: "#2563eb",
 			font: "Grift",
 			banner_image: bannerImageUrl || undefined,
+			details_banner_image: detailsBannerImageUrl || "",
 			card_image: cardImageUrl || "",
 			gallery_images: galleryImageUrls.length ? galleryImageUrls : undefined,
 			sponsor_details: collectSponsorDetails(),
@@ -5665,7 +5679,7 @@ async function initOrganizerDashboard() {
 			event_title: title,
 			venue: locationInput && locationInput.value.trim() ? locationInput.value.trim() : "Venue TBD",
 			event_status: isPublishedLifecycle() ? "published" : "draft",
-			banner_image: bannerImageUrl || undefined
+			banner_image: detailsBannerImageUrl || bannerImageUrl || undefined
 		});
 	}
 
@@ -7032,7 +7046,10 @@ async function initOrganizerDashboard() {
 				showLocalThenRemotePreview(bannerPreviewImg, null, url);
 				bannerDropzoneContent.style.display = "none";
 				bannerPreviewBox.style.display = "block";
-				updateEventPagePreview({ event_id: activeEventId, banner_image: url });
+				updateEventPagePreview({
+					event_id: activeEventId,
+					banner_image: detailsBannerImageUrl || url
+				});
 				triggerLiveAutoSave();
 			} catch (err) {
 				setInlineUploadError(host, formatDesignUploadError(err));
@@ -7049,6 +7066,64 @@ async function initOrganizerDashboard() {
 				bannerImageUrl = null;
 				bannerDropzoneContent.style.display = "flex";
 				bannerPreviewBox.style.display = "none";
+				triggerLiveAutoSave();
+			});
+		}
+	}
+
+	// Event Details Hero Banner Upload (same size / file limits as home banner)
+	const detailsBannerDropzone = document.getElementById("detailsBannerDropzone");
+	const detailsBannerFileInput = document.getElementById("detailsBannerFileInput");
+	const detailsBannerDropzoneContent = document.getElementById("detailsBannerDropzoneContent");
+	const detailsBannerPreviewBox = document.getElementById("detailsBannerPreviewBox");
+	const detailsBannerPreviewImg = document.getElementById("detailsBannerPreviewImg");
+	const btnClearDetailsBanner = document.getElementById("btnClearDetailsBanner");
+
+	if (detailsBannerDropzone && detailsBannerFileInput) {
+		bindImageDropzone(detailsBannerDropzone, detailsBannerFileInput, ["btnClearDetailsBanner"]);
+		detailsBannerFileInput.addEventListener("change", async (e) => {
+			const file = e.target.files && e.target.files[0];
+			if (!file) return;
+			const host = document.getElementById("detailsBannerUploadHost");
+			setInlineUploadError(host, "");
+			try {
+				detailsBannerDropzoneContent.style.opacity = "0.6";
+				if (detailsBannerPreviewImg && file) {
+					detailsBannerPreviewImg.src = URL.createObjectURL(file);
+					detailsBannerDropzoneContent.style.display = "none";
+					detailsBannerPreviewBox.style.display = "block";
+				}
+				const url = await uploadDesignAsset(file, "details_banner");
+				detailsBannerImageUrl = url;
+				showLocalThenRemotePreview(detailsBannerPreviewImg, null, url);
+				detailsBannerDropzoneContent.style.display = "none";
+				detailsBannerPreviewBox.style.display = "block";
+				updateEventPagePreview({
+					event_id: activeEventId,
+					banner_image: url,
+					details_banner_image: url
+				});
+				triggerLiveAutoSave();
+			} catch (err) {
+				setInlineUploadError(host, formatDesignUploadError(err));
+			} finally {
+				detailsBannerDropzoneContent.style.opacity = "1";
+				detailsBannerFileInput.value = "";
+			}
+		});
+
+		if (btnClearDetailsBanner) {
+			btnClearDetailsBanner.addEventListener("click", (e) => {
+				e.stopPropagation();
+				detailsBannerFileInput.value = "";
+				detailsBannerImageUrl = null;
+				detailsBannerDropzoneContent.style.display = "flex";
+				detailsBannerPreviewBox.style.display = "none";
+				updateEventPagePreview({
+					event_id: activeEventId,
+					banner_image: bannerImageUrl || undefined,
+					details_banner_image: ""
+				});
 				triggerLiveAutoSave();
 			});
 		}
@@ -7464,8 +7539,22 @@ async function initOrganizerDashboard() {
 				if (bannerPreviewImg && bannerSrc) bannerPreviewImg.src = bannerSrc;
 				if (bannerDropzoneContent) bannerDropzoneContent.style.display = "none";
 				if (bannerPreviewBox) bannerPreviewBox.style.display = "block";
-				updateEventPagePreview({ event_id: activeEventId, banner_image: d.banner_image });
 			}
+			if (d.details_banner_image) {
+				detailsBannerImageUrl = d.details_banner_image;
+				const detailsSrc = resolveUploadUrl(d.details_banner_image);
+				const detailsImg = document.getElementById("detailsBannerPreviewImg");
+				const detailsContent = document.getElementById("detailsBannerDropzoneContent");
+				const detailsBox = document.getElementById("detailsBannerPreviewBox");
+				if (detailsImg && detailsSrc) detailsImg.src = detailsSrc;
+				if (detailsContent) detailsContent.style.display = "none";
+				if (detailsBox) detailsBox.style.display = "block";
+			}
+			updateEventPagePreview({
+				event_id: activeEventId,
+				banner_image: d.details_banner_image || d.banner_image,
+				details_banner_image: d.details_banner_image || undefined
+			});
 			if (d.gallery_images && Array.isArray(d.gallery_images) && d.gallery_images.length) {
 				galleryImageUrls = d.gallery_images.slice();
 				galleryThumbnailsGrid.innerHTML = "";

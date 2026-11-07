@@ -100,6 +100,7 @@ class EventResponse(BaseModel):
     distance_km: Optional[float] = None
     category: Optional[str]
     image_url: Optional[str]
+    home_banner: Optional[str] = None
     card_image: Optional[str] = None
     start_date: datetime
     end_date: Optional[datetime]
@@ -509,6 +510,7 @@ def _event_to_response(
         distance_km=round(distance_km, 2) if distance_km is not None else None,
         category=event.category,
         image_url=event.image_url,
+        home_banner=getattr(event, "home_banner", None),
         card_image=getattr(event, "card_image", None),
         start_date=_as_utc(event.start_date),
         end_date=_as_utc(event.end_date),

@@ -1476,7 +1476,10 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
     from Models.user import User
 
     design = db.query(EventDesign).filter(EventDesign.event_id == event_mgt.event_id).first()
-    image_url = design.banner_image if design else None
+    # Home featured uses banner_image; event details uses details_banner_image (fallback to home).
+    home_banner = design.banner_image if design else None
+    details_banner = (design.details_banner_image if design else None) or home_banner
+    image_url = details_banner
     card_image = design.card_image if design else None
 
     user_acc = db.query(User).filter(
@@ -1575,6 +1578,7 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
             place_id=getattr(event_mgt, "place_id", None),
             category=normalize_category(event_mgt.event_category) or event_mgt.event_category,
             image_url=image_url or "images/hero-event.jpg",
+            home_banner=home_banner or image_url or "images/hero-event.jpg",
             card_image=card_image,
             start_date=start_dt,
             end_date=end_dt,
@@ -1610,6 +1614,10 @@ def sync_published_event_to_public_catalog(db: Session, event_mgt: EventManageme
         public_event.duration = getattr(event_mgt, "duration", None)
         if image_url:
             public_event.image_url = image_url
+        if home_banner:
+            public_event.home_banner = home_banner
+        elif image_url:
+            public_event.home_banner = image_url
         if card_image:
             public_event.card_image = card_image
         elif design and design.card_image:
@@ -1688,6 +1696,7 @@ class SaveEventDesignRequest(BaseModel):
     event_id: Optional[str] = None
     organizer_email: str
     banner_image: Optional[str] = None
+    details_banner_image: Optional[str] = None
     card_image: Optional[str] = None
     logo: Optional[str] = None
     theme_color: Optional[str] = "#2563eb"
@@ -2175,6 +2184,8 @@ def save_event_design(
     design.customer_id = event.customer_id or customer_id
     design.host_id = event.host_id or host_id
     if payload.banner_image: design.banner_image = payload.banner_image
+    if payload.details_banner_image is not None:
+        design.details_banner_image = payload.details_banner_image or None
     if payload.card_image is not None: design.card_image = payload.card_image or None
     if payload.logo: design.logo = payload.logo
     if payload.theme_color: design.theme_color = payload.theme_color
@@ -2291,6 +2302,7 @@ def save_event_design(
             "design_id": str(design.design_id),
             "theme_color": design.theme_color,
             "banner_image": design.banner_image,
+            "details_banner_image": design.details_banner_image,
             "card_image": design.card_image,
             "speaker_details": design.speaker_details,
             "sponsor_details": design.sponsor_details,
@@ -2318,7 +2330,7 @@ async def upload_design_asset(
     if current_user and current_user.email.lower() != email_clean:
         raise HTTPException(status_code=403, detail="You can only upload assets for your own account.")
 
-    allowed_types = {"banner", "card_image", "sponsor_logo", "artist_photo", "gallery", "ticket", "logo", "payment_qr"}
+    allowed_types = {"banner", "details_banner", "card_image", "sponsor_logo", "artist_photo", "gallery", "ticket", "logo", "payment_qr"}
     if asset_type not in allowed_types:
         raise HTTPException(status_code=400, detail=f"Invalid asset_type. Allowed: {', '.join(sorted(allowed_types))}")
 
@@ -2514,6 +2526,7 @@ def get_current_host_event(
         "design": {
             "design_id": str(design.design_id) if design else None,
             "banner_image": design.banner_image if design else None,
+            "details_banner_image": design.details_banner_image if design else None,
             "card_image": design.card_image if design else None,
             "theme_color": design.theme_color if design else "#2563eb",
             "about_event": design.about_event if design else None,
@@ -4096,9 +4109,11 @@ def get_dashboard_summary(
         }
 
     banner_image = design.banner_image if design else None
+    details_banner = (design.details_banner_image if design else None) or banner_image
     from Models.event import Event
     public_event = db.query(Event).filter(Event.id == event.event_id).first()
-    preview_image = banner_image or (public_event.image_url if public_event else None) or "images/hero-event.jpg"
+    preview_image = details_banner or (public_event.image_url if public_event else None) or "images/hero-event.jpg"
+    home_preview = banner_image or (getattr(public_event, "home_banner", None) if public_event else None) or preview_image
 
     return {
         "has_event": True,
@@ -4110,7 +4125,8 @@ def get_dashboard_summary(
         "lifecycle": compute_event_lifecycle(event),
         "customer_id": event.customer_id or customer_id,
         "host_id": event.host_id or host_id,
-        "banner_image": preview_image,
+        "banner_image": home_preview,
+        "details_banner_image": preview_image,
         "image_url": preview_image,
         "total_sales": live["total_sales"],
         "total_registrations": live["total_registrations"],

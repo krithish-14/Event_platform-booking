@@ -337,6 +337,7 @@ def _migrate_tables(engine=None):
                 ("host_id", "VARCHAR(50)"),
                 ("customer_id", "VARCHAR(100)"),
                 ("card_image", "VARCHAR(500)"),
+                ("home_banner", "VARCHAR(500)"),
                 ("state", "VARCHAR(120)"),
                 ("district", "VARCHAR(120)"),
                 ("region_key", "VARCHAR(40)"),
@@ -522,6 +523,7 @@ def _migrate_tables(engine=None):
             existing_cols = {c["name"] for c in inspector.get_columns("event_design")}
             design_migrations = [
                 ("card_image", "VARCHAR(500)"),
+                ("details_banner_image", "VARCHAR(500)"),
                 ("performers_title", "VARCHAR(200)"),
                 ("ticket_template_id", "VARCHAR(64)"),
                 ("ticket_layout_json", "TEXT" if not is_pg else "JSONB"),

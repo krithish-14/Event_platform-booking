@@ -26,7 +26,8 @@ class Event(Base):
     district     = Column(String(120), nullable=True)
     region_key   = Column(String(40), nullable=True)
     category     = Column(String(100), nullable=True)
-    image_url    = Column(String(500), nullable=True)
+    image_url    = Column(String(500), nullable=True)  # Event details page hero
+    home_banner  = Column(String(500), nullable=True)  # Home page featured hero
     card_image   = Column(String(500), nullable=True)
     start_date   = Column(DateTime, nullable=False)
     end_date     = Column(DateTime, nullable=True)

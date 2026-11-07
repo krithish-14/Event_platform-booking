@@ -17,7 +17,8 @@ class EventDesign(Base):
     event_id        = Column(GUID, ForeignKey("event_management.event_id"), nullable=False, index=True)
     customer_id     = Column(String(50), nullable=True)
     host_id         = Column(String(50), nullable=True)
-    banner_image    = Column(String(500), nullable=True)
+    banner_image    = Column(String(500), nullable=True)  # Home page featured hero
+    details_banner_image = Column(String(500), nullable=True)  # Event details page hero
     card_image      = Column(String(500), nullable=True)
     logo            = Column(String(500), nullable=True)
     theme_color     = Column(String(50), nullable=True)
