@@ -194,9 +194,21 @@ body.category-theme-workshop .performer-avatar {
 /* --- Two Column Layout Grid --- */
 .event-details-grid {
     display: grid;
-    grid-template-columns: 1fr 380px;
+    grid-template-columns: minmax(0, 1fr) 380px;
     gap: 2.5rem;
     align-items: start;
+}
+
+.event-details-grid > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.event-main-column,
+.event-info-sidebar,
+.section-block {
+    min-width: 0;
+    max-width: 100%;
 }
 
 /* --- Main Content Area (Left Column) --- */
@@ -327,11 +339,32 @@ body.category-theme-workshop .performer-avatar {
     font-size: 1.05rem;
     line-height: 1.8;
     white-space: pre-line;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    word-wrap: break-word;
+    hyphens: auto;
 }
 
 .event-description-text.is-rich {
     white-space: normal;
+    overflow-x: hidden;
+}
+
+/* Host-pasted HTML can include huge fonts / fixed indents; keep it inside the card. */
+.event-description-text.is-rich *,
+.event-description-text.is-rich *::before,
+.event-description-text.is-rich *::after {
+    max-width: 100% !important;
+    box-sizing: border-box;
     overflow-wrap: anywhere;
+    word-break: break-word;
+    word-wrap: break-word;
+    white-space: normal !important;
+}
+
+.event-description-text.is-rich [style*="font-size"] {
+    font-size: clamp(0.95rem, 2.4vw, 1.2rem) !important;
 }
 
 .event-description-text.is-rich p {
@@ -342,6 +375,7 @@ body.category-theme-workshop .performer-avatar {
 .event-description-text.is-rich ol {
     margin: 0 0 0.7em;
     padding-left: 1.3rem;
+    max-width: 100%;
 }
 
 .event-description-text.is-rich li {
@@ -352,6 +386,14 @@ body.category-theme-workshop .performer-avatar {
 .event-description-text.is-rich ul:last-child,
 .event-description-text.is-rich ol:last-child {
     margin-bottom: 0;
+}
+
+.event-description-text.is-rich img,
+.event-description-text.is-rich video,
+.event-description-text.is-rich iframe,
+.event-description-text.is-rich table {
+    max-width: 100% !important;
+    height: auto !important;
 }
 
 .event-description-text.is-collapsed {
@@ -1249,11 +1291,32 @@ html[data-theme="dark"] .ticket-unavailable {
 /* --- Responsive Breakpoints --- */
 @media (max-width: 992px) {
     .event-details-container {
-        padding: calc(4.75rem + 1rem) 1.15rem 1.75rem;
+        /* Extra bottom space so Hosts / Gallery clear the fixed Buy Ticket bar */
+        padding: calc(4.75rem + 1rem) 1.15rem calc(7.25rem + env(safe-area-inset-bottom, 0px));
     }
 
     body.event-details-page #footer {
         padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    .event-main-title {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .section-block {
+        overflow-x: hidden;
+    }
+
+    .section-block.showcase-section {
+        padding: 0.5rem 0.25rem 1.75rem;
+    }
+
+    .performers-grid,
+    .sponsors-row,
+    .event-gallery-row {
+        padding-bottom: 0.75rem;
+        margin-bottom: 0.35rem;
     }
 
     .event-title-bar {
@@ -1472,7 +1535,7 @@ html[data-theme="dark"] .ticket-unavailable {
 
 @media (max-width: 600px) {
     .event-details-container {
-        padding: calc(4.75rem + 0.75rem) 0.9rem 1.25rem;
+        padding: calc(4.75rem + 0.75rem) 0.9rem calc(7.5rem + env(safe-area-inset-bottom, 0px));
     }
 
     body.event-details-page #footer {
@@ -1481,6 +1544,20 @@ html[data-theme="dark"] .ticket-unavailable {
 
     .event-main-title {
         font-size: 1.45rem;
+    }
+
+    .event-description-text {
+        font-size: 0.98rem;
+        line-height: 1.7;
+    }
+
+    .event-description-text.is-rich [style*="font-size"] {
+        font-size: clamp(0.9rem, 3.4vw, 1.05rem) !important;
+    }
+
+    .event-description-text.is-rich ul,
+    .event-description-text.is-rich ol {
+        padding-left: 1.1rem;
     }
 
     .event-hero-banner {

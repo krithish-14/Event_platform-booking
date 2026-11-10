@@ -426,7 +426,11 @@ function renderEventDOM(event) {
  descEl.textContent = fallback;
  descEl.classList.remove('is-rich');
  } else if (editor && typeof editor.looksLikeHtml === 'function' && editor.looksLikeHtml(raw)) {
- descEl.innerHTML = editor.sanitize(raw);
+ // Re-sanitize on the public page so older host HTML still wraps cleanly on mobile.
+ const cleaned = editor.sanitize(raw)
+ .replace(/\u00a0/g, ' ')
+ .replace(/&nbsp;/gi, ' ');
+ descEl.innerHTML = cleaned;
  descEl.classList.add('is-rich');
  } else {
  descEl.textContent = raw;

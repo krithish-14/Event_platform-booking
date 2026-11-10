@@ -45,6 +45,15 @@
  if (!prop || !val) return;
  if (/expression|javascript|url\s*\(|@import|behavior/i.test(val)) return;
  if (prop === "font-size" && /^[\d.]+\s*(px|pt|em|rem)$/i.test(val)) {
+ var sizeMatch = /^([\d.]+)\s*(px|pt|em|rem)$/i.exec(val);
+ if (sizeMatch) {
+ var num = parseFloat(sizeMatch[1]);
+ var unit = sizeMatch[2].toLowerCase();
+ // Cap oversized host paste so mobile cards don't overflow.
+ if (unit === "px" && num > 28) val = "28px";
+ else if (unit === "pt" && num > 21) val = "21pt";
+ else if ((unit === "em" || unit === "rem") && num > 1.75) val = "1.75" + unit;
+ }
  allowed.push("font-size:" + val);
  } else if (prop === "font-family" && /^[a-z0-9\s,"'\-]+$/i.test(val) && val.length < 80) {
  allowed.push("font-family:" + val);
@@ -60,6 +69,13 @@
  } else if (prop === "text-decoration" && /^(underline|none|line-through|underline line-through)$/i.test(val)) {
  allowed.push("text-decoration:" + val);
  } else if ((prop === "margin-left" || prop === "padding-left") && /^[\d.]+\s*(px|em|rem)$/i.test(val)) {
+ var indentMatch = /^([\d.]+)\s*(px|em|rem)$/i.exec(val);
+ if (indentMatch) {
+ var indentNum = parseFloat(indentMatch[1]);
+ var indentUnit = indentMatch[2].toLowerCase();
+ if (indentUnit === "px" && indentNum > 48) val = "48px";
+ else if ((indentUnit === "em" || indentUnit === "rem") && indentNum > 3) val = "3" + indentUnit;
+ }
  allowed.push(prop + ":" + val);
  } else if (prop === "line-height" && /^[\d.]+$|^[\d.]+\s*(px|em|%)$/i.test(val)) {
  allowed.push("line-height:" + val);
@@ -72,6 +88,7 @@
  } else if (prop === "list-style-type" && /^(disc|decimal|circle|square)$/i.test(val)) {
  allowed.push("list-style-type:" + val);
  }
+ // Intentionally drop width/min-width/white-space/nowrap and other layout breakers.
  });
  return allowed.join(";");
 	}
