@@ -1317,18 +1317,17 @@
 			btn.textContent = "Saving\u2026";
 		}
 		try {
-			const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-			const timer = controller ? setTimeout(function () { try { controller.abort(); } catch (_) {} }, 25000) : null;
 			const res = await adminFetch(`${apiBase()}/api/admin/support-tickets/${encodeURIComponent(code)}/decision`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Accept: "application/json" },
 				body: JSON.stringify({ action, note: note || null }),
-				signal: controller ? controller.signal : undefined,
 			});
-			if (timer) clearTimeout(timer);
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) {
 				const detail = data && data.detail;
+				if (res.status === 429) {
+					throw new Error("Too many admin requests. Wait a few seconds and try Approve again.");
+				}
 				throw new Error(typeof detail === "string" ? detail : "Could not save the decision.");
 			}
 			alert(data.message || "Decision saved.");
@@ -1342,15 +1341,16 @@
 				const latest = (window.__supportTickets || []).find(function (row) {
 					return String(row.ticket_code || "").toUpperCase() === String(code).toUpperCase();
 				});
-				if (latest && String(latest.decision || "").toLowerCase() !== "pending") {
+				const decision = String((latest && latest.decision) || "pending").toLowerCase();
+				if (latest && decision !== "pending") {
 					recovered = true;
 					document.getElementById("supportModal").hidden = true;
-					alert("Decision already saved (" + latest.decision + ").");
+					alert("Decision already saved (" + decision + ").");
 				}
 			} catch (_) {}
 			if (!recovered) {
 				const msg = /failed to fetch|networkerror|load failed|aborted|abort/i.test(raw)
-					? "Could not reach the server. Refresh Help & Support — the decision may already be saved. If EC2 was not restarted after the latest API fix, run the update commands first."
+					? "Could not reach the API. Hard-refresh, wait 10 seconds, then Approve again. If this keeps happening, restart the API on EC2 (git pull + systemctl restart)."
 					: (raw || "Could not save the decision.");
 				alert(msg);
 				if (btn && btn.isConnected) {

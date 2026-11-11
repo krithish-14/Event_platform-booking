@@ -4,6 +4,7 @@ Public IDs use THP-#### so they never clash with booking / QR ticket codes.
 """
 
 import random
+import threading
 import uuid
 
 from sqlalchemy import Column, DateTime, String, Text, Uuid, text
@@ -21,21 +22,36 @@ _EXTRA_COLUMNS = (
 	("decided_at", "TIMESTAMP", "DATETIME"),
 )
 
+_SCHEMA_LOCK = threading.Lock()
+_SCHEMA_READY = False
+
 
 def ensure_support_ticket_columns(db) -> None:
-	"""Add newer columns on databases created before they existed."""
-	bind = db.get_bind()
-	dialect = (bind.dialect.name if bind is not None else "") or ""
-	for name, pg_type, sqlite_type in _EXTRA_COLUMNS:
-		if dialect == "postgresql":
-			sql = f"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS {name} {pg_type}"
-		else:
-			sql = f"ALTER TABLE support_tickets ADD COLUMN {name} {sqlite_type}"
-		try:
-			db.execute(text(sql))
-			db.commit()
-		except Exception:
-			db.rollback()
+	"""Add newer columns on databases created before they existed.
+
+	Runs at most once per process. Calling ALTER TABLE on every admin click
+	can take an ACCESS EXCLUSIVE lock and hang the Approve request until the
+	browser shows Failed to fetch.
+	"""
+	global _SCHEMA_READY
+	if _SCHEMA_READY:
+		return
+	with _SCHEMA_LOCK:
+		if _SCHEMA_READY:
+			return
+		bind = db.get_bind()
+		dialect = (bind.dialect.name if bind is not None else "") or ""
+		for name, pg_type, sqlite_type in _EXTRA_COLUMNS:
+			if dialect == "postgresql":
+				sql = f"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS {name} {pg_type}"
+			else:
+				sql = f"ALTER TABLE support_tickets ADD COLUMN {name} {sqlite_type}"
+			try:
+				db.execute(text(sql))
+				db.commit()
+			except Exception:
+				db.rollback()
+		_SCHEMA_READY = True
 
 
 def generate_ticket_code():
