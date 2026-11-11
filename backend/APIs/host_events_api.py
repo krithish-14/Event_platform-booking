@@ -86,7 +86,7 @@ ACTIVE_EVENT_BLOCK_MESSAGE = (
     "only after your current event has ended."
 )
 ACTIVE_LIFECYCLE_STATES = ("published", "live")
-ENDED_DASHBOARD_GRACE = timedelta(hours=48)
+ENDED_DASHBOARD_GRACE = timedelta(hours=24)
 IST = timezone(timedelta(hours=5, minutes=30))
 UTC = timezone.utc
 
@@ -471,7 +471,7 @@ def is_event_active(event: EventManagement) -> bool:
 
 
 def is_ended_dashboard_expired(event: Optional[EventManagement], now=None) -> bool:
-    """True when an ended event should leave the host dashboard (48 hours after end)."""
+    """True when an ended event should leave the host dashboard (24 hours after end)."""
     if not event:
         return False
     if compute_event_lifecycle(event) != "ended":
@@ -484,7 +484,7 @@ def is_ended_dashboard_expired(event: Optional[EventManagement], now=None) -> bo
 
 
 def is_cleared_host_event(event: Optional[EventManagement]) -> bool:
-    """Cancelled/unpublished events, and ended events older than 48 hours, leave the dashboard."""
+    """Cancelled/unpublished events, and ended events older than 24 hours, leave the dashboard."""
     if not event:
         return True
     if compute_event_lifecycle(event) in ("cancelled", "unpublished"):
@@ -573,7 +573,7 @@ def find_working_event(
     customer_id: Optional[str],
     host_id: Optional[str],
 ) -> Optional[EventManagement]:
-    """Prefer live/published, then draft/ready, then ended (48h). Skip cancelled."""
+    """Prefer live/published, then draft/ready, then ended (24h). Skip cancelled."""
     events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
         EventManagement.created_at.desc()
     ).all()
@@ -604,7 +604,7 @@ def find_registrations_display_event(
 ) -> Optional[EventManagement]:
     """Event whose registrations appear in Submissions & Analytics.
 
-    Prefer published/live. Keep the last ended event for 48 hours so the host
+    Prefer published/live. Keep the last ended event for 24 hours so the host
     dashboard still shows it. After that, History holds the record. Never use a draft.
     """
     events = _host_events_query(db, email_clean, customer_id, host_id).order_by(
@@ -4114,6 +4114,7 @@ def get_dashboard_summary(
     public_event = db.query(Event).filter(Event.id == event.event_id).first()
     preview_image = details_banner or (public_event.image_url if public_event else None) or "images/hero-event.jpg"
     home_preview = banner_image or (getattr(public_event, "home_banner", None) if public_event else None) or preview_image
+    end_utc = _effective_end_datetime(event)
 
     return {
         "has_event": True,
@@ -4145,6 +4146,8 @@ def get_dashboard_summary(
         "exhibitors_confirmed": exhibitors_confirmed,
         "exhibitors_pending": exhibitors_pending,
         "event_start_date": event.event_start_date.isoformat() if event.event_start_date else None,
+        "event_end_date": event.event_end_date.isoformat() if event.event_end_date else None,
+        "event_end_datetime_utc": end_utc.isoformat() if end_utc else None,
         "venue": event.venue or "Venue TBD",
         "registration_trend": live.get("registration_trend") or [],
         "event_start_local": _to_datetime_local_ist(event.event_start_date),

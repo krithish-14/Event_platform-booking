@@ -429,6 +429,10 @@ async function initOrganizerDashboard() {
 	let canPublishNew = true;
 	let canCreateNew = true;
 	let _publishInFlight = false;
+	/* After an event ends: editors clear for a new draft; Overview stays for 24h. */
+	const ENDED_OVERVIEW_MS = 24 * 60 * 60 * 1000;
+	let endedOverview = null;
+	let endedOverviewTimer = null;
 
 	function apiErrorMessage(data, fallback) {
 		if (!data) return fallback;
@@ -445,9 +449,135 @@ async function initOrganizerDashboard() {
 		return currentLifecycle === "published" || currentLifecycle === "live";
 	}
 
+	function isEndedOverviewActive() {
+		return !!(endedOverview && endedOverview.untilMs && Date.now() < endedOverview.untilMs);
+	}
+
 	function isOverviewLifecycle(life) {
+		if (life == null && isEndedOverviewActive()) return true;
 		const l = String(life == null ? currentLifecycle : life).toLowerCase();
 		return l === "published" || l === "live" || l === "ended";
+	}
+
+	function endedOverviewStorageKey() {
+		return email ? `ended_overview_${email}` : "";
+	}
+
+	function clearEndedOverviewTimer() {
+		if (endedOverviewTimer) {
+			clearTimeout(endedOverviewTimer);
+			endedOverviewTimer = null;
+		}
+	}
+
+	function persistEndedOverview() {
+		const key = endedOverviewStorageKey();
+		if (!key) return;
+		try {
+			if (endedOverview && isEndedOverviewActive()) {
+				sessionStorage.setItem(key, JSON.stringify(endedOverview));
+			} else {
+				sessionStorage.removeItem(key);
+			}
+		} catch (_) {}
+	}
+
+	function restoreEndedOverview() {
+		const key = endedOverviewStorageKey();
+		if (!key) return null;
+		try {
+			const raw = sessionStorage.getItem(key);
+			if (!raw) return null;
+			const parsed = JSON.parse(raw);
+			if (!parsed || !parsed.untilMs || Date.now() >= parsed.untilMs) {
+				sessionStorage.removeItem(key);
+				return null;
+			}
+			endedOverview = parsed;
+			scheduleEndedOverviewExpiry();
+			return endedOverview;
+		} catch (_) {
+			return null;
+		}
+	}
+
+	function scheduleEndedOverviewExpiry() {
+		clearEndedOverviewTimer();
+		if (!endedOverview || !endedOverview.untilMs) return;
+		const wait = Math.max(0, endedOverview.untilMs - Date.now());
+		endedOverviewTimer = setTimeout(function () {
+			expireEndedOverview();
+		}, Math.min(wait + 50, ENDED_OVERVIEW_MS + 1000));
+	}
+
+	function expireEndedOverview() {
+		clearEndedOverviewTimer();
+		endedOverview = null;
+		persistEndedOverview();
+		if (isPublishedLifecycle()) {
+			hasEvent = true;
+			renderOverviewState();
+			return;
+		}
+		if (activeEventId) {
+			paintDraftOverview();
+			return;
+		}
+		paintEmptyHostDashboard();
+	}
+
+	function captureEndedOverview(hostData) {
+		const ev = (hostData && hostData.event) || {};
+		const endUtc = hostData.event_end_datetime_utc || ev.event_end_datetime_utc || null;
+		const endMs = endUtc ? Date.parse(endUtc) : NaN;
+		const untilMs = (Number.isFinite(endMs) ? endMs : Date.now()) + ENDED_OVERVIEW_MS;
+		if (Date.now() >= untilMs) {
+			endedOverview = null;
+			persistEndedOverview();
+			return false;
+		}
+		endedOverview = {
+			eventId: String(ev.event_id || ""),
+			title: ev.event_title || "Ended event",
+			endUtc: endUtc,
+			untilMs: untilMs,
+			venue: ev.venue || "",
+			category: ev.event_category || "",
+			is_private: !!ev.is_private,
+			banner_image: ev.banner_image || ev.image_url || "",
+			event_start_date: ev.event_start_date || ev.event_start_date_local || "",
+			event_end_date: ev.event_end_date || ev.event_end_date_local || "",
+		};
+		persistEndedOverview();
+		scheduleEndedOverviewExpiry();
+		return true;
+	}
+
+	function prepareWorkspaceAfterEnded(hostData) {
+		const keepOverview = captureEndedOverview(hostData);
+		clearHostWorkspaceForms();
+		activeEventId = null;
+		sessionStorage.removeItem(`active_event_id_${email}`);
+		rememberEventSchedule(null);
+		canPublishNew = hostData.can_publish_new !== false;
+		canCreateNew = hostData.can_create_new !== false;
+		pendingManageEvent = null;
+		pendingHostDesignData = null;
+		pendingRegistrationForm = null;
+		if (!keepOverview) {
+			hasEvent = false;
+			currentLifecycle = "draft";
+			sessionStorage.removeItem(`has_event_${email}`);
+			paintEmptyHostDashboard();
+			return;
+		}
+		hasEvent = true;
+		/* Workspace is a blank new draft; Overview still uses endedOverview for 24h. */
+		currentLifecycle = "draft";
+		sessionStorage.setItem(`has_event_${email}`, "true");
+		if (dashEventTitle) dashEventTitle.textContent = endedOverview.title || "Ended event";
+		renderOverviewState();
+		loadDashboardData();
 	}
 
 	function setPublishedHeaderTitle(title) {
@@ -2711,17 +2841,27 @@ async function initOrganizerDashboard() {
 		if (cardPreviewImg) cardPreviewImg.removeAttribute("src");
 		const galleryPreview = document.getElementById("galleryPreviewGrid");
 		if (galleryPreview) galleryPreview.innerHTML = "";
-		if (window.JodFormBuilder && typeof window.JodFormBuilder.loadFromHost === "function") {
+		if (window.JodFormBuilder && typeof window.JodFormBuilder.reset === "function") {
+			window.JodFormBuilder.reset();
+		} else if (window.JodFormBuilder && typeof window.JodFormBuilder.loadFromHost === "function") {
 			window.JodFormBuilder.loadFromHost({ questions_json: [], form_json: {}, settings_json: {} });
 		}
 		if (typeof populateDesignRows === "function") populateDesignRows([], []);
+		if (window.JodEventSessions && typeof window.JodEventSessions.reset === "function") {
+			window.JodEventSessions.reset();
+		}
+		setVisibilityUi(false);
+		applyEventLink({ linked_event_id: null, link_status: null, linked_event: null });
 	}
 
 	// \u2500\u2500 Dynamic Dashboard Data Loader \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 	async function loadDashboardData() {
 		if (!email) return;
 		try {
-			const res = await fetch(`${HOST_EVENTS_API_BASE}/dashboard?email=${encodeURIComponent(email)}${activeEventId ? '&event_id=' + activeEventId : ''}`, {
+			const overviewId = (isEndedOverviewActive() && endedOverview && endedOverview.eventId)
+				? endedOverview.eventId
+				: activeEventId;
+			const res = await fetch(`${HOST_EVENTS_API_BASE}/dashboard?email=${encodeURIComponent(email)}${overviewId ? '&event_id=' + encodeURIComponent(overviewId) : ''}`, {
 				headers: getAuthHeaders()
 			});
 			if (res.ok) {
@@ -2730,15 +2870,23 @@ async function initOrganizerDashboard() {
 				if (d.host_id) activeHostId = d.host_id;
 				const life = String(d.lifecycle || d.event_status || currentLifecycle || "").toLowerCase();
 				if (life === "cancelled" || life === "unpublished") {
-					paintEmptyHostDashboard();
+					if (!isEndedOverviewActive()) paintEmptyHostDashboard();
 					return;
 				}
 				if (!d.has_event || !isOverviewLifecycle(life)) {
-					if (d.event_id) {
+					if (isEndedOverviewActive()) {
+						hasEvent = true;
+						if (dashEventTitle && endedOverview.title) dashEventTitle.textContent = endedOverview.title;
+						applyLifecycleStatusBadge();
+						updateLifecycleBanners();
+						applyLiveOverview(d);
+						return;
+					}
+					if (d.event_id && life !== "ended") {
 						activeEventId = d.event_id;
 						sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
 					}
-					if (life) currentLifecycle = life;
+					if (life && life !== "ended") currentLifecycle = life;
 					syncEventLiveNowBadge();
 					if (d.event_id || activeEventId) {
 						paintDraftOverview();
@@ -2749,9 +2897,38 @@ async function initOrganizerDashboard() {
 				}
 				if (d.has_event) {
 					hasEvent = true;
-					if (d.lifecycle) currentLifecycle = String(d.lifecycle).toLowerCase();
+					if (life === "ended") {
+						/* Keep workspace cleared; do not bind editors to the ended event id. */
+						if (!isEndedOverviewActive()) {
+							captureEndedOverview({
+								event: {
+									event_id: d.event_id,
+									event_title: d.event_title,
+									venue: d.venue,
+									banner_image: d.banner_image || d.image_url,
+									event_category: d.event_category,
+									is_private: d.is_private,
+									event_start_date: d.event_start_date || d.event_start_local,
+									event_end_date: d.event_end_date || d.event_end_local,
+									event_end_datetime_utc: d.event_end_datetime_utc,
+								},
+								event_end_datetime_utc: d.event_end_datetime_utc,
+								can_publish_new: true,
+								can_create_new: true,
+							});
+							clearHostWorkspaceForms();
+						}
+						currentLifecycle = "draft";
+						activeEventId = null;
+						sessionStorage.removeItem(`active_event_id_${email}`);
+					} else if (d.lifecycle) {
+						currentLifecycle = String(d.lifecycle).toLowerCase();
+						if (d.event_id) {
+							activeEventId = d.event_id;
+							sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
+						}
+					}
 					syncEventLiveNowBadge();
-					if (d.event_id) activeEventId = d.event_id;
 					if (d.event_title && dashEventTitle) dashEventTitle.textContent = d.event_title;
 
 					// Top 3 KPI Cards
@@ -4180,7 +4357,7 @@ async function initOrganizerDashboard() {
 	});
 
 	function applySectionActionLabels() {
-		const published = isPublishedLifecycle() || currentLifecycle === "ended";
+		const published = isPublishedLifecycle();
 		const btnManage = document.getElementById("btnManageNext");
 		const btnDesign = document.getElementById("btnSaveDesign");
 		const btnForm = document.getElementById("btnSaveDraftForm");
@@ -4222,19 +4399,25 @@ async function initOrganizerDashboard() {
 			}
 		}
 		const btnTop = document.getElementById("btnTopPublish");
-		if (btnTop && published) {
-			btnTop.innerHTML = "Update Event";
-			btnTop.title = "Save every section and update the live event page. No OTP needed.";
+		if (btnTop) {
+			if (published) {
+				btnTop.innerHTML = "Update Event";
+				btnTop.title = "Save every section and update the live event page. No OTP needed.";
+			} else {
+				btnTop.innerHTML = "Publish Event";
+				btnTop.title = "Verify with OTP and publish the event.";
+			}
 		}
 	}
 
 	function updateLifecycleBanners() {
 		const endedBanner = document.getElementById("endedEventBanner");
 		const blockBanner = document.getElementById("activeEventBlockBanner");
+		const showEnded = currentLifecycle === "ended" || isEndedOverviewActive();
 		if (endedBanner) {
-			endedBanner.style.display = currentLifecycle === "ended" ? "block" : "none";
+			endedBanner.style.display = showEnded ? "block" : "none";
 		}
-		if (currentLifecycle === "ended") {
+		if (showEnded) {
 			loadHistoryList();
 		}
 		if (blockBanner) {
@@ -4253,9 +4436,12 @@ async function initOrganizerDashboard() {
 			ended: { text: "Ended", bg: "#fff7ed", color: "#c2410c", border: "#fdba74" },
 			cancelled: { text: "Cancelled", bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" }
 		};
-		const key = hasEvent ? (currentLifecycle || "published") : "draft";
+		const overviewEnded = isEndedOverviewActive();
+		const key = overviewEnded
+			? "ended"
+			: (hasEvent ? (currentLifecycle || "published") : "draft");
 		const s = map[key] || map.draft;
-		if (!hasEvent) {
+		if (!hasEvent && !overviewEnded) {
 			dashEventStatus.textContent = "No Event";
 			dashEventStatus.style.background = map.draft.bg;
 			dashEventStatus.style.color = map.draft.color;
@@ -4563,11 +4749,13 @@ async function initOrganizerDashboard() {
 			const el = document.getElementById(id);
 			if (el) el.textContent = value;
 		};
-		const live = currentLifecycle === "live";
+		const life = String((d && (d.lifecycle || d.event_status)) || currentLifecycle || "").toLowerCase();
+		const ended = life === "ended" || isEndedOverviewActive();
+		const live = !ended && currentLifecycle === "live";
 		const badge = document.getElementById("liveEventBadge");
 		if (badge) {
-			badge.textContent = live ? "Live now" : "Published \u00b7 upcoming";
-			badge.classList.toggle("is-upcoming", !live);
+			badge.textContent = ended ? "Ended" : (live ? "Live now" : "Published \u00b7 upcoming");
+			badge.classList.toggle("is-upcoming", !live && !ended);
 		}
 		const cat = document.getElementById("liveEventCategory");
 		if (cat) {
@@ -4575,8 +4763,10 @@ async function initOrganizerDashboard() {
 			cat.hidden = !(d && d.event_category);
 		}
 		setText("liveEventTitle", (d && d.event_title) || (dashEventTitle && dashEventTitle.textContent) || "Your event");
-		setText("liveEventStart", formatLocalStamp(d && d.event_start_local) || "\u2014");
-		setText("liveEventEnd", formatLocalStamp(d && d.event_end_local) || "\u2014");
+		const startLocal = (d && (d.event_start_local || d.event_start_date_local || d.event_start_date)) || "";
+		const endLocal = (d && (d.event_end_local || d.event_end_date_local || d.event_end_date)) || "";
+		setText("liveEventStart", formatLocalStamp(startLocal) || "\u2014");
+		setText("liveEventEnd", formatLocalStamp(endLocal) || "\u2014");
 		const venue = [d && d.venue, d && d.address].filter((v, i, all) => v && v !== "Venue TBD" && all.indexOf(v) === i).join(", ");
 		setText("liveEventVenue", venue || "Venue TBD");
 		const banner = document.getElementById("liveEventBanner");
@@ -4606,24 +4796,47 @@ async function initOrganizerDashboard() {
 			ticketsHost.hidden = !tiers.length;
 		}
 		const view = document.getElementById("liveEventViewPage");
-		if (view && eventPageUrl()) view.href = eventPageUrl();
+		if (view) {
+			const eid = (ended && endedOverview && endedOverview.eventId) || activeEventId;
+			if (eid) view.href = `event-details.html?id=${encodeURIComponent(eid)}`;
+		}
 		const privateBadge = document.getElementById("liveEventPrivate");
 		if (privateBadge) privateBadge.hidden = !(d && typeof d.is_private === "boolean" ? d.is_private : readIsPrivate());
 	}
 
 	function applyLiveOverview(d) {
 		if (d) lastDashboardSummary = d;
+		const endedActive = isEndedOverviewActive();
 		const live = Boolean(hasEvent && activeEventId && isPublishedLifecycle());
+		const showCard = live || (hasEvent && endedActive);
 		const hostHome = document.querySelector("#sectionOverview .host-home");
-		if (hostHome) hostHome.hidden = live;
+		if (hostHome) hostHome.hidden = showCard;
 		const card = document.getElementById("liveEventDetails");
-		if (card) card.hidden = !live;
+		if (card) card.hidden = !showCard;
 		const viewLink = document.getElementById("topViewPageLink");
 		if (viewLink) {
 			viewLink.hidden = !live;
 			if (live) viewLink.href = eventPageUrl();
 		}
-		if (live) paintLiveEventCard(d || lastDashboardSummary);
+		if (showCard) {
+			const summary = d || lastDashboardSummary || {};
+			if (endedActive && endedOverview) {
+				paintLiveEventCard(Object.assign({}, summary, {
+					event_id: endedOverview.eventId,
+					event_title: endedOverview.title,
+					venue: endedOverview.venue || summary.venue,
+					banner_image: endedOverview.banner_image || summary.banner_image,
+					event_category: endedOverview.category || summary.event_category,
+					is_private: endedOverview.is_private,
+					event_start_date: endedOverview.event_start_date || summary.event_start_date,
+					event_end_date: endedOverview.event_end_date || summary.event_end_date,
+					lifecycle: "ended",
+					event_status: "ended",
+				}));
+			} else {
+				paintLiveEventCard(summary);
+			}
+		}
 	}
 
 	function escapeHtmlText(v) {
@@ -5027,6 +5240,7 @@ async function initOrganizerDashboard() {
 				if (badgeHostId) badgeHostId.textContent = `HOST: ${hostData.host_id}`;
 			}
 
+			restoreEndedOverview();
 			if (hostData.has_event && hostData.event) {
 				currentLifecycle = hostData.lifecycle || hostData.event.lifecycle || hostData.event.event_status || "draft";
 				if (currentLifecycle === "cancelled" || currentLifecycle === "unpublished") {
@@ -5034,6 +5248,11 @@ async function initOrganizerDashboard() {
 					pendingHostDesignData = null;
 					pendingRegistrationForm = null;
 					paintEmptyHostDashboard();
+				} else if (String(currentLifecycle).toLowerCase() === "ended") {
+					/* Overview stays 24h; Manage/Design/Reg/Ticket clear for a new event. */
+					prepareWorkspaceAfterEnded(Object.assign({}, hostData, {
+						event_end_datetime_utc: hostData.event_end_datetime_utc || hostData.event.event_end_datetime_utc,
+					}));
 				} else {
 				activeEventId = hostData.event.event_id;
 				sessionStorage.setItem(`active_event_id_${email}`, String(activeEventId));
@@ -5056,36 +5275,72 @@ async function initOrganizerDashboard() {
 				if (hostData.event.policies) {
 					populatePoliciesFromJson(hostData.event.policies);
 				}
-				if (hostData.event.event_status === "published" || currentLifecycle === "published" || currentLifecycle === "live" || currentLifecycle === "ended") {
+				if (hostData.event.event_status === "published" || currentLifecycle === "published" || currentLifecycle === "live") {
 					hasEvent = true;
 					sessionStorage.setItem(`has_event_${email}`, "true");
+					/* A live/published event replaces any leftover ended-overview snapshot. */
+					endedOverview = null;
+					persistEndedOverview();
+					clearEndedOverviewTimer();
 					renderOverviewState();
 					loadDashboardData();
 				} else {
-					hasEvent = false;
-					sessionStorage.removeItem(`has_event_${email}`);
+					hasEvent = isEndedOverviewActive();
+					if (hasEvent) {
+						sessionStorage.setItem(`has_event_${email}`, "true");
+						if (dashEventTitle && endedOverview.title) dashEventTitle.textContent = endedOverview.title;
+					} else {
+						sessionStorage.removeItem(`has_event_${email}`);
+					}
 					renderOverviewState();
+					if (hasEvent) loadDashboardData();
 				}
 				}
 			} else {
-				hasEvent = false;
-				activeEventId = null;
-				currentLifecycle = "draft";
-				canPublishNew = true;
-				canCreateNew = true;
 				pendingManageEvent = null;
 				pendingHostDesignData = null;
 				pendingRegistrationForm = null;
 				rememberEventSchedule(null);
-				sessionStorage.removeItem(`has_event_${email}`);
-				sessionStorage.removeItem(`active_event_id_${email}`);
-				paintEmptyHostDashboard();
+				if (isEndedOverviewActive()) {
+					hasEvent = true;
+					currentLifecycle = "draft";
+					activeEventId = null;
+					canPublishNew = true;
+					canCreateNew = true;
+					clearHostWorkspaceForms();
+					sessionStorage.removeItem(`active_event_id_${email}`);
+					sessionStorage.setItem(`has_event_${email}`, "true");
+					if (dashEventTitle && endedOverview.title) dashEventTitle.textContent = endedOverview.title;
+					renderOverviewState();
+					loadDashboardData();
+				} else {
+					hasEvent = false;
+					activeEventId = null;
+					currentLifecycle = "draft";
+					canPublishNew = true;
+					canCreateNew = true;
+					sessionStorage.removeItem(`has_event_${email}`);
+					sessionStorage.removeItem(`active_event_id_${email}`);
+					paintEmptyHostDashboard();
+				}
 			}
 			hostIsPremium = !!(hostData.is_premium);
 			if (Array.isArray(hostData.ticket_templates) && hostData.ticket_templates.length) {
 				ticketTemplatesCatalog = hostData.ticket_templates;
 			}
-			if (hostData.has_event && currentLifecycle !== "cancelled" && currentLifecycle !== "unpublished") {
+			const hostLife = String(
+				hostData.lifecycle
+				|| (hostData.event && (hostData.event.lifecycle || hostData.event.event_status))
+				|| ""
+			).toLowerCase();
+			if (
+				hostData.has_event
+				&& hostLife
+				&& hostLife !== "cancelled"
+				&& hostLife !== "unpublished"
+				&& hostLife !== "ended"
+			) {
+			/* Draft / published / live — hydrate editors. Ended uses a blank workspace. */
 			if (hostData.design) {
 				pendingHostDesignData = hostData.design;
 				hydrateTicketLayoutFromDesign(hostData.design, hostData.event && hostData.event.event_id);
@@ -5589,7 +5844,8 @@ async function initOrganizerDashboard() {
 	}
 
 	function isLiveForUpdates() {
-		return isPublishedLifecycle() || currentLifecycle === "ended";
+		/* Ended events leave the editors blank for a new draft — never "Update" the ended one. */
+		return isPublishedLifecycle();
 	}
 
 	/* Published events: save every section and refresh the public page. No OTP — that is only for the first publish. */
@@ -5737,7 +5993,7 @@ async function initOrganizerDashboard() {
 				// autoSaveManageEvent(true) already shows the real API/network error.
 				return;
 			}
-			if (isPublishedLifecycle() || currentLifecycle === "ended") {
+			if (isPublishedLifecycle()) {
 				showNotification("\u2713 Manage section updated successfully");
 				return;
 			}
@@ -5757,7 +6013,7 @@ async function initOrganizerDashboard() {
 				showNotification("Could not save Design details. Stay on this section and try again.");
 				return;
 			}
-			if (isPublishedLifecycle() || currentLifecycle === "ended") {
+			if (isPublishedLifecycle()) {
 				showNotification("\u2713 Design section updated successfully");
 				return;
 			}
@@ -5771,7 +6027,7 @@ async function initOrganizerDashboard() {
 	}
 
 	async function advanceFormToTicket() {
-		if (isPublishedLifecycle() || currentLifecycle === "ended") {
+		if (isPublishedLifecycle()) {
 			return true;
 		}
 		showNotification("Step 3 of 4 complete: Registration form saved. Continuing to Ticket Design\u2026");
@@ -6528,33 +6784,31 @@ async function initOrganizerDashboard() {
 				return;
 			}
 			hostEventCancelled = false;
+			clearHostWorkspaceForms();
 			activeEventId = null;
-			resetTicketLayoutState();
 			currentLifecycle = "draft";
 			rememberEventSchedule(null);
-			hasEvent = false;
 			sessionStorage.removeItem(`active_event_id_${email}`);
-			sessionStorage.removeItem(`has_event_${email}`);
-			if (createEventForm) createEventForm.reset();
-			writeAboutEventHtml("");
-			if (eventTitleInput) eventTitleInput.value = "";
-			applyEventCategory("");
-			setVisibilityUi(false);
-			applyEventLink({ linked_event_id: null, link_status: null, linked_event: null });
-			if (ticketTiersRows) {
-				ticketTiersRows.innerHTML = "";
-				ticketTiersRows.appendChild(createTicketTierRowHtml("", "", ""));
+			hasEvent = isEndedOverviewActive();
+			if (hasEvent) {
+				sessionStorage.setItem(`has_event_${email}`, "true");
+				if (dashEventTitle && endedOverview && endedOverview.title) {
+					dashEventTitle.textContent = endedOverview.title;
+				}
+			} else {
+				sessionStorage.removeItem(`has_event_${email}`);
+				if (dashEventTitle) dashEventTitle.textContent = "My Events Dashboard";
 			}
-			applyTicketPurchaseMode("single", 4, "", []);
-			if (agendaRows) {
-				agendaRows.innerHTML = "";
-				agendaRows.appendChild(createAgendaRowHtml("", "", ""));
-			}
-			if (window.JodEventSessions) window.JodEventSessions.reset();
 			applySectionActionLabels();
+			updateLifecycleBanners();
+			applyLifecycleStatusBadge();
 			renderOverviewState();
 			switchTab("manage");
-			showNotification("Start a new event. Save each section to create the new draft.");
+			showNotification(
+				hasEvent
+					? "Editors cleared for a new event. Overview keeps the ended event for 24 hours."
+					: "Start a new event. Save each section to create the new draft."
+			);
 		});
 	}
 

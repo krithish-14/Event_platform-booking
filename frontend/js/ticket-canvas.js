@@ -24,7 +24,7 @@
 
 	const DATA_DEFS = [
 		{ type: "poster", label: "Poster", flag: null, w: 22, h: 18, locked: false, shape: false },
-		{ type: "title", label: "Event title", flag: null, w: 58, h: 8, locked: false, shape: false },
+		{ type: "title", label: "Event title", flag: "show_title", w: 58, h: 8, locked: false, shape: false },
 		{ type: "badge", label: "E-Ticket badge", flag: null, w: 18, h: 4, locked: false, shape: false },
 		{ type: "date", label: "Event date", flag: "show_date", w: 58, h: 5, locked: false, shape: false },
 		{ type: "time", label: "Event time", flag: "show_time", w: 40, h: 5, locked: false, shape: false },
@@ -361,7 +361,6 @@
 			list.push(logo);
 		}
 		clampBox(logo);
-		ensureCoreTicketFields(layout);
 	}
 
 	function landscapeReferenceElements() {
@@ -407,6 +406,7 @@
 			accent_color: "#cbd5e1",
 			card_color: "#ffffff",
 			text_color: "#111827",
+			show_title: true,
 			show_venue: true,
 			show_date: true,
 			show_time: true,
@@ -420,35 +420,6 @@
 			show_attendee_email: false,
 			canvas_elements: eticketElements(),
 		});
-	}
-
-	const CORE_TICKET_TYPES = ["title", "date", "time", "venue", "ticket_type", "qr"];
-
-	function ensureCoreTicketFields(layout) {
-		if (!layout) return;
-		const list = layout.canvas_elements || (layout.canvas_elements = []);
-		const present = {};
-		list.forEach(function (el) {
-			if (el && el.type) present[el.type] = true;
-		});
-		const defaults = {
-			title: { id: "title", type: "title", x: 6, y: 4, w: 88, h: 7, fontSize: 18, fontWeight: "800" },
-			date: { id: "date", type: "date", x: 6, y: 13, w: 44, h: 4, fontSize: 12, fontWeight: "700" },
-			time: { id: "time", type: "time", x: 52, y: 13, w: 42, h: 4, fontSize: 12, fontWeight: "700" },
-			venue: { id: "venue", type: "venue", x: 6, y: 19, w: 88, h: 8, fontSize: 11 },
-			ticket_type: { id: "ticket_type", type: "ticket_type", x: 6, y: 30, w: 88, h: 6, fontSize: 18, fontWeight: "800", align: "center" },
-			qr: { id: "qr", type: "qr", x: 33, y: 42, w: 34, h: 28 },
-		};
-		CORE_TICKET_TYPES.forEach(function (type) {
-			if (!present[type] && defaults[type]) {
-				list.push(Object.assign({}, defaults[type]));
-			}
-		});
-		layout.show_date = true;
-		layout.show_time = true;
-		layout.show_venue = true;
-		layout.show_ticket_type = true;
-		layout.show_qr = true;
 	}
 
 	function classifyFormQuestion(q) {
@@ -877,7 +848,7 @@
 		const type = byId ? byId.type : idOrType;
 		const id = byId ? byId.id : idOrType;
 		const def = DEF_BY_TYPE[type];
-		if (type === "jod_logo" || CORE_TICKET_TYPES.indexOf(type) >= 0) return;
+		if (type === "jod_logo") return;
 		if (byId) {
 			this.layout.canvas_elements = (this.layout.canvas_elements || []).filter(function (e) { return e.id !== id; });
 		} else {
@@ -1194,14 +1165,14 @@
 			'        <div class="ticket-palette-title">Add elements</div>',
 			'        <div class="ticket-element-palette" id="ticketElementPalette"></div>',
 			'        <div class="ticket-palette-title ticket-show-title">Show on ticket</div>',
-			'        <p class="ticket-float-hint" style="margin:0 0 0.45rem;">Always included on every ticket.</p>',
+			'        <p class="ticket-float-hint" style="margin:0 0 0.45rem;">Defaults for every event — uncheck to remove from the canvas.</p>',
 			'        <div class="ticket-toggle-grid" id="ticketCoreToggleGrid">',
-			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowTitle" checked disabled /> Event name</label>',
-			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowDate" checked disabled /> Date</label>',
-			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowTime" checked disabled /> Time</label>',
-			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowVenue" checked disabled /> Venue</label>',
-			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowType" checked disabled /> Ticket type</label>',
-			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowQr" checked disabled /> QR code</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowTitle" /> Event name</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowDate" /> Date</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowTime" /> Time</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowVenue" /> Venue</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowType" /> Ticket type</label>',
+			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowQr" /> QR code</label>',
 			'        </div>',
 			'        <div class="ticket-palette-title ticket-show-title" style="margin-top:0.85rem;">From registration form</div>',
 			'        <p class="ticket-float-hint" style="margin:0 0 0.45rem;">Toggle attendee fields from your Registration Form.</p>',
@@ -1322,6 +1293,12 @@
 		const map = [
 			["ticketAccentColor", "accent_color", "value"],
 			["ticketCardColor", "card_color", "value"],
+			["ticketShowTitle", "show_title", "checked", "title"],
+			["ticketShowDate", "show_date", "checked", "date"],
+			["ticketShowTime", "show_time", "checked", "time"],
+			["ticketShowVenue", "show_venue", "checked", "venue"],
+			["ticketShowType", "show_ticket_type", "checked", "ticket_type"],
+			["ticketShowQr", "show_qr", "checked", "qr"],
 		];
 		map.forEach(function (row) {
 			const el = self.root.querySelector("#" + row[0]);
@@ -1330,15 +1307,22 @@
 				if (self.layout.canvas_mode !== "custom" && (row[0] === "ticketCardColor" || row[0] === "ticketAccentColor")) {
 					self.layout.canvas_mode = self.layout.canvas_mode || "legacy";
 				}
-				self.layout[row[1]] = String(el.value || "");
+				const on = row[2] === "checked" ? !!el.checked : String(el.value || "");
+				self.layout[row[1]] = on;
+				if (row[2] === "checked" && row[3]) {
+					if (on) {
+						self.addElement(row[3], true);
+					} else {
+						self.removeElement(row[3]);
+						return;
+					}
+				}
 				self.renderPreview();
 				self.renderPalette();
 				self.emitChange();
 			});
 			el.addEventListener("change", function () { el.dispatchEvent(new Event("input")); });
 		});
-		/* Core show-on-ticket fields stay locked on. */
-		ensureCoreTicketFields(self.layout);
 
 		const itemColor = this.root.querySelector("#ticketItemColor");
 		if (itemColor) {
@@ -1798,7 +1782,7 @@
 				if (tag === "INPUT" || tag === "TEXTAREA" || (ev.target && ev.target.isContentEditable)) return;
 				const item = self.findById(self.selectedId);
 				if (!item) return;
-				if (item.type === "jod_logo" && !self.isPremium) return;
+				if (item.type === "jod_logo") return;
 				ev.preventDefault();
 				self.removeElement(self.selectedId);
 			}
@@ -1881,10 +1865,12 @@
 		const preview = (tmpl && tmpl.preview) || {};
 		setVal("ticketAccentColor", L.accent_color || preview.accent || "#2563eb");
 		setVal("ticketCardColor", L.card_color || preview.card || "#ffffff");
-		ensureCoreTicketFields(L);
-		["ticketShowTitle", "ticketShowDate", "ticketShowTime", "ticketShowVenue", "ticketShowType", "ticketShowQr"].forEach(function (id) {
-			setChk(id, true);
-		});
+		setChk("ticketShowTitle", this.hasElement("title"));
+		setChk("ticketShowDate", this.hasElement("date"));
+		setChk("ticketShowTime", this.hasElement("time"));
+		setChk("ticketShowVenue", this.hasElement("venue"));
+		setChk("ticketShowType", this.hasElement("ticket_type"));
+		setChk("ticketShowQr", this.hasElement("qr"));
 		const hint = this.root.querySelector("#ticketPremiumHint");
 		if (hint) hint.textContent = "The JOD Events logo stays on every ticket. Its color follows the background.";
 		this.syncFormFieldToggles();

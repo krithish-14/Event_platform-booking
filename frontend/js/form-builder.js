@@ -95,6 +95,56 @@ function initFormBuilder() {
 		if (themeObj.page_bg_url && themePageBgUrl) themePageBgUrl.value = themeObj.page_bg_url;
 	}
 
+	const DEFAULT_QUESTIONS = [
+		{
+			id: "q_name",
+			type: "short_answer",
+			title: "What is your Full Name?",
+			placeholder: "Enter your full name",
+			help_text: "Please enter your name as on official ID.",
+			required: true
+		},
+		{
+			id: "q_email",
+			type: "email",
+			title: "Email Address",
+			placeholder: "example@domain.com",
+			help_text: "",
+			required: true
+		},
+		{
+			id: "q_phone",
+			type: "phone",
+			title: "Mobile Phone Number",
+			placeholder: "9876543210",
+			help_text: "",
+			required: true
+		},
+		{
+			id: "q_food",
+			type: "radio",
+			title: "Dietary Preference",
+			help_text: "",
+			required: false,
+			options: ["Vegetarian", "Non-Vegetarian", "Vegan"]
+		}
+	];
+
+	function reset() {
+		questions = DEFAULT_QUESTIONS.map(function (q) {
+			return Object.assign({}, q, q.options ? { options: q.options.slice() } : null);
+		});
+		formId = null;
+		version = 1;
+		isPublished = false;
+		if (builderFormTitle) builderFormTitle.value = "Event Registration Form";
+		if (builderFormDesc) builderFormDesc.value = "";
+		if (typeof renderBuilderQuestions === "function") {
+			renderBuilderQuestions();
+			renderLivePreview();
+		}
+	}
+
 	function loadFromHost(reg) {
 		if (!reg) return;
 		let questionsData = reg.questions_json;
@@ -107,14 +157,18 @@ function initFormBuilder() {
 		} else if (formMeta && typeof formMeta === "object") {
 			if (formMeta.form_title && builderFormTitle) builderFormTitle.value = formMeta.form_title;
 			if (formMeta.form_description && builderFormDesc) builderFormDesc.value = formMeta.form_description;
-			if (Array.isArray(formMeta.schema) && formMeta.schema.length) questionsData = formMeta.schema;
+			if (Array.isArray(formMeta.schema)) questionsData = formMeta.schema;
 			if (formMeta.theme_json) applyThemeObject(formMeta.theme_json);
 		}
 		if (typeof questionsData === "string") {
 			try { questionsData = JSON.parse(questionsData); } catch (_) { questionsData = []; }
 		}
-		if (Array.isArray(questionsData) && questionsData.length) {
-			questions = questionsData;
+		if (Array.isArray(questionsData)) {
+			questions = questionsData.length
+				? questionsData
+				: DEFAULT_QUESTIONS.map(function (q) {
+					return Object.assign({}, q, q.options ? { options: q.options.slice() } : null);
+				});
 		}
 		let themeObj = reg.settings_json;
 		if (typeof themeObj === "string") {
@@ -122,6 +176,7 @@ function initFormBuilder() {
 		}
 		applyThemeObject(themeObj);
 		if (reg.form_id) formId = reg.form_id;
+		else formId = null;
 		if (typeof renderBuilderQuestions === "function") {
 			renderBuilderQuestions();
 			renderLivePreview();
@@ -1144,7 +1199,7 @@ function initFormBuilder() {
 			const lifecycle = window.JodOrganizer && typeof window.JodOrganizer.getLifecycle === "function"
 				? window.JodOrganizer.getLifecycle()
 				: "draft";
-			const updated = lifecycle === "published" || lifecycle === "live" || lifecycle === "ended";
+			const updated = lifecycle === "published" || lifecycle === "live";
 			await syncRegistrationFormToHost(
 				resolveActiveEventId(),
 				payload.schema_json,
@@ -1332,6 +1387,7 @@ function initFormBuilder() {
 		saveDraft: saveDraftForm,
 		saveAndPublishForEvent,
 		loadFromHost,
+		reset,
 		loadSubmissionsData,
 		getSchema: function () {
 			return Array.isArray(questions) ? questions.slice() : [];
@@ -1363,6 +1419,11 @@ function initFormBuilder() {
 			);
 			if (hostRes.ok) {
 				const hostData = await hostRes.json();
+				const life = String(hostData.lifecycle || (hostData.event && hostData.event.lifecycle) || "").toLowerCase();
+				if (life === "ended" || hostData.workspace_cleared) {
+					reset();
+					return;
+				}
 				if (hostData.registration_form) {
 					loadFromHost(hostData.registration_form);
 					renderBuilderQuestions();
