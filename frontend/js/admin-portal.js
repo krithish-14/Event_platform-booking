@@ -1316,6 +1316,7 @@
 			btn.disabled = true;
 			btn.textContent = "Saving\u2026";
 		}
+		const startedAt = Date.now();
 		try {
 			const res = await adminFetch(`${apiBase()}/api/admin/support-tickets/${encodeURIComponent(code)}/decision`, {
 				method: "POST",
@@ -1323,6 +1324,8 @@
 				body: JSON.stringify({ action, note: note || null }),
 			});
 			const data = await res.json().catch(() => ({}));
+			const elapsedMs = Date.now() - startedAt;
+			try { console.info("[support-decision]", res.status, elapsedMs + "ms", data && data.deploy_marker); } catch (_) {}
 			if (!res.ok) {
 				const detail = data && data.detail;
 				if (res.status === 429) {
@@ -1335,6 +1338,8 @@
 			await refresh();
 		} catch (err) {
 			const raw = (err && err.message) || "";
+			const elapsedMs = Date.now() - startedAt;
+			try { console.warn("[support-decision] failed after", elapsedMs + "ms", raw); } catch (_) {}
 			let recovered = false;
 			try {
 				await refresh();
@@ -1350,7 +1355,7 @@
 			} catch (_) {}
 			if (!recovered) {
 				const msg = /failed to fetch|networkerror|load failed|aborted|abort/i.test(raw)
-					? "Could not reach the API. Hard-refresh, wait 10 seconds, then Approve again. If this keeps happening, restart the API on EC2 (git pull + systemctl restart)."
+					? ("Could not reach the API after " + Math.round(elapsedMs / 1000) + "s. On EC2 run: git reset --hard origin/krithish-feature && sudo systemctl restart event-platform.service — then hard-refresh and Approve once.")
 					: (raw || "Could not save the decision.");
 				alert(msg);
 				if (btn && btn.isConnected) {

@@ -41,6 +41,13 @@ def ensure_support_ticket_columns(db) -> None:
 			return
 		bind = db.get_bind()
 		dialect = (bind.dialect.name if bind is not None else "") or ""
+		# Never block admin clicks waiting on ACCESS EXCLUSIVE locks from a
+		# previous hung Approve / migration. Fail soft and retry next process.
+		if dialect == "postgresql":
+			try:
+				db.execute(text("SET LOCAL lock_timeout = '1500ms'"))
+			except Exception:
+				db.rollback()
 		for name, pg_type, sqlite_type in _EXTRA_COLUMNS:
 			if dialect == "postgresql":
 				sql = f"ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS {name} {pg_type}"
