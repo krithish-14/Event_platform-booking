@@ -1164,6 +1164,16 @@ function initFormBuilder() {
 			setTimeout(() => {
 				if (btn) { btn.textContent = origLabel; btn.style.color = ""; btn.disabled = false; }
 			}, 2500);
+			/* Draft wizard: Design → Registration Form → Ticket Design → OTP publish. */
+			if (!updated && window.JodOrganizer && typeof window.JodOrganizer.advanceFormToTicket === "function") {
+				try { window.JodOrganizer.advanceFormToTicket(); } catch (_) {}
+			}
+			/* Refresh ticket "Show on ticket" form-field list when host returns to Ticket. */
+			try {
+				if (window.JodOrganizer && typeof window.JodOrganizer.refreshTicketFormFields === "function") {
+					window.JodOrganizer.refreshTicketFormFields();
+				}
+			} catch (_) {}
 			return true;
 		} catch (err) {
 			alert(err.message || "Failed to save registration form.");

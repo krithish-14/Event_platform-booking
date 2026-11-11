@@ -5492,6 +5492,15 @@ html[data-theme="dark"] .ticket-layer.is-active {
 	color: #334155;
 	cursor: pointer;
 }
+.ticket-toggle.is-locked {
+	opacity: 0.95;
+	cursor: default;
+	color: #0f172a;
+}
+.ticket-toggle.is-locked input {
+	accent-color: #2563eb;
+	pointer-events: none;
+}
 .ticket-toggle-premium.is-locked {
 	opacity: 0.72;
 }

@@ -4197,12 +4197,29 @@ async function initOrganizerDashboard() {
 			delete btnDesign.dataset.originalLabel;
 		}
 		if (btnForm) {
-			btnForm.textContent = published ? "Update Registration Form" : "Save & Next";
+			btnForm.textContent = published ? "Update Registration Form" : "Save & Next: Ticket Design";
 		}
 		const btnPublish = document.getElementById("btnPublishForm");
-		if (btnPublish && published) {
-			btnPublish.innerHTML = "Update Event";
-			btnPublish.title = "Save every section and update the live event page. No OTP needed.";
+		if (btnPublish) {
+			/* OTP publish lives on Ticket Design; keep this hidden unless already live for "Update Event". */
+			if (published) {
+				btnPublish.style.display = "";
+				btnPublish.innerHTML = "Update Event";
+				btnPublish.title = "Save every section and update the live event page. No OTP needed.";
+			} else {
+				btnPublish.style.display = "none";
+				btnPublish.innerHTML = "Publish Form";
+			}
+		}
+		const btnTicketPublishEvent = document.getElementById("btnPublishEventFromTicket");
+		if (btnTicketPublishEvent) {
+			if (published) {
+				btnTicketPublishEvent.style.display = "none";
+			} else {
+				btnTicketPublishEvent.style.display = "";
+				btnTicketPublishEvent.innerHTML = "Publish Event";
+				btnTicketPublishEvent.title = "Verify with OTP and publish the event.";
+			}
 		}
 		const btnTop = document.getElementById("btnTopPublish");
 		if (btnTop && published) {
@@ -5273,8 +5290,7 @@ async function initOrganizerDashboard() {
 		return ticketLayoutState || { template_id: "classic", show_jod_logo: true };
 	}
 
-	function detectHostFormIdentityFields() {
-		const found = { name: false, email: false, phone: false };
+	function collectHostFormQuestions() {
 		let questions = [];
 		try {
 			if (window.JodFormBuilder && typeof window.JodFormBuilder.getSchema === "function") {
@@ -5287,6 +5303,13 @@ async function initOrganizerDashboard() {
 			else if (raw && Array.isArray(raw.questions)) questions = raw.questions;
 			else if (raw && Array.isArray(raw.fields)) questions = raw.fields;
 		}
+		return Array.isArray(questions) ? questions : [];
+	}
+
+	function detectHostFormIdentityFields() {
+		const found = { name: false, email: false, phone: false, questions: [] };
+		const questions = collectHostFormQuestions();
+		found.questions = questions;
 		(questions || []).forEach(function (q) {
 			if (!q) return;
 			const type = String(q.type || "").toLowerCase();
@@ -5745,6 +5768,16 @@ async function initOrganizerDashboard() {
 		} finally {
 			setWizardNavBusy(btn, false);
 		}
+	}
+
+	async function advanceFormToTicket() {
+		if (isPublishedLifecycle() || currentLifecycle === "ended") {
+			return true;
+		}
+		showNotification("Step 3 of 4 complete: Registration form saved. Continuing to Ticket Design\u2026");
+		switchTab("ticket");
+		try { ensureTicketCanvas(); } catch (_) {}
+		return true;
 	}
 
 	let designSaveTimer = null;
@@ -8678,8 +8711,25 @@ async function initOrganizerDashboard() {
 	window.JodOrganizer = {
 		getActiveEventId: () => activeEventId,
 		getOrganizerEmail: () => email,
-		getLifecycle: () => currentLifecycle
+		getLifecycle: () => currentLifecycle,
+		advanceFormToTicket: advanceFormToTicket,
+		isLiveForUpdates: isLiveForUpdates,
+		refreshTicketFormFields: function () {
+			try {
+				if (ticketCanvasCtrl && typeof ticketCanvasCtrl.setFormFields === "function") {
+					ticketCanvasCtrl.setFormFields(detectHostFormIdentityFields());
+				}
+			} catch (_) {}
+		},
 	};
+
+	const btnPublishEventFromTicket = document.getElementById("btnPublishEventFromTicket");
+	if (btnPublishEventFromTicket) {
+		btnPublishEventFromTicket.addEventListener("click", (e) => {
+			if (e && typeof e.preventDefault === "function") e.preventDefault();
+			handleFinalPublish();
+		});
+	}
 
 	// Expose verification controls globally (so Settings tab or other parts can open the panel)
 	window.openOrganizerVerificationPanel = function () {

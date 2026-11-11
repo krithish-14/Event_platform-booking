@@ -361,6 +361,7 @@
 			list.push(logo);
 		}
 		clampBox(logo);
+		ensureCoreTicketFields(layout);
 	}
 
 	function landscapeReferenceElements() {
@@ -387,23 +388,15 @@
 	}
 
 	function eticketElements() {
+		/* Core defaults only — attendee fields come from the registration form toggles. */
 		return [
-			{ id: "poster", type: "poster", x: 5, y: 3, w: 19, h: 14 },
-			{ id: "title", type: "title", x: 28, y: 3, w: 60, h: 6, fontSize: 18, fontWeight: "800", align: "left" },
-			{ id: "date", type: "date", x: 28, y: 9.5, w: 60, h: 4, fontSize: 12, fontWeight: "700", align: "left" },
-			{ id: "venue", type: "venue", x: 28, y: 13.5, w: 60, h: 7, fontSize: 10, align: "left" },
-			{ id: "stub", type: "stub", x: 92, y: 3, w: 5, h: 16, text: "E-TICKET", fontSize: 8, color: "#9ca3af" },
-			{ id: "qty", type: "qty", x: 30, y: 27, w: 40, h: 3.5, fontSize: 10, align: "center" },
-			{ id: "ticket_type", type: "ticket_type", x: 15, y: 30.5, w: 70, h: 5, fontSize: 21, fontWeight: "800", align: "center" },
-			{ id: "seat", type: "seat", x: 20, y: 36, w: 60, h: 3.5, fontSize: 12, align: "center" },
-			{ id: "name", type: "name", x: 22, y: 41, w: 56, h: 4, fontSize: 10, align: "left" },
-			{ id: "phone", type: "phone", x: 22, y: 45, w: 56, h: 4, fontSize: 10, align: "left" },
-			{ id: "email", type: "email", x: 22, y: 49, w: 56, h: 4, fontSize: 10, align: "left" },
-			{ id: "qr", type: "qr", x: 33, y: 54, w: 34, h: 21 },
-			{ id: "booking_id", type: "booking_id", x: 15, y: 77, w: 70, h: 4, fontSize: 12, fontWeight: "800", align: "center" },
-			{ id: "perforation", type: "dashed_line", x: 5, y: 82, w: 90, h: 1, color: "#cbd5e1" },
-			{ id: "price", type: "price", x: 6, y: 85, w: 88, h: 5, fontSize: 14, fontWeight: "800" },
-			{ id: "jod_logo", type: "jod_logo", x: 35, y: 92, w: 30, h: 7 },
+			{ id: "title", type: "title", x: 6, y: 4, w: 88, h: 7, fontSize: 18, fontWeight: "800", align: "left" },
+			{ id: "date", type: "date", x: 6, y: 13, w: 44, h: 4, fontSize: 12, fontWeight: "700", align: "left" },
+			{ id: "time", type: "time", x: 52, y: 13, w: 42, h: 4, fontSize: 12, fontWeight: "700", align: "left" },
+			{ id: "venue", type: "venue", x: 6, y: 19, w: 88, h: 8, fontSize: 11, align: "left" },
+			{ id: "ticket_type", type: "ticket_type", x: 6, y: 30, w: 88, h: 6, fontSize: 18, fontWeight: "800", align: "center" },
+			{ id: "qr", type: "qr", x: 33, y: 42, w: 34, h: 28 },
+			{ id: "jod_logo", type: "jod_logo", x: 35, y: 88, w: 30, h: 8 },
 		];
 	}
 
@@ -415,15 +408,76 @@
 			card_color: "#ffffff",
 			text_color: "#111827",
 			show_venue: true,
-			show_qty: true,
+			show_date: true,
+			show_time: true,
+			show_qty: false,
 			show_ticket_type: true,
-			show_seat: true,
-			show_price: true,
-			show_attendee_name: true,
-			show_attendee_phone: true,
-			show_attendee_email: true,
+			show_seat: false,
+			show_price: false,
+			show_qr: true,
+			show_attendee_name: false,
+			show_attendee_phone: false,
+			show_attendee_email: false,
 			canvas_elements: eticketElements(),
 		});
+	}
+
+	const CORE_TICKET_TYPES = ["title", "date", "time", "venue", "ticket_type", "qr"];
+
+	function ensureCoreTicketFields(layout) {
+		if (!layout) return;
+		const list = layout.canvas_elements || (layout.canvas_elements = []);
+		const present = {};
+		list.forEach(function (el) {
+			if (el && el.type) present[el.type] = true;
+		});
+		const defaults = {
+			title: { id: "title", type: "title", x: 6, y: 4, w: 88, h: 7, fontSize: 18, fontWeight: "800" },
+			date: { id: "date", type: "date", x: 6, y: 13, w: 44, h: 4, fontSize: 12, fontWeight: "700" },
+			time: { id: "time", type: "time", x: 52, y: 13, w: 42, h: 4, fontSize: 12, fontWeight: "700" },
+			venue: { id: "venue", type: "venue", x: 6, y: 19, w: 88, h: 8, fontSize: 11 },
+			ticket_type: { id: "ticket_type", type: "ticket_type", x: 6, y: 30, w: 88, h: 6, fontSize: 18, fontWeight: "800", align: "center" },
+			qr: { id: "qr", type: "qr", x: 33, y: 42, w: 34, h: 28 },
+		};
+		CORE_TICKET_TYPES.forEach(function (type) {
+			if (!present[type] && defaults[type]) {
+				list.push(Object.assign({}, defaults[type]));
+			}
+		});
+		layout.show_date = true;
+		layout.show_time = true;
+		layout.show_venue = true;
+		layout.show_ticket_type = true;
+		layout.show_qr = true;
+	}
+
+	function classifyFormQuestion(q) {
+		if (!q) return null;
+		const id = String(q.id || "").trim();
+		const type = String(q.type || "").toLowerCase();
+		const label = String(q.title || q.label || q.name || id || "Field").trim() || "Field";
+		const blob = (id + " " + label + " " + type).toLowerCase();
+		if (type === "email" || blob.indexOf("email") >= 0) {
+			return { key: id || "email", kind: "email", elementType: "email", flag: "show_attendee_email", label: label };
+		}
+		if (type === "phone" || /phone|mobile|whatsapp/.test(blob)) {
+			return { key: id || "phone", kind: "phone", elementType: "phone", flag: "show_attendee_phone", label: label };
+		}
+		if (
+			type === "name"
+			|| id === "q_name"
+			|| ((type === "text" || type === "short_text" || !type) && (blob.indexOf("full name") >= 0 || /(^|\s)name(\s|$)/.test(blob)))
+		) {
+			return { key: id || "name", kind: "name", elementType: "name", flag: "show_attendee_name", label: label };
+		}
+		return {
+			key: id || ("q_" + label.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 24)),
+			kind: "custom",
+			elementType: "text",
+			flag: null,
+			label: label,
+			formQuestionId: id || null,
+		};
 	}
 
 	function referenceLayout(orient) {
@@ -648,7 +702,22 @@
 	};
 
 	TicketCanvasController.prototype.setFormFields = function (fields) {
-		this.formFields = Object.assign({ name: true, email: true, phone: true }, fields || {});
+		const incoming = fields || {};
+		if (Array.isArray(incoming.questions)) {
+			this.formQuestions = incoming.questions.slice();
+			this.formFields = {
+				name: !!incoming.name,
+				email: !!incoming.email,
+				phone: !!incoming.phone,
+			};
+		} else if (Array.isArray(incoming)) {
+			this.formQuestions = incoming.slice();
+			this.formFields = { name: false, email: false, phone: false };
+		} else {
+			this.formQuestions = Array.isArray(this.formQuestions) ? this.formQuestions : [];
+			this.formFields = Object.assign({ name: false, email: false, phone: false }, incoming);
+		}
+		this.syncFormFieldToggles();
 		this.renderPreview();
 	};
 
@@ -808,7 +877,7 @@
 		const type = byId ? byId.type : idOrType;
 		const id = byId ? byId.id : idOrType;
 		const def = DEF_BY_TYPE[type];
-		if (type === "jod_logo") return;
+		if (type === "jod_logo" || CORE_TICKET_TYPES.indexOf(type) >= 0) return;
 		if (byId) {
 			this.layout.canvas_elements = (this.layout.canvas_elements || []).filter(function (e) { return e.id !== id; });
 		} else {
@@ -1125,21 +1194,19 @@
 			'        <div class="ticket-palette-title">Add elements</div>',
 			'        <div class="ticket-element-palette" id="ticketElementPalette"></div>',
 			'        <div class="ticket-palette-title ticket-show-title">Show on ticket</div>',
-			'        <div class="ticket-toggle-grid">',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowDate" /> Date</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowTime" /> Time</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowVenue" /> Venue</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowType" /> Ticket type</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowQty" /> Quantity</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowSeat" /> Seat</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowPrice" /> Price</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowOrganizer" /> Organizer</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowQr" /> QR code</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowTicketId" /> Ticket ID</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeeName" /> Name</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeePhone" /> Phone</label>',
-			'          <label class="ticket-toggle"><input type="checkbox" id="ticketShowAttendeeEmail" /> Email</label>',
+			'        <p class="ticket-float-hint" style="margin:0 0 0.45rem;">Always included on every ticket.</p>',
+			'        <div class="ticket-toggle-grid" id="ticketCoreToggleGrid">',
+			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowTitle" checked disabled /> Event name</label>',
+			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowDate" checked disabled /> Date</label>',
+			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowTime" checked disabled /> Time</label>',
+			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowVenue" checked disabled /> Venue</label>',
+			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowType" checked disabled /> Ticket type</label>',
+			'          <label class="ticket-toggle is-locked"><input type="checkbox" id="ticketShowQr" checked disabled /> QR code</label>',
 			'        </div>',
+			'        <div class="ticket-palette-title ticket-show-title" style="margin-top:0.85rem;">From registration form</div>',
+			'        <p class="ticket-float-hint" style="margin:0 0 0.45rem;">Toggle attendee fields from your Registration Form.</p>',
+			'        <div class="ticket-toggle-grid" id="ticketFormFieldToggles"></div>',
+			'        <p class="ticket-premium-hint" id="ticketFormFieldsEmpty" hidden>Add questions in Registration Form to show attendee details here.</p>',
 			'        <p class="ticket-premium-hint" id="ticketPremiumHint">The JOD Events logo stays on every ticket. Its color follows the background.</p>',
 			'      </div>',
 			'      <button type="button" class="ticket-reset-btn" id="ticketResetLayout" hidden>Reset layout</button>',
@@ -1255,19 +1322,6 @@
 		const map = [
 			["ticketAccentColor", "accent_color", "value"],
 			["ticketCardColor", "card_color", "value"],
-			["ticketShowDate", "show_date", "checked", "date"],
-			["ticketShowTime", "show_time", "checked", "time"],
-			["ticketShowVenue", "show_venue", "checked", "venue"],
-			["ticketShowType", "show_ticket_type", "checked", "ticket_type"],
-			["ticketShowQty", "show_qty", "checked", "qty"],
-			["ticketShowSeat", "show_seat", "checked", "seat"],
-			["ticketShowPrice", "show_price", "checked", "price"],
-			["ticketShowOrganizer", "show_organizer", "checked", "organizer"],
-			["ticketShowQr", "show_qr", "checked", "qr"],
-			["ticketShowTicketId", "show_ticket_id", "checked", "ticket_id"],
-			["ticketShowAttendeeName", "show_attendee_name", "checked", "name"],
-			["ticketShowAttendeeEmail", "show_attendee_email", "checked", "email"],
-			["ticketShowAttendeePhone", "show_attendee_phone", "checked", "phone"],
 		];
 		map.forEach(function (row) {
 			const el = self.root.querySelector("#" + row[0]);
@@ -1276,22 +1330,15 @@
 				if (self.layout.canvas_mode !== "custom" && (row[0] === "ticketCardColor" || row[0] === "ticketAccentColor")) {
 					self.layout.canvas_mode = self.layout.canvas_mode || "legacy";
 				}
-				const on = row[2] === "checked" ? !!el.checked : String(el.value || "");
-				self.layout[row[1]] = on;
-				if (row[2] === "checked" && row[3]) {
-					if (on) {
-						self.addElement(row[3], true);
-					} else {
-						self.removeElement(row[3]);
-						return;
-					}
-				}
+				self.layout[row[1]] = String(el.value || "");
 				self.renderPreview();
 				self.renderPalette();
 				self.emitChange();
 			});
 			el.addEventListener("change", function () { el.dispatchEvent(new Event("input")); });
 		});
+		/* Core show-on-ticket fields stay locked on. */
+		ensureCoreTicketFields(self.layout);
 
 		const itemColor = this.root.querySelector("#ticketItemColor");
 		if (itemColor) {
@@ -1834,21 +1881,13 @@
 		const preview = (tmpl && tmpl.preview) || {};
 		setVal("ticketAccentColor", L.accent_color || preview.accent || "#2563eb");
 		setVal("ticketCardColor", L.card_color || preview.card || "#ffffff");
-		setChk("ticketShowDate", this.hasElement("date"));
-		setChk("ticketShowTime", this.hasElement("time"));
-		setChk("ticketShowVenue", this.hasElement("venue"));
-		setChk("ticketShowType", this.hasElement("ticket_type"));
-		setChk("ticketShowQty", this.hasElement("qty"));
-		setChk("ticketShowSeat", this.hasElement("seat"));
-		setChk("ticketShowPrice", this.hasElement("price"));
-		setChk("ticketShowOrganizer", this.hasElement("organizer"));
-		setChk("ticketShowQr", this.hasElement("qr"));
-		setChk("ticketShowTicketId", this.hasElement("ticket_id"));
-		setChk("ticketShowAttendeeName", this.hasElement("name"));
-		setChk("ticketShowAttendeeEmail", this.hasElement("email"));
-		setChk("ticketShowAttendeePhone", this.hasElement("phone"));
+		ensureCoreTicketFields(L);
+		["ticketShowTitle", "ticketShowDate", "ticketShowTime", "ticketShowVenue", "ticketShowType", "ticketShowQr"].forEach(function (id) {
+			setChk(id, true);
+		});
 		const hint = this.root.querySelector("#ticketPremiumHint");
 		if (hint) hint.textContent = "The JOD Events logo stays on every ticket. Its color follows the background.";
+		this.syncFormFieldToggles();
 		const landBtn = document.getElementById("ticketOrientLandscape");
 		const portBtn = document.getElementById("ticketOrientPortrait");
 		const orient = (L.canvas_mode === "custom" && L.orientation === "portrait") ? "portrait" : (L.canvas_mode === "custom" ? "landscape" : "");
@@ -1862,7 +1901,92 @@
 		if (heroBtn) heroBtn.textContent = heroReady ? "Change photo" : "Choose photo";
 	};
 
-	TicketCanvasController.prototype.syncFormFieldToggles = function () {};
+	TicketCanvasController.prototype.hasFormQuestionElement = function (meta) {
+		if (!meta) return false;
+		if (meta.kind === "custom") {
+			const qid = String(meta.formQuestionId || meta.key || "");
+			return (this.layout.canvas_elements || []).some(function (el) {
+				return el && el.type === "text" && String(el.form_question_id || "") === qid;
+			});
+		}
+		return this.hasElement(meta.elementType);
+	};
+
+	TicketCanvasController.prototype.toggleFormQuestionElement = function (meta, on) {
+		if (!meta) return;
+		if (meta.kind === "custom") {
+			const qid = String(meta.formQuestionId || meta.key || "");
+			const list = this.layout.canvas_elements || (this.layout.canvas_elements = []);
+			if (on) {
+				if (!this.hasFormQuestionElement(meta)) {
+					const y = 38 + Math.min(list.length, 8) * 4;
+					list.push({
+						id: "form_" + qid,
+						type: "text",
+						form_question_id: qid,
+						text: meta.label + ": Sample",
+						x: 8,
+						y: y,
+						w: 84,
+						h: 4,
+						fontSize: 11,
+						align: "left",
+					});
+				}
+			} else {
+				this.layout.canvas_elements = list.filter(function (el) {
+					return !(el && el.type === "text" && String(el.form_question_id || "") === qid);
+				});
+			}
+			return;
+		}
+		if (meta.flag) this.layout[meta.flag] = !!on;
+		if (on) this.addElement(meta.elementType, true);
+		else this.removeElement(meta.elementType);
+	};
+
+	TicketCanvasController.prototype.syncFormFieldToggles = function () {
+		if (!this.root) return;
+		const host = this.root.querySelector("#ticketFormFieldToggles");
+		const empty = this.root.querySelector("#ticketFormFieldsEmpty");
+		if (!host) return;
+		const questions = Array.isArray(this.formQuestions) ? this.formQuestions : [];
+		const metas = [];
+		const seenKinds = {};
+		questions.forEach(function (q) {
+			const meta = classifyFormQuestion(q);
+			if (!meta) return;
+			if (meta.kind !== "custom" && seenKinds[meta.kind]) return;
+			if (meta.kind !== "custom") seenKinds[meta.kind] = true;
+			metas.push(meta);
+		});
+		if (!metas.length) {
+			host.innerHTML = "";
+			if (empty) empty.hidden = false;
+			return;
+		}
+		if (empty) empty.hidden = true;
+		const self = this;
+		host.innerHTML = metas.map(function (meta) {
+			const id = "ticketFormShow_" + String(meta.key || meta.kind).replace(/[^a-zA-Z0-9_-]/g, "_");
+			const checked = self.hasFormQuestionElement(meta) ? " checked" : "";
+			return '<label class="ticket-toggle"><input type="checkbox" id="' + id + '" data-form-key="' +
+				String(meta.key || "").replace(/"/g, "") + '"' + checked + " /> " +
+				String(meta.label || meta.kind).replace(/</g, "&lt;") + "</label>";
+		}).join("");
+		metas.forEach(function (meta) {
+			const id = "ticketFormShow_" + String(meta.key || meta.kind).replace(/[^a-zA-Z0-9_-]/g, "_");
+			const el = host.querySelector("#" + id);
+			if (!el || el._wired) return;
+			el._wired = true;
+			el.addEventListener("change", function () {
+				self.toggleFormQuestionElement(meta, !!el.checked);
+				self.renderPreview();
+				self.renderPalette();
+				self.emitChange();
+			});
+		});
+	};
 
 	TicketCanvasController.prototype.syncUndoButtons = function () {
 		const undo = document.getElementById("ticketUndoBtn");
