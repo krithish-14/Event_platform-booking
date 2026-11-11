@@ -1039,6 +1039,11 @@ button.admin-event-title:focus-visible {
 	gap: 0.55rem;
 }
 
+/* Author display:grid beats the UA [hidden] rule — keep these panels actually hideable. */
+.admin-support-resolve[hidden] {
+	display: none !important;
+}
+
 .admin-support-resolve label {
 	font-size: 0.8rem;
 	font-weight: 700;

@@ -3,13 +3,15 @@
 
 	function apiBase() {
 		if (typeof window !== "undefined" && window.JodConfig && typeof window.JodConfig.getApiOrigin === "function") {
-			return window.JodConfig.getApiOrigin();
+			const origin = window.JodConfig.getApiOrigin();
+			if (origin) return String(origin).replace(/\/$/, "");
 		}
 		if (typeof window !== "undefined" && window.JodHealth && typeof window.JodHealth.getApiBaseUrl === "function") {
-			return window.JodHealth.getApiBaseUrl();
+			const origin = window.JodHealth.getApiBaseUrl();
+			if (origin) return String(origin).replace(/\/$/, "");
 		}
 		if (window.JOD_API_BASE_OVERRIDE) return String(window.JOD_API_BASE_OVERRIDE).replace(/\/$/, "");
-		return "";
+		return "https://api.jodevents.com";
 	}
 
 	function token() {
@@ -1271,7 +1273,10 @@
 		`;
 		const pendingCancel = isPendingCancellation(row);
 		const canResolve = !pendingCancel && (row.status || "open") !== "resolved";
-		if (resolveWrap) resolveWrap.hidden = !canResolve;
+		if (resolveWrap) {
+			resolveWrap.hidden = !canResolve;
+			resolveWrap.style.display = canResolve ? "" : "none";
+		}
 		if (noteEl) noteEl.value = "";
 		if (resolveBtn) {
 			resolveBtn.dataset.code = row.ticket_code;
@@ -1280,7 +1285,10 @@
 		}
 		const decisionWrap = document.getElementById("supportDecisionWrap");
 		const decisionNote = document.getElementById("supportDecisionNote");
-		if (decisionWrap) decisionWrap.hidden = !pendingCancel;
+		if (decisionWrap) {
+			decisionWrap.hidden = !pendingCancel;
+			decisionWrap.style.display = pendingCancel ? "" : "none";
+		}
 		if (decisionNote) decisionNote.value = "";
 		["supportApproveBtn", "supportRejectBtn"].forEach((id) => {
 			const btn = document.getElementById(id);
@@ -1309,11 +1317,15 @@
 			btn.textContent = "Saving\u2026";
 		}
 		try {
+			const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+			const timer = controller ? setTimeout(function () { try { controller.abort(); } catch (_) {} }, 25000) : null;
 			const res = await adminFetch(`${apiBase()}/api/admin/support-tickets/${encodeURIComponent(code)}/decision`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: { "Content-Type": "application/json", Accept: "application/json" },
 				body: JSON.stringify({ action, note: note || null }),
+				signal: controller ? controller.signal : undefined,
 			});
+			if (timer) clearTimeout(timer);
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) {
 				const detail = data && data.detail;
@@ -1324,15 +1336,28 @@
 			await refresh();
 		} catch (err) {
 			const raw = (err && err.message) || "";
-			const msg = /failed to fetch|networkerror|load failed/i.test(raw)
-				? "Could not reach the server. Refresh Help & Support — the decision may already be saved."
-				: (raw || "Could not save the decision.");
-			alert(msg);
-			if (btn && btn.isConnected) {
-				btn.disabled = false;
-				btn.textContent = label;
+			let recovered = false;
+			try {
+				await refresh();
+				const latest = (window.__supportTickets || []).find(function (row) {
+					return String(row.ticket_code || "").toUpperCase() === String(code).toUpperCase();
+				});
+				if (latest && String(latest.decision || "").toLowerCase() !== "pending") {
+					recovered = true;
+					document.getElementById("supportModal").hidden = true;
+					alert("Decision already saved (" + latest.decision + ").");
+				}
+			} catch (_) {}
+			if (!recovered) {
+				const msg = /failed to fetch|networkerror|load failed|aborted|abort/i.test(raw)
+					? "Could not reach the server. Refresh Help & Support — the decision may already be saved. If EC2 was not restarted after the latest API fix, run the update commands first."
+					: (raw || "Could not save the decision.");
+				alert(msg);
+				if (btn && btn.isConnected) {
+					btn.disabled = false;
+					btn.textContent = label;
+				}
 			}
-			try { await refresh(); } catch (_) {}
 		}
 	}
 

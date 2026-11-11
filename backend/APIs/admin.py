@@ -8,9 +8,10 @@ import secrets
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
+import threading
 from types import SimpleNamespace
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import String, cast, func, text
@@ -1965,6 +1966,22 @@ def _notify_cancellation_decision_safe(ticket, approved: bool) -> None:
         pass
 
 
+def _spawn_email(fn, *args) -> None:
+    """Run notify off the request thread.
+
+    Starlette BaseHTTPMiddleware (CSRF) can delay BackgroundTasks until the
+    task finishes — that made Approve hang until the proxy dropped the socket
+    and the admin UI showed Failed to fetch.
+    """
+    try:
+        threading.Thread(target=fn, args=args, daemon=True).start()
+    except Exception:
+        try:
+            fn(*args)
+        except Exception:
+            pass
+
+
 def _notify_support_resolved(ticket) -> bool:
     email_addr = (ticket.email or "").strip()
     if not email_addr:
@@ -2044,7 +2061,6 @@ def admin_list_support_tickets(
 def admin_update_support_ticket(
     ticket_code: str,
     payload: SupportResolveRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
@@ -2072,8 +2088,7 @@ def admin_update_support_ticket(
     db.add(row)
     db.commit()
     db.refresh(row)
-    # Email after the response so slow SMTP cannot time out the admin UI.
-    background_tasks.add_task(_notify_support_resolved_safe, _ticket_email_snapshot(row))
+    _spawn_email(_notify_support_resolved_safe, _ticket_email_snapshot(row))
     return {
         "status": "success",
         "message": "Ticket marked as solved. Customer email will send shortly.",
@@ -2091,7 +2106,6 @@ class CancellationDecisionRequest(BaseModel):
 def admin_decide_event_cancellation(
     ticket_code: str,
     payload: CancellationDecisionRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
@@ -2127,12 +2141,7 @@ def admin_decide_event_cancellation(
     db.commit()
     db.refresh(row)
     approved = action == "approve"
-    # Return immediately — SMTP hangs were surfacing as browser "Failed to fetch".
-    background_tasks.add_task(
-        _notify_cancellation_decision_safe,
-        _ticket_email_snapshot(row),
-        approved,
-    )
+    _spawn_email(_notify_cancellation_decision_safe, _ticket_email_snapshot(row), approved)
     verb = "approved" if approved else "rejected"
     return {
         "status": "success",

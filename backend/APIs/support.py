@@ -9,9 +9,10 @@ import random
 import re
 from typing import List, Optional
 
+import threading
 from types import SimpleNamespace
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import or_, text
 from sqlalchemy.exc import IntegrityError
@@ -251,11 +252,21 @@ def _notify_admin_new_support_ticket_safe(ticket) -> None:
 		pass
 
 
+def _spawn_email(fn, *args) -> None:
+	"""Fire-and-forget mail so CSRF BaseHTTPMiddleware cannot block the response."""
+	try:
+		threading.Thread(target=fn, args=args, daemon=True).start()
+	except Exception:
+		try:
+			fn(*args)
+		except Exception:
+			pass
+
+
 @router.post("/tickets", response_model=SupportTicketResponse, status_code=status.HTTP_201_CREATED)
 def create_support_ticket(
 	payload: SupportTicketCreate,
 	request: Request,
-	background_tasks: BackgroundTasks,
 	db: Session = Depends(get_db),
 	current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -296,7 +307,7 @@ def create_support_ticket(
 		db.add(ticket)
 		db.commit()
 	db.refresh(ticket)
-	background_tasks.add_task(_notify_admin_new_support_ticket_safe, _ticket_notify_snapshot(ticket))
+	_spawn_email(_notify_admin_new_support_ticket_safe, _ticket_notify_snapshot(ticket))
 	return _serialize(ticket)
 
 
@@ -400,7 +411,6 @@ def host_cancellation_status(
 def create_host_request(
 	payload: HostSupportRequestCreate,
 	request: Request,
-	background_tasks: BackgroundTasks,
 	db: Session = Depends(get_db),
 	current_user: User = Depends(get_current_user),
 ):
@@ -467,5 +477,5 @@ def create_host_request(
 		db.commit()
 	db.refresh(ticket)
 	# Do not block the host UI on SMTP — hangs showed up as "Failed to fetch".
-	background_tasks.add_task(_notify_admin_new_support_ticket_safe, _ticket_notify_snapshot(ticket))
+	_spawn_email(_notify_admin_new_support_ticket_safe, _ticket_notify_snapshot(ticket))
 	return _serialize(ticket)
