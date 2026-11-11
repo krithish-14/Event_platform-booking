@@ -396,13 +396,21 @@ async function initOrganizerDashboard() {
 		window.JodHostSupport.configure({
 			apiOrigin: () => HOST_EVENTS_API_BASE.replace(/\/api\/host-events\/?$/, ""),
 			authHeaders: () => getAuthHeaders(),
-			eventId: () => (hasEvent || activeEventId ? activeEventId : null),
+			eventId: () => {
+				if (activeEventId) return activeEventId;
+				if (typeof isEndedOverviewActive === "function" && isEndedOverviewActive() && endedOverview && endedOverview.eventId) {
+					return endedOverview.eventId;
+				}
+				return null;
+			},
 			eventTitle: () => {
 				const typed = ((document.getElementById("eventTitleInput") || {}).value || "").trim();
 				const header = ((document.getElementById("dashEventTitle") || {}).textContent || "").trim();
-				return typed || (header && header !== "My Events Dashboard" ? header : "");
+				if (typed) return typed;
+				if (endedOverview && endedOverview.title) return endedOverview.title;
+				return (header && header !== "My Events Dashboard" ? header : "");
 			},
-			needsApproval: () => isPublishedLifecycle() || currentLifecycle === "ended",
+			needsApproval: () => isPublishedLifecycle() || (typeof isEndedOverviewActive === "function" && isEndedOverviewActive()),
 			notify: (msg) => (typeof window.showNotification === "function" ? window.showNotification(msg) : alert(msg)),
 			runCancel: () => {
 				if (typeof window.__jodRunApprovedEventCancel === "function") window.__jodRunApprovedEventCancel();

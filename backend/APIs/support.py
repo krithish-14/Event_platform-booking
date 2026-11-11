@@ -9,7 +9,9 @@ import random
 import re
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from types import SimpleNamespace
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import or_, text
 from sqlalchemy.exc import IntegrityError
@@ -175,7 +177,22 @@ def _unique_code(db: Session) -> str:
 	return f"THP-{random.randint(10000, 999999)}"
 
 
-def _notify_admin_new_support_ticket(ticket: SupportTicket) -> bool:
+def _ticket_notify_snapshot(ticket: SupportTicket) -> SimpleNamespace:
+	return SimpleNamespace(
+		ticket_code=ticket.ticket_code,
+		name=ticket.name,
+		email=ticket.email,
+		phone=getattr(ticket, "phone", None),
+		category=ticket.category,
+		priority=ticket.priority,
+		subject=ticket.subject,
+		message=ticket.message,
+		event_id=getattr(ticket, "event_id", None),
+		event_title=getattr(ticket, "event_title", None),
+	)
+
+
+def _notify_admin_new_support_ticket(ticket) -> bool:
 	admin_addr = (os.getenv("ADMIN_EMAIL") or "contact@jodevents.com").strip()
 	if not admin_addr or "@" not in admin_addr:
 		return False
@@ -205,7 +222,7 @@ def _notify_admin_new_support_ticket(ticket: SupportTicket) -> bool:
 		f"Subject: {ticket.subject}\n\n"
 		f"Message:\n{ticket.message}\n\n"
 		f"View this ticket in Admin Portal:\n"
-		f"https://jodevents.com/admin.html?section=support\n"
+		f"https://jodevents.com/admin-portal?section=support\n"
 	)
 	html_body = (
 		f"<h2 style='color:#1e293b;margin-bottom:12px;'>New Support Ticket: {code}</h2>"
@@ -217,8 +234,8 @@ def _notify_admin_new_support_ticket(ticket: SupportTicket) -> bool:
 		f"<p><strong>Subject:</strong> {ticket.subject}</p>"
 		f"<hr style='border:0;border-top:1px solid #e2e8f0;margin:16px 0;'/>"
 		f"<p><strong>Message:</strong></p>"
-		f"<div style='background:#f8fafc;padding:14px 18px;border-left:4px solid #f97316;border-radius:6px;white-space:pre-wrap;line-height:1.5;'>{ticket.message}</div>"
-		f"<p style='margin-top:20px;'><a href='https://jodevents.com/admin.html?section=support' style='display:inline-block;background:#f97316;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;'>Open in Admin Portal</a></p>"
+		f"<div style='background:#f8fafc;padding:14px 18px;border-left:4px solid #f97316;border-radius:6px;white-space:pre-wrap;line-height:1.5;'>{html.escape(ticket.message or '')}</div>"
+		f"<p style='margin-top:20px;'><a href='https://jodevents.com/admin-portal?section=support' style='display:inline-block;background:#f97316;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;'>Open in Admin Portal</a></p>"
 	)
 	try:
 		from Services.email import send_email
@@ -227,10 +244,18 @@ def _notify_admin_new_support_ticket(ticket: SupportTicket) -> bool:
 		return False
 
 
+def _notify_admin_new_support_ticket_safe(ticket) -> None:
+	try:
+		_notify_admin_new_support_ticket(ticket)
+	except Exception:
+		pass
+
+
 @router.post("/tickets", response_model=SupportTicketResponse, status_code=status.HTTP_201_CREATED)
 def create_support_ticket(
 	payload: SupportTicketCreate,
 	request: Request,
+	background_tasks: BackgroundTasks,
 	db: Session = Depends(get_db),
 	current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -271,10 +296,7 @@ def create_support_ticket(
 		db.add(ticket)
 		db.commit()
 	db.refresh(ticket)
-	try:
-		_notify_admin_new_support_ticket(ticket)
-	except Exception:
-		pass
+	background_tasks.add_task(_notify_admin_new_support_ticket_safe, _ticket_notify_snapshot(ticket))
 	return _serialize(ticket)
 
 
@@ -378,6 +400,7 @@ def host_cancellation_status(
 def create_host_request(
 	payload: HostSupportRequestCreate,
 	request: Request,
+	background_tasks: BackgroundTasks,
 	db: Session = Depends(get_db),
 	current_user: User = Depends(get_current_user),
 ):
@@ -443,8 +466,6 @@ def create_host_request(
 		db.add(ticket)
 		db.commit()
 	db.refresh(ticket)
-	try:
-		_notify_admin_new_support_ticket(ticket)
-	except Exception:
-		pass
+	# Do not block the host UI on SMTP — hangs showed up as "Failed to fetch".
+	background_tasks.add_task(_notify_admin_new_support_ticket_safe, _ticket_notify_snapshot(ticket))
 	return _serialize(ticket)

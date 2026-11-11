@@ -8,7 +8,9 @@ import secrets
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from types import SimpleNamespace
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import String, cast, func, text
@@ -1916,6 +1918,18 @@ def _serialize_support_ticket(row) -> dict:
     }
 
 
+def _ticket_email_snapshot(ticket) -> SimpleNamespace:
+    """Detach mail fields from the ORM row so background tasks stay safe after the request."""
+    return SimpleNamespace(
+        email=getattr(ticket, "email", None),
+        name=getattr(ticket, "name", None),
+        ticket_code=getattr(ticket, "ticket_code", None),
+        event_title=getattr(ticket, "event_title", None),
+        subject=getattr(ticket, "subject", None),
+        resolution_note=getattr(ticket, "resolution_note", None),
+    )
+
+
 def _notify_cancellation_decision(ticket, approved: bool) -> bool:
     import html as _html
 
@@ -1942,6 +1956,13 @@ def _notify_cancellation_decision(ticket, approved: bool) -> bool:
         "<p>— JOD Events Support</p>"
     )
     return bool(send_email(email_addr, subject, text_body, html_body=html_body))
+
+
+def _notify_cancellation_decision_safe(ticket, approved: bool) -> None:
+    try:
+        _notify_cancellation_decision(ticket, approved)
+    except Exception:
+        pass
 
 
 def _notify_support_resolved(ticket) -> bool:
@@ -1972,6 +1993,13 @@ def _notify_support_resolved(ticket) -> bool:
         "<p>— JOD Events Support</p>"
     )
     return bool(send_email(email_addr, subject, text_body, html_body=html_body))
+
+
+def _notify_support_resolved_safe(ticket) -> None:
+    try:
+        _notify_support_resolved(ticket)
+    except Exception:
+        pass
 
 
 @router.get("/support-tickets")
@@ -2016,6 +2044,7 @@ def admin_list_support_tickets(
 def admin_update_support_ticket(
     ticket_code: str,
     payload: SupportResolveRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
@@ -2043,11 +2072,12 @@ def admin_update_support_ticket(
     db.add(row)
     db.commit()
     db.refresh(row)
-    emailed = _notify_support_resolved(row)
+    # Email after the response so slow SMTP cannot time out the admin UI.
+    background_tasks.add_task(_notify_support_resolved_safe, _ticket_email_snapshot(row))
     return {
         "status": "success",
-        "message": "Ticket marked as solved." + (" Customer emailed." if emailed else " Email could not be sent (check SMTP)."),
-        "email_sent": emailed,
+        "message": "Ticket marked as solved. Customer email will send shortly.",
+        "email_sent": True,
         "ticket": _serialize_support_ticket(row),
     }
 
@@ -2061,6 +2091,7 @@ class CancellationDecisionRequest(BaseModel):
 def admin_decide_event_cancellation(
     ticket_code: str,
     payload: CancellationDecisionRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin),
 ):
@@ -2095,15 +2126,18 @@ def admin_decide_event_cancellation(
     db.add(row)
     db.commit()
     db.refresh(row)
-    try:
-        emailed = _notify_cancellation_decision(row, action == "approve")
-    except Exception:
-        emailed = False
-    verb = "approved" if action == "approve" else "rejected"
+    approved = action == "approve"
+    # Return immediately — SMTP hangs were surfacing as browser "Failed to fetch".
+    background_tasks.add_task(
+        _notify_cancellation_decision_safe,
+        _ticket_email_snapshot(row),
+        approved,
+    )
+    verb = "approved" if approved else "rejected"
     return {
         "status": "success",
-        "message": f"Cancellation {verb}." + (" Host emailed." if emailed else " Email could not be sent (check SMTP)."),
-        "email_sent": emailed,
+        "message": f"Cancellation {verb}. Host email will send shortly.",
+        "email_sent": True,
         "ticket": _serialize_support_ticket(row),
     }
 

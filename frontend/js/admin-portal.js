@@ -1323,11 +1323,16 @@
 			document.getElementById("supportModal").hidden = true;
 			await refresh();
 		} catch (err) {
-			alert(err.message || "Could not save the decision.");
+			const raw = (err && err.message) || "";
+			const msg = /failed to fetch|networkerror|load failed/i.test(raw)
+				? "Could not reach the server. Refresh Help & Support — the decision may already be saved."
+				: (raw || "Could not save the decision.");
+			alert(msg);
 			if (btn && btn.isConnected) {
 				btn.disabled = false;
 				btn.textContent = label;
 			}
+			try { await refresh(); } catch (_) {}
 		}
 	}
 
@@ -1353,11 +1358,16 @@
 			document.getElementById("supportModal").hidden = true;
 			await refresh();
 		} catch (err) {
-			alert(err.message || "Could not mark ticket as solved.");
+			const raw = (err && err.message) || "";
+			const msg = /failed to fetch|networkerror|load failed/i.test(raw)
+				? "Could not reach the server. Refresh Help & Support — the ticket may already be solved."
+				: (raw || "Could not mark ticket as solved.");
+			alert(msg);
 			if (btn && btn.isConnected) {
 				btn.disabled = false;
 				btn.textContent = "Mark as solved & notify";
 			}
+			try { await refresh(); } catch (_) {}
 		}
 	}
 

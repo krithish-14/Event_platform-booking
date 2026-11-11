@@ -43,11 +43,21 @@
 		if (json) h["Content-Type"] = "application/json";
 		return h;
 	}
+	function fetchOpts(extra) {
+		return Object.assign({ credentials: "include", cache: "no-store" }, extra || {});
+	}
 	function errorText(data, fallback) {
 		var d = data && data.detail;
 		if (typeof d === "string" && d.trim()) return d;
 		if (Array.isArray(d) && d.length) return d.map(function (x) { return (x && x.msg) || String(x); }).join(" ");
 		return fallback;
+	}
+	function networkErrorText(err, fallback) {
+		var msg = (err && err.message) || "";
+		if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+			return "Could not reach the server. Refresh and try again. If this keeps happening, the previous request may already have been saved — check your request list.";
+		}
+		return msg || fallback || "Could not send your request.";
 	}
 	function categoryById(id) {
 		for (var i = 0; i < CATEGORIES.length; i++) if (CATEGORIES[i].id === id) return CATEGORIES[i];
@@ -163,7 +173,7 @@
 			renderCancelState();
 			return Promise.resolve(state.cancel);
 		}
-		return fetch(api("/host/cancellation-status?event_id=" + encodeURIComponent(eventId)), { headers: headers(false) })
+		return fetch(api("/host/cancellation-status?event_id=" + encodeURIComponent(eventId)), fetchOpts({ headers: headers(false) }))
 			.then(function (res) { return res.ok ? res.json() : { state: "none" }; })
 			.catch(function () { return { state: "none" }; })
 			.then(function (data) {
@@ -174,7 +184,7 @@
 	}
 
 	function loadRequests() {
-		return fetch(api("/host/requests"), { headers: headers(false) })
+		return fetch(api("/host/requests"), fetchOpts({ headers: headers(false) }))
 			.then(function (res) { return res.ok ? res.json() : []; })
 			.catch(function () { return []; })
 			.then(function (rows) {
@@ -206,7 +216,7 @@
 		if (btn) { btn.disabled = true; btn.innerHTML = "<span>Sending\u2026</span>"; }
 		var body = { category: cat.id, subject: subject, message: message };
 		if (cat.needsEvent && eventId) body.event_id = String(eventId);
-		fetch(api("/host/requests"), { method: "POST", headers: headers(true), body: JSON.stringify(body) })
+		fetch(api("/host/requests"), fetchOpts({ method: "POST", headers: headers(true), body: JSON.stringify(body) }))
 			.then(function (res) {
 				return res.json().catch(function () { return {}; }).then(function (data) {
 					if (!res.ok) throw new Error(errorText(data, "Could not send your request."));
@@ -224,7 +234,7 @@
 				renderCategories();
 				return load();
 			})
-			.catch(function (err) { setError((err && err.message) || "Could not send your request."); })
+			.catch(function (err) { setError(networkErrorText(err, "Could not send your request.")); })
 			.then(function () {
 				state.busy = false;
 				if (btn) { btn.disabled = false; btn.innerHTML = "<span>Send request</span>"; }
