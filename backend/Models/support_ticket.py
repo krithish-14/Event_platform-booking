@@ -7,9 +7,9 @@ import random
 import threading
 import uuid
 
-from sqlalchemy import Column, DateTime, String, Text, Uuid, text
+from sqlalchemy import Column, DateTime, String, Text, text
 
-from Models.base import Base
+from Models.base import GUID, Base
 from Utils.datetimes import utc_now
 
 _EXTRA_COLUMNS = (
@@ -69,7 +69,9 @@ def generate_ticket_code():
 class SupportTicket(Base):
 	__tablename__ = "support_tickets"
 
-	id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+	# Live Postgres stores this as VARCHAR/CHAR(36). Native Uuid() made UPDATE
+	# fail with: operator does not exist: character varying = uuid
+	id = Column(GUID, primary_key=True, default=uuid.uuid4, index=True)
 	ticket_code = Column(String(20), unique=True, nullable=False, index=True, default=generate_ticket_code)
 	customer_id = Column(String(50), nullable=True, index=True)
 	name = Column(String(200), nullable=False)
