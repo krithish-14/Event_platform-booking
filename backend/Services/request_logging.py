@@ -32,6 +32,8 @@ class JsonLogFormatter(logging.Formatter):
             value = getattr(record, key, None)
             if value not in (None, ""):
                 payload[key] = value
+        if record.exc_info and record.exc_info[1] is not None:
+            payload["exception"] = f"{type(record.exc_info[1]).__name__}: {record.exc_info[1]}"
         return json.dumps(payload, default=str)
 
 
@@ -54,17 +56,34 @@ def new_request_id() -> str:
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
+        from starlette.responses import JSONResponse
+
         request_id = request.headers.get("x-request-id") or new_request_id()
         request.state.request_id = request_id
         path = request.url.path
         logger = logging.getLogger("jod")
         try:
             response = await call_next(request)
-        except Exception:
+        except Exception as exc:
+            # Put the exception text in the message so JsonLogFormatter keeps it.
             logger.exception(
-                "unhandled_error",
-                extra={"request_id": request_id, "endpoint": path, "error_type": "unhandled"},
+                "unhandled_error %s: %s",
+                type(exc).__name__,
+                exc,
+                extra={"request_id": request_id, "endpoint": path, "error_type": type(exc).__name__},
             )
+            # Return JSON here so browsers get a readable body + CORS can attach.
+            # Re-raising through BaseHTTPMiddleware often became an opaque 500 /
+            # "Failed to fetch" for admin Approve.
+            if path.startswith("/api/"):
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "detail": f"{type(exc).__name__}: {exc}"[:400],
+                        "request_id": request_id,
+                    },
+                    headers={"X-Request-ID": request_id},
+                )
             raise
         response.headers["X-Request-ID"] = request_id
         status_code = response.status_code

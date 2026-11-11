@@ -112,6 +112,8 @@ class CookieCsrfMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         cookie_token = request.cookies.get(CSRF_COOKIE_NAME) or ""
         header_token = request.headers.get(CSRF_HEADER_NAME) or ""
-        if not cookie_token or not header_token or not hmac.compare_digest(cookie_token, header_token):
+        # compare_digest raises on length mismatch → opaque HTTP 500 / Failed to fetch.
+        tokens_ok = bool(cookie_token) and bool(header_token) and len(cookie_token) == len(header_token)
+        if not tokens_ok or not hmac.compare_digest(cookie_token, header_token):
             return JSONResponse(status_code=403, content={"detail": "CSRF validation failed."})
         return await call_next(request)

@@ -2118,51 +2118,55 @@ def admin_decide_event_cancellation(
     # Do NOT run ALTER TABLE here — a waiting ACCESS EXCLUSIVE lock made Approve
     # hang until nginx/Cloudflare dropped the socket ("Failed to fetch").
     # Columns already exist in production; list/GET already uses them.
-    logging.getLogger("uvicorn.error").warning(
+    log = logging.getLogger("uvicorn.error")
+    log.warning(
         "[SUPPORT-DECISION] start code=%r action=%r",
         ticket_code,
         getattr(payload, "action", None),
     )
-    action = (payload.action or "").strip().lower()
-    if action not in ("approve", "reject"):
-        raise HTTPException(status_code=400, detail="Choose approve or reject.")
-    code = str(ticket_code or "").strip().upper()
-    row = db.query(SupportTicket).filter(SupportTicket.ticket_code == code).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Support ticket not found.")
-    if row.category != CANCEL_CATEGORY or not row.event_id:
-        raise HTTPException(status_code=400, detail="Only event cancellation requests need a decision.")
-    current = (row.decision or "pending").lower()
-    if current != "pending":
-        raise HTTPException(status_code=409, detail=f"This request was already {current}.")
-    note = (payload.note or "").strip() or None
-    if action == "reject" and not note:
-        raise HTTPException(status_code=400, detail="Add a short note so the host knows why it was rejected.")
-    now = utc_now()
-    row.decision = DECISION_APPROVED if action == "approve" else DECISION_REJECTED
-    row.decided_at = now
-    row.status = "resolved"
-    row.resolution_note = note
-    row.resolved_at = now
-    row.updated_at = now
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    approved = action == "approve"
-    _spawn_email(_notify_cancellation_decision_safe, _ticket_email_snapshot(row), approved)
-    verb = "approved" if approved else "rejected"
-    logging.getLogger("uvicorn.error").warning(
-        "[SUPPORT-DECISION] done code=%s decision=%s",
-        code,
-        row.decision,
-    )
-    return {
-        "status": "success",
-        "message": f"Cancellation {verb}. Host email will send shortly.",
-        "email_sent": True,
-        "ticket": _serialize_support_ticket(row),
-        "deploy_marker": "decision-no-alter-v2",
-    }
+    try:
+        action = (payload.action or "").strip().lower()
+        if action not in ("approve", "reject"):
+            raise HTTPException(status_code=400, detail="Choose approve or reject.")
+        code = str(ticket_code or "").strip().upper()
+        row = db.query(SupportTicket).filter(SupportTicket.ticket_code == code).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Support ticket not found.")
+        if row.category != CANCEL_CATEGORY or not row.event_id:
+            raise HTTPException(status_code=400, detail="Only event cancellation requests need a decision.")
+        current = (row.decision or "pending").lower()
+        if current != "pending":
+            raise HTTPException(status_code=409, detail=f"This request was already {current}.")
+        note = (payload.note or "").strip() or None
+        if action == "reject" and not note:
+            raise HTTPException(status_code=400, detail="Add a short note so the host knows why it was rejected.")
+        now = utc_now()
+        row.decision = DECISION_APPROVED if action == "approve" else DECISION_REJECTED
+        row.decided_at = now
+        row.status = "resolved"
+        row.resolution_note = note
+        row.resolved_at = now
+        row.updated_at = now
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        approved = action == "approve"
+        _spawn_email(_notify_cancellation_decision_safe, _ticket_email_snapshot(row), approved)
+        verb = "approved" if approved else "rejected"
+        log.warning("[SUPPORT-DECISION] done code=%s decision=%s", code, row.decision)
+        return {
+            "status": "success",
+            "message": f"Cancellation {verb}. Host email will send shortly.",
+            "email_sent": True,
+            "ticket": _serialize_support_ticket(row),
+            "deploy_marker": "decision-no-alter-v3",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _db_safe_rollback(db)
+        log.exception("[SUPPORT-DECISION] failed code=%r err=%s", ticket_code, exc)
+        raise HTTPException(status_code=500, detail=f"Decision save failed: {type(exc).__name__}: {exc}") from exc
 
 
 class HostReviewRequest(BaseModel):
