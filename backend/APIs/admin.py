@@ -2,6 +2,7 @@
 Admin portal APIs — list form submissions and generate QR tickets.
 """
 
+import logging
 import os
 import random
 import secrets
@@ -2117,7 +2118,11 @@ def admin_decide_event_cancellation(
     # Do NOT run ALTER TABLE here — a waiting ACCESS EXCLUSIVE lock made Approve
     # hang until nginx/Cloudflare dropped the socket ("Failed to fetch").
     # Columns already exist in production; list/GET already uses them.
-    print(f"[SUPPORT-DECISION] start code={ticket_code!r} action={getattr(payload, 'action', None)!r}", flush=True)
+    logging.getLogger("uvicorn.error").warning(
+        "[SUPPORT-DECISION] start code=%r action=%r",
+        ticket_code,
+        getattr(payload, "action", None),
+    )
     action = (payload.action or "").strip().lower()
     if action not in ("approve", "reject"):
         raise HTTPException(status_code=400, detail="Choose approve or reject.")
@@ -2146,13 +2151,17 @@ def admin_decide_event_cancellation(
     approved = action == "approve"
     _spawn_email(_notify_cancellation_decision_safe, _ticket_email_snapshot(row), approved)
     verb = "approved" if approved else "rejected"
-    print(f"[SUPPORT-DECISION] done code={code} decision={row.decision}", flush=True)
+    logging.getLogger("uvicorn.error").warning(
+        "[SUPPORT-DECISION] done code=%s decision=%s",
+        code,
+        row.decision,
+    )
     return {
         "status": "success",
         "message": f"Cancellation {verb}. Host email will send shortly.",
         "email_sent": True,
         "ticket": _serialize_support_ticket(row),
-        "deploy_marker": "decision-no-alter-v1",
+        "deploy_marker": "decision-no-alter-v2",
     }
 
 
