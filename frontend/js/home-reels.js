@@ -28,6 +28,14 @@
 
 	const REELS = [
 		{
+			id: "triennial-conference",
+			shortcode: "De92NEfStv5",
+			title: "Triennial conference",
+			caption: "Here's a glimpse of what goes behind the scenes at JOD Events.",
+			instagram: "https://www.instagram.com/reel/De92NEfStv5/",
+			poster: asset("images/video/De92NEfStv5.jpg")
+		},
+		{
 			id: "dandiya-nights",
 			shortcode: "DebmZTjy8_Q",
 			title: "Dandiya Nights",
