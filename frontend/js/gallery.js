@@ -23,7 +23,6 @@
 	/* --------------------------------------------------------------------------
 	   Event Galleries Data (Configured with Cloudflare R2 Folders)
 	   - Diwali Celebration: images/Diwali Celebration/
-	   - Mupperum Vizha: images/MUPPERUM VIZHA/
 	   - Singapenn Marathon 2026: images/Singapenn marathon/
 	   - Sandd: images/Sandd/
 	   - Rotary Business Meet: images/Conference/
@@ -51,24 +50,6 @@
 				{ id: "dw-8", title: "Diwali Celebration", file: "8.webp", type: "image" },
 				{ id: "dw-9", title: "Diwali Celebration", file: "9.webp", type: "image" },
 				{ id: "dw-10", title: "Diwali Celebration", file: "10.webp", type: "image" }
-			]
-		},
-		{
-			id: "mupperum-vizha",
-			name: "Mupperum Vizha",
-			folder: "images/MUPPERUM VIZHA",
-			items: [
-				{ id: "mv-1", title: "Mupperum Vizha", file: "1.webp", type: "image" },
-				{ id: "mv-2", title: "Mupperum Vizha", file: "2.webp", type: "image" },
-				{ id: "mv-3", title: "Mupperum Vizha", file: "3.webp", type: "image" },
-				{ id: "mv-4", title: "Mupperum Vizha", file: "4.webp", type: "image" },
-				{ id: "mv-5", title: "Mupperum Vizha", file: "5.webp", type: "image" },
-				{ id: "mv-6", title: "Mupperum Vizha", file: "6.webp", type: "image" },
-				{ id: "mv-7", title: "Mupperum Vizha", file: "7.webp", type: "image" },
-				{ id: "mv-9", title: "Mupperum Vizha", file: "9.webp", type: "image" },
-				{ id: "mv-10", title: "Mupperum Vizha", file: "10.webp", type: "image" },
-				{ id: "mv-11", title: "Mupperum Vizha", file: "11.webp", type: "image" },
-				{ id: "mv-12", title: "Mupperum Vizha", file: "12.webp", type: "image" }
 			]
 		},
 		{
@@ -251,23 +232,104 @@
 	}
 
 	/* --------------------------------------------------------------------------
-	   Event Buttons (Category Filter Pills)
+	   Interactive event picker (thumbnail chips + scroll)
 	   -------------------------------------------------------------------------- */
+	function eventCoverUrl(ev) {
+		if (!ev || !ev.items || !ev.items.length || !ev.folder) return "";
+		return asset(ev.folder + "/" + ev.items[0].file);
+	}
+
+	function eventPhotoCount(ev) {
+		if (!ev) return 0;
+		if (ev.id === "all") return ALL_EVENT_ITEMS.length;
+		return Array.isArray(ev.items) ? ev.items.length : 0;
+	}
+
+	function chipThumbMarkup(ev) {
+		if (ev.id === "all") {
+			const covers = EVENT_GALLERIES.filter((g) => g.items && g.items[0])
+				.slice(0, 3)
+				.map((g) => eventCoverUrl(g))
+				.filter(Boolean);
+			if (!covers.length) {
+				return `<span class="gallery-event-chip-thumb gallery-event-chip-thumb--all" aria-hidden="true"></span>`;
+			}
+			return `<span class="gallery-event-chip-thumb gallery-event-chip-thumb--mosaic" aria-hidden="true">${covers
+				.map((src) => `<img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async" />`)
+				.join("")}</span>`;
+		}
+		const cover = eventCoverUrl(ev);
+		if (!cover) {
+			return `<span class="gallery-event-chip-thumb" aria-hidden="true"></span>`;
+		}
+		return `<span class="gallery-event-chip-thumb" aria-hidden="true"><img src="${escapeHtml(cover)}" alt="" loading="lazy" decoding="async" /></span>`;
+	}
+
 	function renderEventButtons() {
 		if (!filtersContainer) return;
 		filtersContainer.innerHTML = EVENT_GALLERIES.map((ev) => {
 			const isActive = ev.id === activeEventId;
-			return `<button type="button" class="gallery-pill ${isActive ? "is-active" : ""}" data-event-id="${escapeHtml(ev.id)}" role="tab" aria-selected="${isActive}">
-				${escapeHtml(ev.name)}
+			const count = eventPhotoCount(ev);
+			const countLabel = count === 1 ? "1 photo" : count + " photos";
+			return `<button type="button" class="gallery-event-chip ${isActive ? "is-active" : ""}" data-event-id="${escapeHtml(ev.id)}" role="tab" aria-selected="${isActive}" aria-controls="carouselTrack">
+				${chipThumbMarkup(ev)}
+				<span class="gallery-event-chip-meta">
+					<span class="gallery-event-chip-name">${escapeHtml(ev.name)}</span>
+					<span class="gallery-event-chip-count">${escapeHtml(countLabel)}</span>
+				</span>
 			</button>`;
 		}).join("");
 
-		filtersContainer.querySelectorAll(".gallery-pill").forEach((pill) => {
-			pill.addEventListener("click", () => {
-				const id = pill.getAttribute("data-event-id");
-				selectEvent(id);
+		filtersContainer.querySelectorAll(".gallery-event-chip").forEach((chip) => {
+			chip.addEventListener("click", () => {
+				selectEvent(chip.getAttribute("data-event-id"));
 			});
 		});
+		updateFilterScrollButtons();
+	}
+
+	function updateFilterScrollButtons() {
+		const wrap = document.querySelector(".gallery-event-picker");
+		const prev = document.getElementById("galleryEventPrev");
+		const next = document.getElementById("galleryEventNext");
+		if (!filtersContainer || !prev || !next) return;
+		const maxScroll = Math.max(0, filtersContainer.scrollWidth - filtersContainer.clientWidth);
+		const left = filtersContainer.scrollLeft;
+		prev.disabled = left <= 4;
+		next.disabled = left >= maxScroll - 4;
+		if (wrap) wrap.classList.toggle("has-overflow", maxScroll > 8);
+	}
+
+	function bindEventPickerChrome() {
+		const prev = document.getElementById("galleryEventPrev");
+		const next = document.getElementById("galleryEventNext");
+		if (prev) {
+			prev.addEventListener("click", () => {
+				filtersContainer.scrollBy({ left: -Math.min(320, filtersContainer.clientWidth * 0.7), behavior: "smooth" });
+			});
+		}
+		if (next) {
+			next.addEventListener("click", () => {
+				filtersContainer.scrollBy({ left: Math.min(320, filtersContainer.clientWidth * 0.7), behavior: "smooth" });
+			});
+		}
+		if (filtersContainer) {
+			filtersContainer.addEventListener("scroll", updateFilterScrollButtons, { passive: true });
+			window.addEventListener("resize", updateFilterScrollButtons);
+			filtersContainer.addEventListener("keydown", (event) => {
+				const chips = Array.from(filtersContainer.querySelectorAll(".gallery-event-chip"));
+				const idx = chips.findIndex((chip) => chip.getAttribute("data-event-id") === activeEventId);
+				if (event.key === "ArrowRight" && idx < chips.length - 1) {
+					event.preventDefault();
+					selectEvent(chips[idx + 1].getAttribute("data-event-id"));
+					chips[idx + 1].focus();
+				} else if (event.key === "ArrowLeft" && idx > 0) {
+					event.preventDefault();
+					selectEvent(chips[idx - 1].getAttribute("data-event-id"));
+					chips[idx - 1].focus();
+				}
+			});
+		}
 	}
 
 	function selectEvent(eventId) {
@@ -281,16 +343,23 @@
 
 		currentIndex = 0;
 
-		document.querySelectorAll(".gallery-pill").forEach((pill) => {
-			const on = pill.getAttribute("data-event-id") === eventId;
-			pill.classList.toggle("is-active", on);
-			pill.setAttribute("aria-selected", String(on));
-			if (on && typeof pill.scrollIntoView === "function") {
-				pill.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+		document.querySelectorAll(".gallery-event-chip").forEach((chip) => {
+			const on = chip.getAttribute("data-event-id") === eventId;
+			chip.classList.toggle("is-active", on);
+			chip.setAttribute("aria-selected", String(on));
+			if (on && typeof chip.scrollIntoView === "function") {
+				chip.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
 			}
 		});
 
+		if (carouselWrapper) {
+			carouselWrapper.classList.remove("is-switching");
+			void carouselWrapper.offsetWidth;
+			carouselWrapper.classList.add("is-switching");
+		}
+
 		renderCarousel();
+		updateFilterScrollButtons();
 	}
 
 	/* --------------------------------------------------------------------------
@@ -553,6 +622,7 @@
 
 	document.addEventListener("DOMContentLoaded", () => {
 		renderEventButtons();
+		bindEventPickerChrome();
 		renderCarousel();
 		bindControls();
 	});
