@@ -22,6 +22,8 @@
 
 	/* --------------------------------------------------------------------------
 	   Event Galleries Data (Configured with Cloudflare R2 Folders)
+	   - Diwali Celebration: images/Diwali Celebration/
+	   - Mupperum Vizha: images/MUPPERUM VIZHA/
 	   - Singapenn Marathon 2026: images/Singapenn marathon/
 	   - Sandd: images/Sandd/
 	   - Rotary Business Meet: images/Conference/
@@ -33,6 +35,41 @@
 		{
 			id: "all",
 			name: "All Events"
+		},
+		{
+			id: "diwali-celebration",
+			name: "Diwali Celebration",
+			folder: "images/Diwali Celebration",
+			items: [
+				{ id: "dw-1", title: "Diwali Celebration", file: "1.webp", type: "image" },
+				{ id: "dw-2", title: "Diwali Celebration", file: "2.webp", type: "image" },
+				{ id: "dw-3", title: "Diwali Celebration", file: "3.webp", type: "image" },
+				{ id: "dw-4", title: "Diwali Celebration", file: "4.webp", type: "image" },
+				{ id: "dw-5", title: "Diwali Celebration", file: "5.webp", type: "image" },
+				{ id: "dw-6", title: "Diwali Celebration", file: "6.webp", type: "image" },
+				{ id: "dw-7", title: "Diwali Celebration", file: "7.webp", type: "image" },
+				{ id: "dw-8", title: "Diwali Celebration", file: "8.webp", type: "image" },
+				{ id: "dw-9", title: "Diwali Celebration", file: "9.webp", type: "image" },
+				{ id: "dw-10", title: "Diwali Celebration", file: "10.webp", type: "image" }
+			]
+		},
+		{
+			id: "mupperum-vizha",
+			name: "Mupperum Vizha",
+			folder: "images/MUPPERUM VIZHA",
+			items: [
+				{ id: "mv-1", title: "Mupperum Vizha", file: "1.webp", type: "image" },
+				{ id: "mv-2", title: "Mupperum Vizha", file: "2.webp", type: "image" },
+				{ id: "mv-3", title: "Mupperum Vizha", file: "3.webp", type: "image" },
+				{ id: "mv-4", title: "Mupperum Vizha", file: "4.webp", type: "image" },
+				{ id: "mv-5", title: "Mupperum Vizha", file: "5.webp", type: "image" },
+				{ id: "mv-6", title: "Mupperum Vizha", file: "6.webp", type: "image" },
+				{ id: "mv-7", title: "Mupperum Vizha", file: "7.webp", type: "image" },
+				{ id: "mv-9", title: "Mupperum Vizha", file: "9.webp", type: "image" },
+				{ id: "mv-10", title: "Mupperum Vizha", file: "10.webp", type: "image" },
+				{ id: "mv-11", title: "Mupperum Vizha", file: "11.webp", type: "image" },
+				{ id: "mv-12", title: "Mupperum Vizha", file: "12.webp", type: "image" }
+			]
 		},
 		{
 			id: "arangetram",
