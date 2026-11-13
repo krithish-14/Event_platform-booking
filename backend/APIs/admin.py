@@ -30,7 +30,11 @@ from Models.ticket import Ticket, unique_qr_token
 from Models.user import User
 from Services.auth_service import get_password_hash
 from Services.email import send_email
-from Services.whatsapp import send_whatsapp
+from Services.whatsapp import (
+    send_booking_confirmation_whatsapp,
+    send_whatsapp,
+    whatsapp_template_configured,
+)
 from Services.ticket_pdf import (
     admin_ticket_pdf_filename,
     build_admin_mticket_pdf_from_booking,
@@ -1515,7 +1519,21 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
     )
     if extra_text:
         wa_text = f"{wa_text}\n{extra_text}"
-    wa_sent, wa_channel, wa_link = send_whatsapp(phone, wa_text, image_url=image)
+
+    wa_message_id = None
+    if whatsapp_template_configured():
+        wa_sent, wa_channel, wa_link, wa_message_id = send_booking_confirmation_whatsapp(
+            phone,
+            name=attendee if attendee != "there" else "Guest",
+            event_name=event_title,
+            event_date=event_when,
+            ticket_type=booking.ticket_type or "General Admission",
+            booking_id=booking.booking_id,
+        )
+        if not wa_sent:
+            wa_sent, wa_channel, wa_link = send_whatsapp(phone, wa_text, image_url=image)
+    else:
+        wa_sent, wa_channel, wa_link = send_whatsapp(phone, wa_text, image_url=image)
 
     return {
         "website": True,
@@ -1529,6 +1547,7 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
         "whatsapp_channel": wa_channel,
         "whatsapp_url": wa_link,
         "whatsapp_to": phone or None,
+        "whatsapp_message_id": wa_message_id,
     }
 
 
