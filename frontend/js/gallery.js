@@ -22,6 +22,7 @@
 
 	/* --------------------------------------------------------------------------
 	   Event Galleries Data (Configured with Cloudflare R2 Folders)
+	   - Diyas: images/Diyas/
 	   - Diwali Celebration: images/Diwali Celebration/
 	   - Singapenn Marathon 2026: images/Singapenn marathon/
 	   - Sandd: images/Sandd/
@@ -34,6 +35,25 @@
 		{
 			id: "all",
 			name: "All Events"
+		},
+		{
+			id: "diyas",
+			name: "Diyas",
+			folder: "images/Diyas",
+			items: [
+				{ id: "dy-1", title: "Diyas", file: "1.png", type: "image" },
+				{ id: "dy-2", title: "Diyas", file: "2.png", type: "image" },
+				{ id: "dy-3", title: "Diyas", file: "3.png", type: "image" },
+				{ id: "dy-4", title: "Diyas", file: "4.png", type: "image" },
+				{ id: "dy-5", title: "Diyas", file: "5.png", type: "image" },
+				{ id: "dy-6", title: "Diyas", file: "6.png", type: "image" },
+				{ id: "dy-7", title: "Diyas", file: "7.png", type: "image" },
+				{ id: "dy-8", title: "Diyas", file: "8.png", type: "image" },
+				{ id: "dy-9", title: "Diyas", file: "9.png", type: "image" },
+				{ id: "dy-10", title: "Diyas", file: "10.png", type: "image" },
+				{ id: "dy-11", title: "Diyas", file: "11.png", type: "image" },
+				{ id: "dy-12", title: "Diyas", file: "12.png", type: "image" }
+			]
 		},
 		{
 			id: "diwali-celebration",
