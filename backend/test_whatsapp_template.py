@@ -120,6 +120,12 @@ class WhatsAppTemplateTests(unittest.TestCase):
             clear=True,
         ):
             self.assertEqual(zepto_whatsapp_api_base(), "https://cpaas.zoho.com/v1.1")
+        with patch.dict(
+            os.environ,
+            {"ZOHO_CPAAS_HOST": "cpaas.zoho.in"},
+            clear=True,
+        ):
+            self.assertEqual(zepto_whatsapp_api_base(), "https://cpaas.zoho.in/v1.1")
 
     @patch("Services.whatsapp.httpx.post")
     def test_send_template_success(self, mock_post):

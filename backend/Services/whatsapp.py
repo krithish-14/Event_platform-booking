@@ -145,7 +145,11 @@ def zepto_whatsapp_api_base() -> str:
         "ZEPTO_WHATSAPP_API_BASE",
         "ZOHO_CPAAS_API_BASE",
     ) or "https://cpaas.zoho.com/v1.1"
-    base = raw.rstrip("/")
+    base = raw.strip().rstrip("/")
+    if base.startswith("//"):
+        base = f"https:{base}"
+    elif "://" not in base:
+        base = f"https://{base}"
     if base.endswith("/whatsapp"):
         base = base[: -len("/whatsapp")]
     if not base.endswith("/v1.1"):
