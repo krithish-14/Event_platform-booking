@@ -79,25 +79,78 @@ def booking_confirmation_merge_info(
     }
 
 
+def _env_first(*names: str) -> str:
+    for name in names:
+        value = (os.getenv(name) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def zoho_cpaas_api_key() -> str:
+    return _env_first(
+        "ZOHO_CPAAS_API_KEY",
+        "ZEPTO_WHATSAPP_API_KEY",
+        "WHATSAPP_CPAAS_API_KEY",
+    )
+
+
+def zoho_cpaas_whatsapp_from() -> str:
+    return _env_first(
+        "ZOHO_CPAAS_WHATSAPP_FROM",
+        "ZEPTO_WHATSAPP_FROM",
+        "WHATSAPP_FROM",
+    )
+
+
+def zoho_cpaas_ticket_template_key() -> str:
+    return _env_first(
+        "ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_KEY",
+        "WHATSAPP_TEMPLATE_KEY",
+        "ZEPTO_WHATSAPP_TEMPLATE_KEY",
+    )
+
+
+def zoho_cpaas_ticket_template_alias() -> str:
+    return _env_first(
+        "ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_ALIAS",
+        "WHATSAPP_TEMPLATE_ALIAS",
+        "ZEPTO_WHATSAPP_TEMPLATE_ALIAS",
+    )
+
+
+def zoho_cpaas_agent_alias() -> str:
+    return _env_first("ZOHO_CPAAS_AGENT_ALIAS")
+
+
+def zoho_cpaas_whatsapp_test_to() -> str:
+    return _env_first("ZOHO_CPAAS_WHATSAPP_TEST_TO")
+
+
 def whatsapp_template_configured() -> bool:
-    key = (os.getenv("WHATSAPP_TEMPLATE_KEY") or os.getenv("ZEPTO_WHATSAPP_TEMPLATE_KEY") or "").strip()
-    alias = (os.getenv("WHATSAPP_TEMPLATE_ALIAS") or os.getenv("ZEPTO_WHATSAPP_TEMPLATE_ALIAS") or "").strip()
-    api_key = (
-        os.getenv("ZEPTO_WHATSAPP_API_KEY")
-        or os.getenv("ZOHO_CPAAS_API_KEY")
-        or os.getenv("WHATSAPP_CPAAS_API_KEY")
-        or ""
-    ).strip()
-    sender = (os.getenv("ZEPTO_WHATSAPP_FROM") or os.getenv("WHATSAPP_FROM") or "").strip()
+    key = zoho_cpaas_ticket_template_key()
+    alias = zoho_cpaas_ticket_template_alias()
+    api_key = zoho_cpaas_api_key()
+    sender = zoho_cpaas_whatsapp_from()
     return bool(api_key and sender and (key or alias))
 
 
 def zepto_whatsapp_api_base() -> str:
-    return (
-        os.getenv("ZEPTO_WHATSAPP_API_BASE")
-        or os.getenv("ZOHO_CPAAS_API_BASE")
-        or "https://cpaas.zoho.com/v1.1"
-    ).rstrip("/")
+    """
+    Resolve Zoho CPaaS WhatsApp API base ending in /v1.1.
+    Accepts ZOHO_CPAAS_HOST as host root or full base URL.
+    """
+    raw = _env_first(
+        "ZOHO_CPAAS_HOST",
+        "ZEPTO_WHATSAPP_API_BASE",
+        "ZOHO_CPAAS_API_BASE",
+    ) or "https://cpaas.zoho.com/v1.1"
+    base = raw.rstrip("/")
+    if base.endswith("/whatsapp"):
+        base = base[: -len("/whatsapp")]
+    if not base.endswith("/v1.1"):
+        base = f"{base}/v1.1"
+    return base
 
 
 def zepto_whatsapp_auth_header(api_key: str) -> str:
@@ -159,24 +212,16 @@ def send_whatsapp_template(
     if not number:
         return False, "none", "", None
 
-    api_key = (
-        os.getenv("ZEPTO_WHATSAPP_API_KEY")
-        or os.getenv("ZOHO_CPAAS_API_KEY")
-        or os.getenv("WHATSAPP_CPAAS_API_KEY")
-        or ""
-    ).strip()
-    sender = (os.getenv("ZEPTO_WHATSAPP_FROM") or os.getenv("WHATSAPP_FROM") or "").strip()
-    key = (
-        template_key
-        or os.getenv("WHATSAPP_TEMPLATE_KEY")
-        or os.getenv("ZEPTO_WHATSAPP_TEMPLATE_KEY")
-        or ""
-    ).strip()
+    api_key = zoho_cpaas_api_key()
+    sender = zoho_cpaas_whatsapp_from()
+    key = (template_key or zoho_cpaas_ticket_template_key()).strip()
     alias = (
         template_alias
-        or os.getenv("WHATSAPP_TEMPLATE_ALIAS")
-        or os.getenv("ZEPTO_WHATSAPP_TEMPLATE_ALIAS")
-        or ""
+        or _env_first(
+            "ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_ALIAS",
+            "WHATSAPP_TEMPLATE_ALIAS",
+            "ZEPTO_WHATSAPP_TEMPLATE_ALIAS",
+        )
     ).strip()
     if not api_key or not sender or not (key or alias):
         return False, "none", link, None
@@ -188,20 +233,27 @@ def send_whatsapp_template(
         template_alias=alias,
         merge_info=merge_info,
         attachment_file_key=attachment_file_key
-        or (os.getenv("WHATSAPP_TEMPLATE_FILE_KEY") or "").strip()
+        or _env_first("WHATSAPP_TEMPLATE_FILE_KEY", "ZOHO_CPAAS_WHATSAPP_FILE_KEY")
         or None,
         client_reference=client_reference,
     )
     url = f"{zepto_whatsapp_api_base()}/whatsapp"
-    _safe_print(f"[WHATSAPP] template to={payload.get('to')} key={key or alias}")
+    agent = zoho_cpaas_agent_alias()
+    _safe_print(
+        f"[WHATSAPP] template to={payload.get('to')} key={key or alias}"
+        + (f" agent={agent}" if agent else "")
+    )
     try:
+        headers = {
+            "Authorization": zepto_whatsapp_auth_header(api_key),
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        if agent:
+            headers["agent-alias"] = agent
         res = httpx.post(
             url,
-            headers={
-                "Authorization": zepto_whatsapp_auth_header(api_key),
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
+            headers=headers,
             json=payload,
             timeout=25,
         )

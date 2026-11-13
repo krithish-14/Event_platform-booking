@@ -103,13 +103,23 @@ class WhatsAppTemplateTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "ZEPTO_WHATSAPP_API_KEY": "tok",
-                "ZEPTO_WHATSAPP_FROM": "+919876500000",
-                "WHATSAPP_TEMPLATE_KEY": TEST_TEMPLATE_KEY,
+                "ZOHO_CPAAS_API_KEY": "tok",
+                "ZOHO_CPAAS_WHATSAPP_FROM": "+919876500000",
+                "ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_KEY": TEST_TEMPLATE_KEY,
             },
             clear=True,
         ):
             self.assertTrue(whatsapp_template_configured())
+
+    def test_host_normalizes_to_v1_1_base(self):
+        from Services.whatsapp import zepto_whatsapp_api_base
+
+        with patch.dict(
+            os.environ,
+            {"ZOHO_CPAAS_HOST": "https://cpaas.zoho.com"},
+            clear=True,
+        ):
+            self.assertEqual(zepto_whatsapp_api_base(), "https://cpaas.zoho.com/v1.1")
 
     @patch("Services.whatsapp.httpx.post")
     def test_send_template_success(self, mock_post):
@@ -125,10 +135,11 @@ class WhatsAppTemplateTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "ZEPTO_WHATSAPP_API_KEY": "tok",
-                "ZEPTO_WHATSAPP_FROM": "+919876500000",
-                "WHATSAPP_TEMPLATE_KEY": TEST_TEMPLATE_KEY,
-                "ZEPTO_WHATSAPP_API_BASE": "https://cpaas.zoho.com/v1.1",
+                "ZOHO_CPAAS_API_KEY": "tok",
+                "ZOHO_CPAAS_WHATSAPP_FROM": "+919876500000",
+                "ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_KEY": TEST_TEMPLATE_KEY,
+                "ZOHO_CPAAS_HOST": "https://cpaas.zoho.com",
+                "ZOHO_CPAAS_AGENT_ALIAS": "jod-agent",
             },
             clear=True,
         ):
@@ -148,6 +159,7 @@ class WhatsAppTemplateTests(unittest.TestCase):
         args, kwargs = mock_post.call_args
         self.assertEqual(args[0], "https://cpaas.zoho.com/v1.1/whatsapp")
         self.assertEqual(kwargs["headers"]["Authorization"], "Zoho-enczapikey tok")
+        self.assertEqual(kwargs["headers"]["agent-alias"], "jod-agent")
         body = kwargs["json"]
         self.assertEqual(body["template_key"], TEST_TEMPLATE_KEY)
         self.assertEqual(body["merge_info"]["Name"], "Krithish")
@@ -168,9 +180,9 @@ class WhatsAppTemplateTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "ZEPTO_WHATSAPP_API_KEY": "tok",
-                "ZEPTO_WHATSAPP_FROM": "+919876500000",
-                "WHATSAPP_TEMPLATE_KEY": "bad-key",
+                "ZOHO_CPAAS_API_KEY": "tok",
+                "ZOHO_CPAAS_WHATSAPP_FROM": "+919876500000",
+                "ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_KEY": "bad-key",
             },
             clear=True,
         ):
