@@ -4155,6 +4155,12 @@ html[data-theme="dark"] .dash-toast {
 	background-size: 10% 10%;
 	background-position: 0 0;
 }
+.ticket-live-card.is-canvas.has-bg-image {
+	/* Uploaded photo replaces the editor grid; keep cover/center from inline styles. */
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+}
 .ticket-live-card.is-canvas.has-selection {
 	/* Keep inset accent shadows; add selection ring outside. */
 	box-shadow:

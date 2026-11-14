@@ -1665,7 +1665,8 @@
 				setBgStatus("Uploading…");
 				Promise.resolve(self.onUploadImage(file, { purpose: "background", orientation: orient })).then(function (src) {
 					const clean = sanitizeMediaSrc(src);
-					if (!clean) {
+					const display = resolveTicketMediaUrl(clean);
+					if (!clean || !display) {
 						setBgStatus("Upload did not return a usable image.");
 						return;
 					}
@@ -1673,7 +1674,12 @@
 					if (self.layout.canvas_mode !== "custom") self.layout.canvas_mode = "custom";
 					self.renderPreview();
 					self.emitChange();
-					setBgStatus("Background image added.");
+					const probe = new Image();
+					probe.onload = function () { setBgStatus("Background image added."); };
+					probe.onerror = function () {
+						setBgStatus("Image uploaded, but it could not be loaded in the preview. Check that the API media URL is reachable.");
+					};
+					probe.src = display;
 				}).catch(function (err) {
 					const msg = err && err.message ? err.message : "Could not upload background image.";
 					setBgStatus(msg);
@@ -2461,13 +2467,30 @@
 		const orientClass = custom ? (" is-custom is-orient-" + (L.orientation === "portrait" ? "portrait" : "landscape") + (eticket ? " is-eticket" : "")) : "";
 		card.className = "ticket-live-card is-canvas style-" + (custom ? "custom" : (tmpl.id || "classic")) + orientClass + (hasSel ? " has-selection" : "") + (this.canvasSelected && !hasSel ? " is-canvas-selected" : "");
 		const customBg = L.card_color || "#ffffff";
-		card.style.background = isMidnight
-			? "linear-gradient(118deg, #4c1d95 0%, #6d28d9 46%, #7c3aed 100%)"
+		const solidBg = isMidnight
+			? ""
 			: (isSunset ? "#ff7a1a" : (isVip ? "#e6c15a" : (custom ? customBg : (L.card_color || p.card || "#fff"))));
-		const bgUrl = custom ? sanitizeMediaSrc(L.background_image) : "";
-		card.style.backgroundImage = bgUrl ? ("url(\"" + bgUrl.replace(/"/g, "") + "\")") : ((isSunset || isVip || custom) ? "none" : "");
-		card.style.backgroundSize = bgUrl ? "cover" : "";
-		card.style.backgroundPosition = bgUrl ? "center" : "";
+		/* Prefer backgroundColor + backgroundImage (not background shorthand) so a solid
+		   color does not wipe the uploaded ticket background image. */
+		if (isMidnight) {
+			card.style.background = "linear-gradient(118deg, #4c1d95 0%, #6d28d9 46%, #7c3aed 100%)";
+			card.style.backgroundImage = "";
+			card.style.backgroundSize = "";
+			card.style.backgroundPosition = "";
+			card.style.backgroundRepeat = "";
+		} else {
+			card.style.background = "";
+			card.style.backgroundColor = solidBg;
+			const bgSrc = custom ? sanitizeMediaSrc(L.background_image) : "";
+			const bgUrl = bgSrc ? resolveTicketMediaUrl(bgSrc) : "";
+			card.style.backgroundImage = bgUrl
+				? ("url(\"" + String(bgUrl).replace(/\\/g, "\\\\").replace(/"/g, "\\\"") + "\")")
+				: ((isSunset || isVip || custom) ? "none" : "");
+			card.style.backgroundSize = bgUrl ? "cover" : "";
+			card.style.backgroundPosition = bgUrl ? "center" : "";
+			card.style.backgroundRepeat = bgUrl ? "no-repeat" : "";
+			card.classList.toggle("has-bg-image", !!bgUrl);
+		}
 		card.style.color = L.text_color || (custom ? (relativeLuminance(customBg) > 0.179 ? "#111111" : "#ffffff") : (isMidnight || isSunset ? "#ffffff" : (isVip ? "#111111" : (p.text || "#111827"))));
 		card.style.setProperty("--ticket-accent", isMidnight ? "#c4b5fd" : accent);
 		card.style.setProperty("--ticket-muted", isMidnight ? "#ddd6fe" : (isSunset ? "#78716c" : (isVip ? "#d4a017" : (p.muted || "#6b7280"))));
