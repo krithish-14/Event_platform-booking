@@ -109,8 +109,41 @@ def _jpeg_dimensions(data: bytes) -> tuple[int, int]:
     return 280, 280
 
 
+def _media_id_from_path(path: str) -> str:
+    raw = str(path or "").strip()
+    m = re.search(r"/api/media/(?:private/)?([0-9a-fA-F-]{36})\b", raw)
+    return (m.group(1) if m else "").strip()
+
+
+def _load_bytes_from_media_store(path: str) -> bytes:
+    """Load public /api/media/{id} bytes from the DB without an HTTP round-trip."""
+    file_id = _media_id_from_path(path)
+    if not file_id:
+        return b""
+    try:
+        from Services.file_storage import decrypt_bytes, get_by_id
+        from Models.base import get_session_factory
+
+        SessionLocal = get_session_factory()
+        db = SessionLocal()
+        try:
+            stored = get_by_id(db, file_id)
+            if not stored or getattr(stored, "is_private", False):
+                return b""
+            return decrypt_bytes(stored.encrypted_data) or b""
+        finally:
+            db.close()
+    except Exception:
+        return b""
+
+
 def _fetch_bytes(url: str, timeout: float = 12.0) -> bytes:
     target = (url or "").strip()
+    if not target:
+        return b""
+    local = _load_bytes_from_media_store(target)
+    if local:
+        return local
     if not target.startswith("http://") and not target.startswith("https://"):
         return b""
     try:
@@ -314,7 +347,10 @@ def _via_pillow(data: bytes) -> Optional[tuple[str, bytes, int, int]]:
 
 
 def _load_poster_image(url: str) -> Optional[tuple[str, bytes, int, int]]:
-    data = _fetch_bytes(url)
+    raw = str(url or "").strip()
+    data = _fetch_bytes(raw) if raw else b""
+    if not data and raw and not raw.startswith("http"):
+        data = _fetch_bytes(_absolute_media_url(raw))
     if not data:
         return None
     if data[:2] == b"\xff\xd8":
@@ -1123,6 +1159,17 @@ def _render_canvas_ticket(
         f"{_round_rect_path(card_x, card_y, card_w, card_h, radius)} f",
     ]
     resource_extra = ""
+    xobjects: dict[str, tuple[bytes, int, int, str]] = {}
+    image_seq = 0
+    # Draw host background photo under accents/text so PDF matches the canvas preview.
+    if custom and layout.get("background_image"):
+        bg = _load_poster_image(str(layout.get("background_image") or ""))
+        if not bg:
+            bg = _load_poster_image(_absolute_media_url(str(layout.get("background_image") or "")))
+        if bg:
+            filt, payload, iw, ih = bg[0], bg[1], bg[2], bg[3]
+            xobjects["ImB"] = (payload, iw, ih, filt)
+            ops.append(_cover_image("ImB", card_x, card_y, card_w, card_h, iw, ih, radius))
     if custom:
         accent = hex_to_rgb01_safe(
             layout.get("accent_color") or ("#5b9dff" if custom_orient == "portrait" else "#e48aa8")
@@ -1216,14 +1263,6 @@ def _render_canvas_ticket(
             "Q",
         ])
 
-    xobjects: dict[str, tuple[bytes, int, int, str]] = {}
-    image_seq = 0
-    if custom and layout.get("background_image"):
-        bg = _load_poster_image(_absolute_media_url(str(layout.get("background_image") or "")))
-        if bg:
-            filt, payload, iw, ih = bg[0], bg[1], bg[2], bg[3]
-            xobjects["ImB"] = (payload, iw, ih, filt)
-            ops.append(_cover_image("ImB", card_x, card_y, card_w, card_h, iw, ih, 0))
     price_text = _money(total)
     qty_text = "1 Ticket" if qty == 1 else f"{qty} Tickets"
     date_value = date_label

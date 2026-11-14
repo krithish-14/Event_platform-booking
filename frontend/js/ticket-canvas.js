@@ -620,6 +620,7 @@
 		this._snap = "";
 		this.onChange = typeof opts.onChange === "function" ? opts.onChange : function () {};
 		this.onUploadImage = typeof opts.onUploadImage === "function" ? opts.onUploadImage : null;
+		this.readOnly = !!opts.readOnly;
 		this.selectedId = null;
 		this.canvasSelected = false;
 		this.toolsOpen = false;
@@ -1157,6 +1158,20 @@
 	TicketCanvasController.prototype.mount = function () {
 		if (!this.root) return;
 		this.applyFlagsToElements();
+		if (this.readOnly) {
+			this.root.classList.add("ticket-canvas-readonly-host");
+			this.root.innerHTML = [
+				'<div class="ticket-design-studio is-studio-layout is-readonly">',
+				'  <div class="ticket-canvas-workspace ticket-studio-canvas-wrap">',
+				'    <div class="ticket-canvas-stage" id="ticketCanvasStage">',
+				'      <div class="ticket-live-card is-canvas" id="ticketLiveCard" aria-live="polite"></div>',
+				'    </div>',
+				'  </div>',
+				'</div>',
+			].join("");
+			this.renderPreview();
+			return;
+		}
 		this.root.innerHTML = [
 			'<div class="ticket-design-studio is-studio-layout">',
 			'  <div class="ticket-studio-toolbar" id="ticketStudioToolbar" hidden>',
@@ -2340,9 +2355,18 @@
 					: (isMidnight
 						? '<div class="tc-el-row"><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>"
 						: '<div class="tc-el-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>"));
-			case "qr": return portraitCard
-				? '<div class="tc-scan"><span>SCAN</span><div class="tc-el-qr" aria-hidden="true"></div><span>ME!</span></div>'
-				: '<div class="tc-el-qr" aria-hidden="true"></div>';
+			case "qr": {
+				const qrToken = String(s.qrToken || "").trim();
+				const qrImg = qrToken
+					? '<img class="tc-el-qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' +
+						encodeURIComponent(qrToken) +
+						'" alt="Ticket QR code" />'
+					: "";
+				const qrBox = '<div class="tc-el-qr' + (qrImg ? " is-live" : "") + '" aria-hidden="' + (qrImg ? "false" : "true") + '">' + qrImg + "</div>";
+				return portraitCard
+					? '<div class="tc-scan"><span>SCAN</span>' + qrBox + "<span>ME!</span></div>"
+					: qrBox;
+			}
 			case "booking_id": {
 				if (isVip) return '<div class="vg-id"><strong>' + escapeHtml(s.bookingId) + "</strong></div>";
 				if (isSunset) return sgDetail("ID", s.bookingId);
@@ -2538,17 +2562,19 @@
 				else if (isVip && ["name", "email", "phone", "date", "venue", "price", "seat", "title", "ticket_type"].indexOf(el.type) >= 0) paint = "#111111";
 				else if (isVip && el.type === "stub") paint = "#f6e27a";
 			}
-			const handles = isLine
-				? '<span class="tc-handle tc-handle-e" data-resize="e" title="Extend"></span><span class="tc-handle tc-handle-w" data-resize="w" title="Extend"></span><span class="tc-handle tc-handle-s" data-resize="s" title="Thickness"></span>'
-				: '<span class="tc-handle tc-handle-nw" data-resize="nw"></span><span class="tc-handle tc-handle-ne" data-resize="ne"></span><span class="tc-handle tc-handle-sw" data-resize="sw"></span><span class="tc-handle tc-handle-se" data-resize="se"></span><span class="tc-handle tc-handle-n" data-resize="n"></span><span class="tc-handle tc-handle-s" data-resize="s"></span><span class="tc-handle tc-handle-e" data-resize="e"></span><span class="tc-handle tc-handle-w" data-resize="w"></span>';
+			const handles = self.readOnly
+				? ""
+				: (isLine
+					? '<span class="tc-handle tc-handle-e" data-resize="e" title="Extend"></span><span class="tc-handle tc-handle-w" data-resize="w" title="Extend"></span><span class="tc-handle tc-handle-s" data-resize="s" title="Thickness"></span>'
+					: '<span class="tc-handle tc-handle-nw" data-resize="nw"></span><span class="tc-handle tc-handle-ne" data-resize="ne"></span><span class="tc-handle tc-handle-sw" data-resize="sw"></span><span class="tc-handle tc-handle-se" data-resize="se"></span><span class="tc-handle tc-handle-n" data-resize="n"></span><span class="tc-handle tc-handle-s" data-resize="s"></span><span class="tc-handle tc-handle-e" data-resize="e"></span><span class="tc-handle tc-handle-w" data-resize="w"></span>');
 			/* Always mount chrome; CSS shows it only on .is-selected (selection updates via class, not full re-render). */
-			const removeCtrl = locked
+			const removeCtrl = (self.readOnly || locked)
 				? ""
 				: '<button type="button" class="tc-node-remove" data-remove title="Delete" aria-label="Delete" tabindex="-1">&times;</button>';
 			bits.push(
 				'<div class="tc-node' +
-					(selected ? " is-selected" : "") +
-					(hasSel && !selected ? " is-dimmed" : "") +
+					(!self.readOnly && selected ? " is-selected" : "") +
+					(!self.readOnly && hasSel && !selected ? " is-dimmed" : "") +
 					(locked ? " is-locked" : "") +
 					(def.shape ? " is-shape" : "") +
 					(isLine ? " is-line" : "") +

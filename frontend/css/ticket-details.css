@@ -7,6 +7,68 @@
 	color: #ffffff;
 }
 
+.ticket-designed-wrap {
+	margin: 0 auto 1.25rem;
+	max-width: 480px;
+}
+
+.ticket-designed-label {
+	margin: 0 0 0.55rem;
+	font-size: 0.82rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: rgba(255, 255, 255, 0.72);
+}
+
+.ticket-designed-note {
+	margin: 0.65rem 0 0;
+	font-size: 0.78rem;
+	color: rgba(255, 255, 255, 0.55);
+	text-align: center;
+}
+
+.ticket-designed-host {
+	width: 100%;
+}
+
+.ticket-designed-host .ticket-design-studio.is-readonly {
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	padding: 0;
+}
+
+.ticket-designed-host .ticket-canvas-workspace,
+.ticket-designed-host .ticket-canvas-stage {
+	min-height: 0;
+	padding: 0.35rem 0 0.6rem;
+	background: transparent;
+}
+
+.ticket-designed-host .ticket-live-card.is-canvas {
+	margin: 0 auto;
+	box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+	cursor: default;
+	touch-action: pan-y;
+}
+
+.ticket-designed-host .tc-el-qr.is-live {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #fff;
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.ticket-designed-host .tc-el-qr-img {
+	width: 86%;
+	height: 86%;
+	object-fit: contain;
+	display: block;
+}
+
 .ticket-main-section {
 	padding: calc(var(--site-header-height, 4.6rem) + 1.5rem) 0 4rem;
 }

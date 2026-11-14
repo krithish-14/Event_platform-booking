@@ -354,9 +354,69 @@
  });
 	}
 
+	let designedTicketCtrl = null;
+
+	function formatBookingCode(bookingId) {
+		const shortId = String(bookingId || "00000000").replace(/-/g, "").substring(0, 8).toUpperCase();
+		return "JOD-" + shortId;
+	}
+
+	function renderDesignedTicket(data) {
+		const wrap = document.getElementById("ticketDesignedWrap");
+		const host = document.getElementById("ticketDesignedHost");
+		if (!wrap || !host) return;
+		const layout = data && data.ticket_layout && typeof data.ticket_layout === "object"
+			? data.ticket_layout
+			: null;
+		const custom = !!(layout && layout.canvas_mode === "custom" && Array.isArray(layout.canvas_elements) && layout.canvas_elements.length);
+		if (!custom || !window.JodTicketCanvas) {
+			wrap.hidden = true;
+			host.innerHTML = "";
+			designedTicketCtrl = null;
+			return;
+		}
+		wrap.hidden = false;
+		const shortCode = formatBookingCode(data.booking_id);
+		const sample = {
+			title: data.event_title || "Event",
+			date: formatEventWhen(data, "start") || "Date TBA",
+			time: data.event_start_time || "",
+			venue: data.event_venue || "Venue TBA",
+			ticketType: data.ticket_type || "General Admission",
+			seat: data.seat_number || "General Admission",
+			qty: ticketCountLabel(data),
+			price: formatRupees(Number(data.total_price || 0)),
+			bookingId: shortCode,
+			ticketId: data.ticket_id || shortCode,
+			organizer: "JOD Events",
+			attendeeName: data.receiver_name || data.user_name || "Guest",
+			attendeeEmail: data.receiver_email || data.receiver_email_masked || "",
+			attendeePhone: data.receiver_phone || data.receiver_phone_masked || "",
+			qrToken: data.qr_token || "",
+		};
+		try {
+			if (designedTicketCtrl && typeof designedTicketCtrl.setLayout === "function") {
+				designedTicketCtrl.setLayout(layout);
+				designedTicketCtrl.setSample(sample);
+			} else {
+				host.innerHTML = "";
+				designedTicketCtrl = window.JodTicketCanvas.create({
+					host: host,
+					layout: layout,
+					sample: sample,
+					readOnly: true,
+					premium: true,
+				});
+			}
+		} catch (_) {
+			wrap.hidden = true;
+		}
+	}
+
 	function renderTicketDOM(data) {
  if (!data) return;
  ensureTicketAttendeeBlock();
+ renderDesignedTicket(data);
 
  const isCancelled = (data.status || "").toUpperCase() === "CANCELLED";
  const isCheckedIn = !isCancelled && String(data.ticket_status || "").toUpperCase() === "USED";

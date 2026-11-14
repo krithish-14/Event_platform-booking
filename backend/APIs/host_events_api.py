@@ -2357,22 +2357,49 @@ async def upload_design_asset(
     if not is_allowed_image_bytes(contents, file.content_type or ""):
         raise HTTPException(status_code=400, detail=INVALID_IMAGE_TYPE_MESSAGE)
 
-    from Services.file_storage import public_url, store_bytes
+    from Services.file_storage import public_url, store_bytes, store_public_image
+    from Services import r2_storage
+
+    # Ticket backgrounds (and other public design assets) prefer R2 CDN URLs so
+    # attendee website tickets, PDFs, email, and WhatsApp can all load the same image.
+    use_public_cdn = asset_type in {
+        "banner",
+        "details_banner",
+        "card_image",
+        "sponsor_logo",
+        "artist_photo",
+        "gallery",
+        "ticket",
+        "ticket_bg",
+        "logo",
+        "payment_qr",
+    } and r2_storage.is_configured()
 
     try:
-        stored = store_bytes(
-            db,
-            data=contents,
-            filename=file.filename or f"{asset_type}.jpg",
-            content_type=file.content_type,
-            kind="event_media",
-            purpose=asset_type,
-            owner_customer_id=current_user.customer_id if current_user else None,
-            owner_email=email_clean,
-        )
+        if use_public_cdn:
+            file_url = store_public_image(
+                db,
+                data=contents,
+                filename=file.filename or f"{asset_type}.jpg",
+                content_type=file.content_type,
+                purpose=asset_type,
+                owner_customer_id=current_user.customer_id if current_user else None,
+                owner_email=email_clean,
+            )
+        else:
+            stored = store_bytes(
+                db,
+                data=contents,
+                filename=file.filename or f"{asset_type}.jpg",
+                content_type=file.content_type,
+                kind="event_media",
+                purpose=asset_type,
+                owner_customer_id=current_user.customer_id if current_user else None,
+                owner_email=email_clean,
+            )
+            file_url = public_url(stored)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    file_url = public_url(stored)
     db.commit()
     return {
         "message": f"{asset_type.replace('_', ' ').title()} uploaded successfully.",

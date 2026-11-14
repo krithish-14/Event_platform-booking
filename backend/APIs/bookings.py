@@ -681,6 +681,14 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None, *, active_qr_to
     start_display, end_display, start_time, end_time = _event_schedule_display(
         db, b.event_id, event_start, b.event.end_date if b.event else None
     )
+    ticket_layout = None
+    if db is not None and b.event_id is not None:
+        try:
+            from Services.ticket_pdf import _published_ticket_layout_for_event
+
+            ticket_layout = _published_ticket_layout_for_event(db, b.event_id)
+        except Exception:
+            ticket_layout = None
 
     payload = {
         "booking_id": str(b.booking_id),
@@ -722,6 +730,7 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None, *, active_qr_to
         "booked_at": b.booked_at,
         "card_image": card_image or ticket_image,
         "image_url": ticket_image or hero_image,
+        "ticket_layout": ticket_layout,
         "agenda": _booking_event_agenda(b.event_id, db),
         "event_end_date": b.event.end_date if b.event else None,
         "language": getattr(b.event, "language", None) if b.event else None,
