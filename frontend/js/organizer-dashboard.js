@@ -1398,6 +1398,7 @@ async function initOrganizerDashboard() {
 		sponsor_logo: { min: 50 * KB, max: 1 * MB, recommended: "50\u2013200 KB", maximum: "1 MB" },
 		artist_photo: { min: 200 * KB, max: 2 * MB, recommended: "200\u2013500 KB", maximum: "2 MB" },
 		ticket: { min: 200 * KB, max: 3 * MB, recommended: "200\u2013800 KB", maximum: "3 MB" },
+		ticket_bg: { min: 1 * MB, max: 5 * MB, recommended: "1\u20135 MB", maximum: "5 MB" },
 		document: { min: 500 * KB, max: 5 * MB, recommended: "500 KB\u20132 MB", maximum: "5 MB" },
 	};
 	const BANNER_TARGET_W = 1200;
@@ -1406,6 +1407,13 @@ async function initOrganizerDashboard() {
 	const CARD_TARGET_W = 400;
 	const CARD_TARGET_H = 200;
 	const CARD_DIM_MSG = "Your image is not in this standard size. Use 400 \u00d7 200 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
+	/* Match ticket canvas designSize() in ticket-canvas.js */
+	const TICKET_BG_PORTRAIT_W = 570;
+	const TICKET_BG_PORTRAIT_H = 760;
+	const TICKET_BG_LANDSCAPE_W = 760;
+	const TICKET_BG_LANDSCAPE_H = 291;
+	const TICKET_BG_PORTRAIT_MSG = "Your image is not in this standard size. Portrait / default tickets need 570 \u00d7 760 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
+	const TICKET_BG_LANDSCAPE_MSG = "Your image is not in this standard size. Landscape tickets need 760 \u00d7 291 px. Up to 99 px higher or lower is allowed; 100 px or more off will be rejected.";
 
 	function imageFileLimit(limitKey) {
 		return IMAGE_FILE_LIMITS[limitKey] || IMAGE_FILE_LIMITS.gallery;
@@ -1450,6 +1458,15 @@ async function initOrganizerDashboard() {
 		}
 		if (opts.requireCardSize) {
 			await assertImagePixelSize(file, CARD_TARGET_W, CARD_TARGET_H, CARD_DIM_MSG);
+		}
+		if (opts.requireTicketBgSize) {
+			const portrait = String(opts.ticketBgOrientation || "").toLowerCase() === "portrait";
+			await assertImagePixelSize(
+				file,
+				portrait ? TICKET_BG_PORTRAIT_W : TICKET_BG_LANDSCAPE_W,
+				portrait ? TICKET_BG_PORTRAIT_H : TICKET_BG_LANDSCAPE_H,
+				portrait ? TICKET_BG_PORTRAIT_MSG : TICKET_BG_LANDSCAPE_MSG
+			);
 		}
 	}
 
@@ -1500,11 +1517,15 @@ async function initOrganizerDashboard() {
 		el.style.display = message ? "block" : "none";
 	}
 
-	async function uploadDesignAsset(file, assetType) {
+	async function uploadDesignAsset(file, assetType, options) {
 		if (!file || !email) throw new Error("Missing file or organizer email.");
+		const opts = options || {};
+		const isTicketBg = assetType === "ticket_bg";
 		await validateImageFile(file, {
 			requireBannerSize: assetType === "banner" || assetType === "details_banner",
 			requireCardSize: assetType === "card_image",
+			requireTicketBgSize: isTicketBg || !!opts.requireTicketBgSize,
+			ticketBgOrientation: opts.ticketBgOrientation || "landscape",
 			limitKey: assetType
 		});
 		const fd = new FormData();
@@ -5646,7 +5667,15 @@ async function initOrganizerDashboard() {
 				layout: ticketLayoutState,
 				formFields: formFields,
 				sample: samplePayload,
-				onUploadImage: function (file) { return uploadDesignAsset(file, "ticket"); },
+				onUploadImage: function (file, meta) {
+					meta = meta || {};
+					if (meta.purpose === "background") {
+						return uploadDesignAsset(file, "ticket_bg", {
+							ticketBgOrientation: meta.orientation === "portrait" ? "portrait" : "landscape"
+						});
+					}
+					return uploadDesignAsset(file, "ticket");
+				},
 				onChange: function (layout) {
 					if (ticketLayoutEventId && activeEventId && !sameTicketEvent(ticketLayoutEventId, activeEventId)) {
 						return;

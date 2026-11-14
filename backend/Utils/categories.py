@@ -46,6 +46,11 @@ ASSET_FILE_LIMITS = {
     "artist_photo": (200 * _KB, 2 * _MB, "Artist photo must be 200 KB to 2 MB. Recommended 200-500 KB."),
     "gallery": (500 * _KB, 5 * _MB, "Gallery photo must be 500 KB to 5 MB. Recommended 500 KB-1.5 MB."),
     "ticket": (200 * _KB, 3 * _MB, "Ticket image must be 200 KB to 3 MB. Recommended 200-800 KB."),
+    "ticket_bg": (
+        1 * _MB,
+        5 * _MB,
+        "Ticket background image must be 1 MB to 5 MB. Use 570x760 px for portrait or 760x291 px for landscape.",
+    ),
     "logo": (50 * _KB, 1 * _MB, "Logo must be 50 KB to 1 MB. Recommended 50-200 KB."),
     "payment_qr": (50 * _KB, 1 * _MB, "Payment QR must be 50 KB to 1 MB. Recommended 50-200 KB."),
     "document": (500 * _KB, 5 * _MB, "Verification document must be 500 KB to 5 MB. Recommended 500 KB-2 MB."),

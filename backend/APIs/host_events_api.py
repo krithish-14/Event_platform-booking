@@ -2330,7 +2330,18 @@ async def upload_design_asset(
     if current_user and current_user.email.lower() != email_clean:
         raise HTTPException(status_code=403, detail="You can only upload assets for your own account.")
 
-    allowed_types = {"banner", "details_banner", "card_image", "sponsor_logo", "artist_photo", "gallery", "ticket", "logo", "payment_qr"}
+    allowed_types = {
+        "banner",
+        "details_banner",
+        "card_image",
+        "sponsor_logo",
+        "artist_photo",
+        "gallery",
+        "ticket",
+        "ticket_bg",
+        "logo",
+        "payment_qr",
+    }
     if asset_type not in allowed_types:
         raise HTTPException(status_code=400, detail=f"Invalid asset_type. Allowed: {', '.join(sorted(allowed_types))}")
 

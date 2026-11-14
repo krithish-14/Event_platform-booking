@@ -1222,9 +1222,11 @@
 			'          <label class="ticket-ctrl"><span>Accent</span><input type="color" id="ticketAccentColor" value="#2563eb" /></label>',
 			'        </div>',
 			'        <div class="ticket-hero-upload">',
+			'          <p class="ticket-float-hint" id="ticketBgSizeHint">Portrait / default: 570 \u00d7 760 px \u00b7 1\u20135 MB</p>',
 			'          <button type="button" class="ticket-hero-upload-btn" id="ticketBgUploadBtn">Background image</button>',
 			'          <input type="file" id="ticketBgImage" accept="image/png,image/jpeg,image/webp" hidden />',
 			'          <button type="button" class="ticket-reset-btn" id="ticketBgClearBtn">Remove image</button>',
+			'          <span class="ticket-image-status" id="ticketBgStatus"></span>',
 			'        </div>',
 			'      </div>',
 			'      <div class="ticket-float-section ticket-selected-panel" id="ticketSelectedPanel" hidden>',
@@ -1649,25 +1651,40 @@
 		const bgBtn = this.root.querySelector("#ticketBgUploadBtn");
 		const bgInput = this.root.querySelector("#ticketBgImage");
 		const bgClear = this.root.querySelector("#ticketBgClearBtn");
+		const setBgStatus = function (text) {
+			const el = self.root.querySelector("#ticketBgStatus");
+			if (el) el.textContent = text || "";
+		};
 		if (bgBtn && bgInput) {
 			bgBtn.addEventListener("click", function () { bgInput.click(); });
 			bgInput.addEventListener("change", function () {
 				const file = bgInput.files && bgInput.files[0];
 				bgInput.value = "";
 				if (!file || typeof self.onUploadImage !== "function") return;
-				Promise.resolve(self.onUploadImage(file)).then(function (src) {
+				const orient = self.layout && self.layout.orientation === "portrait" ? "portrait" : "landscape";
+				setBgStatus("Uploading…");
+				Promise.resolve(self.onUploadImage(file, { purpose: "background", orientation: orient })).then(function (src) {
 					const clean = sanitizeMediaSrc(src);
-					if (!clean) return;
+					if (!clean) {
+						setBgStatus("Upload did not return a usable image.");
+						return;
+					}
 					self.layout.background_image = clean;
 					if (self.layout.canvas_mode !== "custom") self.layout.canvas_mode = "custom";
 					self.renderPreview();
 					self.emitChange();
-				}).catch(function () {});
+					setBgStatus("Background image added.");
+				}).catch(function (err) {
+					const msg = err && err.message ? err.message : "Could not upload background image.";
+					setBgStatus(msg);
+					try { window.alert(msg); } catch (_) {}
+				});
 			});
 		}
 		if (bgClear) {
 			bgClear.addEventListener("click", function () {
 				self.layout.background_image = "";
+				setBgStatus("");
 				self.renderPreview();
 				self.emitChange();
 			});
@@ -1885,6 +1902,26 @@
 		const heroReady = !!(L.sunset_hero_src && L.sunset_hero_src !== this._heroFailedSrc);
 		if (heroSection) heroSection.hidden = !sunsetOn;
 		if (heroBtn) heroBtn.textContent = heroReady ? "Change photo" : "Choose photo";
+		this.syncBackgroundImageHint();
+	};
+
+	TicketCanvasController.prototype.syncBackgroundImageHint = function () {
+		if (!this.root) return;
+		const hint = this.root.querySelector("#ticketBgSizeHint");
+		const btn = this.root.querySelector("#ticketBgUploadBtn");
+		if (!hint && !btn) return;
+		const portrait = !!(this.layout && this.layout.orientation === "portrait");
+		const sizeLabel = portrait ? "570 \u00d7 760 px" : "760 \u00d7 291 px";
+		const styleLabel = portrait ? "Portrait / default" : "Landscape";
+		if (hint) {
+			hint.textContent = styleLabel + ": " + sizeLabel + " \u00b7 JPG/PNG/WEBP \u00b7 1\u20135 MB";
+		}
+		if (btn) {
+			btn.textContent = this.layout && this.layout.background_image
+				? "Change background image"
+				: "Background image";
+			btn.setAttribute("title", "Upload a " + sizeLabel + " image (" + styleLabel.toLowerCase() + "), 1\u20135 MB");
+		}
 	};
 
 	TicketCanvasController.prototype.hasFormQuestionElement = function (meta) {
