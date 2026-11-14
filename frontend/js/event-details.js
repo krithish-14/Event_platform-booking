@@ -988,13 +988,18 @@ function paintTicketTypes(event) {
  const basePrice = Number(t.base_price);
  const percentOff = Number(t.discount_percent) || 0;
  const strike = isEarlyBird && Number.isFinite(basePrice) && basePrice > price
- ? `<s style="opacity:0.6;font-weight:600;margin-right:0.35rem;">\u20b9${Number(basePrice).toLocaleString("en-IN")}</s>`
+ ? `<s class="ticket-price-strike">\u20b9${Number(basePrice).toLocaleString("en-IN")}</s>`
  : "";
- const priceLabel = price <= 0
- ? "Free"
- : (pricing === "package"
- ? ("\u20b9" + Number(price).toLocaleString("en-IN") + " for " + packageQty + " people")
- : ("\u20b9" + Number(price).toLocaleString("en-IN") + (pricing === "per_person" ? " per person" : "")));
+ let priceHtml;
+ if (price <= 0) {
+ priceHtml = `<span class="ticket-price-amount">Free</span>`;
+ } else if (pricing === "package") {
+ priceHtml = `${strike}<span class="ticket-price-amount">\u20b9${Number(price).toLocaleString("en-IN")}</span><span class="ticket-price-unit">for ${packageQty} people</span>`;
+ } else if (pricing === "per_person") {
+ priceHtml = `${strike}<span class="ticket-price-amount">\u20b9${Number(price).toLocaleString("en-IN")}</span><span class="ticket-price-unit">per person</span>`;
+ } else {
+ priceHtml = `${strike}<span class="ticket-price-amount">\u20b9${Number(price).toLocaleString("en-IN")}</span>`;
+ }
  const baseStatus = pricing === "package"
  ? ("Group ticket \u00b7 " + packageQty + " tickets")
  : (isEarlyBird && percentOff
@@ -1003,13 +1008,13 @@ function paintTicketTypes(event) {
  const statusLabel = t.members_only && !event.is_private ? ("Members only \u00b7 " + baseStatus) : baseStatus;
  const ticketNote = String(t.price_note || "").trim();
  return `<div class="ticket-type-option ${idx === 0 ? "selected" : ""}" data-ticket-option data-sales-start="${escape(start)}" data-sales-end="${escape(end)}" data-price="${price}" data-name="${name}" data-payment-qr="${qrUrl}" data-offer-id="${offerId}" data-pricing="${pricing}" data-package-qty="${packageQty}" data-max-per-order="${maxAttr}" data-note="${escape(ticketNote)}">
- <div>
+ <div class="ticket-type-meta">
  ${timed ? `<div class="ticket-offer-countdown" data-ticket-countdown data-ticket-start="${escape(start)}" data-ticket-end="${escape(end)}"></div>` : ""}
  <div class="ticket-name">${name}</div>
  <div class="ticket-status">${escape(statusLabel)}</div>
- ${ticketNote ? `<div class="ticket-status" style="font-style:italic;">${escape(ticketNote)}</div>` : ""}
+ ${ticketNote ? `<div class="ticket-status ticket-status-note">${escape(ticketNote)}</div>` : ""}
  </div>
- <div class="ticket-price">${strike}${priceLabel}</div>
+ <div class="ticket-price">${priceHtml}</div>
  </div>`;
  }).join("");
  tList.querySelectorAll("[data-ticket-option]").forEach((opt) => {

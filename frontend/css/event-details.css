@@ -975,10 +975,12 @@ body.category-theme-workshop .performer-avatar {
 }
 
 .ticket-type-option {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.85rem;
+    row-gap: 0.15rem;
     align-items: center;
-    padding: 0.75rem;
+    padding: 0.85rem 0.9rem;
     border-radius: var(--radius-sm);
     border: 1px solid #e2e8f0;
     background: #ffffff;
@@ -986,17 +988,27 @@ body.category-theme-workshop .performer-avatar {
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 0;
+    box-sizing: border-box;
 }
 
-.ticket-type-option > div:first-child {
+.ticket-type-meta {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    overflow: hidden;
 }
 
 .ticket-status {
     font-size: 0.72rem;
     font-weight: 600;
     color: #64748b;
-    margin-top: 0.12rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.ticket-status-note {
+    font-style: italic;
 }
 
 .ticket-type-option:hover,
@@ -1023,18 +1035,23 @@ body.category-theme-workshop .performer-avatar {
 
 .ticket-name {
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: 700;
     color: #0f172a;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .ticket-offer-countdown {
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 800;
     color: #c2410c;
-    margin-bottom: 0.28rem;
     letter-spacing: 0.01em;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-variant-numeric: tabular-nums;
+    max-width: 100%;
 }
 
 .ticket-unavailable {
@@ -1057,9 +1074,41 @@ html[data-theme="dark"] .ticket-unavailable {
 }
 
 .ticket-price {
-    font-size: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.12rem;
+    text-align: right;
+    min-width: 4.75rem;
+    max-width: 42%;
+    flex-shrink: 0;
+    color: var(--theme-accent);
+    line-height: 1.15;
+}
+
+.ticket-price-amount {
+    font-size: 1.05rem;
     font-weight: 800;
     color: var(--theme-accent);
+    white-space: nowrap;
+}
+
+.ticket-price-unit {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.ticket-price-strike {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    opacity: 0.55;
+    color: #64748b;
+    text-decoration: line-through;
+    white-space: nowrap;
 }
 
 .price-main-display {
@@ -1409,10 +1458,9 @@ html[data-theme="dark"] .ticket-unavailable {
     .ticket-type-option {
         flex: 1 1 0;
         min-width: 118px;
-        flex-direction: column;
-        align-items: stretch;
-        justify-content: space-between;
-        gap: 0.55rem;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: start;
+        row-gap: 0.45rem;
         padding: 0.85rem 0.75rem 0.8rem;
         border-radius: 12px;
         scroll-snap-align: start;
@@ -1422,7 +1470,7 @@ html[data-theme="dark"] .ticket-unavailable {
     .ticket-type-option:only-child {
         flex: 1 1 100%;
         min-width: 0;
-        flex-direction: row;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
         min-height: 0;
     }
@@ -1449,14 +1497,17 @@ html[data-theme="dark"] .ticket-unavailable {
     }
 
     .ticket-price {
-        align-self: flex-start;
-        font-size: 1rem;
-        margin-top: auto;
+        align-items: flex-start;
+        max-width: none;
+        min-width: 0;
+    }
+
+    .ticket-price-amount {
+        font-size: 0.95rem;
     }
 
     .ticket-type-option:only-child .ticket-price {
-        align-self: center;
-        margin-top: 0;
+        align-items: flex-end;
     }
 
     .event-info-sidebar .info-box-card > .btn-book-now,
@@ -1762,8 +1813,14 @@ html[data-theme="dark"] .public-venue-directions {
 
 html[data-theme="dark"] .policy-block-title,
 html[data-theme="dark"] .policy-block-body,
-html[data-theme="dark"] .ticket-price {
+html[data-theme="dark"] .ticket-price,
+html[data-theme="dark"] .ticket-price-amount {
     color: #ffffff !important;
+}
+
+html[data-theme="dark"] .ticket-price-unit,
+html[data-theme="dark"] .ticket-price-strike {
+    color: #b8aea2 !important;
 }
 
 /* More than one ticket category scrolls sideways instead of stacking. */
@@ -1797,9 +1854,22 @@ html[data-theme="dark"] .ticket-price {
     width: 100% !important;
     min-width: 100% !important;
     max-width: none !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    column-gap: 0.85rem;
+    row-gap: 0.2rem;
+    min-height: 0 !important;
+    padding: 0.95rem 1rem;
     scroll-snap-align: start;
     scroll-snap-stop: always;
     box-sizing: border-box;
+}
+
+#ticketsList.is-carousel > .ticket-type-option .ticket-price,
+.tickets-list.is-carousel > .ticket-type-option .ticket-price {
+    align-items: flex-end;
+    max-width: 42%;
 }
 
 @container tickets (min-width: 680px) {
