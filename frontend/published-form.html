@@ -118,7 +118,7 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 
 		.banner-img-container {
 			width: 100%;
-			height: 180px;
+			height: auto;
 			overflow: hidden;
 			background: #f1f5f9;
 			display: none;
@@ -126,8 +126,10 @@ src="https://www.facebook.com/tr?id=1108643598261903&ev=PageView&noscript=1"
 
 		.banner-img-container img {
 			width: 100%;
-			height: 100%;
-			object-fit: cover;
+			height: auto;
+			display: block;
+			object-fit: contain;
+			object-position: center;
 		}
 
 		.form-card-body {
@@ -897,11 +899,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 				document.documentElement.style.setProperty("--primary-color", primary);
 				
-				// Page Outer Background
+				// Page Outer Background — contain so the full image shows (no top/bottom crop)
+				document.body.style.backgroundColor = pageBg;
 				if (pageBgUrl) {
-					document.body.style.background = `url('${pageBgUrl}') center/cover no-repeat fixed`;
+					const safeBg = String(pageBgUrl).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+					document.body.style.backgroundImage = `url("${safeBg}")`;
+					document.body.style.backgroundPosition = "center center";
+					document.body.style.backgroundSize = "contain";
+					document.body.style.backgroundRepeat = "no-repeat";
+					document.body.style.backgroundAttachment = "fixed";
 				} else {
-					document.body.style.background = pageBg;
+					document.body.style.backgroundImage = "none";
+					document.body.style.backgroundAttachment = "scroll";
 				}
 
 				// Card Styling & Auto Dark/Light Text Contrast

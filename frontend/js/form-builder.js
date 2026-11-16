@@ -934,12 +934,17 @@ function initFormBuilder() {
 			? (themePageBgUrl.dataset.uploadSrc || themePageBgUrl.value.trim())
 			: "";
 
-		// Outer Page Background Style
+		// Outer Page Background Style — contain so the full image shows (no crop)
 		if (livePreviewWrapper) {
+			livePreviewWrapper.style.backgroundColor = pageBg;
 			if (pageBgUrl) {
-				livePreviewWrapper.style.background = `url('${resolveUploadUrl(pageBgUrl).replace(/'/g, "\\'")}') center/cover no-repeat`;
+				const safeBg = resolveUploadUrl(pageBgUrl).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+				livePreviewWrapper.style.backgroundImage = `url("${safeBg}")`;
+				livePreviewWrapper.style.backgroundPosition = "center center";
+				livePreviewWrapper.style.backgroundSize = "contain";
+				livePreviewWrapper.style.backgroundRepeat = "no-repeat";
 			} else {
-				livePreviewWrapper.style.background = pageBg;
+				livePreviewWrapper.style.backgroundImage = "none";
 			}
 			livePreviewWrapper.style.borderRadius = "14px";
 		}
@@ -966,8 +971,10 @@ function initFormBuilder() {
 				previewBannerImg = document.createElement("img");
 				previewBannerImg.id = "previewHeaderBannerImg";
 				previewBannerImg.style.width = "100%";
-				previewBannerImg.style.height = "130px";
-				previewBannerImg.style.objectFit = "cover";
+				previewBannerImg.style.height = "auto";
+				previewBannerImg.style.display = "block";
+				previewBannerImg.style.objectFit = "contain";
+				previewBannerImg.style.objectPosition = "center";
 				previewBannerImg.style.borderRadius = `${radius} ${radius} 0 0`;
 				previewBannerImg.style.marginBottom = "1rem";
 				if (previewHeader && previewHeader.parentNode) {
