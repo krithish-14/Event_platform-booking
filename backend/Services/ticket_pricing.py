@@ -171,7 +171,7 @@ def _apply_early_bird_prices(offers: list) -> None:
         if base is None or base.get("pricing_type") != "per_person":
             raise HTTPException(
                 status_code=400,
-                detail=f"{_offer_name(offer)}: Early Bird needs the main ticket's price per person.",
+                detail=f"{_offer_name(offer)}: Early Bird needs its base ticket's price per person.",
             )
         base_paise = rupees_to_paise(base.get("unit_price", base.get("price")))
         percent = _as_int(offer.get("discount_percent"), 0)

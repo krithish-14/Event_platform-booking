@@ -132,7 +132,7 @@
 		ticketTypes: function () { return []; },
 		eventDefaults: function () { return {}; }
 	};
-	var state = { structure: null, sessions: [], dirty: false, loadedFor: null, saving: null, overview: null, errors: {} };
+	var state = { structure: null, sessions: [], dirty: false, loadedFor: null, saving: null, overview: null, errors: {}, expandedKey: null };
 
 	function esc(v) {
 		return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
@@ -209,10 +209,21 @@
 		var badge = s.session_id ? '<span class="evsess-badge is-saved">Saved</span>' : '<span class="evsess-badge">Not saved</span>';
 		var canRemove = state.sessions.length > 1 || !!s.session_id;
 		var statusOpts = STATUSES.map(function (o) { return '<option value="' + o[0] + '"' + (s.status === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("");
-		return '<div class="evsess-card" data-key="' + s._key + '">' +
-			'<div class="evsess-card-head"><strong>Session ' + (index + 1) + "</strong>" + badge +
-			(canRemove ? '<button type="button" class="evsess-remove" data-action="remove">Remove Session</button>' : "") + "</div>" +
-			'<div class="evsess-grid">' +
+		var expanded = state.expandedKey === "__none__"
+			? false
+			: (state.expandedKey ? state.expandedKey === s._key : index === 0);
+		if (expanded && !state.expandedKey) state.expandedKey = s._key;
+		var summaryMeta = [s.session_date || "", (s.start_time && s.end_time) ? (s.start_time + "\u2013" + s.end_time) : "", s.venue_name || ""]
+			.filter(Boolean).join(" \u00b7 ") || "Tap to edit session details";
+		var title = "Session " + (index + 1) + (s.session_name ? ": " + esc(s.session_name) : "");
+		return '<div class="evsess-card' + (expanded ? " is-expanded" : "") + '" data-key="' + s._key + '">' +
+			'<div class="evsess-card-head">' +
+			'<button type="button" class="evsess-card-summary" data-action="toggle" aria-expanded="' + (expanded ? "true" : "false") + '">' +
+			'<span class="evsess-card-summary-text"><strong>' + title + "</strong>" +
+			'<span class="evsess-card-summary-meta">' + esc(summaryMeta) + "</span></span>" +
+			badge + '<span class="evsess-chevron" aria-hidden="true"></span></button>' +
+			(canRemove ? '<button type="button" class="evsess-remove" data-action="remove">Remove</button>' : "") + "</div>" +
+			'<div class="evsess-card-body"><div class="evsess-grid">' +
 			field(index, s, "session_name", "Session Name *", "text", ' maxlength="200" placeholder="e.g. Morning Session"') +
 			field(index, s, "session_date", "Session Date *", "date") +
 			field(index, s, "start_time", "Start Time *", "time") +
@@ -226,7 +237,7 @@
 			'<label class="evsess-field"><span class="evsess-label">Session Status</span><select class="setup-select" data-field="status">' + statusOpts + "</select>" + errHtml(index, "status") + "</label>" +
 			field(index, s, "session_description", "Session Description (optional)", "textarea", ' maxlength="4000"') +
 			eligibilityHtml(s, index) +
-			"</div></div>";
+			"</div></div></div>";
 	}
 
 	function renderBuilder() {
@@ -324,7 +335,7 @@
 	function mountMaps() {
 		if (!global.JodGoogleMaps || typeof global.JodGoogleMaps.load !== "function") return;
 		global.JodGoogleMaps.load("places").then(function (maps) {
-			document.querySelectorAll(".evsess-map[data-map-key]").forEach(function (el) {
+			document.querySelectorAll(".evsess-card.is-expanded .evsess-map[data-map-key]").forEach(function (el) {
 				if (el.getAttribute("data-mounted") === "1") return;
 				el.setAttribute("data-mounted", "1");
 				var key = el.getAttribute("data-map-key");
@@ -505,6 +516,7 @@
 		var s = state.sessions[idx];
 		if (!s) return;
 		if (!s.session_id) {
+			if (state.expandedKey === s._key) state.expandedKey = null;
 			state.sessions.splice(idx, 1);
 			state.errors = {};
 			if (!state.sessions.length) { state.structure = "single"; state.dirty = false; }
@@ -525,6 +537,7 @@
 		}).then(function (r) {
 			if (!r) return;
 			if (!r.ok) return cfg.notify(detailMessage(r.data, "Could not remove this session."));
+			if (state.expandedKey === s._key) state.expandedKey = null;
 			state.sessions.splice(idx, 1);
 			state.errors = {};
 			if (!state.sessions.length) state.structure = "single";
@@ -543,7 +556,16 @@
 		if (action === "add") {
 			if (state.sessions.length >= MAX_SESSIONS) return setStatus("An event can have up to " + MAX_SESSIONS + " sessions.", "warn");
 			state.sessions = resizeSessions(state.sessions, state.sessions.length + 1, defaults()).list;
+			state.expandedKey = state.sessions[state.sessions.length - 1]._key;
 			markDirty();
+			renderBuilder();
+			var added = document.querySelector('.evsess-card[data-key="' + state.expandedKey + '"]');
+			if (added && added.scrollIntoView) added.scrollIntoView({ behavior: "smooth", block: "nearest" });
+		} else if (action === "toggle") {
+			var card = btn.closest(".evsess-card");
+			if (!card) return;
+			var key = card.getAttribute("data-key");
+			state.expandedKey = state.expandedKey === key ? "__none__" : key;
 			renderBuilder();
 		} else if (action === "remove") {
 			removeSession(cardIndex(btn));

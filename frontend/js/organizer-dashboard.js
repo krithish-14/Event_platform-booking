@@ -654,6 +654,10 @@ async function initOrganizerDashboard() {
 		["group", "Group ticket"],
 		["standard", "Add ticket"]
 	];
+	const SUBTICKET_KINDS = [
+		["early_bird", "Early Bird"],
+		["coupon", "Coupon"]
+	];
 	const COUPON_CODE_RE = /^[A-Z0-9_-]{3,30}$/;
 
 	function formatTicketRupees(amount) {
@@ -689,6 +693,28 @@ async function initOrganizerDashboard() {
 		return String(card.querySelector("." + cls)?.value ?? "").trim();
 	}
 
+	/** Early Bird % off main offer, or off a parent "Add ticket" price when nested. */
+	function earlyBirdBaseContext(card, row) {
+		const parent = card.closest(".ticket-subtype-card[data-kind='standard']");
+		if (parent && parent !== card) {
+			const price = numberOrNull(subtypeValue(parent, "subtype-price-input"));
+			return {
+				price: price !== null && price >= 0 ? price : null,
+				name: subtypeValue(parent, "subtype-name-input") || "Ticket",
+				offerId: ensureOfferId(parent),
+				fromStandard: true,
+				priceEl: parent.querySelector(".subtype-price-input")
+			};
+		}
+		return {
+			price: rowMainPrice(row),
+			name: rowMainName(row) || "Main ticket",
+			offerId: ensureOfferId(row),
+			fromStandard: false,
+			priceEl: row.querySelector(".ticket-price-input")
+		};
+	}
+
 	function groupLineLabel(line) {
 		const people = Math.round(Number(line.querySelector(".group-people-input")?.value) || 0);
 		const custom = String(line.querySelector(".group-name-input")?.value || "").trim();
@@ -700,11 +726,11 @@ async function initOrganizerDashboard() {
 		const main = rowMainName(row);
 		if (kind === "early_bird") {
 			const percent = Number(subtypeValue(card, "subtype-percent-input"));
-			const mainPrice = rowMainPrice(row);
+			const base = earlyBirdBaseContext(card, row);
 			return [{
 				el: card,
-				name: main + " \u00b7 " + (subtypeValue(card, "subtype-name-input") || "Early Bird"),
-				price: mainPrice !== null && percent >= 1 && percent <= 90 ? earlyBirdUnit(mainPrice, percent) : null
+				name: base.name + " \u00b7 " + (subtypeValue(card, "subtype-name-input") || "Early Bird"),
+				price: base.price !== null && percent >= 1 && percent <= 90 ? earlyBirdUnit(base.price, percent) : null
 			}];
 		}
 		if (kind === "standard") {
@@ -874,20 +900,65 @@ async function initOrganizerDashboard() {
 				});
 			}
 		}
+		syncSubticketBlock(card, data);
 	}
 
-	function createSubtypeCard(kind = "", data = {}) {
+	function syncSubticketBlock(card, data) {
+		if (card.classList.contains("is-subticket")) return;
+		let block = card.querySelector(":scope > .ticket-subticket-block");
+		if (card.dataset.kind !== "standard") {
+			if (block) block.remove();
+			return;
+		}
+		if (!block) {
+			block = document.createElement("div");
+			block.className = "ticket-subticket-block";
+			block.innerHTML = `
+				<div class="ticket-package-head">
+					<label>Sub-tickets</label>
+					<button type="button" class="btn-add-package btn-add-subticket">+ Add Sub-ticket</button>
+				</div>
+				<p class="ticket-offer-hint">Early Bird takes a % off this ticket&rsquo;s price. Coupon takes a fixed amount off tickets you pick.</p>
+				<div class="ticket-subticket-list"></div>`;
+			card.appendChild(block);
+			block.querySelector(".btn-add-subticket").addEventListener("click", () => {
+				const list = block.querySelector(".ticket-subticket-list");
+				const parentId = ensureOfferId(card);
+				const sub = createSubtypeCard("", {}, { kinds: SUBTICKET_KINDS, nested: true, preferTargetId: parentId });
+				list.appendChild(sub);
+				const select = sub.querySelector(".subtype-kind-select");
+				if (select) select.focus();
+				updateTicketOfferPreview(card.closest(".ticket-tier-row"));
+			});
+		}
+		const list = block.querySelector(".ticket-subticket-list");
+		if (data && Array.isArray(data.subtickets) && data.subtickets.length && !list.children.length) {
+			const parentId = ensureOfferId(card);
+			data.subtickets.forEach((item) => {
+				list.appendChild(createSubtypeCard(item.kind, item.data || {}, {
+					kinds: SUBTICKET_KINDS,
+					nested: true,
+					preferTargetId: parentId
+				}));
+			});
+		}
+	}
+
+	function createSubtypeCard(kind = "", data = {}, opts = {}) {
+		const optionsList = Array.isArray(opts.kinds) && opts.kinds.length ? opts.kinds : TICKET_SUBTYPES;
+		const nested = !!opts.nested;
+		const preferTargetId = opts.preferTargetId ? String(opts.preferTargetId) : "";
 		const card = document.createElement("div");
-		card.className = "ticket-subtype-card";
+		card.className = "ticket-subtype-card" + (nested ? " is-subticket" : "");
 		if (data.offer_id) card.dataset.offerId = String(data.offer_id);
 		if (data.card_id) card.dataset.cardId = String(data.card_id);
-		const options = TICKET_SUBTYPES.map(([value, label]) => `<option value="${value}"${value === kind ? " selected" : ""}>${label}</option>`).join("");
+		const options = optionsList.map(([value, label]) => `<option value="${value}"${value === kind ? " selected" : ""}>${label}</option>`).join("");
 		card.innerHTML = `
 			<div class="ticket-subtype-head">
 				<div class="setup-form-group">
-					<label>Ticket type</label>
+					<label>${nested ? "Sub-ticket type" : "Ticket type"}</label>
 					<select class="setup-input subtype-kind-select">
-						<option value=""${kind ? "" : " selected"}>Choose a ticket type</option>
+						<option value=""${kind ? "" : " selected"}>${nested ? "Choose Early Bird or Coupon" : "Choose a ticket type"}</option>
 						${options}
 					</select>
 				</div>
@@ -903,9 +974,14 @@ async function initOrganizerDashboard() {
 			const keep = {
 				start: subtypeValue(card, "subtype-start-input"),
 				end: subtypeValue(card, "subtype-end-input"),
-				note: subtypeValue(card, "subtype-note-input")
+				note: subtypeValue(card, "subtype-note-input"),
+				applies_to: preferTargetId ? [preferTargetId] : couponTargetIds(data.applies_to)
 			};
 			renderSubtypeFields(card, e.target.value, keep);
+			if (e.target.value === "coupon" && preferTargetId) {
+				const list = card.querySelector(".coupon-target-list");
+				if (list) list.dataset.savedValue = JSON.stringify([preferTargetId]);
+			}
 			updateTicketOfferPreview(card.closest(".ticket-tier-row"));
 		});
 		card.querySelector(".btn-add-group-line").addEventListener("click", () => {
@@ -923,6 +999,10 @@ async function initOrganizerDashboard() {
 			updateTicketOfferPreview(row);
 			triggerManageAutoSave();
 		});
+		if (kind === "coupon" && preferTargetId && !(Array.isArray(data.applies_to) && data.applies_to.length)) {
+			const list = card.querySelector(".coupon-target-list");
+			if (list) list.dataset.savedValue = JSON.stringify([preferTargetId]);
+		}
 		return card;
 	}
 
@@ -1025,18 +1105,22 @@ async function initOrganizerDashboard() {
 	function updateTicketOfferPreview(row) {
 		bindCouponTargetClicks();
 		if (row) {
-			const mainPrice = rowMainPrice(row);
 			row.querySelectorAll(".ticket-subtype-card").forEach((card) => {
 				const kind = card.dataset.kind;
 				if (kind === "early_bird") {
 					const computed = card.querySelector("[data-subtype-computed]");
 					if (!computed) return;
 					const percent = Number(subtypeValue(card, "subtype-percent-input"));
-					if (mainPrice === null) computed.textContent = "Set the main ticket price first";
-					else if (!(percent >= 1 && percent <= 90)) computed.textContent = formatTicketRupees(mainPrice) + " \u2014 enter 1 to 90%";
-					else {
-						const unit = earlyBirdUnit(mainPrice, percent);
-						computed.textContent = formatTicketRupees(unit) + " (" + formatTicketRupees(mainPrice - unit) + " off " + formatTicketRupees(mainPrice) + ")";
+					const base = earlyBirdBaseContext(card, row);
+					if (base.price === null) {
+						computed.textContent = base.fromStandard
+							? "Set this Add ticket price first"
+							: "Set the main ticket price first";
+					} else if (!(percent >= 1 && percent <= 90)) {
+						computed.textContent = formatTicketRupees(base.price) + " \u2014 enter 1 to 90%";
+					} else {
+						const unit = earlyBirdUnit(base.price, percent);
+						computed.textContent = formatTicketRupees(unit) + " (" + formatTicketRupees(base.price - unit) + " off " + formatTicketRupees(base.price) + ")";
 					}
 				} else if (kind === "group") {
 					card.querySelectorAll(".group-line").forEach((line) => {
@@ -1053,8 +1137,9 @@ async function initOrganizerDashboard() {
 			const preview = row.querySelector(".ticket-offer-preview");
 			if (preview) {
 				const parts = [];
+				const mainPrice = rowMainPrice(row);
 				if (mainPrice !== null) parts.push((rowMainName(row) || "Main ticket") + " " + formatTicketRupees(mainPrice) + " per person");
-				row.querySelectorAll(".ticket-subtype-card").forEach((card) => {
+				row.querySelectorAll(".ticket-subtype-list > .ticket-subtype-card, .ticket-subticket-list > .ticket-subtype-card").forEach((card) => {
 					if (!card.dataset.kind || card.dataset.kind === "coupon") return;
 					cardOffers(row, card).forEach((offer) => parts.push(offer.name));
 				});
@@ -1063,8 +1148,9 @@ async function initOrganizerDashboard() {
 				if (coupons.length) parts.push("Coupons: " + coupons.join(", "));
 				preview.textContent = parts.length
 					? "Buyers will see: " + parts.join(" \u00b7 ") + "."
-					: "Add the main ticket name and price, then use Add ticket type for Early Bird, Group, Coupon, or another ticket.";
+					: "Add the main ticket name and price, then use Add ticket type — or Add Sub-ticket on an Add ticket for Early Bird / Coupon.";
 			}
+			refreshTicketTierSummary(row);
 		}
 		refreshCouponTargets();
 	}
@@ -1115,7 +1201,8 @@ async function initOrganizerDashboard() {
 				if (kind === "early_bird") {
 					const percent = Math.round(Number(subtypeValue(card, "subtype-percent-input")) || 0);
 					if (!percent) return;
-					const unit = mainPrice !== null ? earlyBirdUnit(mainPrice, percent) : 0;
+					const baseCtx = earlyBirdBaseContext(card, row);
+					const unit = baseCtx.price !== null ? earlyBirdUnit(baseCtx.price, percent) : 0;
 					out.push(Object.assign(base, {
 						offer_id: ensureOfferId(card),
 						name: cardOffers(row, card)[0].name,
@@ -1123,7 +1210,7 @@ async function initOrganizerDashboard() {
 						unit_price: unit,
 						price: unit,
 						discount_percent: percent,
-						base_offer_id: mainId,
+						base_offer_id: baseCtx.offerId || mainId,
 						qty: shared.qty
 					}));
 				} else if (kind === "group") {
@@ -1200,7 +1287,15 @@ async function initOrganizerDashboard() {
 				}
 				if (kind === "early_bird") {
 					const percent = Number(subtypeValue(card, "subtype-percent-input"));
-					if (rowMainPrice(row) === null) return { el: row.querySelector(".ticket-price-input"), msg: "Early Bird needs the main ticket price for " + main + "." };
+					const baseCtx = earlyBirdBaseContext(card, row);
+					if (baseCtx.price === null) {
+						return {
+							el: baseCtx.priceEl || row.querySelector(".ticket-price-input"),
+							msg: baseCtx.fromStandard
+								? "Early Bird needs the Add ticket price first."
+								: ("Early Bird needs the main ticket price for " + main + ".")
+						};
+					}
 					if (!(percent >= 1 && percent <= 90)) return { el: card.querySelector(".subtype-percent-input"), msg: "Early Bird discount must be between 1% and 90%." };
 				} else if (kind === "group") {
 					for (const offer of cardOffers(row, card)) {
@@ -1302,18 +1397,22 @@ async function initOrganizerDashboard() {
 				const text = String(name || "");
 				return prefix && text.startsWith(prefix) ? text.slice(prefix.length) : text;
 			};
+			const stripAnyPrefix = (name) => {
+				const text = String(name || "");
+				const idx = text.lastIndexOf(" \u00b7 ");
+				return idx >= 0 ? text.slice(idx + 3) : text;
+			};
 			const groupCards = new Map();
+			const standardsById = new Map();
+			const deferredEarly = [];
 			section.rawSubs.forEach((ticket) => {
 				const kind = ticket.ticket_kind || (ticket.pricing_type === "package" ? "group" : "standard");
 				const win = subtypeWindowFields(ticket, section.start, section.end);
 				if (kind === "early_bird") {
-					const label = stripPrefix(ticket.name);
-					section.offer.subs.push({ kind, data: Object.assign(win, {
-						offer_id: ticket.offer_id || "",
-						label: label === "Early Bird" ? "" : label,
-						percent: ticket.discount_percent != null ? ticket.discount_percent : ""
-					}) });
-				} else if (kind === "group") {
+					deferredEarly.push({ ticket, win });
+					return;
+				}
+				if (kind === "group") {
 					const people = ticket.package_quantity;
 					const label = stripPrefix(ticket.name);
 					const line = {
@@ -1330,13 +1429,27 @@ async function initOrganizerDashboard() {
 					}
 					groupCards.get(cardKey).data.lines.push(line);
 				} else {
-					section.offer.subs.push({ kind: "standard", data: Object.assign(win, {
+					const sub = { kind: "standard", data: Object.assign(win, {
 						offer_id: ticket.offer_id || "",
 						name: ticket.name || "",
 						price: ticket.unit_price != null ? ticket.unit_price : (ticket.price != null ? ticket.price : ""),
-						qty: ticket.qty != null && Number(ticket.qty) > 0 ? ticket.qty : ""
-					}) });
+						qty: ticket.qty != null && Number(ticket.qty) > 0 ? ticket.qty : "",
+						subtickets: []
+					}) };
+					section.offer.subs.push(sub);
+					if (ticket.offer_id) standardsById.set(String(ticket.offer_id), sub);
 				}
+			});
+			deferredEarly.forEach(({ ticket, win }) => {
+				const labelRaw = stripAnyPrefix(ticket.name);
+				const data = Object.assign({}, win, {
+					offer_id: ticket.offer_id || "",
+					label: labelRaw === "Early Bird" ? "" : labelRaw,
+					percent: ticket.discount_percent != null ? ticket.discount_percent : ""
+				});
+				const parent = standardsById.get(String(ticket.base_offer_id || ""));
+				if (parent) parent.data.subtickets.push({ kind: "early_bird", data });
+				else section.offer.subs.push({ kind: "early_bird", data });
 			});
 			return section;
 		});
@@ -6514,6 +6627,35 @@ async function initOrganizerDashboard() {
 	const ticketTiersRows = document.getElementById("ticketTiersRows");
 	const btnAddTicketTier = document.getElementById("btnAddTicketTier");
 
+	function refreshTicketTierSummary(row) {
+		if (!row) return;
+		const title = row.querySelector(".ticket-tier-summary-title");
+		const meta = row.querySelector(".ticket-tier-summary-meta");
+		if (!title || !meta) return;
+		title.textContent = rowMainName(row) || "New ticket offer";
+		const bits = [];
+		const price = rowMainPrice(row);
+		if (price !== null) bits.push(formatTicketRupees(price) + " / person");
+		const typeCount = row.querySelectorAll(".ticket-subtype-list > .ticket-subtype-card").length;
+		if (typeCount) bits.push(typeCount + (typeCount === 1 ? " ticket type" : " ticket types"));
+		const subCount = row.querySelectorAll(".ticket-subticket-list > .ticket-subtype-card").length;
+		if (subCount) bits.push(subCount + (subCount === 1 ? " sub-ticket" : " sub-tickets"));
+		meta.textContent = bits.length ? bits.join(" \u00b7 ") : "Tap to edit offer details";
+	}
+
+	function setTicketTierExpanded(row, expanded) {
+		if (!row) return;
+		row.classList.toggle("is-expanded", !!expanded);
+		const btn = row.querySelector(".ticket-tier-summary");
+		if (btn) btn.setAttribute("aria-expanded", expanded ? "true" : "false");
+	}
+
+	function collapseOtherTicketTiers(keep) {
+		document.querySelectorAll("#ticketTiersRows .ticket-tier-row").forEach((row) => {
+			if (row !== keep) setTicketTierExpanded(row, false);
+		});
+	}
+
 	function createTicketTierRowHtml(type = "", price = "", qty = "", offerStart = "", offerEnd = "", offer = {}) {
 		const saved = offer || {};
 		const subs = Array.isArray(saved.subs) ? saved.subs.slice() : [];
@@ -6528,10 +6670,18 @@ async function initOrganizerDashboard() {
 		const active = saved.is_active === false ? "" : "checked";
 		const membersOnly = saved.members_only === true ? "checked" : "";
 		const div = document.createElement("div");
-		div.className = "ticket-tier-row";
+		div.className = "ticket-tier-row is-expanded";
 		div.dataset.sectionId = saved.section_id || newTicketSectionId();
 		div.dataset.offerId = saved.offer_id ? String(saved.offer_id) : newTicketSectionId();
 		div.innerHTML = `
+			<button type="button" class="ticket-tier-summary" aria-expanded="true">
+				<span class="ticket-tier-summary-text">
+					<span class="ticket-tier-summary-title">${attrEscape(type || "New ticket offer")}</span>
+					<span class="ticket-tier-summary-meta">Tap to edit offer details</span>
+				</span>
+				<span class="ticket-tier-chevron" aria-hidden="true"></span>
+			</button>
+			<div class="ticket-tier-body">
 			<div class="setup-grid-3 ticket-tier-main">
 			<div class="setup-form-group">
 				<label>Offer name <span style="color: #ef4444;">*</span></label>
@@ -6590,14 +6740,22 @@ async function initOrganizerDashboard() {
 					<label>Ticket types</label>
 					<button type="button" class="btn-add-package btn-add-subtype">+ Add ticket type</button>
 				</div>
-				<p class="ticket-offer-hint">Add an Early Bird discount, a Group ticket, a Coupon code, or another ticket such as VIP Pass.</p>
+				<p class="ticket-offer-hint">Add an Early Bird, Group, Coupon, or another ticket. On an Add ticket card, use Add Sub-ticket for Early Bird / Coupon off that price.</p>
 				<div class="ticket-subtype-list"></div>
 			</div>
 			<p class="ticket-offer-preview"></p>
+			</div>
 		`;
 		const list = div.querySelector(".ticket-subtype-list");
 		subs.forEach((item) => list.appendChild(createSubtypeCard(item.kind, item.data || {})));
+		div.querySelector(".ticket-tier-summary").addEventListener("click", () => {
+			const open = !div.classList.contains("is-expanded");
+			if (open) collapseOtherTicketTiers(div);
+			setTicketTierExpanded(div, open);
+		});
 		div.querySelector(".btn-add-subtype").addEventListener("click", () => {
+			setTicketTierExpanded(div, true);
+			collapseOtherTicketTiers(div);
 			const card = createSubtypeCard("", {});
 			list.appendChild(card);
 			const select = card.querySelector(".subtype-kind-select");
@@ -6621,7 +6779,10 @@ async function initOrganizerDashboard() {
 
 	if (btnAddTicketTier) {
 		btnAddTicketTier.addEventListener("click", () => {
-			ticketTiersRows.appendChild(createTicketTierRowHtml("", "", ""));
+			const row = createTicketTierRowHtml("", "", "");
+			collapseOtherTicketTiers(row);
+			ticketTiersRows.appendChild(row);
+			row.scrollIntoView({ behavior: "smooth", block: "nearest" });
 		});
 	}
 
@@ -6760,15 +6921,17 @@ async function initOrganizerDashboard() {
 		applyTicketPurchaseMode(purchase.mode || "single", purchase.per_person_limit, purchase.price_note || "", purchase.bulk_offers || []);
 		if (ticketTiersRows && Array.isArray(event.tickets) && event.tickets.length) {
 			ticketTiersRows.innerHTML = "";
-			groupSavedTicketSections(event.tickets).forEach((section) => {
-				ticketTiersRows.appendChild(createTicketTierRowHtml(
+			groupSavedTicketSections(event.tickets).forEach((section, idx) => {
+				const row = createTicketTierRowHtml(
 					section.name || "",
 					section.price != null ? section.price : "",
 					section.qty != null ? section.qty : "",
 					isoToDatetimeLocal(section.start || ""),
 					isoToDatetimeLocal(section.end || ""),
 					section.offer
-				));
+				);
+				ticketTiersRows.appendChild(row);
+				setTicketTierExpanded(row, idx === 0);
 			});
 		}
 		if (ticketTiersRows) {
@@ -6792,7 +6955,7 @@ async function initOrganizerDashboard() {
 	}
 
 	if (ticketTiersRows) {
-		const staleRows = [...ticketTiersRows.querySelectorAll(".ticket-tier-row")].filter((row) => !row.querySelector(".ticket-subtype-list"));
+		const staleRows = [...ticketTiersRows.querySelectorAll(".ticket-tier-row")].filter((row) => !row.querySelector(".ticket-subtype-list") || !row.querySelector(".ticket-tier-summary"));
 		if (staleRows.length) {
 			const savedRows = staleRows.map((row) => ({
 				name: row.querySelector(".ticket-type-input")?.value || "",
