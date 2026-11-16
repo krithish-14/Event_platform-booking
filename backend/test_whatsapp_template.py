@@ -14,6 +14,7 @@ from Services.whatsapp import (
     format_booking_id,
     send_booking_confirmation_whatsapp,
     send_whatsapp_template,
+    upload_cpaas_file,
     whatsapp_template_configured,
     zepto_whatsapp_auth_header,
 )
@@ -174,6 +175,59 @@ class WhatsAppTemplateTests(unittest.TestCase):
             set(body["merge_info"].keys()),
             set(BOOKING_TEMPLATE_MERGE_KEYS),
         )
+
+    @patch("Services.whatsapp.httpx.post")
+    def test_upload_cpaas_file_returns_cache_key(self, mock_post):
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.text = '{"message":"OK"}'
+        mock_res.content = b'{"data":{"file_cache_key":"fc-ticket-123"}}'
+        mock_res.json.return_value = {"data": {"file_cache_key": "fc-ticket-123"}, "message": "OK"}
+        mock_post.return_value = mock_res
+        with patch.dict(
+            os.environ,
+            {
+                "ZOHO_CPAAS_API_KEY": "tok",
+                "ZOHO_CPAAS_HOST": "https://cpaas.zoho.in",
+                "ZOHO_CPAAS_AGENT_ALIAS": "jod-agent",
+            },
+            clear=True,
+        ):
+            key = upload_cpaas_file(b"%PDF-1.4 ticket", "JOD-ABC.pdf")
+        self.assertEqual(key, "fc-ticket-123")
+        args, kwargs = mock_post.call_args
+        self.assertEqual(args[0], "https://cpaas.zoho.in/v1.1/files")
+        self.assertEqual(kwargs["params"]["name"], "JOD-ABC.pdf")
+        self.assertEqual(kwargs["headers"]["agent-alias"], "jod-agent")
+        self.assertIn("file", kwargs["files"])
+
+    @patch("Services.whatsapp.httpx.post")
+    def test_booking_send_does_not_use_static_sample_file_key(self, mock_post):
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.text = '{"status":"success"}'
+        mock_res.json.return_value = {"status": "success", "data": {"message_id": "mid-1"}}
+        mock_post.return_value = mock_res
+        with patch.dict(
+            os.environ,
+            {
+                "ZOHO_CPAAS_API_KEY": "tok",
+                "ZOHO_CPAAS_WHATSAPP_FROM": "+919876500000",
+                "ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_KEY": TEST_TEMPLATE_KEY,
+                "WHATSAPP_TEMPLATE_FILE_KEY": "sample-zepto-pdf-key",
+            },
+            clear=True,
+        ):
+            send_booking_confirmation_whatsapp(
+                "9876543210",
+                name="Guest",
+                event_name="Event",
+                event_date="TBA",
+                ticket_type="GA",
+                booking_id="abc",
+            )
+        body = mock_post.call_args.kwargs["json"]
+        self.assertNotIn("attachment", body)
 
     @patch("Services.whatsapp.httpx.post")
     def test_send_template_failure_returns_false(self, mock_post):

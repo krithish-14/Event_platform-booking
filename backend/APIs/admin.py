@@ -33,6 +33,7 @@ from Services.email import send_email
 from Services.whatsapp import (
     send_booking_confirmation_whatsapp,
     send_whatsapp,
+    upload_cpaas_file,
     whatsapp_template_configured,
 )
 from Services.ticket_pdf import (
@@ -1491,18 +1492,21 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
     </div>
     """
     attachments = []
+    pdf = None
+    pdf_name = "ticket.pdf"
     try:
         from Services.ticket_pdf import build_combined_mticket_pdf_from_booking, ticket_pdf_filename
 
         pdf = build_combined_mticket_pdf_from_booking(booking, db=db, include_qr=True)
         if pdf:
-            attachments = [(
-                ticket_pdf_filename(booking.booking_id, ticket_index=-1 if len(tickets) > 1 else 0),
-                pdf,
-                "application/pdf",
-            )]
+            pdf_name = ticket_pdf_filename(
+                booking.booking_id,
+                ticket_index=-1 if len(tickets) > 1 else 0,
+            )
+            attachments = [(pdf_name, pdf, "application/pdf")]
     except Exception:
         attachments = []
+        pdf = None
     email_sent = send_email(
         email_addr,
         f"Your QR ticket — {event_title}",
@@ -1522,6 +1526,14 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
 
     wa_message_id = None
     if whatsapp_template_configured():
+        # Upload this booking's real ticket PDF to Zoho File Cache so the
+        # DOCUMENT template header is the event ticket — not a sample PDF.
+        wa_file_key = None
+        if pdf:
+            try:
+                wa_file_key = upload_cpaas_file(pdf, pdf_name)
+            except Exception:
+                wa_file_key = None
         wa_sent, wa_channel, wa_link, wa_message_id = send_booking_confirmation_whatsapp(
             phone,
             name=attendee if attendee != "there" else "Guest",
@@ -1529,6 +1541,7 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
             event_date=event_when,
             ticket_type=booking.ticket_type or "General Admission",
             booking_id=booking.booking_id,
+            attachment_file_key=wa_file_key,
         )
         if not wa_sent:
             wa_sent, wa_channel, wa_link = send_whatsapp(phone, wa_text, image_url=image)

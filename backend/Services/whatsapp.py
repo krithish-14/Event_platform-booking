@@ -164,6 +164,59 @@ def zepto_whatsapp_auth_header(api_key: str) -> str:
     return f"Zoho-enczapikey {token}"
 
 
+def upload_cpaas_file(
+    content: bytes,
+    filename: str = "ticket.pdf",
+    *,
+    content_type: str = "application/pdf",
+) -> Optional[str]:
+    """
+    Upload bytes to Zoho CPaaS File Cache and return file_cache_key.
+
+    Required for DOCUMENT-header WhatsApp templates so each booking gets the
+    real ticket PDF instead of the template's sample document.
+    """
+    api_key = zoho_cpaas_api_key()
+    raw = content if isinstance(content, (bytes, bytearray)) else b""
+    if not api_key or not raw:
+        return None
+    name = (filename or "ticket.pdf").strip() or "ticket.pdf"
+    name = name.replace("\\", "/").split("/")[-1][:120]
+    if not name.lower().endswith(".pdf"):
+        name = f"{name}.pdf"
+    url = f"{zepto_whatsapp_api_base()}/files"
+    headers = {
+        "Authorization": zepto_whatsapp_auth_header(api_key),
+        "Accept": "application/json",
+    }
+    agent = zoho_cpaas_agent_alias()
+    if agent:
+        headers["agent-alias"] = agent
+    try:
+        res = httpx.post(
+            url,
+            params={"name": name},
+            headers=headers,
+            files={"file": (name, bytes(raw), content_type or "application/pdf")},
+            timeout=60,
+        )
+        body = (res.text or "")[:500]
+        if not (200 <= res.status_code < 300):
+            _safe_print(f"[WHATSAPP] file upload failed {res.status_code}: {body}")
+            return None
+        data = res.json() if res.content else {}
+        key = ((data.get("data") or {}) if isinstance(data, dict) else {}).get("file_cache_key")
+        key = str(key or "").strip()
+        if not key:
+            _safe_print(f"[WHATSAPP] file upload missing file_cache_key: {body}")
+            return None
+        _safe_print(f"[WHATSAPP] file uploaded name={name} key={key[:24]}…")
+        return key
+    except Exception as exc:
+        _safe_print(f"[WHATSAPP] file upload error: {exc}")
+        return None
+
+
 def build_zepto_template_payload(
     *,
     to_phone: str,
@@ -230,15 +283,16 @@ def send_whatsapp_template(
     if not api_key or not sender or not (key or alias):
         return False, "none", link, None
 
+    # Only attach when the caller passes a real per-message file_cache_key
+    # (uploaded ticket PDF). Do NOT fall back to a static env sample key —
+    # that caused buyers to receive the Zepto/template example PDF.
     payload = build_zepto_template_payload(
         to_phone=to_phone,
         from_phone=sender,
         template_key=key,
         template_alias=alias,
         merge_info=merge_info,
-        attachment_file_key=attachment_file_key
-        or _env_first("WHATSAPP_TEMPLATE_FILE_KEY", "ZOHO_CPAAS_WHATSAPP_FILE_KEY")
-        or None,
+        attachment_file_key=(str(attachment_file_key).strip() if attachment_file_key else None),
         client_reference=client_reference,
     )
     url = f"{zepto_whatsapp_api_base()}/whatsapp"
