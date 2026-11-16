@@ -177,6 +177,47 @@ def _extract_file_cache_key(payload: Any) -> str:
     return ""
 
 
+def _multipart_file_body(
+    *,
+    field_name: str,
+    filename: str,
+    content: bytes,
+    content_type: str,
+) -> Tuple[str, bytes]:
+    """Build a multipart/form-data body with a known Content-Length."""
+    boundary = f"----JodFormBoundary{os.urandom(12).hex()}"
+    header = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\n'
+        f"Content-Type: {content_type}\r\n"
+        f"\r\n"
+    ).encode("ascii")
+    footer = f"\r\n--{boundary}--\r\n".encode("ascii")
+    return boundary, header + content + footer
+
+
+def _parse_upload_response(status_code: int, text: str, *, via: str, name: str) -> Optional[str]:
+    body = (text or "")[:500]
+    try:
+        import json as _json
+
+        data = _json.loads(text or "{}")
+    except Exception:
+        data = {}
+    key = _extract_file_cache_key(data if isinstance(data, dict) else {})
+    if key:
+        _safe_print(f"[WHATSAPP] file uploaded via {via} name={name} key={key[:28]}…")
+        return key
+    if isinstance(data, dict) and data.get("error"):
+        _safe_print(f"[WHATSAPP] file upload failed via {via}: {body}")
+        return None
+    if 200 <= status_code < 300:
+        _safe_print(f"[WHATSAPP] file upload missing file_cache_key via {via}: {body}")
+    else:
+        _safe_print(f"[WHATSAPP] file upload failed via {via} {status_code}: {body}")
+    return None
+
+
 def upload_cpaas_file(
     content: bytes,
     filename: str = "ticket.pdf",
@@ -202,91 +243,110 @@ def upload_cpaas_file(
     url = f"{zepto_whatsapp_api_base()}/files"
     auth = zepto_whatsapp_auth_header(api_key)
     agent = zoho_cpaas_agent_alias()
-    _safe_print(f"[WHATSAPP] uploading file name={name} bytes={len(raw)}")
+    magic = raw[:8]
+    _safe_print(
+        f"[WHATSAPP] uploading file name={name} bytes={len(raw)} magic={magic!r}"
+    )
 
-    # Write to a real temp file so the multipart part matches curl -F 'file=@path'
-    # (in-memory bytes were arriving empty at Zoho: UE_104).
-    tmp_path = ""
-    try:
-        with tempfile.NamedTemporaryFile(prefix="jod-wa-", suffix=".pdf", delete=False) as tmp:
-            tmp.write(raw)
-            tmp.flush()
-            tmp_path = tmp.name
-
-        headers = {"Authorization": auth}
+    upload_url = f"{url}?name={quote(name)}"
+    # Prefer raw multipart + Content-Length. Zoho UE_104 ("empty content") happens
+    # when the multipart part is missing/unparseable (chunked httpx files= and
+    # curl Content-Type overrides without boundary are common causes).
+    attempts: list[Tuple[str, Dict[str, str], bytes]] = []
+    for field_name in ("file", "attachment"):
+        boundary, body = _multipart_file_body(
+            field_name=field_name,
+            filename=name,
+            content=raw,
+            content_type=mime,
+        )
+        headers = {
+            "Authorization": auth,
+            "Accept": "application/json",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(len(body)),
+        }
         if agent:
             headers["agent-alias"] = agent
+        attempts.append((f"raw-{field_name}", headers, body))
+        if agent:
+            # Retry without agent-alias in case it routes to a broken parser path.
+            headers_no_agent = {
+                "Authorization": auth,
+                "Accept": "application/json",
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "Content-Length": str(len(body)),
+            }
+            attempts.append((f"raw-{field_name}-no-agent", headers_no_agent, body))
 
-        # Attempt 1: httpx multipart from an open file handle
-        with open(tmp_path, "rb") as fh:
-            res = httpx.post(
-                url,
-                params={"name": name},
-                headers=headers,
-                files={"file": (name, fh, mime)},
-                timeout=60,
-            )
-        body = (res.text or "")[:500]
-        if 200 <= res.status_code < 300:
-            try:
-                data = res.json()
-            except Exception:
-                data = {}
-            key = _extract_file_cache_key(data)
+    last_body = ""
+    try:
+        for via, headers, body in attempts:
+            res = httpx.post(upload_url, headers=headers, content=body, timeout=60)
+            last_body = res.text or ""
+            key = _parse_upload_response(res.status_code, last_body, via=via, name=name)
             if key:
-                _safe_print(f"[WHATSAPP] file uploaded name={name} key={key[:28]}…")
                 return key
-            _safe_print(f"[WHATSAPP] file upload missing file_cache_key: {body}")
-        else:
-            _safe_print(f"[WHATSAPP] file upload failed {res.status_code}: {body}")
+            # Only keep trying alternate shapes while Zoho claims empty content.
+            if "UE_104" not in last_body and res.status_code < 500:
+                break
 
-        # Attempt 2: curl -F (same shape as Zoho docs) when httpx body is rejected
-        if "UE_104" in body or res.status_code >= 400:
+        # Final fallback: curl -F exactly as Zoho docs (do NOT set Content-Type;
+        # curl must inject the boundary itself).
+        tmp_path = ""
+        try:
+            with tempfile.NamedTemporaryFile(prefix="jod-wa-", suffix=".pdf", delete=False) as tmp:
+                tmp.write(raw)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                tmp_path = tmp.name
+            on_disk = os.path.getsize(tmp_path)
+            _safe_print(f"[WHATSAPP] curl fallback path={tmp_path} on_disk={on_disk}")
+            if on_disk <= 0:
+                _safe_print("[WHATSAPP] curl fallback aborted: temp file empty")
+                return None
             curl_cmd = [
-                "curl", "-sS", "-X", "POST",
-                f"{url}?name={quote(name)}",
-                "-H", f"Authorization: {auth}",
+                "curl",
+                "-sS",
+                "-X",
+                "POST",
+                upload_url,
+                "-H",
+                f"Authorization: {auth}",
             ]
             if agent:
                 curl_cmd.extend(["-H", f"agent-alias: {agent}"])
-            curl_cmd.extend(["-F", f"file=@{tmp_path};type={mime};filename={name}"])
-            try:
-                completed = subprocess.run(
-                    curl_cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                    check=False,
-                )
-                curl_body = (completed.stdout or completed.stderr or "")[:500]
-                if completed.returncode == 0 and (completed.stdout or "").strip():
-                    import json as _json
-
-                    try:
-                        parsed = _json.loads(completed.stdout or "{}")
-                    except Exception:
-                        parsed = {}
-                    key = _extract_file_cache_key(parsed)
-                    if key:
-                        _safe_print(f"[WHATSAPP] file uploaded via curl name={name} key={key[:28]}…")
-                        return key
-                    _safe_print(f"[WHATSAPP] curl upload response: {curl_body}")
-                else:
-                    _safe_print(
-                        f"[WHATSAPP] curl upload failed code={completed.returncode}: {curl_body}"
-                    )
-            except Exception as curl_exc:
-                _safe_print(f"[WHATSAPP] curl upload error: {curl_exc}")
+            # Do not set Content-Type — curl -F must supply the boundary.
+            curl_cmd.extend(["-F", f"file=@{tmp_path}"])
+            completed = subprocess.run(
+                curl_cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            curl_text = completed.stdout or ""
+            if completed.returncode != 0 and not curl_text:
+                curl_text = completed.stderr or ""
+            key = _parse_upload_response(
+                200 if completed.returncode == 0 else 400,
+                curl_text,
+                via="curl",
+                name=name,
+            )
+            if key:
+                return key
+            last_body = curl_text
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
         return None
     except Exception as exc:
         _safe_print(f"[WHATSAPP] file upload error: {exc}")
         return None
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
 
 
 def build_zepto_template_payload(

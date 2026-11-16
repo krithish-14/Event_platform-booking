@@ -181,10 +181,11 @@ class WhatsAppTemplateTests(unittest.TestCase):
     def test_upload_cpaas_file_returns_cache_key(self, mock_post):
         mock_res = MagicMock()
         mock_res.status_code = 200
-        mock_res.text = '{"message":"OK"}'
+        mock_res.text = '{"data":{"file_cache_key":"fc-ticket-123"},"message":"OK"}'
         mock_res.content = b'{"data":{"file_cache_key":"fc-ticket-123"}}'
         mock_res.json.return_value = {"data": {"file_cache_key": "fc-ticket-123"}, "message": "OK"}
         mock_post.return_value = mock_res
+        pdf_bytes = b"%PDF-1.4 ticket-bytes-long-enough"
         with patch.dict(
             os.environ,
             {
@@ -194,17 +195,16 @@ class WhatsAppTemplateTests(unittest.TestCase):
             },
             clear=True,
         ):
-            key = upload_cpaas_file(b"%PDF-1.4 ticket-bytes", "JOD-ABC.pdf")
+            key = upload_cpaas_file(pdf_bytes, "JOD-ABC.pdf")
         self.assertEqual(key, "fc-ticket-123")
         args, kwargs = mock_post.call_args
-        self.assertEqual(args[0], "https://cpaas.zoho.in/v1.1/files")
-        self.assertEqual(kwargs["params"]["name"], "JOD-ABC.pdf")
+        self.assertTrue(str(args[0]).startswith("https://cpaas.zoho.in/v1.1/files?name="))
+        self.assertIn("JOD-ABC.pdf", str(args[0]))
         self.assertEqual(kwargs["headers"]["Authorization"], "Zoho-enczapikey tok")
         self.assertEqual(kwargs["headers"]["agent-alias"], "jod-agent")
-        self.assertIn("file", kwargs["files"])
-        # File handle must be a real readable object (temp-file based upload)
-        uploaded = kwargs["files"]["file"]
-        self.assertEqual(uploaded[0], "JOD-ABC.pdf")
+        self.assertIn("multipart/form-data; boundary=", kwargs["headers"]["Content-Type"])
+        self.assertIn(b"ticket-bytes-long-enough", kwargs["content"])
+        self.assertEqual(kwargs["headers"]["Content-Length"], str(len(kwargs["content"])))
 
     @patch("Services.whatsapp.httpx.post")
     def test_booking_send_does_not_use_static_sample_file_key(self, mock_post):

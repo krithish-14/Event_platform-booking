@@ -97,30 +97,40 @@ def main() -> int:
 
     file_key = (args.file_key or "").strip() or None
     if args.upload_demo_pdf and not file_key:
-        # Small but non-empty PDF body for DOCUMENT header attach tests.
-        demo_pdf = b"""%PDF-1.4
-1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
-2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj
-3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 4 0 R /Resources<< /Font<< /F1 5 0 R >> >> >>endobj
-4 0 obj<< /Length 68 >>stream
-BT /F1 18 Tf 40 120 Td (JOD LIVE TICKET PDF TEST) Tj ET
-endstream
-endobj
-5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000266 00000 n 
-0000000385 00000 n 
-trailer<< /Size 6 /Root 1 0 R >>
-startxref
-464
-%%EOF
-"""
-        print(f"demo_pdf_bytes={len(demo_pdf)}")
+        # Prefer a real generated PDF. Zoho UE_104 can reject tiny/hand-rolled
+        # PDFs as "empty content" even when the multipart body is present.
+        demo_pdf = b""
+        try:
+            from fpdf import FPDF
+
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Helvetica", "B", 18)
+            pdf.cell(0, 12, "JOD Events - WhatsApp ticket test", ln=True)
+            pdf.set_font("Helvetica", size=12)
+            for i in range(40):
+                pdf.cell(0, 7, f"Ticket PDF line {i + 1} - {args.event}", ln=True)
+            demo_pdf = bytes(pdf.output())
+            print(f"demo_pdf_source=fpdf bytes={len(demo_pdf)}")
+        except Exception as exc:
+            print(f"demo_pdf_source=fpdf_failed ({exc}); using ticket_pdf assembler")
+            from Services.ticket_pdf import _assemble_pdf
+
+            stream = b"BT /F1 18 Tf 72 720 Td (JOD LIVE TICKET PDF TEST) Tj ET"
+            objects = [
+                b"<< /Type /Catalog /Pages 2 0 R >>",
+                b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                (
+                    b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+                    b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>"
+                ),
+                f"<< /Length {len(stream)} >>\nstream\n".encode("ascii")
+                + stream
+                + b"\nendstream",
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            ]
+            demo_pdf = _assemble_pdf(objects)
+            print(f"demo_pdf_source=ticket_pdf bytes={len(demo_pdf)}")
         file_key = upload_cpaas_file(demo_pdf, "JOD-LIVE-TEST.pdf")
         print(f"uploaded_demo_file_key={file_key or 'FAILED'}")
         if not file_key:
