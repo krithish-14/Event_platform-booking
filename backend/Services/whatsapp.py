@@ -11,6 +11,8 @@ Priority:
 from __future__ import annotations
 
 import os
+import subprocess
+import tempfile
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
 
@@ -164,6 +166,17 @@ def zepto_whatsapp_auth_header(api_key: str) -> str:
     return f"Zoho-enczapikey {token}"
 
 
+def _extract_file_cache_key(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    for key_name in ("file_cache_key", "file_key", "key"):
+        value = str((data or {}).get(key_name) or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def upload_cpaas_file(
     content: bytes,
     filename: str = "ticket.pdf",
@@ -177,44 +190,103 @@ def upload_cpaas_file(
     real ticket PDF instead of the template's sample document.
     """
     api_key = zoho_cpaas_api_key()
-    raw = content if isinstance(content, (bytes, bytearray)) else b""
+    raw = bytes(content) if isinstance(content, (bytes, bytearray)) else b""
     if not api_key or not raw:
+        _safe_print("[WHATSAPP] file upload skipped: missing api key or empty bytes")
         return None
     name = (filename or "ticket.pdf").strip() or "ticket.pdf"
     name = name.replace("\\", "/").split("/")[-1][:120]
     if not name.lower().endswith(".pdf"):
         name = f"{name}.pdf"
+    mime = (content_type or "application/pdf").strip() or "application/pdf"
     url = f"{zepto_whatsapp_api_base()}/files"
-    headers = {
-        "Authorization": zepto_whatsapp_auth_header(api_key),
-        "Accept": "application/json",
-    }
+    auth = zepto_whatsapp_auth_header(api_key)
     agent = zoho_cpaas_agent_alias()
-    if agent:
-        headers["agent-alias"] = agent
+    _safe_print(f"[WHATSAPP] uploading file name={name} bytes={len(raw)}")
+
+    # Write to a real temp file so the multipart part matches curl -F 'file=@path'
+    # (in-memory bytes were arriving empty at Zoho: UE_104).
+    tmp_path = ""
     try:
-        res = httpx.post(
-            url,
-            params={"name": name},
-            headers=headers,
-            files={"file": (name, bytes(raw), content_type or "application/pdf")},
-            timeout=60,
-        )
+        with tempfile.NamedTemporaryFile(prefix="jod-wa-", suffix=".pdf", delete=False) as tmp:
+            tmp.write(raw)
+            tmp.flush()
+            tmp_path = tmp.name
+
+        headers = {"Authorization": auth}
+        if agent:
+            headers["agent-alias"] = agent
+
+        # Attempt 1: httpx multipart from an open file handle
+        with open(tmp_path, "rb") as fh:
+            res = httpx.post(
+                url,
+                params={"name": name},
+                headers=headers,
+                files={"file": (name, fh, mime)},
+                timeout=60,
+            )
         body = (res.text or "")[:500]
-        if not (200 <= res.status_code < 300):
-            _safe_print(f"[WHATSAPP] file upload failed {res.status_code}: {body}")
-            return None
-        data = res.json() if res.content else {}
-        key = ((data.get("data") or {}) if isinstance(data, dict) else {}).get("file_cache_key")
-        key = str(key or "").strip()
-        if not key:
+        if 200 <= res.status_code < 300:
+            try:
+                data = res.json()
+            except Exception:
+                data = {}
+            key = _extract_file_cache_key(data)
+            if key:
+                _safe_print(f"[WHATSAPP] file uploaded name={name} key={key[:28]}…")
+                return key
             _safe_print(f"[WHATSAPP] file upload missing file_cache_key: {body}")
-            return None
-        _safe_print(f"[WHATSAPP] file uploaded name={name} key={key[:24]}…")
-        return key
+        else:
+            _safe_print(f"[WHATSAPP] file upload failed {res.status_code}: {body}")
+
+        # Attempt 2: curl -F (same shape as Zoho docs) when httpx body is rejected
+        if "UE_104" in body or res.status_code >= 400:
+            curl_cmd = [
+                "curl", "-sS", "-X", "POST",
+                f"{url}?name={quote(name)}",
+                "-H", f"Authorization: {auth}",
+            ]
+            if agent:
+                curl_cmd.extend(["-H", f"agent-alias: {agent}"])
+            curl_cmd.extend(["-F", f"file=@{tmp_path};type={mime};filename={name}"])
+            try:
+                completed = subprocess.run(
+                    curl_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    check=False,
+                )
+                curl_body = (completed.stdout or completed.stderr or "")[:500]
+                if completed.returncode == 0 and (completed.stdout or "").strip():
+                    import json as _json
+
+                    try:
+                        parsed = _json.loads(completed.stdout or "{}")
+                    except Exception:
+                        parsed = {}
+                    key = _extract_file_cache_key(parsed)
+                    if key:
+                        _safe_print(f"[WHATSAPP] file uploaded via curl name={name} key={key[:28]}…")
+                        return key
+                    _safe_print(f"[WHATSAPP] curl upload response: {curl_body}")
+                else:
+                    _safe_print(
+                        f"[WHATSAPP] curl upload failed code={completed.returncode}: {curl_body}"
+                    )
+            except Exception as curl_exc:
+                _safe_print(f"[WHATSAPP] curl upload error: {curl_exc}")
+        return None
     except Exception as exc:
         _safe_print(f"[WHATSAPP] file upload error: {exc}")
         return None
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
 
 
 def build_zepto_template_payload(

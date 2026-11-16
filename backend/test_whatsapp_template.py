@@ -194,13 +194,17 @@ class WhatsAppTemplateTests(unittest.TestCase):
             },
             clear=True,
         ):
-            key = upload_cpaas_file(b"%PDF-1.4 ticket", "JOD-ABC.pdf")
+            key = upload_cpaas_file(b"%PDF-1.4 ticket-bytes", "JOD-ABC.pdf")
         self.assertEqual(key, "fc-ticket-123")
         args, kwargs = mock_post.call_args
         self.assertEqual(args[0], "https://cpaas.zoho.in/v1.1/files")
         self.assertEqual(kwargs["params"]["name"], "JOD-ABC.pdf")
+        self.assertEqual(kwargs["headers"]["Authorization"], "Zoho-enczapikey tok")
         self.assertEqual(kwargs["headers"]["agent-alias"], "jod-agent")
         self.assertIn("file", kwargs["files"])
+        # File handle must be a real readable object (temp-file based upload)
+        uploaded = kwargs["files"]["file"]
+        self.assertEqual(uploaded[0], "JOD-ABC.pdf")
 
     @patch("Services.whatsapp.httpx.post")
     def test_booking_send_does_not_use_static_sample_file_key(self, mock_post):
