@@ -1532,8 +1532,15 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
         if pdf:
             try:
                 wa_file_key = upload_cpaas_file(pdf, pdf_name)
-            except Exception:
+            except Exception as exc:
+                print(f"[WHATSAPP] ticket PDF upload raised: {exc}", flush=True)
                 wa_file_key = None
+        if pdf and not wa_file_key:
+            print(
+                f"[WHATSAPP] ticket PDF upload FAILED for booking={booking.booking_id}; "
+                "template may fall back to sample document",
+                flush=True,
+            )
         wa_sent, wa_channel, wa_link, wa_message_id = send_booking_confirmation_whatsapp(
             phone,
             name=attendee if attendee != "there" else "Guest",

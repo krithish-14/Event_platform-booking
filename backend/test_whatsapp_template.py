@@ -74,7 +74,8 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertEqual(payload["to"], "+919876543210")
         self.assertEqual(payload["template_key"], TEST_TEMPLATE_KEY)
         self.assertNotIn("template_alias", payload)
-        self.assertEqual(payload["attachment"], {"file_key": "file-cache-key-1"})
+        self.assertEqual(payload["file_key"], "file-cache-key-1")
+        self.assertNotIn("attachment", payload)
         self.assertEqual(payload["client_reference"], "JOD-ABC00000")
         self.assertEqual(payload["merge_info"]["Event_Name"], "Demo Event")
 

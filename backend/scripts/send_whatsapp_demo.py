@@ -31,6 +31,7 @@ load_dotenv(BACKEND_ROOT / ".env")
 
 from Services.whatsapp import (  # noqa: E402
     send_booking_confirmation_whatsapp,
+    upload_cpaas_file,
     whatsapp_template_configured,
     zoho_cpaas_api_key,
     zoho_cpaas_ticket_template_key,
@@ -68,6 +69,11 @@ def main() -> int:
         default="",
         help="Optional Zoho uploaded document file_key for DOCUMENT header templates",
     )
+    parser.add_argument(
+        "--upload-demo-pdf",
+        action="store_true",
+        help="Upload a tiny real PDF to Zoho File Cache and attach it (tests DOCUMENT header).",
+    )
     args = parser.parse_args()
 
     if not whatsapp_template_configured():
@@ -89,6 +95,19 @@ def main() -> int:
     print(f"Configured template_key={key[:8]}… from={sender} to={to_phone}")
     print(f"api_base={zepto_whatsapp_api_base()}")
 
+    file_key = (args.file_key or "").strip() or None
+    if args.upload_demo_pdf and not file_key:
+        # Minimal valid PDF so WhatsApp DOCUMENT header is not the template sample.
+        demo_pdf = (
+            b"%PDF-1.4\n1 0 obj<<>>endobj\n"
+            b"2 0 obj<< /Length 44 >>stream\nBT /F1 12 Tf 100 700 Td (JOD LIVE TICKET TEST) Tj ET\n"
+            b"endstream\nendobj\ntrailer<<>>\n%%EOF\n"
+        )
+        file_key = upload_cpaas_file(demo_pdf, "JOD-LIVE-TEST.pdf")
+        print(f"uploaded_demo_file_key={file_key or 'FAILED'}")
+        if not file_key:
+            return 3
+
     sent, channel, link, message_id = send_booking_confirmation_whatsapp(
         to_phone,
         name=args.name,
@@ -96,9 +115,9 @@ def main() -> int:
         event_date=args.date,
         ticket_type=args.ticket,
         booking_id=args.booking_id,
-        attachment_file_key=(args.file_key or None),
+        attachment_file_key=file_key,
     )
-    print(f"sent={sent} channel={channel} message_id={message_id}")
+    print(f"sent={sent} channel={channel} message_id={message_id} file_key={file_key or 'none'}")
     if link:
         print(f"wa_me_fallback={link}")
     return 0 if sent else 2

@@ -243,8 +243,11 @@ def build_zepto_template_payload(
         payload["template_alias"] = alias
     if merge_info:
         payload["merge_info"] = dict(merge_info)
-    if attachment_file_key:
-        payload["attachment"] = {"file_key": str(attachment_file_key).strip()}
+    # Zoho CPaaS WhatsApp DOCUMENT header expects top-level file_key
+    # (nested "attachment" is ignored and the template sample PDF is sent).
+    file_key = str(attachment_file_key or "").strip()
+    if file_key:
+        payload["file_key"] = file_key
     if client_reference:
         payload["client_reference"] = str(client_reference)[:100]
     return payload
@@ -300,6 +303,7 @@ def send_whatsapp_template(
     _safe_print(
         f"[WHATSAPP] template to={payload.get('to')} key={key or alias}"
         + (f" agent={agent}" if agent else "")
+        + (f" file_key={str(payload.get('file_key') or '')[:28]}" if payload.get("file_key") else " file_key=MISSING")
     )
     try:
         headers = {
