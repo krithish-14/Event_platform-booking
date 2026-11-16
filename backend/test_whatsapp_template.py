@@ -74,8 +74,8 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertEqual(payload["to"], "+919876543210")
         self.assertEqual(payload["template_key"], TEST_TEMPLATE_KEY)
         self.assertNotIn("template_alias", payload)
-        self.assertEqual(payload["file_key"], "file-cache-key-1")
-        self.assertNotIn("attachment", payload)
+        self.assertNotIn("file_key", payload)
+        self.assertEqual(payload["attachment"], {"file_cache_key": "file-cache-key-1"})
         self.assertEqual(payload["client_reference"], "JOD-ABC00000")
         self.assertEqual(payload["merge_info"]["Event_Name"], "Demo Event")
 
@@ -233,6 +233,35 @@ class WhatsAppTemplateTests(unittest.TestCase):
             )
         body = mock_post.call_args.kwargs["json"]
         self.assertNotIn("attachment", body)
+        self.assertNotIn("file_key", body)
+        self.assertNotIn("file_cache_key", body)
+
+    @patch("Services.whatsapp.httpx.post")
+    def test_send_template_uses_attachment_file_cache_key(self, mock_post):
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.text = '{"status":"success"}'
+        mock_res.json.return_value = {"status": "success", "data": {"message_id": "mid-doc"}}
+        mock_post.return_value = mock_res
+        with patch.dict(
+            os.environ,
+            {
+                "ZOHO_CPAAS_API_KEY": "tok",
+                "ZOHO_CPAAS_WHATSAPP_FROM": "+919876500000",
+                "ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_KEY": TEST_TEMPLATE_KEY,
+            },
+            clear=True,
+        ):
+            sent, _channel, _link, message_id = send_whatsapp_template(
+                "9876543210",
+                merge_info={"Name": "A"},
+                attachment_file_key="fc-live-ticket-999",
+            )
+        self.assertTrue(sent)
+        self.assertEqual(message_id, "mid-doc")
+        body = mock_post.call_args.kwargs["json"]
+        self.assertEqual(body["attachment"], {"file_cache_key": "fc-live-ticket-999"})
+        self.assertNotIn("file_key", body)
 
     @patch("Services.whatsapp.httpx.post")
     def test_send_template_failure_returns_false(self, mock_post):
