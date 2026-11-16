@@ -360,11 +360,10 @@ def build_zepto_template_payload(
     template_key: str = "",
     template_alias: str = "",
     merge_info: Optional[Dict[str, str]] = None,
-    attachment_file_key: Optional[str] = None,
     attachment_bytes: Optional[bytes] = None,
     attachment_filename: str = "ticket.pdf",
     client_reference: Optional[str] = None,
-    attachment_style: str = "merge_file_cache_key",
+    include_base64_attachment: bool = False,
 ) -> Dict[str, Any]:
     to_e164 = e164_whatsapp_number(to_phone)
     from_e164 = e164_whatsapp_number(from_phone) or (from_phone or "").strip()
@@ -382,14 +381,11 @@ def build_zepto_template_payload(
         payload["template_alias"] = alias
     if merge_info:
         payload["merge_info"] = dict(merge_info)
-    # DOCUMENT-header media on cpaas.zoho.in (live-verified):
-    # put file_cache_key inside merge_info. Top-level file_key / attachment
-    # → GE_121; attachments[] → GE_101/500.
-    file_key = str(attachment_file_key or "").strip()
+    # Official OAS WhatsApp send schema has no media fields. Undocumented
+    # attachments[] sometimes accepts email-style base64 content.
     raw = bytes(attachment_bytes) if isinstance(attachment_bytes, (bytes, bytearray)) else b""
     fname = (attachment_filename or "ticket.pdf").strip() or "ticket.pdf"
-    style = (attachment_style or "merge_file_cache_key").strip()
-    if style == "attachments_base64" and raw:
+    if include_base64_attachment and raw:
         payload["attachments"] = [
             {
                 "content": base64.b64encode(raw).decode("ascii"),
@@ -397,46 +393,168 @@ def build_zepto_template_payload(
                 "name": fname,
             }
         ]
-    elif file_key:
-        if style == "merge_file_cache_key":
-            payload.setdefault("merge_info", {})
-            payload["merge_info"]["file_cache_key"] = file_key
-        elif style == "merge_file_key":
-            payload.setdefault("merge_info", {})
-            payload["merge_info"]["file_key"] = file_key
-        elif style == "attachments_file_cache_key":
-            payload["attachments"] = [{"file_cache_key": file_key}]
-        elif style == "attachments_file_key":
-            payload["attachments"] = [{"file_key": file_key}]
-        else:
-            payload.setdefault("merge_info", {})
-            payload["merge_info"]["file_cache_key"] = file_key
     if client_reference:
         payload["client_reference"] = str(client_reference)[:100]
     return payload
 
 
-def _attachment_debug(payload: Dict[str, Any]) -> str:
-    if payload.get("attachment"):
-        att = payload["attachment"]
-        if isinstance(att, dict):
-            val = att.get("file_cache_key") or att.get("file_key") or ""
-            return f"attachment={str(val)[:28]}"
-    atts = payload.get("attachments")
-    if isinstance(atts, list) and atts:
-        first = atts[0]
-        if isinstance(first, dict):
-            if first.get("content"):
-                return f"attachments[content]={len(str(first.get('content') or ''))}b64"
-            val = first.get("file_cache_key") or first.get("file_key") or ""
-            return f"attachments[key]={str(val)[:28]}"
-        return f"attachments[0]={str(first)[:28]}"
-    if payload.get("file_cache_key"):
-        return f"file_cache_key={str(payload.get('file_cache_key'))[:28]}"
-    merge = payload.get("merge_info") if isinstance(payload.get("merge_info"), dict) else {}
-    if merge.get("file_cache_key") or merge.get("file_key"):
-        return "merge_info.file*"
-    return "file_key=MISSING"
+def _meta_cloud_credentials() -> Tuple[str, str]:
+    token = (os.getenv("WHATSAPP_ACCESS_TOKEN") or os.getenv("WHATSAPP_TOKEN") or "").strip()
+    phone_id = (os.getenv("WHATSAPP_PHONE_NUMBER_ID") or "").strip()
+    return token, phone_id
+
+
+def _meta_template_name() -> str:
+    return _env_first(
+        "WHATSAPP_CLOUD_TEMPLATE_NAME",
+        "ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_ALIAS",
+        "WHATSAPP_TEMPLATE_ALIAS",
+    )
+
+
+def _meta_template_lang() -> str:
+    return _env_first("WHATSAPP_CLOUD_TEMPLATE_LANG", "WHATSAPP_TEMPLATE_LANG") or "en"
+
+
+def _publish_ticket_pdf(raw: bytes, filename: str) -> str:
+    """Upload ticket PDF to R2 and return a public HTTPS URL (empty on failure)."""
+    if not raw:
+        return ""
+    try:
+        from Services.r2_storage import is_configured, upload_public_file
+
+        if not is_configured():
+            _safe_print("[WHATSAPP] R2 not configured; cannot publish ticket PDF URL")
+            return ""
+        url = upload_public_file(
+            data=raw,
+            filename=filename or "ticket.pdf",
+            content_type="application/pdf",
+            purpose="ticket_pdf",
+        )
+        _safe_print(f"[WHATSAPP] published ticket PDF url={url}")
+        return url
+    except Exception as exc:
+        _safe_print(f"[WHATSAPP] publish ticket PDF failed: {exc}")
+        return ""
+
+
+def send_meta_document_template(
+    to_phone: str,
+    *,
+    merge_info: Dict[str, str],
+    document_url: str,
+    document_filename: str = "ticket.pdf",
+) -> Tuple[bool, str, Optional[str]]:
+    """
+    Send a Meta Cloud API template with a DOCUMENT header override.
+    Requires WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, and a Meta template name.
+    """
+    token, phone_id = _meta_cloud_credentials()
+    template_name = _meta_template_name()
+    number = normalize_whatsapp_number(to_phone)
+    if not (token and phone_id and template_name and number and document_url):
+        return False, "meta-template", None
+
+    body_params = [
+        {"type": "text", "text": str(merge_info.get(k) or "")[:1024]}
+        for k in BOOKING_TEMPLATE_MERGE_KEYS
+    ]
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": number,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": _meta_template_lang()},
+            "components": [
+                {
+                    "type": "header",
+                    "parameters": [
+                        {
+                            "type": "document",
+                            "document": {
+                                "link": document_url,
+                                "filename": (document_filename or "ticket.pdf")[:240],
+                            },
+                        }
+                    ],
+                },
+                {"type": "body", "parameters": body_params},
+            ],
+        },
+    }
+    url = f"https://graph.facebook.com/v21.0/{phone_id}/messages"
+    try:
+        _safe_print(
+            f"[WHATSAPP] Meta template name={template_name} to={number} doc={document_url[:80]}"
+        )
+        res = httpx.post(
+            url,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=45,
+        )
+        body = (res.text or "")[:500]
+        if 200 <= res.status_code < 300:
+            message_id = None
+            try:
+                message_id = ((res.json().get("messages") or [{}])[0] or {}).get("id")
+            except Exception:
+                message_id = None
+            _safe_print(f"[WHATSAPP] Meta template queued message_id={message_id or '-'}")
+            return True, "meta-template", message_id
+        _safe_print(f"[WHATSAPP] Meta template failed {res.status_code}: {body}")
+    except Exception as exc:
+        _safe_print(f"[WHATSAPP] Meta template error: {exc}")
+    return False, "meta-template", None
+
+
+def send_meta_document_link(
+    to_phone: str,
+    *,
+    document_url: str,
+    document_filename: str = "ticket.pdf",
+    caption: str = "",
+) -> Tuple[bool, str, Optional[str]]:
+    """Send a free-form Meta document message (works inside the 24h customer window)."""
+    token, phone_id = _meta_cloud_credentials()
+    number = normalize_whatsapp_number(to_phone)
+    if not (token and phone_id and number and document_url):
+        return False, "meta-document", None
+    doc: Dict[str, Any] = {
+        "link": document_url,
+        "filename": (document_filename or "ticket.pdf")[:240],
+    }
+    if caption:
+        doc["caption"] = caption[:1024]
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": number,
+        "type": "document",
+        "document": doc,
+    }
+    url = f"https://graph.facebook.com/v21.0/{phone_id}/messages"
+    try:
+        res = httpx.post(
+            url,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=45,
+        )
+        body = (res.text or "")[:500]
+        if 200 <= res.status_code < 300:
+            message_id = None
+            try:
+                message_id = ((res.json().get("messages") or [{}])[0] or {}).get("id")
+            except Exception:
+                message_id = None
+            _safe_print(f"[WHATSAPP] Meta document queued message_id={message_id or '-'}")
+            return True, "meta-document", message_id
+        _safe_print(f"[WHATSAPP] Meta document failed {res.status_code}: {body}")
+    except Exception as exc:
+        _safe_print(f"[WHATSAPP] Meta document error: {exc}")
+    return False, "meta-document", None
 
 
 def send_whatsapp_template(
@@ -474,19 +592,11 @@ def send_whatsapp_template(
     if not api_key or not sender or not (key or alias):
         return False, "none", link, None
 
-    # Only attach when the caller passes a real per-message file_cache_key
-    # and/or PDF bytes. Do NOT fall back to a static env sample key.
-    file_key = str(attachment_file_key).strip() if attachment_file_key else ""
     raw = bytes(attachment_bytes) if isinstance(attachment_bytes, (bytes, bytearray)) else b""
     fname = (attachment_filename or "ticket.pdf").strip() or "ticket.pdf"
-    # Live-verified on IN DC: merge_info.file_cache_key queues successfully.
-    styles: list[str] = []
-    if file_key:
-        styles.extend(["merge_file_cache_key", "merge_file_key"])
-    if raw:
-        styles.append("attachments_base64")
-    if not styles:
-        styles = [""]
+    # Zoho OAS has no DOCUMENT override field. Try undocumented attachments base64;
+    # otherwise send text-only (template sample PDF may still attach).
+    attempts = [True, False] if raw else [False]
     url = f"{zepto_whatsapp_api_base()}/whatsapp"
     agent = zoho_cpaas_agent_alias()
     headers = {
@@ -498,23 +608,23 @@ def send_whatsapp_template(
         headers["agent-alias"] = agent
 
     try:
-        for style in styles:
+        for with_attach in attempts:
             payload = build_zepto_template_payload(
                 to_phone=to_phone,
                 from_phone=sender,
                 template_key=key,
                 template_alias=alias,
                 merge_info=merge_info,
-                attachment_file_key=file_key or None,
                 attachment_bytes=raw or None,
                 attachment_filename=fname,
                 client_reference=client_reference,
-                attachment_style=style or "merge_file_cache_key",
+                include_base64_attachment=with_attach,
             )
+            style = "attachments_base64" if with_attach else "text-only"
             _safe_print(
-                f"[WHATSAPP] template to={payload.get('to')} key={key or alias}"
+                f"[WHATSAPP] Zoho template to={payload.get('to')} key={key or alias}"
                 + (f" agent={agent}" if agent else "")
-                + f" style={style or 'none'} {_attachment_debug(payload)}"
+                + f" style={style}"
             )
             res = httpx.post(url, headers=headers, json=payload, timeout=45)
             body = (res.text or "")[:500]
@@ -528,19 +638,11 @@ def send_whatsapp_template(
                 except Exception:
                     message_id = None
                 _safe_print(
-                    f"[WHATSAPP] Zoho template queued message_id={message_id or '-'} style={style or 'none'}"
+                    f"[WHATSAPP] Zoho template queued message_id={message_id or '-'} style={style}"
                 )
                 return True, "zepto-template", link, message_id
-            _safe_print(f"[WHATSAPP] Zoho template failed {res.status_code} style={style or 'none'}: {body}")
-            # Keep probing shapes on schema/shape errors; stop on auth/template errors.
-            retryable = (
-                "GE_121" in body
-                or "GE_101" in body
-                or "extra key" in body.lower()
-                or "Internal Error" in body
-                or res.status_code >= 500
-            )
-            if not retryable:
+            _safe_print(f"[WHATSAPP] Zoho template failed {res.status_code} style={style}: {body}")
+            if not with_attach:
                 break
     except Exception as exc:
         _safe_print(f"[WHATSAPP] Zoho template error: {exc}")
@@ -559,7 +661,15 @@ def send_booking_confirmation_whatsapp(
     attachment_bytes: Optional[bytes] = None,
     attachment_filename: str = "ticket.pdf",
 ) -> Tuple[bool, str, str, Optional[str]]:
-    """Send the approved booking-confirmation template for one booking."""
+    """
+    Send booking confirmation on WhatsApp with the real ticket PDF when possible.
+
+    Priority:
+    1. Meta Cloud API DOCUMENT template with a public R2 PDF link
+    2. Meta free-form document message (24h window)
+    3. Zoho CPaaS template (may still use sample DOCUMENT if API cannot override)
+    """
+    del attachment_file_key  # Zoho file-cache keys do not override WhatsApp DOCUMENT media.
     merge = booking_confirmation_merge_info(
         name=name,
         event_name=event_name,
@@ -567,12 +677,34 @@ def send_booking_confirmation_whatsapp(
         ticket_type=ticket_type,
         booking_id=booking_id,
     )
+    raw = bytes(attachment_bytes) if isinstance(attachment_bytes, (bytes, bytearray)) else b""
+    fname = (attachment_filename or "ticket.pdf").strip() or "ticket.pdf"
+    link = wa_me_url(to_phone, "Your JOD Events booking confirmation.")
+
+    pdf_url = _publish_ticket_pdf(raw, fname) if raw else ""
+    if pdf_url:
+        ok, channel, message_id = send_meta_document_template(
+            to_phone,
+            merge_info=merge,
+            document_url=pdf_url,
+            document_filename=fname,
+        )
+        if ok:
+            return True, channel, link, message_id
+        ok, channel, message_id = send_meta_document_link(
+            to_phone,
+            document_url=pdf_url,
+            document_filename=fname,
+            caption=f"{merge.get('Event_Name') or 'Event'} · {merge.get('Booking_id') or ''}".strip(),
+        )
+        if ok:
+            return True, channel, link, message_id
+
     return send_whatsapp_template(
         to_phone,
         merge_info=merge,
-        attachment_file_key=attachment_file_key,
-        attachment_bytes=attachment_bytes,
-        attachment_filename=attachment_filename,
+        attachment_bytes=raw or None,
+        attachment_filename=fname,
         client_reference=format_booking_id(booking_id),
     )
 

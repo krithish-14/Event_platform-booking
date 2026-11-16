@@ -31,6 +31,7 @@ _EXT_BY_MIME = {
     "image/jpg": ".jpg",
     "image/png": ".png",
     "image/webp": ".webp",
+    "application/pdf": ".pdf",
 }
 
 
@@ -79,7 +80,7 @@ def encode_key_url(relative_key: str) -> str:
 
 def _safe_ext(filename: str, content_type: Optional[str]) -> str:
     name = (filename or "").lower()
-    for ext in (".jpeg", ".jpg", ".png", ".webp"):
+    for ext in (".jpeg", ".jpg", ".png", ".webp", ".pdf"):
         if name.endswith(ext):
             return ".jpg" if ext == ".jpeg" else ext
     mime = (content_type or "").split(";")[0].strip().lower()
@@ -162,7 +163,7 @@ def _client_and_bucket():
     return client, bucket
 
 
-def upload_public_image(
+def upload_public_file(
     *,
     data: bytes,
     filename: str,
@@ -171,6 +172,7 @@ def upload_public_image(
     owner_customer_id: Optional[str] = None,
     event_id: Optional[str] = None,
 ) -> str:
+    """Upload bytes to R2 and return the public HTTPS URL."""
     if not data:
         raise ValueError("Empty file.")
     relative = relative_object_key(
@@ -193,5 +195,24 @@ def upload_public_image(
         )
     except Exception as exc:
         logger.exception("Cloudflare R2 upload failed for key %s", key)
-        raise RuntimeError("Could not store the image on Cloudflare R2. Try again in a moment.") from exc
+        raise RuntimeError("Could not store the file on Cloudflare R2. Try again in a moment.") from exc
     return encode_key_url(relative)
+
+
+def upload_public_image(
+    *,
+    data: bytes,
+    filename: str,
+    content_type: Optional[str] = None,
+    purpose: str = "file",
+    owner_customer_id: Optional[str] = None,
+    event_id: Optional[str] = None,
+) -> str:
+    return upload_public_file(
+        data=data,
+        filename=filename,
+        content_type=content_type,
+        purpose=purpose,
+        owner_customer_id=owner_customer_id,
+        event_id=event_id,
+    )

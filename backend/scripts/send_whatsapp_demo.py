@@ -163,6 +163,13 @@ def main() -> int:
     print(f"sent={sent} channel={channel} message_id={message_id} file_key={file_key or 'none'}")
     if link:
         print(f"wa_me_fallback={link}")
+    if sent and channel.startswith("zepto"):
+        print(
+            "NOTE: Zoho CPaaS WhatsApp API cannot override DOCUMENT media "
+            "(OAS has no attachment field). For the real ticket PDF set Meta Cloud API env: "
+            "WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_CLOUD_TEMPLATE_NAME "
+            "(plus R2 for the public PDF URL)."
+        )
     return 0 if sent else 2
 
 

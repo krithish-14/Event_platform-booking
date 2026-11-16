@@ -67,7 +67,6 @@ class WhatsAppTemplateTests(unittest.TestCase):
                 ticket_type="General Admission",
                 booking_id="abc",
             ),
-            attachment_file_key="file-cache-key-1",
             client_reference="JOD-ABC00000",
         )
         self.assertEqual(payload["from"], "+919876500000")
@@ -77,9 +76,23 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertNotIn("file_key", payload)
         self.assertNotIn("attachment", payload)
         self.assertNotIn("attachments", payload)
-        self.assertEqual(payload["merge_info"]["file_cache_key"], "file-cache-key-1")
+        self.assertNotIn("file_cache_key", payload.get("merge_info") or {})
         self.assertEqual(payload["client_reference"], "JOD-ABC00000")
         self.assertEqual(payload["merge_info"]["Event_Name"], "Demo Event")
+
+    def test_payload_can_include_base64_attachment(self):
+        payload = build_zepto_template_payload(
+            to_phone="9876543210",
+            from_phone="+919876500000",
+            template_key=TEST_TEMPLATE_KEY,
+            attachment_bytes=b"%PDF-1.4 demo",
+            attachment_filename="ticket.pdf",
+            include_base64_attachment=True,
+        )
+        att = payload["attachments"][0]
+        self.assertEqual(att["mime_type"], "application/pdf")
+        self.assertEqual(att["name"], "ticket.pdf")
+        self.assertTrue(att["content"])
 
     def test_payload_uses_template_alias_when_key_absent(self):
         payload = build_zepto_template_payload(
@@ -239,12 +252,16 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertNotIn("file_cache_key", body)
 
     @patch("Services.whatsapp.httpx.post")
-    def test_send_template_puts_file_cache_key_in_merge_info(self, mock_post):
-        mock_res = MagicMock()
-        mock_res.status_code = 200
-        mock_res.text = '{"status":"success"}'
-        mock_res.json.return_value = {"status": "success", "data": {"message_id": "mid-doc"}}
-        mock_post.return_value = mock_res
+    def test_send_template_tries_base64_then_text(self, mock_post):
+        fail = MagicMock()
+        fail.status_code = 500
+        fail.text = '{"error":{"code":"TM_99999"}}'
+        fail.json.return_value = {"error": {"code": "TM_99999"}}
+        ok = MagicMock()
+        ok.status_code = 200
+        ok.text = '{"status":"success"}'
+        ok.json.return_value = {"status": "success", "data": {"message_id": "mid-doc"}}
+        mock_post.side_effect = [fail, ok]
         with patch.dict(
             os.environ,
             {
@@ -257,16 +274,15 @@ class WhatsAppTemplateTests(unittest.TestCase):
             sent, _channel, _link, message_id = send_whatsapp_template(
                 "9876543210",
                 merge_info={"Name": "A"},
-                attachment_file_key="fc-live-ticket-999",
+                attachment_bytes=b"%PDF-1.4 demo",
             )
         self.assertTrue(sent)
         self.assertEqual(message_id, "mid-doc")
-        body = mock_post.call_args.kwargs["json"]
-        self.assertEqual(body["merge_info"]["file_cache_key"], "fc-live-ticket-999")
-        self.assertEqual(body["merge_info"]["Name"], "A")
-        self.assertNotIn("file_key", body)
-        self.assertNotIn("attachment", body)
-        self.assertNotIn("attachments", body)
+        self.assertEqual(mock_post.call_count, 2)
+        first = mock_post.call_args_list[0].kwargs["json"]
+        second = mock_post.call_args_list[1].kwargs["json"]
+        self.assertIn("attachments", first)
+        self.assertNotIn("attachments", second)
 
     @patch("Services.whatsapp.httpx.post")
     def test_send_template_failure_returns_false(self, mock_post):
