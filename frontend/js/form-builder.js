@@ -934,14 +934,14 @@ function initFormBuilder() {
 			? (themePageBgUrl.dataset.uploadSrc || themePageBgUrl.value.trim())
 			: "";
 
-		// Outer Page Background Style — contain so the full image shows (no crop)
+		// Outer Page Background — edge-to-edge full image (no side gaps, no crop)
 		if (livePreviewWrapper) {
 			livePreviewWrapper.style.backgroundColor = pageBg;
 			if (pageBgUrl) {
 				const safeBg = resolveUploadUrl(pageBgUrl).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 				livePreviewWrapper.style.backgroundImage = `url("${safeBg}")`;
 				livePreviewWrapper.style.backgroundPosition = "center center";
-				livePreviewWrapper.style.backgroundSize = "contain";
+				livePreviewWrapper.style.backgroundSize = "100% 100%";
 				livePreviewWrapper.style.backgroundRepeat = "no-repeat";
 			} else {
 				livePreviewWrapper.style.backgroundImage = "none";

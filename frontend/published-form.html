@@ -899,13 +899,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 				document.documentElement.style.setProperty("--primary-color", primary);
 				
-				// Page Outer Background — contain so the full image shows (no top/bottom crop)
+				// Page Outer Background — fill the viewport edge-to-edge with the full image
+				// (100% 100% avoids side letterboxing from contain and top/bottom crop from cover)
 				document.body.style.backgroundColor = pageBg;
 				if (pageBgUrl) {
 					const safeBg = String(pageBgUrl).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 					document.body.style.backgroundImage = `url("${safeBg}")`;
 					document.body.style.backgroundPosition = "center center";
-					document.body.style.backgroundSize = "contain";
+					document.body.style.backgroundSize = "100% 100%";
 					document.body.style.backgroundRepeat = "no-repeat";
 					document.body.style.backgroundAttachment = "fixed";
 				} else {
