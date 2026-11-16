@@ -213,18 +213,12 @@ body.category-theme-workshop .performer-avatar {
     max-width: 100%;
 }
 
-/* Stick the whole right column so Buy Ticket travels with About / rules scroll */
+/* Stick the whole right column so Buy Ticket travels with outer page scroll (no inner scrollbar) */
 .event-right-column {
     position: sticky;
     top: 6.75rem;
     align-self: start;
     z-index: 5;
-    max-height: calc(100vh - 7.25rem);
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    padding-bottom: 0.25rem;
 }
 
 /* --- Main Content Area (Left Column) --- */
@@ -1398,8 +1392,6 @@ html[data-theme="dark"] .ticket-unavailable {
     .event-info-sidebar {
         position: static;
         top: auto;
-        max-height: none;
-        overflow: visible;
     }
 
     .info-box-card {
