@@ -202,9 +202,9 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertIn("JOD-ABC.pdf", str(args[0]))
         self.assertEqual(kwargs["headers"]["Authorization"], "Zoho-enczapikey tok")
         self.assertEqual(kwargs["headers"]["agent-alias"], "jod-agent")
-        self.assertIn("multipart/form-data; boundary=", kwargs["headers"]["Content-Type"])
-        self.assertIn(b"ticket-bytes-long-enough", kwargs["content"])
-        self.assertEqual(kwargs["headers"]["Content-Length"], str(len(kwargs["content"])))
+        self.assertEqual(kwargs["headers"]["Content-Type"], "application/pdf")
+        self.assertEqual(kwargs["content"], pdf_bytes)
+        self.assertEqual(kwargs["headers"]["Content-Length"], str(len(pdf_bytes)))
 
     @patch("Services.whatsapp.httpx.post")
     def test_booking_send_does_not_use_static_sample_file_key(self, mock_post):

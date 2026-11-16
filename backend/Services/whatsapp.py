@@ -229,6 +229,10 @@ def upload_cpaas_file(
 
     Required for DOCUMENT-header WhatsApp templates so each booking gets the
     real ticket PDF instead of the template's sample document.
+
+    Working clients (ZeptoMail / CPaaS SDKs) POST the raw file bytes with
+    Content-Type set to the file MIME type — not multipart/form-data. Multipart
+    consistently returns UE_104 ("File with empty content") on cpaas.zoho.in.
     """
     api_key = zoho_cpaas_api_key()
     raw = bytes(content) if isinstance(content, (bytes, bytearray)) else b""
@@ -243,56 +247,57 @@ def upload_cpaas_file(
     url = f"{zepto_whatsapp_api_base()}/files"
     auth = zepto_whatsapp_auth_header(api_key)
     agent = zoho_cpaas_agent_alias()
-    magic = raw[:8]
     _safe_print(
-        f"[WHATSAPP] uploading file name={name} bytes={len(raw)} magic={magic!r}"
+        f"[WHATSAPP] uploading file name={name} bytes={len(raw)} magic={raw[:8]!r}"
     )
 
     upload_url = f"{url}?name={quote(name)}"
-    # Prefer raw multipart + Content-Length. Zoho UE_104 ("empty content") happens
-    # when the multipart part is missing/unparseable (chunked httpx files= and
-    # curl Content-Type overrides without boundary are common causes).
     attempts: list[Tuple[str, Dict[str, str], bytes]] = []
-    for field_name in ("file", "attachment"):
-        boundary, body = _multipart_file_body(
-            field_name=field_name,
-            filename=name,
-            content=raw,
-            content_type=mime,
-        )
-        headers = {
+
+    # Primary: raw body + MIME (ZeptoMail / working CPaaS SDK shape).
+    agent_modes = [("raw-body", True), ("raw-body-no-agent", False)] if agent else [("raw-body", False)]
+    for label, with_agent in agent_modes:
+        hdrs = {
             "Authorization": auth,
             "Accept": "application/json",
-            "Content-Type": f"multipart/form-data; boundary={boundary}",
-            "Content-Length": str(len(body)),
+            "Content-Type": mime,
+            "Content-Length": str(len(raw)),
         }
-        if agent:
-            headers["agent-alias"] = agent
-        attempts.append((f"raw-{field_name}", headers, body))
-        if agent:
-            # Retry without agent-alias in case it routes to a broken parser path.
-            headers_no_agent = {
-                "Authorization": auth,
-                "Accept": "application/json",
-                "Content-Type": f"multipart/form-data; boundary={boundary}",
-                "Content-Length": str(len(body)),
-            }
-            attempts.append((f"raw-{field_name}-no-agent", headers_no_agent, body))
+        if with_agent and agent:
+            hdrs["agent-alias"] = agent
+        attempts.append((label, hdrs, raw))
 
-    last_body = ""
+    # Fallback: multipart (docs say this; IN DC often returns UE_104).
+    boundary, multipart_body = _multipart_file_body(
+        field_name="file",
+        filename=name,
+        content=raw,
+        content_type=mime,
+    )
+    mp_headers = {
+        "Authorization": auth,
+        "Accept": "application/json",
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+        "Content-Length": str(len(multipart_body)),
+    }
+    if agent:
+        mp_headers["agent-alias"] = agent
+    attempts.append(("multipart-file", mp_headers, multipart_body))
+
     try:
         for via, headers, body in attempts:
             res = httpx.post(upload_url, headers=headers, content=body, timeout=60)
-            last_body = res.text or ""
-            key = _parse_upload_response(res.status_code, last_body, via=via, name=name)
+            text = res.text or ""
+            key = _parse_upload_response(res.status_code, text, via=via, name=name)
             if key:
                 return key
-            # Only keep trying alternate shapes while Zoho claims empty content.
-            if "UE_104" not in last_body and res.status_code < 500:
-                break
+            # Hard auth failures won't be fixed by alternate encodings.
+            if res.status_code in (401, 403) or '"TM_4001"' in text:
+                if via.startswith("raw"):
+                    continue
+                return None
 
-        # Final fallback: curl -F exactly as Zoho docs (do NOT set Content-Type;
-        # curl must inject the boundary itself).
+        # curl raw-body fallback (same shape as working ZeptoMail clients).
         tmp_path = ""
         try:
             with tempfile.NamedTemporaryFile(prefix="jod-wa-", suffix=".pdf", delete=False) as tmp:
@@ -301,9 +306,8 @@ def upload_cpaas_file(
                 os.fsync(tmp.fileno())
                 tmp_path = tmp.name
             on_disk = os.path.getsize(tmp_path)
-            _safe_print(f"[WHATSAPP] curl fallback path={tmp_path} on_disk={on_disk}")
+            _safe_print(f"[WHATSAPP] curl raw-body fallback path={tmp_path} on_disk={on_disk}")
             if on_disk <= 0:
-                _safe_print("[WHATSAPP] curl fallback aborted: temp file empty")
                 return None
             curl_cmd = [
                 "curl",
@@ -313,11 +317,13 @@ def upload_cpaas_file(
                 upload_url,
                 "-H",
                 f"Authorization: {auth}",
+                "-H",
+                f"Content-Type: {mime}",
+                "--data-binary",
+                f"@{tmp_path}",
             ]
             if agent:
                 curl_cmd.extend(["-H", f"agent-alias: {agent}"])
-            # Do not set Content-Type — curl -F must supply the boundary.
-            curl_cmd.extend(["-F", f"file=@{tmp_path}"])
             completed = subprocess.run(
                 curl_cmd,
                 capture_output=True,
@@ -325,18 +331,15 @@ def upload_cpaas_file(
                 timeout=60,
                 check=False,
             )
-            curl_text = completed.stdout or ""
-            if completed.returncode != 0 and not curl_text:
-                curl_text = completed.stderr or ""
+            curl_text = completed.stdout or completed.stderr or ""
             key = _parse_upload_response(
                 200 if completed.returncode == 0 else 400,
                 curl_text,
-                via="curl",
+                via="curl-raw",
                 name=name,
             )
             if key:
                 return key
-            last_body = curl_text
         finally:
             if tmp_path:
                 try:

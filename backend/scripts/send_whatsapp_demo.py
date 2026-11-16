@@ -103,13 +103,27 @@ def main() -> int:
         try:
             from fpdf import FPDF
 
+            from fpdf.enums import XPos, YPos
+
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 18)
-            pdf.cell(0, 12, "JOD Events - WhatsApp ticket test", ln=True)
+            pdf.cell(
+                0,
+                12,
+                "JOD Events - WhatsApp ticket test",
+                new_x=XPos.LMARGIN,
+                new_y=YPos.NEXT,
+            )
             pdf.set_font("Helvetica", size=12)
             for i in range(40):
-                pdf.cell(0, 7, f"Ticket PDF line {i + 1} - {args.event}", ln=True)
+                pdf.cell(
+                    0,
+                    7,
+                    f"Ticket PDF line {i + 1} - {args.event}",
+                    new_x=XPos.LMARGIN,
+                    new_y=YPos.NEXT,
+                )
             demo_pdf = bytes(pdf.output())
             print(f"demo_pdf_source=fpdf bytes={len(demo_pdf)}")
         except Exception as exc:
