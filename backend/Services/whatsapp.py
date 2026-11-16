@@ -364,7 +364,7 @@ def build_zepto_template_payload(
     attachment_bytes: Optional[bytes] = None,
     attachment_filename: str = "ticket.pdf",
     client_reference: Optional[str] = None,
-    attachment_style: str = "attachments_file_cache_key",
+    attachment_style: str = "merge_file_cache_key",
 ) -> Dict[str, Any]:
     to_e164 = e164_whatsapp_number(to_phone)
     from_e164 = e164_whatsapp_number(from_phone) or (from_phone or "").strip()
@@ -382,14 +382,13 @@ def build_zepto_template_payload(
         payload["template_alias"] = alias
     if merge_info:
         payload["merge_info"] = dict(merge_info)
-    # DOCUMENT-header media. Empirical on cpaas.zoho.in:
-    # - top-level file_key / nested "attachment" → GE_121 extra key
-    # - "attachments" is schema-accepted (not GE_121); email uses file_cache_key
-    #   or base64 content inside that array.
+    # DOCUMENT-header media on cpaas.zoho.in (live-verified):
+    # put file_cache_key inside merge_info. Top-level file_key / attachment
+    # → GE_121; attachments[] → GE_101/500.
     file_key = str(attachment_file_key or "").strip()
     raw = bytes(attachment_bytes) if isinstance(attachment_bytes, (bytes, bytearray)) else b""
     fname = (attachment_filename or "ticket.pdf").strip() or "ticket.pdf"
-    style = (attachment_style or "attachments_file_cache_key").strip()
+    style = (attachment_style or "merge_file_cache_key").strip()
     if style == "attachments_base64" and raw:
         payload["attachments"] = [
             {
@@ -399,34 +398,19 @@ def build_zepto_template_payload(
             }
         ]
     elif file_key:
-        if style == "attachments_file_key":
-            payload["attachments"] = [{"file_key": file_key}]
-        elif style == "attachments_file_cache_key":
-            payload["attachments"] = [{"file_cache_key": file_key}]
-        elif style == "attachments_file_cache_key_named":
-            payload["attachments"] = [
-                {
-                    "file_cache_key": file_key,
-                    "name": fname,
-                    "mime_type": "application/pdf",
-                }
-            ]
-        elif style == "attachments_file_key_named":
-            payload["attachments"] = [
-                {"file_key": file_key, "name": fname, "mime_type": "application/pdf"}
-            ]
-        elif style == "attachments_string":
-            payload["attachments"] = [file_key]
-        elif style == "top_file_cache_key":
-            payload["file_cache_key"] = file_key
-        elif style == "merge_file_cache_key":
+        if style == "merge_file_cache_key":
             payload.setdefault("merge_info", {})
             payload["merge_info"]["file_cache_key"] = file_key
         elif style == "merge_file_key":
             payload.setdefault("merge_info", {})
             payload["merge_info"]["file_key"] = file_key
-        else:
+        elif style == "attachments_file_cache_key":
             payload["attachments"] = [{"file_cache_key": file_key}]
+        elif style == "attachments_file_key":
+            payload["attachments"] = [{"file_key": file_key}]
+        else:
+            payload.setdefault("merge_info", {})
+            payload["merge_info"]["file_cache_key"] = file_key
     if client_reference:
         payload["client_reference"] = str(client_reference)[:100]
     return payload
@@ -495,20 +479,10 @@ def send_whatsapp_template(
     file_key = str(attachment_file_key).strip() if attachment_file_key else ""
     raw = bytes(attachment_bytes) if isinstance(attachment_bytes, (bytes, bytearray)) else b""
     fname = (attachment_filename or "ticket.pdf").strip() or "ticket.pdf"
+    # Live-verified on IN DC: merge_info.file_cache_key queues successfully.
     styles: list[str] = []
     if file_key:
-        styles.extend(
-            [
-                "attachments_file_cache_key",
-                "attachments_file_key",
-                "attachments_file_cache_key_named",
-                "attachments_file_key_named",
-                "attachments_string",
-                "merge_file_cache_key",
-                "merge_file_key",
-                "top_file_cache_key",
-            ]
-        )
+        styles.extend(["merge_file_cache_key", "merge_file_key"])
     if raw:
         styles.append("attachments_base64")
     if not styles:
@@ -535,7 +509,7 @@ def send_whatsapp_template(
                 attachment_bytes=raw or None,
                 attachment_filename=fname,
                 client_reference=client_reference,
-                attachment_style=style or "attachments_file_cache_key",
+                attachment_style=style or "merge_file_cache_key",
             )
             _safe_print(
                 f"[WHATSAPP] template to={payload.get('to')} key={key or alias}"
