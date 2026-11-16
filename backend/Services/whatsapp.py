@@ -10,6 +10,7 @@ Priority:
 
 from __future__ import annotations
 
+import base64
 import os
 import subprocess
 import tempfile
@@ -360,8 +361,10 @@ def build_zepto_template_payload(
     template_alias: str = "",
     merge_info: Optional[Dict[str, str]] = None,
     attachment_file_key: Optional[str] = None,
+    attachment_bytes: Optional[bytes] = None,
+    attachment_filename: str = "ticket.pdf",
     client_reference: Optional[str] = None,
-    attachment_style: str = "attachment_file_cache_key",
+    attachment_style: str = "attachments_file_cache_key",
 ) -> Dict[str, Any]:
     to_e164 = e164_whatsapp_number(to_phone)
     from_e164 = e164_whatsapp_number(from_phone) or (from_phone or "").strip()
@@ -379,17 +382,41 @@ def build_zepto_template_payload(
         payload["template_alias"] = alias
     if merge_info:
         payload["merge_info"] = dict(merge_info)
-    # DOCUMENT-header media: Zoho rejects unknown top-level keys (GE_121).
-    # Docs/error text say "attachment … by file key"; upload returns file_cache_key.
+    # DOCUMENT-header media. Empirical on cpaas.zoho.in:
+    # - top-level file_key / nested "attachment" → GE_121 extra key
+    # - "attachments" is schema-accepted (not GE_121); email uses file_cache_key
+    #   or base64 content inside that array.
     file_key = str(attachment_file_key or "").strip()
-    style = (attachment_style or "attachment_file_cache_key").strip()
-    if file_key:
-        if style == "attachment_file_cache_key":
-            payload["attachment"] = {"file_cache_key": file_key}
-        elif style == "attachment_file_key":
-            payload["attachment"] = {"file_key": file_key}
+    raw = bytes(attachment_bytes) if isinstance(attachment_bytes, (bytes, bytearray)) else b""
+    fname = (attachment_filename or "ticket.pdf").strip() or "ticket.pdf"
+    style = (attachment_style or "attachments_file_cache_key").strip()
+    if style == "attachments_base64" and raw:
+        payload["attachments"] = [
+            {
+                "content": base64.b64encode(raw).decode("ascii"),
+                "mime_type": "application/pdf",
+                "name": fname,
+            }
+        ]
+    elif file_key:
+        if style == "attachments_file_key":
+            payload["attachments"] = [{"file_key": file_key}]
         elif style == "attachments_file_cache_key":
-            payload["attachments"] = [{"file_cache_key": file_key, "name": "ticket.pdf"}]
+            payload["attachments"] = [{"file_cache_key": file_key}]
+        elif style == "attachments_file_cache_key_named":
+            payload["attachments"] = [
+                {
+                    "file_cache_key": file_key,
+                    "name": fname,
+                    "mime_type": "application/pdf",
+                }
+            ]
+        elif style == "attachments_file_key_named":
+            payload["attachments"] = [
+                {"file_key": file_key, "name": fname, "mime_type": "application/pdf"}
+            ]
+        elif style == "attachments_string":
+            payload["attachments"] = [file_key]
         elif style == "top_file_cache_key":
             payload["file_cache_key"] = file_key
         elif style == "merge_file_cache_key":
@@ -399,7 +426,7 @@ def build_zepto_template_payload(
             payload.setdefault("merge_info", {})
             payload["merge_info"]["file_key"] = file_key
         else:
-            payload["attachment"] = {"file_cache_key": file_key}
+            payload["attachments"] = [{"file_cache_key": file_key}]
     if client_reference:
         payload["client_reference"] = str(client_reference)[:100]
     return payload
@@ -411,8 +438,15 @@ def _attachment_debug(payload: Dict[str, Any]) -> str:
         if isinstance(att, dict):
             val = att.get("file_cache_key") or att.get("file_key") or ""
             return f"attachment={str(val)[:28]}"
-    if payload.get("attachments"):
-        return "attachments[]"
+    atts = payload.get("attachments")
+    if isinstance(atts, list) and atts:
+        first = atts[0]
+        if isinstance(first, dict):
+            if first.get("content"):
+                return f"attachments[content]={len(str(first.get('content') or ''))}b64"
+            val = first.get("file_cache_key") or first.get("file_key") or ""
+            return f"attachments[key]={str(val)[:28]}"
+        return f"attachments[0]={str(first)[:28]}"
     if payload.get("file_cache_key"):
         return f"file_cache_key={str(payload.get('file_cache_key'))[:28]}"
     merge = payload.get("merge_info") if isinstance(payload.get("merge_info"), dict) else {}
@@ -426,6 +460,8 @@ def send_whatsapp_template(
     *,
     merge_info: Optional[Dict[str, str]] = None,
     attachment_file_key: Optional[str] = None,
+    attachment_bytes: Optional[bytes] = None,
+    attachment_filename: str = "ticket.pdf",
     client_reference: Optional[str] = None,
     template_key: Optional[str] = None,
     template_alias: Optional[str] = None,
@@ -455,22 +491,28 @@ def send_whatsapp_template(
         return False, "none", link, None
 
     # Only attach when the caller passes a real per-message file_cache_key
-    # (uploaded ticket PDF). Do NOT fall back to a static env sample key —
-    # that caused buyers to receive the Zepto/template example PDF.
+    # and/or PDF bytes. Do NOT fall back to a static env sample key.
     file_key = str(attachment_file_key).strip() if attachment_file_key else ""
-    # Prefer nested attachment.file_cache_key (matches upload response + error-code wording).
-    # Fall through alternate shapes only when Zoho rejects with GE_121 (extra key).
-    styles = (
-        [
-            "attachment_file_cache_key",
-            "attachment_file_key",
-            "attachments_file_cache_key",
-            "top_file_cache_key",
-            "merge_file_cache_key",
-        ]
-        if file_key
-        else [""]
-    )
+    raw = bytes(attachment_bytes) if isinstance(attachment_bytes, (bytes, bytearray)) else b""
+    fname = (attachment_filename or "ticket.pdf").strip() or "ticket.pdf"
+    styles: list[str] = []
+    if file_key:
+        styles.extend(
+            [
+                "attachments_file_cache_key",
+                "attachments_file_key",
+                "attachments_file_cache_key_named",
+                "attachments_file_key_named",
+                "attachments_string",
+                "merge_file_cache_key",
+                "merge_file_key",
+                "top_file_cache_key",
+            ]
+        )
+    if raw:
+        styles.append("attachments_base64")
+    if not styles:
+        styles = [""]
     url = f"{zepto_whatsapp_api_base()}/whatsapp"
     agent = zoho_cpaas_agent_alias()
     headers = {
@@ -490,15 +532,17 @@ def send_whatsapp_template(
                 template_alias=alias,
                 merge_info=merge_info,
                 attachment_file_key=file_key or None,
+                attachment_bytes=raw or None,
+                attachment_filename=fname,
                 client_reference=client_reference,
-                attachment_style=style or "attachment_file_cache_key",
+                attachment_style=style or "attachments_file_cache_key",
             )
             _safe_print(
                 f"[WHATSAPP] template to={payload.get('to')} key={key or alias}"
                 + (f" agent={agent}" if agent else "")
                 + f" style={style or 'none'} {_attachment_debug(payload)}"
             )
-            res = httpx.post(url, headers=headers, json=payload, timeout=25)
+            res = httpx.post(url, headers=headers, json=payload, timeout=45)
             body = (res.text or "")[:500]
             if 200 <= res.status_code < 300:
                 message_id = None
@@ -514,8 +558,15 @@ def send_whatsapp_template(
                 )
                 return True, "zepto-template", link, message_id
             _safe_print(f"[WHATSAPP] Zoho template failed {res.status_code} style={style or 'none'}: {body}")
-            # Retry only when this attachment key shape is rejected as unknown.
-            if "GE_121" not in body and "extra key" not in body.lower():
+            # Keep probing shapes on schema/shape errors; stop on auth/template errors.
+            retryable = (
+                "GE_121" in body
+                or "GE_101" in body
+                or "extra key" in body.lower()
+                or "Internal Error" in body
+                or res.status_code >= 500
+            )
+            if not retryable:
                 break
     except Exception as exc:
         _safe_print(f"[WHATSAPP] Zoho template error: {exc}")
@@ -531,6 +582,8 @@ def send_booking_confirmation_whatsapp(
     ticket_type: str,
     booking_id: Any,
     attachment_file_key: Optional[str] = None,
+    attachment_bytes: Optional[bytes] = None,
+    attachment_filename: str = "ticket.pdf",
 ) -> Tuple[bool, str, str, Optional[str]]:
     """Send the approved booking-confirmation template for one booking."""
     merge = booking_confirmation_merge_info(
@@ -544,6 +597,8 @@ def send_booking_confirmation_whatsapp(
         to_phone,
         merge_info=merge,
         attachment_file_key=attachment_file_key,
+        attachment_bytes=attachment_bytes,
+        attachment_filename=attachment_filename,
         client_reference=format_booking_id(booking_id),
     )
 

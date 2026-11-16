@@ -96,10 +96,10 @@ def main() -> int:
     print(f"api_base={zepto_whatsapp_api_base()}")
 
     file_key = (args.file_key or "").strip() or None
+    demo_pdf = b""
     if args.upload_demo_pdf and not file_key:
         # Prefer a real generated PDF. Zoho UE_104 can reject tiny/hand-rolled
         # PDFs as "empty content" even when the multipart body is present.
-        demo_pdf = b""
         try:
             from fpdf import FPDF
 
@@ -147,8 +147,7 @@ def main() -> int:
             print(f"demo_pdf_source=ticket_pdf bytes={len(demo_pdf)}")
         file_key = upload_cpaas_file(demo_pdf, "JOD-LIVE-TEST.pdf")
         print(f"uploaded_demo_file_key={file_key or 'FAILED'}")
-        if not file_key:
-            return 3
+        # Continue even if upload fails — base64 attachments fallback may still work.
 
     sent, channel, link, message_id = send_booking_confirmation_whatsapp(
         to_phone,
@@ -158,6 +157,8 @@ def main() -> int:
         ticket_type=args.ticket,
         booking_id=args.booking_id,
         attachment_file_key=file_key,
+        attachment_bytes=demo_pdf or None,
+        attachment_filename="JOD-LIVE-TEST.pdf",
     )
     print(f"sent={sent} channel={channel} message_id={message_id} file_key={file_key or 'none'}")
     if link:

@@ -1549,6 +1549,8 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
             ticket_type=booking.ticket_type or "General Admission",
             booking_id=booking.booking_id,
             attachment_file_key=wa_file_key,
+            attachment_bytes=pdf or None,
+            attachment_filename=pdf_name if pdf else "ticket.pdf",
         )
         if not wa_sent:
             wa_sent, wa_channel, wa_link = send_whatsapp(phone, wa_text, image_url=image)

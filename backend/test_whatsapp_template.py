@@ -75,7 +75,8 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertEqual(payload["template_key"], TEST_TEMPLATE_KEY)
         self.assertNotIn("template_alias", payload)
         self.assertNotIn("file_key", payload)
-        self.assertEqual(payload["attachment"], {"file_cache_key": "file-cache-key-1"})
+        self.assertNotIn("attachment", payload)
+        self.assertEqual(payload["attachments"], [{"file_cache_key": "file-cache-key-1"}])
         self.assertEqual(payload["client_reference"], "JOD-ABC00000")
         self.assertEqual(payload["merge_info"]["Event_Name"], "Demo Event")
 
@@ -237,7 +238,7 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertNotIn("file_cache_key", body)
 
     @patch("Services.whatsapp.httpx.post")
-    def test_send_template_uses_attachment_file_cache_key(self, mock_post):
+    def test_send_template_uses_attachments_file_cache_key(self, mock_post):
         mock_res = MagicMock()
         mock_res.status_code = 200
         mock_res.text = '{"status":"success"}'
@@ -260,8 +261,9 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertTrue(sent)
         self.assertEqual(message_id, "mid-doc")
         body = mock_post.call_args.kwargs["json"]
-        self.assertEqual(body["attachment"], {"file_cache_key": "fc-live-ticket-999"})
+        self.assertEqual(body["attachments"], [{"file_cache_key": "fc-live-ticket-999"}])
         self.assertNotIn("file_key", body)
+        self.assertNotIn("attachment", body)
 
     @patch("Services.whatsapp.httpx.post")
     def test_send_template_failure_returns_false(self, mock_post):
