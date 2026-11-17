@@ -40,20 +40,21 @@ class WhatsAppTemplateTests(unittest.TestCase):
             name="Krithish B R",
             event_name="Shaurya Samman 2026",
             event_date="15 Nov 2026, 6:00 PM",
-            ticket_type="VIP",
             booking_id="7c9df206-3fcb-48da-a800-c9c51afd7c04",
+            ticket_url="https://jodevents.com/ticket-details.html?token=abc123",
+            ticket_type="VIP",
         )
-        self.assertEqual(tuple(merge.keys()), BOOKING_TEMPLATE_MERGE_KEYS)
         self.assertEqual(
-            merge,
+            {k: merge[k] for k in BOOKING_TEMPLATE_MERGE_KEYS},
             {
-                "Name": "Krithish B R",
-                "Event_Name": "Shaurya Samman 2026",
-                "Event_Date": "15 Nov 2026, 6:00 PM",
-                "Ticket_Type": "VIP",
-                "Booking_id": "JOD-7C9DF206",
+                "name": "Krithish B R",
+                "event_name": "Shaurya Samman 2026",
+                "event_date": "15 Nov 2026, 6:00 PM",
+                "booking_ref": "JOD-7C9DF206",
             },
         )
+        self.assertEqual(merge["ticket_url"], "https://jodevents.com/ticket-details.html?token=abc123")
+        self.assertEqual(merge["ticket_token"], "abc123")
 
     def test_payload_uses_template_key_and_merge_info(self):
         payload = build_zepto_template_payload(
@@ -64,7 +65,6 @@ class WhatsAppTemplateTests(unittest.TestCase):
                 name="Guest",
                 event_name="Demo Event",
                 event_date="TBA",
-                ticket_type="General Admission",
                 booking_id="abc",
             ),
             client_reference="JOD-ABC00000",
@@ -76,9 +76,9 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertNotIn("file_key", payload)
         self.assertNotIn("attachment", payload)
         self.assertNotIn("attachments", payload)
-        self.assertNotIn("file_cache_key", payload.get("merge_info") or {})
         self.assertEqual(payload["client_reference"], "JOD-ABC00000")
-        self.assertEqual(payload["merge_info"]["Event_Name"], "Demo Event")
+        self.assertEqual(payload["merge_info"]["event_name"], "Demo Event")
+        self.assertEqual(payload["merge_info"]["booking_ref"], "JOD-ABC")
 
     def test_payload_can_include_base64_attachment(self):
         payload = build_zepto_template_payload(
@@ -185,12 +185,9 @@ class WhatsAppTemplateTests(unittest.TestCase):
         self.assertEqual(kwargs["headers"]["agent-alias"], "jod-agent")
         body = kwargs["json"]
         self.assertEqual(body["template_key"], TEST_TEMPLATE_KEY)
-        self.assertEqual(body["merge_info"]["Name"], "Krithish")
-        self.assertEqual(body["merge_info"]["Booking_id"], "JOD-7C9DF206")
-        self.assertEqual(
-            set(body["merge_info"].keys()),
-            set(BOOKING_TEMPLATE_MERGE_KEYS),
-        )
+        self.assertEqual(body["merge_info"]["name"], "Krithish")
+        self.assertEqual(body["merge_info"]["booking_ref"], "JOD-7C9DF206")
+        self.assertTrue(set(BOOKING_TEMPLATE_MERGE_KEYS).issubset(set(body["merge_info"].keys())))
 
     @patch("Services.whatsapp.httpx.post")
     def test_upload_cpaas_file_returns_cache_key(self, mock_post):

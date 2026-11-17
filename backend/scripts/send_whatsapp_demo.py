@@ -2,17 +2,22 @@
 """
 Send one real Zoho CPaaS booking-confirmation WhatsApp template message.
 
+New template body vars: name, event_name, event_date, booking_ref
+Button: View ticket (merge ticket_url / ticket_token)
+
 Env (preferred):
   ZOHO_CPAAS_HOST
   ZOHO_CPAAS_AGENT_ALIAS
   ZOHO_CPAAS_API_KEY
   ZOHO_CPAAS_WHATSAPP_FROM
-  ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_KEY
+  ZOHO_CPAAS_WHATSAPP_TICKET_TEMPLATE_KEY   # new template key
   ZOHO_CPAAS_WHATSAPP_TEST_TO
 
 Usage (on EC2, from backend/ with venv active):
-  python scripts/send_whatsapp_demo.py
-  python scripts/send_whatsapp_demo.py --to 917200499369 --name "Demo Guest"
+  python scripts/send_whatsapp_demo.py --to 917200499369
+  python scripts/send_whatsapp_demo.py --to 917200499369 --name "Demo Guest" \\
+    --event "ACTION 360 TEST" --date "17 Nov 2026, 6:00 PM" \\
+    --ticket-url "https://jodevents.com/ticket-details.html?token=demo-token"
 """
 
 from __future__ import annotations
@@ -30,8 +35,8 @@ from dotenv import load_dotenv
 load_dotenv(BACKEND_ROOT / ".env")
 
 from Services.whatsapp import (  # noqa: E402
+    booking_confirmation_merge_info,
     send_booking_confirmation_whatsapp,
-    upload_cpaas_file,
     whatsapp_template_configured,
     zoho_cpaas_api_key,
     zoho_cpaas_ticket_template_key,
@@ -61,18 +66,13 @@ def main() -> int:
     )
     parser.add_argument("--name", default="Demo Guest")
     parser.add_argument("--event", default="JOD Events Demo Booking")
-    parser.add_argument("--date", default="15 Nov 2026, 6:00 PM")
+    parser.add_argument("--date", default="17 Nov 2026, 6:00 PM")
     parser.add_argument("--ticket", default="General Admission")
     parser.add_argument("--booking-id", default="demo-00000001")
     parser.add_argument(
-        "--file-key",
-        default="",
-        help="Optional Zoho uploaded document file_key for DOCUMENT header templates",
-    )
-    parser.add_argument(
-        "--upload-demo-pdf",
-        action="store_true",
-        help="Upload a tiny real PDF to Zoho File Cache and attach it (tests DOCUMENT header).",
+        "--ticket-url",
+        default="https://jodevents.com/ticket-details.html?token=demo-live-token",
+        help="URL for the View ticket button (full link).",
     )
     args = parser.parse_args()
 
@@ -95,59 +95,15 @@ def main() -> int:
     print(f"Configured template_key={key[:8]}… from={sender} to={to_phone}")
     print(f"api_base={zepto_whatsapp_api_base()}")
 
-    file_key = (args.file_key or "").strip() or None
-    demo_pdf = b""
-    if args.upload_demo_pdf and not file_key:
-        # Prefer a real generated PDF. Zoho UE_104 can reject tiny/hand-rolled
-        # PDFs as "empty content" even when the multipart body is present.
-        try:
-            from fpdf import FPDF
-
-            from fpdf.enums import XPos, YPos
-
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Helvetica", "B", 18)
-            pdf.cell(
-                0,
-                12,
-                "JOD Events - WhatsApp ticket test",
-                new_x=XPos.LMARGIN,
-                new_y=YPos.NEXT,
-            )
-            pdf.set_font("Helvetica", size=12)
-            for i in range(40):
-                pdf.cell(
-                    0,
-                    7,
-                    f"Ticket PDF line {i + 1} - {args.event}",
-                    new_x=XPos.LMARGIN,
-                    new_y=YPos.NEXT,
-                )
-            demo_pdf = bytes(pdf.output())
-            print(f"demo_pdf_source=fpdf bytes={len(demo_pdf)}")
-        except Exception as exc:
-            print(f"demo_pdf_source=fpdf_failed ({exc}); using ticket_pdf assembler")
-            from Services.ticket_pdf import _assemble_pdf
-
-            stream = b"BT /F1 18 Tf 72 720 Td (JOD LIVE TICKET PDF TEST) Tj ET"
-            objects = [
-                b"<< /Type /Catalog /Pages 2 0 R >>",
-                b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-                (
-                    b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-                    b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>"
-                ),
-                f"<< /Length {len(stream)} >>\nstream\n".encode("ascii")
-                + stream
-                + b"\nendstream",
-                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-            ]
-            demo_pdf = _assemble_pdf(objects)
-            print(f"demo_pdf_source=ticket_pdf bytes={len(demo_pdf)}")
-        file_key = upload_cpaas_file(demo_pdf, "JOD-LIVE-TEST.pdf")
-        print(f"uploaded_demo_file_key={file_key or 'FAILED'}")
-        # Continue even if upload fails — base64 attachments fallback may still work.
+    merge = booking_confirmation_merge_info(
+        name=args.name,
+        event_name=args.event,
+        event_date=args.date,
+        booking_id=args.booking_id,
+        ticket_url=args.ticket_url,
+        ticket_type=args.ticket,
+    )
+    print(f"merge_info={merge}")
 
     sent, channel, link, message_id = send_booking_confirmation_whatsapp(
         to_phone,
@@ -156,20 +112,11 @@ def main() -> int:
         event_date=args.date,
         ticket_type=args.ticket,
         booking_id=args.booking_id,
-        attachment_file_key=file_key,
-        attachment_bytes=demo_pdf or None,
-        attachment_filename="JOD-LIVE-TEST.pdf",
+        ticket_url=args.ticket_url,
     )
-    print(f"sent={sent} channel={channel} message_id={message_id} file_key={file_key or 'none'}")
+    print(f"sent={sent} channel={channel} message_id={message_id}")
     if link:
         print(f"wa_me_fallback={link}")
-    if sent and channel.startswith("zepto"):
-        print(
-            "NOTE: Zoho CPaaS WhatsApp API cannot override DOCUMENT media "
-            "(OAS has no attachment field). For the real ticket PDF set Meta Cloud API env: "
-            "WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_CLOUD_TEMPLATE_NAME "
-            "(plus R2 for the public PDF URL)."
-        )
     return 0 if sent else 2
 
 

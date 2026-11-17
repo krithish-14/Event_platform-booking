@@ -33,7 +33,6 @@ from Services.email import send_email
 from Services.whatsapp import (
     send_booking_confirmation_whatsapp,
     send_whatsapp,
-    upload_cpaas_file,
     whatsapp_template_configured,
 )
 from Services.ticket_pdf import (
@@ -1526,21 +1525,7 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
 
     wa_message_id = None
     if whatsapp_template_configured():
-        # Upload this booking's real ticket PDF to Zoho File Cache so the
-        # DOCUMENT template header is the event ticket — not a sample PDF.
-        wa_file_key = None
-        if pdf:
-            try:
-                wa_file_key = upload_cpaas_file(pdf, pdf_name)
-            except Exception as exc:
-                print(f"[WHATSAPP] ticket PDF upload raised: {exc}", flush=True)
-                wa_file_key = None
-        if pdf and not wa_file_key:
-            print(
-                f"[WHATSAPP] ticket PDF upload FAILED for booking={booking.booking_id}; "
-                "template may fall back to sample document",
-                flush=True,
-            )
+        # Text + "View ticket" URL template (no DOCUMENT sample PDF).
         wa_sent, wa_channel, wa_link, wa_message_id = send_booking_confirmation_whatsapp(
             phone,
             name=attendee if attendee != "there" else "Guest",
@@ -1548,9 +1533,7 @@ def _deliver_ticket(booking: Booking, phone: str, db: Optional[Session] = None) 
             event_date=event_when,
             ticket_type=booking.ticket_type or "General Admission",
             booking_id=booking.booking_id,
-            attachment_file_key=wa_file_key,
-            attachment_bytes=pdf or None,
-            attachment_filename=pdf_name if pdf else "ticket.pdf",
+            ticket_url=ticket_link,
         )
         if not wa_sent:
             wa_sent, wa_channel, wa_link = send_whatsapp(phone, wa_text, image_url=image)

@@ -20,8 +20,12 @@ from urllib.parse import quote
 import httpx
 
 
-# Match the Zepto/Meta approved booking-confirmation template placeholders.
-BOOKING_TEMPLATE_MERGE_KEYS = ("Name", "Event_Name", "Event_Date", "Ticket_Type", "Booking_id")
+# Body variables for the approved text + "View ticket" WhatsApp template.
+# Template copy:
+#   Hi {{name}}, your ticket for {{event_name}} on {{event_date}} is confirmed.
+#   Your booking reference is {{booking_ref}}. View it in your orders.
+# Button: View ticket (dynamic URL — also send ticket_url / ticket_token).
+BOOKING_TEMPLATE_MERGE_KEYS = ("name", "event_name", "event_date", "booking_ref")
 
 
 def _safe_print(msg: str) -> None:
@@ -69,17 +73,31 @@ def booking_confirmation_merge_info(
     name: str,
     event_name: str,
     event_date: str,
-    ticket_type: str,
     booking_id: Any,
+    ticket_url: str = "",
+    ticket_type: str = "",
 ) -> Dict[str, str]:
     """Build merge_info for the approved booking-confirmation WhatsApp template."""
-    return {
-        "Name": (name or "Guest").strip() or "Guest",
-        "Event_Name": (event_name or "your event").strip() or "your event",
-        "Event_Date": (event_date or "TBA").strip() or "TBA",
-        "Ticket_Type": (ticket_type or "General Admission").strip() or "General Admission",
-        "Booking_id": format_booking_id(booking_id),
+    del ticket_type  # kept for call-site compatibility; not in the new template body
+    booking_ref = format_booking_id(booking_id)
+    merge: Dict[str, str] = {
+        "name": (name or "Guest").strip() or "Guest",
+        "event_name": (event_name or "your event").strip() or "your event",
+        "event_date": (event_date or "TBA").strip() or "TBA",
+        "booking_ref": booking_ref,
     }
+    url = (ticket_url or "").strip()
+    if url:
+        merge["ticket_url"] = url
+        # Dynamic URL buttons often need only the token/suffix after a fixed base URL.
+        token = ""
+        if "token=" in url:
+            token = url.split("token=", 1)[-1].split("&", 1)[0].strip()
+        elif "/" in url:
+            token = url.rstrip("/").rsplit("/", 1)[-1].strip()
+        if token:
+            merge["ticket_token"] = token
+    return merge
 
 
 def _env_first(*names: str) -> str:
@@ -655,56 +673,30 @@ def send_booking_confirmation_whatsapp(
     name: str,
     event_name: str,
     event_date: str,
-    ticket_type: str,
     booking_id: Any,
+    ticket_url: str = "",
+    ticket_type: str = "",
     attachment_file_key: Optional[str] = None,
     attachment_bytes: Optional[bytes] = None,
     attachment_filename: str = "ticket.pdf",
 ) -> Tuple[bool, str, str, Optional[str]]:
     """
-    Send booking confirmation on WhatsApp with the real ticket PDF when possible.
+    Send booking confirmation on WhatsApp using the text + View ticket template.
 
-    Priority:
-    1. Meta Cloud API DOCUMENT template with a public R2 PDF link
-    2. Meta free-form document message (24h window)
-    3. Zoho CPaaS template (may still use sample DOCUMENT if API cannot override)
+    No DOCUMENT header — ticket is opened via the template URL button / ticket_url.
     """
-    del attachment_file_key  # Zoho file-cache keys do not override WhatsApp DOCUMENT media.
+    del attachment_file_key, attachment_bytes, attachment_filename
     merge = booking_confirmation_merge_info(
         name=name,
         event_name=event_name,
         event_date=event_date,
-        ticket_type=ticket_type,
         booking_id=booking_id,
+        ticket_url=ticket_url,
+        ticket_type=ticket_type,
     )
-    raw = bytes(attachment_bytes) if isinstance(attachment_bytes, (bytes, bytearray)) else b""
-    fname = (attachment_filename or "ticket.pdf").strip() or "ticket.pdf"
-    link = wa_me_url(to_phone, "Your JOD Events booking confirmation.")
-
-    pdf_url = _publish_ticket_pdf(raw, fname) if raw else ""
-    if pdf_url:
-        ok, channel, message_id = send_meta_document_template(
-            to_phone,
-            merge_info=merge,
-            document_url=pdf_url,
-            document_filename=fname,
-        )
-        if ok:
-            return True, channel, link, message_id
-        ok, channel, message_id = send_meta_document_link(
-            to_phone,
-            document_url=pdf_url,
-            document_filename=fname,
-            caption=f"{merge.get('Event_Name') or 'Event'} · {merge.get('Booking_id') or ''}".strip(),
-        )
-        if ok:
-            return True, channel, link, message_id
-
     return send_whatsapp_template(
         to_phone,
         merge_info=merge,
-        attachment_bytes=raw or None,
-        attachment_filename=fname,
         client_reference=format_booking_id(booking_id),
     )
 
