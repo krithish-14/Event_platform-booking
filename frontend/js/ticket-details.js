@@ -416,9 +416,18 @@
 		return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
 	}
 
+	function formQuestionIdFromElement(el) {
+		if (!el) return "";
+		const explicit = String(el.form_question_id || el.formQuestionId || "").trim();
+		if (explicit) return explicit;
+		const id = String(el.id || "").trim();
+		const m = /^form_(.+)$/i.exec(id);
+		return m ? String(m[1] || "").trim() : "";
+	}
+
 	function answerForFormField(answers, el) {
 		if (!answers || typeof answers !== "object" || !el) return "";
-		const qid = String(el.form_question_id || el.formQuestionId || "").trim();
+		const qid = formQuestionIdFromElement(el);
 		const label = String(el.form_label || el.formLabel || "").trim();
 		const labelL = label.toLowerCase();
 		const labelNorm = normalizeAnswerKey(label);
@@ -461,6 +470,8 @@
 			: {};
 		(out.canvas_elements || []).forEach(function (el) {
 			if (!el || el.type !== "text") return;
+			const qid = formQuestionIdFromElement(el);
+			if (qid) el.form_question_id = qid;
 			if (!(el.form_question_id || el.formQuestionId || el.form_label || el.formLabel)) return;
 			const answered = answerForFormField(answers, el);
 			if (answered) el.text = answered;

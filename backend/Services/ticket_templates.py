@@ -319,6 +319,11 @@ def normalize_ticket_layout(
                 entry["align"] = align
             if etype == "text":
                 form_qid = str(item.get("form_question_id") or item.get("formQuestionId") or "").strip()[:80]
+                if not form_qid:
+                    # Older published layouts kept only id="form_<questionId>".
+                    eid_raw = str(item.get("id") or eid or "").strip()
+                    if eid_raw.lower().startswith("form_"):
+                        form_qid = eid_raw[5:].strip()[:80]
                 form_label = str(item.get("form_label") or item.get("formLabel") or "").strip()[:80]
                 raw_text = str(item.get("text") or "").strip()
                 if form_qid:

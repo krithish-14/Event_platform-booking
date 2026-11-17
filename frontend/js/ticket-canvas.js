@@ -286,12 +286,17 @@
 				item.align = sanitizeAlign(e.align, type);
 			}
 			if (type === "text") {
-				const formQid = String(e.form_question_id || e.formQuestionId || "").trim();
+				let formQid = String(e.form_question_id || e.formQuestionId || "").trim();
+				if (!formQid) {
+					const fromId = /^form_(.+)$/i.exec(String(id || ""));
+					if (fromId) formQid = String(fromId[1] || "").trim();
+				}
 				const formLabel = String(e.form_label || e.formLabel || "").trim();
 				if (formQid) item.form_question_id = formQid.slice(0, 80);
 				if (formLabel) item.form_label = formLabel.slice(0, 80);
 				if (item.form_question_id || item.form_label) {
 					const parts = formFieldParts({
+						form_question_id: item.form_question_id,
 						form_label: item.form_label || formLabel,
 						text: e.text,
 					});
@@ -622,8 +627,18 @@
 		return !!LABELABLE_TYPES[type];
 	}
 
+	function formQuestionIdFromElement(el) {
+		if (!el) return "";
+		const explicit = String(el.form_question_id || el.formQuestionId || "").trim();
+		if (explicit) return explicit;
+		const id = String(el.id || "").trim();
+		const m = /^form_(.+)$/i.exec(id);
+		return m ? String(m[1] || "").trim() : "";
+	}
+
 	function isFormFieldElement(el) {
-		return !!(el && el.type === "text" && (el.form_question_id || el.formQuestionId || el.form_label || el.formLabel));
+		if (!el || el.type !== "text") return false;
+		return !!(el.form_question_id || el.formQuestionId || el.form_label || el.formLabel || formQuestionIdFromElement(el));
 	}
 
 	function isLabelableElement(el) {
@@ -656,7 +671,7 @@
 
 	function answerForFormField(answers, el) {
 		if (!answers || typeof answers !== "object" || !el) return "";
-		const qid = String(el.form_question_id || el.formQuestionId || "").trim();
+		const qid = formQuestionIdFromElement(el);
 		const label = String(el.form_label || el.formLabel || "").trim();
 		const labelL = label.toLowerCase();
 		const labelNorm = normalizeAnswerKey(label);
@@ -2692,7 +2707,7 @@
 		});
 		(this.layout.canvas_elements || []).forEach(function (el) {
 			if (!el || el.type !== "text") return;
-			const qid = String(el.form_question_id || el.formQuestionId || "").trim();
+			const qid = formQuestionIdFromElement(el);
 			if (!qid && !el.form_label && !el.formLabel) return;
 			if (qid) el.form_question_id = qid;
 			if (qid && labelById[qid]) el.form_label = labelById[qid];

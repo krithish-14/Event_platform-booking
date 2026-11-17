@@ -1116,11 +1116,23 @@ def _normalize_answer_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
 
 
+def _form_question_id_from_element(el: dict) -> str:
+    if not isinstance(el, dict):
+        return ""
+    qid = str(el.get("form_question_id") or el.get("formQuestionId") or "").strip()
+    if qid:
+        return qid
+    eid = str(el.get("id") or "").strip()
+    if eid.lower().startswith("form_") and len(eid) > 5:
+        return eid[5:].strip()
+    return ""
+
+
 def _answer_for_form_field(answers: Optional[dict], el: dict) -> str:
     """Resolve a registration answer for a canvas form field element."""
     if not isinstance(answers, dict) or not isinstance(el, dict):
         return ""
-    qid = str(el.get("form_question_id") or el.get("formQuestionId") or "").strip()
+    qid = _form_question_id_from_element(el)
     label = str(el.get("form_label") or el.get("formLabel") or "").strip()
     label_l = label.lower()
     label_norm = _normalize_answer_key(label)
@@ -1476,7 +1488,7 @@ def _render_canvas_ticket(
             continue
         if etype == "text":
             weight = "/F1" if str(el.get("fontWeight") or "") in {"600", "700", "800"} else "/F2"
-            form_qid = str(el.get("form_question_id") or el.get("formQuestionId") or "").strip()
+            form_qid = _form_question_id_from_element(el)
             form_label = str(el.get("form_label") or el.get("formLabel") or "").strip()
             raw_text = str(el.get("text") or "").strip()
             if form_qid or form_label:
