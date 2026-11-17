@@ -401,11 +401,17 @@ def normalize_ticket_layout(
                 "seat",
             } or bool(entry.get("form_question_id") or entry.get("form_label"))
             if labelable:
-                raw_label = item.get("showLabel", item.get("show_label", True))
+                # Built-in fields default to labeled; form fields without a label stay value-only.
+                default_show = True
+                if etype == "text" and not entry.get("form_label"):
+                    default_show = False
+                raw_label = item.get("showLabel", item.get("show_label", default_show))
                 if raw_label is False or str(raw_label).strip().lower() in {"false", "0", "no", "off"}:
                     entry["showLabel"] = False
                 else:
                     entry["showLabel"] = True
+                if etype == "text" and default_show is False and "showLabel" not in item and "show_label" not in item:
+                    entry["showLabel"] = False
             if custom:
                 _clamp_custom_box(entry)
             cleaned_elements.append(entry)

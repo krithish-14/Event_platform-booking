@@ -321,7 +321,9 @@
 			if (FONT_STEPS.indexOf(fontSize) >= 0) item.fontSize = fontSize;
 			if (isLabelableType(type) || item.form_question_id || item.form_label) {
 				const rawShow = (e.showLabel !== undefined) ? e.showLabel : e.show_label;
-				item.showLabel = coerceShowLabel(rawShow, true);
+				/* Custom form fields without a saved label default to value-only. */
+				const defaultShow = isLabelableType(type) ? true : !!item.form_label;
+				item.showLabel = coerceShowLabel(rawShow, defaultShow);
 			}
 			out.push(item);
 		});

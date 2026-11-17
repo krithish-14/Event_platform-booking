@@ -1503,8 +1503,9 @@ def _render_canvas_ticket(
                         label = left.strip()
                         value = right.strip()
                 value = _ascii_text(value, "Sample")
-                label = _ascii_text(label or "Field", "Field")
-                show_form_label = _show_label_enabled(el, True)
+                label = _ascii_text(label, "")
+                # Without a real form_label, keep value-only (avoid printing "Field").
+                show_form_label = bool(label) and _show_label_enabled(el, True)
                 if show_form_label:
                     label_w = min(w * 0.45, text_width(label, size, "/F1") + 2.0)
                     gap = 12.0 * (card_h / css_h)
