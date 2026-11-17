@@ -631,7 +631,62 @@
 		return isLabelableType(el.type) || isFormFieldElement(el);
 	}
 
-	function formFieldParts(el) {
+	function normalizeAnswerKey(value) {
+		return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+	}
+
+	function coerceAnswerValue(value) {
+		if (value == null) return "";
+		if (Array.isArray(value)) {
+			return value.map(coerceAnswerValue).filter(Boolean).join(", ");
+		}
+		if (typeof value === "object") {
+			const nested = value.value != null ? value.value
+				: (value.answer != null ? value.answer
+					: (value.text != null ? value.text
+						: (value.label != null ? value.label : value.name)));
+			return coerceAnswerValue(nested);
+		}
+		const text = String(value).trim();
+		if (!text || text.toLowerCase() === "none" || text.toLowerCase() === "null" || text === "[object Object]") {
+			return "";
+		}
+		return text;
+	}
+
+	function answerForFormField(answers, el) {
+		if (!answers || typeof answers !== "object" || !el) return "";
+		const qid = String(el.form_question_id || el.formQuestionId || "").trim();
+		const label = String(el.form_label || el.formLabel || "").trim();
+		const labelL = label.toLowerCase();
+		const labelNorm = normalizeAnswerKey(label);
+		const keys = [];
+		if (qid) {
+			keys.push(qid, qid.replace(/^q_/, ""), "q_" + qid.replace(/^q_/, ""), normalizeAnswerKey(qid));
+		}
+		if (label) keys.push(label, labelL, labelNorm);
+		for (let i = 0; i < keys.length; i++) {
+			const key = keys[i];
+			if (!key) continue;
+			const hit = coerceAnswerValue(answers[key]);
+			if (hit) return hit;
+		}
+		const entries = Object.keys(answers);
+		for (let i = 0; i < entries.length; i++) {
+			const key = entries[i];
+			if (key.charAt(0) === "_") continue;
+			const hit = coerceAnswerValue(answers[key]);
+			if (!hit) continue;
+			const keyNorm = normalizeAnswerKey(key);
+			if (qid && String(key).replace(/^q_/, "") === qid.replace(/^q_/, "")) return hit;
+			if (qid && keyNorm === normalizeAnswerKey(qid)) return hit;
+			if (labelL && String(key).trim().toLowerCase() === labelL) return hit;
+			if (labelNorm && keyNorm === labelNorm) return hit;
+		}
+		return "";
+	}
+
+	function formFieldParts(el, answers) {
 		const storedLabel = String((el && (el.form_label || el.formLabel)) || "").trim();
 		let value = String((el && el.text) || "").trim();
 		let label = storedLabel;
@@ -648,6 +703,8 @@
 		if (label && value && value.toLowerCase() === label.toLowerCase()) {
 			value = "";
 		}
+		const answered = answerForFormField(answers, el);
+		if (answered) value = answered;
 		return {
 			label: label || "Field",
 			value: value || "Sample",
@@ -708,6 +765,7 @@
 			attendeeEmail: "attendee@example.com",
 			attendeePhone: "+91 XXXXX XXXXX",
 		}, opts.sample || {});
+		this.formAnswers = (opts.formAnswers && typeof opts.formAnswers === "object") ? opts.formAnswers : {};
 		this._undo = [];
 		this._redo = [];
 		this._historyLock = false;
@@ -867,6 +925,11 @@
 
 	TicketCanvasController.prototype.setSample = function (sample) {
 		this.sample = Object.assign({}, this.sample, sample || {});
+		this.renderPreview();
+	};
+
+	TicketCanvasController.prototype.setFormAnswers = function (answers) {
+		this.formAnswers = (answers && typeof answers === "object") ? answers : {};
 		this.renderPreview();
 	};
 
@@ -2589,7 +2652,7 @@
 			}
 			case "text": {
 				if (isFormFieldElement(el)) {
-					const parts = formFieldParts(el);
+					const parts = formFieldParts(el, this.formAnswers);
 					return row(parts.label, parts.value);
 				}
 				return '<div class="tc-el-text">' + escapeHtml(el.text || "Your text") + "</div>";
@@ -2618,6 +2681,7 @@
 	};
 
 	TicketCanvasController.prototype.normalizeFormFieldElements = function () {
+		const self = this;
 		const questions = Array.isArray(this.formQuestions) ? this.formQuestions : [];
 		const labelById = {};
 		questions.forEach(function (q) {
@@ -2632,9 +2696,12 @@
 			if (!qid && !el.form_label && !el.formLabel) return;
 			if (qid) el.form_question_id = qid;
 			if (qid && labelById[qid]) el.form_label = labelById[qid];
-			const parts = formFieldParts(el);
+			const answered = answerForFormField(self.formAnswers, el);
+			const parts = formFieldParts(el, self.formAnswers);
 			if (!el.form_label) el.form_label = parts.label;
-			el.text = parts.value;
+			/* Keep live answers; only fall back to Sample in the designer preview. */
+			if (answered) el.text = answered;
+			else if (!String(el.text || "").trim()) el.text = "Sample";
 		});
 	};
 

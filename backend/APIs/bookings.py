@@ -597,13 +597,76 @@ def _form_submission_row_for_booking(db, booking):
         from Utils.form_submission_query import (
             fetch_form_submissions,
             form_submission_booking_id,
+            parse_answers_json,
         )
     except Exception:
         return None
 
-    booking_key = str(getattr(booking, "booking_id", None) or "").replace("-", "").lower()
+    booking_id = str(getattr(booking, "booking_id", None) or "").strip()
+    booking_key = booking_id.replace("-", "").lower()
     event_key = str(getattr(booking, "event_id", None) or "").replace("-", "").lower()
+    customer_id = str(getattr(booking, "customer_id", None) or "").strip()
     receiver_email = (getattr(booking, "receiver_email", None) or "").strip().lower()
+    customer = getattr(booking, "customer", None)
+    customer_email = (getattr(customer, "email", None) or "").strip().lower() if customer else ""
+
+    def _row_from_mapping(mapping):
+        if not mapping:
+            return None
+        try:
+            data = dict(mapping)
+        except Exception:
+            data = mapping
+        from types import SimpleNamespace
+        return SimpleNamespace(
+            id=data.get("id"),
+            form_id=data.get("form_id"),
+            event_id=data.get("event_id"),
+            customer_id=data.get("customer_id"),
+            user_email=data.get("user_email"),
+            answers_json=parse_answers_json(data.get("answers_json")),
+            status=data.get("status"),
+            booking_id=data.get("booking_id"),
+        )
+
+    # Fast path: direct SQL by booking_id (avoids scanning every submission).
+    if booking_id:
+        sql_variants = (
+            """
+            SELECT id, CAST(form_id AS TEXT) AS form_id, CAST(event_id AS TEXT) AS event_id,
+                   CAST(customer_id AS TEXT) AS customer_id, user_email, status,
+                   CAST(booking_id AS TEXT) AS booking_id,
+                   CAST(answers_json AS TEXT) AS answers_json
+            FROM form_submissions
+            WHERE CAST(booking_id AS TEXT) = :bid
+               OR REPLACE(LOWER(CAST(booking_id AS TEXT)), '-', '') = :bid_compact
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            """
+            SELECT id, user_email, status, CAST(answers_json AS TEXT) AS answers_json
+            FROM form_submissions
+            WHERE booking_id = :bid
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+        )
+        for sql in sql_variants:
+            try:
+                row = db.execute(
+                    text(sql),
+                    {"bid": booking_id, "bid_compact": booking_key},
+                ).mappings().first()
+                found = _row_from_mapping(row)
+                if found is not None:
+                    return found
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+    # Fallback scan: booking_id link, then customer/event, then email/event.
     try:
         rows = fetch_form_submissions(db)
     except Exception:
@@ -613,14 +676,18 @@ def _form_submission_row_for_booking(db, booking):
             stored = form_submission_booking_id(db, getattr(candidate, "id", None)) or ""
             if str(stored).replace("-", "").lower() == booking_key:
                 return candidate
-    if receiver_email:
-        for candidate in rows:
-            row_email = (getattr(candidate, "user_email", None) or "").strip().lower()
-            if row_email != receiver_email:
-                continue
-            stored_event = str(getattr(candidate, "event_id", None) or "").replace("-", "").lower()
-            if event_key and stored_event and stored_event != event_key:
-                continue
+
+    emails = {e for e in (receiver_email, customer_email) if e}
+    customer_key = customer_id.replace("-", "").lower() if customer_id else ""
+    for candidate in rows:
+        stored_event = str(getattr(candidate, "event_id", None) or "").replace("-", "").lower()
+        if event_key and stored_event and stored_event != event_key:
+            continue
+        row_customer = str(getattr(candidate, "customer_id", None) or "").replace("-", "").lower()
+        if customer_key and row_customer and row_customer == customer_key:
+            return candidate
+        row_email = (getattr(candidate, "user_email", None) or "").strip().lower()
+        if emails and row_email in emails:
             return candidate
     return None
 
@@ -693,6 +760,10 @@ def _form_schema_questions_for_event(db, event_id) -> list:
     return questions
 
 
+def _normalize_answer_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
+
+
 def _form_answers_for_booking(db, booking) -> dict:
     """Flat registration answers for ticket canvas form fields.
 
@@ -713,9 +784,15 @@ def _form_answers_for_booking(db, booking) -> dict:
     flat = {}
     for key, value in answers.items():
         text = _coerce_answer_value(value)
-        if not text and str(key).startswith("_"):
+        if str(key).startswith("_"):
+            if text:
+                flat[str(key)] = text
             continue
-        flat[str(key)] = text if text else value
+        if text:
+            flat[str(key)] = text
+            norm = _normalize_answer_key(key)
+            if norm and norm not in flat:
+                flat[norm] = text
 
     # Title <-> id aliases so canvas form_question_id lookups resolve.
     for q in _form_schema_questions_for_event(db, getattr(booking, "event_id", None)):
@@ -724,29 +801,28 @@ def _form_answers_for_booking(db, booking) -> dict:
         if not qid and not title:
             continue
         value = ""
-        for key in (qid, title, title.lower() if title else ""):
+        candidates = [qid, title, title.lower() if title else "", _normalize_answer_key(title)]
+        for key in candidates:
             if not key:
                 continue
-            if key in flat and _coerce_answer_value(flat.get(key)):
-                value = _coerce_answer_value(flat.get(key))
+            hit = _coerce_answer_value(flat.get(key))
+            if hit:
+                value = hit
                 break
+        if not value and title:
+            title_norm = _normalize_answer_key(title)
             for existing_key, existing_val in list(flat.items()):
                 if str(existing_key).startswith("_"):
                     continue
-                if title and str(existing_key).strip().lower() == title.lower():
+                if _normalize_answer_key(existing_key) == title_norm:
                     value = _coerce_answer_value(existing_val)
                     if value:
                         break
-            if value:
-                break
         if not value:
             continue
-        if qid and not _coerce_answer_value(flat.get(qid)):
-            flat[qid] = value
-        if title and not _coerce_answer_value(flat.get(title)):
-            flat[title] = value
-        if title and not _coerce_answer_value(flat.get(title.lower())):
-            flat[title.lower()] = value
+        for alias in (qid, title, title.lower() if title else "", _normalize_answer_key(title)):
+            if alias and not _coerce_answer_value(flat.get(alias)):
+                flat[alias] = value
     return flat
 
 

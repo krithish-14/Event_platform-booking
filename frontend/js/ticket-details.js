@@ -412,14 +412,21 @@
 		return text;
 	}
 
+	function normalizeAnswerKey(value) {
+		return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+	}
+
 	function answerForFormField(answers, el) {
 		if (!answers || typeof answers !== "object" || !el) return "";
 		const qid = String(el.form_question_id || el.formQuestionId || "").trim();
 		const label = String(el.form_label || el.formLabel || "").trim();
 		const labelL = label.toLowerCase();
+		const labelNorm = normalizeAnswerKey(label);
 		const keys = [];
-		if (qid) keys.push(qid, qid.replace(/^q_/, ""), "q_" + qid.replace(/^q_/, ""));
-		if (label) keys.push(label, labelL);
+		if (qid) {
+			keys.push(qid, qid.replace(/^q_/, ""), "q_" + qid.replace(/^q_/, ""), normalizeAnswerKey(qid));
+		}
+		if (label) keys.push(label, labelL, labelNorm);
 		for (let i = 0; i < keys.length; i++) {
 			const key = keys[i];
 			if (!key) continue;
@@ -432,8 +439,11 @@
 			if (key.charAt(0) === "_") continue;
 			const hit = coerceAnswerValue(answers[key]);
 			if (!hit) continue;
+			const keyNorm = normalizeAnswerKey(key);
 			if (qid && String(key).replace(/^q_/, "") === qid.replace(/^q_/, "")) return hit;
+			if (qid && keyNorm === normalizeAnswerKey(qid)) return hit;
 			if (labelL && String(key).trim().toLowerCase() === labelL) return hit;
+			if (labelNorm && keyNorm === labelNorm) return hit;
 		}
 		return "";
 	}
@@ -479,6 +489,9 @@
 		wrap.hidden = false;
 		wrap.dataset.orient = (layout.orientation === "portrait") ? "portrait" : "landscape";
 		const shortCode = formatBookingCode(data.booking_id);
+		const formAnswers = (data && data.form_answers && typeof data.form_answers === "object")
+			? data.form_answers
+			: {};
 		const sample = {
 			title: data.event_title || "Event",
 			date: formatEventWhen(data, "start") || "Date TBA",
@@ -500,12 +513,16 @@
 			if (designedTicketCtrl && typeof designedTicketCtrl.setLayout === "function") {
 				designedTicketCtrl.setLayout(layout);
 				designedTicketCtrl.setSample(sample);
+				if (typeof designedTicketCtrl.setFormAnswers === "function") {
+					designedTicketCtrl.setFormAnswers(formAnswers);
+				}
 			} else {
 				host.innerHTML = "";
 				designedTicketCtrl = window.JodTicketCanvas.create({
 					root: host,
 					layout: layout,
 					sample: sample,
+					formAnswers: formAnswers,
 					readOnly: true,
 					isPremium: true,
 				});

@@ -1111,6 +1111,11 @@ def _show_label_enabled(el: dict, default: bool = True) -> bool:
     return bool(default)
 
 
+def _normalize_answer_key(value: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
+
+
 def _answer_for_form_field(answers: Optional[dict], el: dict) -> str:
     """Resolve a registration answer for a canvas form field element."""
     if not isinstance(answers, dict) or not isinstance(el, dict):
@@ -1118,12 +1123,13 @@ def _answer_for_form_field(answers: Optional[dict], el: dict) -> str:
     qid = str(el.get("form_question_id") or el.get("formQuestionId") or "").strip()
     label = str(el.get("form_label") or el.get("formLabel") or "").strip()
     label_l = label.lower()
+    label_norm = _normalize_answer_key(label)
     keys = []
     if qid:
         bare = qid[2:] if qid.startswith("q_") else qid
-        keys.extend([qid, bare, f"q_{bare}"])
+        keys.extend([qid, bare, f"q_{bare}", _normalize_answer_key(qid)])
     if label:
-        keys.extend([label, label_l])
+        keys.extend([label, label_l, label_norm])
     for key in keys:
         if not key:
             continue
@@ -1137,9 +1143,14 @@ def _answer_for_form_field(answers: Optional[dict], el: dict) -> str:
         if not text:
             continue
         key_s = str(key).strip()
+        key_norm = _normalize_answer_key(key_s)
         if qid and key_s.replace("q_", "", 1) == qid.replace("q_", "", 1):
             return text
+        if qid and key_norm == _normalize_answer_key(qid):
+            return text
         if label_l and key_s.lower() == label_l:
+            return text
+        if label_norm and key_norm == label_norm:
             return text
     return ""
 
