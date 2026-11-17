@@ -483,6 +483,7 @@ def get_public_ticket_by_token(qr_token: str, db: Session = Depends(get_db)):
         "image_url",
         "hero_image",
         "ticket_layout",
+        "form_answers",
         "agenda",
     }
     from Utils.form_contact import mask_email, mask_phone

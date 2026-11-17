@@ -361,21 +361,123 @@
 		return "JOD-" + shortId;
 	}
 
+	function setDefaultMticketVisible(show) {
+		const wrapper = document.querySelector(".ticket-mticket-wrapper");
+		if (wrapper) wrapper.hidden = !show;
+	}
+
+	function mountAgendaBack(designed) {
+		const card = document.getElementById("ticketAgendaCard");
+		const target = document.getElementById(designed ? "ticketDesignedFaceBack" : "ticketDefaultFaceBack");
+		if (!card || !target) return;
+		if (card.parentElement !== target) target.appendChild(card);
+		const designedInner = document.getElementById("ticketDesignedFlipInner");
+		const defaultInner = document.getElementById("ticketFlipInner");
+		if (designed) {
+			if (designedInner) designedInner.classList.remove("is-flipped");
+			const hint = document.getElementById("ticketDesignedFlipHint");
+			if (hint) hint.textContent = "Tap ticket to view agenda";
+		} else {
+			if (defaultInner) defaultInner.classList.remove("is-flipped");
+			const hint = document.getElementById("ticketFlipHint");
+			if (hint) hint.textContent = "Tap ticket to view agenda";
+		}
+	}
+
+	function hasHostCanvasLayout(layout) {
+		if (!layout || typeof layout !== "object") return false;
+		const elements = Array.isArray(layout.canvas_elements) ? layout.canvas_elements : [];
+		if (!elements.length) return false;
+		const mode = String(layout.canvas_mode || "").toLowerCase();
+		const version = Number(layout.layout_version) || 0;
+		return mode === "custom" || mode === "legacy" || version >= 11;
+	}
+
+	function coerceAnswerValue(value) {
+		if (value == null) return "";
+		if (Array.isArray(value)) {
+			return value.map(coerceAnswerValue).filter(Boolean).join(", ");
+		}
+		if (typeof value === "object") {
+			const nested = value.value != null ? value.value
+				: (value.answer != null ? value.answer
+					: (value.text != null ? value.text
+						: (value.label != null ? value.label : value.name)));
+			return coerceAnswerValue(nested);
+		}
+		const text = String(value).trim();
+		if (!text || text.toLowerCase() === "none" || text.toLowerCase() === "null" || text === "[object Object]") {
+			return "";
+		}
+		return text;
+	}
+
+	function answerForFormField(answers, el) {
+		if (!answers || typeof answers !== "object" || !el) return "";
+		const qid = String(el.form_question_id || el.formQuestionId || "").trim();
+		const label = String(el.form_label || el.formLabel || "").trim();
+		const labelL = label.toLowerCase();
+		const keys = [];
+		if (qid) keys.push(qid, qid.replace(/^q_/, ""), "q_" + qid.replace(/^q_/, ""));
+		if (label) keys.push(label, labelL);
+		for (let i = 0; i < keys.length; i++) {
+			const key = keys[i];
+			if (!key) continue;
+			const hit = coerceAnswerValue(answers[key]);
+			if (hit) return hit;
+		}
+		const entries = Object.keys(answers);
+		for (let i = 0; i < entries.length; i++) {
+			const key = entries[i];
+			if (key.charAt(0) === "_") continue;
+			const hit = coerceAnswerValue(answers[key]);
+			if (!hit) continue;
+			if (qid && String(key).replace(/^q_/, "") === qid.replace(/^q_/, "")) return hit;
+			if (labelL && String(key).trim().toLowerCase() === labelL) return hit;
+		}
+		return "";
+	}
+
+	function hydrateTicketLayout(layout, data) {
+		if (!layout || typeof layout !== "object") return layout;
+		let out;
+		try {
+			out = JSON.parse(JSON.stringify(layout));
+		} catch (_) {
+			out = layout;
+		}
+		const answers = (data && data.form_answers && typeof data.form_answers === "object")
+			? data.form_answers
+			: {};
+		(out.canvas_elements || []).forEach(function (el) {
+			if (!el || el.type !== "text") return;
+			if (!(el.form_question_id || el.formQuestionId || el.form_label || el.formLabel)) return;
+			const answered = answerForFormField(answers, el);
+			if (answered) el.text = answered;
+		});
+		return out;
+	}
+
 	function renderDesignedTicket(data) {
 		const wrap = document.getElementById("ticketDesignedWrap");
 		const host = document.getElementById("ticketDesignedHost");
 		if (!wrap || !host) return;
-		const layout = data && data.ticket_layout && typeof data.ticket_layout === "object"
+		const rawLayout = data && data.ticket_layout && typeof data.ticket_layout === "object"
 			? data.ticket_layout
 			: null;
-		const custom = !!(layout && layout.canvas_mode === "custom" && Array.isArray(layout.canvas_elements) && layout.canvas_elements.length);
+		const layout = hydrateTicketLayout(rawLayout, data);
+		const custom = hasHostCanvasLayout(layout);
 		if (!custom || !window.JodTicketCanvas) {
 			wrap.hidden = true;
+			delete wrap.dataset.orient;
 			host.innerHTML = "";
 			designedTicketCtrl = null;
+			mountAgendaBack(false);
+			setDefaultMticketVisible(true);
 			return;
 		}
 		wrap.hidden = false;
+		wrap.dataset.orient = (layout.orientation === "portrait") ? "portrait" : "landscape";
 		const shortCode = formatBookingCode(data.booking_id);
 		const sample = {
 			title: data.event_title || "Event",
@@ -387,7 +489,7 @@
 			qty: ticketCountLabel(data),
 			price: formatRupees(Number(data.total_price || 0)),
 			bookingId: shortCode,
-			ticketId: data.ticket_id || shortCode,
+			ticketId: shortCode,
 			organizer: "JOD Events",
 			attendeeName: data.receiver_name || data.user_name || "Guest",
 			attendeeEmail: data.receiver_email || data.receiver_email_masked || "",
@@ -401,15 +503,29 @@
 			} else {
 				host.innerHTML = "";
 				designedTicketCtrl = window.JodTicketCanvas.create({
-					host: host,
+					root: host,
 					layout: layout,
 					sample: sample,
 					readOnly: true,
-					premium: true,
+					isPremium: true,
 				});
 			}
+			if (!host.querySelector("#ticketLiveCard")) {
+				throw new Error("ticket canvas did not mount");
+			}
+			if (typeof designedTicketCtrl.fitCardToStage === "function") {
+				designedTicketCtrl.fitCardToStage();
+			}
+			mountAgendaBack(true);
+			setDefaultMticketVisible(false);
+			bindDesignedTicketFlip();
+			window.requestAnimationFrame(syncDesignedFlipHeight);
 		} catch (_) {
 			wrap.hidden = true;
+			host.innerHTML = "";
+			designedTicketCtrl = null;
+			mountAgendaBack(false);
+			setDefaultMticketVisible(true);
 		}
 	}
 
@@ -563,7 +679,10 @@
  if (attendeeEmailEl) attendeeEmailEl.textContent = attendeeEmail;
 
  renderAgendaBack(data);
- window.requestAnimationFrame(syncFlipHeight);
+ window.requestAnimationFrame(function () {
+ syncFlipHeight();
+ syncDesignedFlipHeight();
+ });
 	}
 
 	function escapeHtml(str) {
@@ -600,10 +719,25 @@
  const front = document.getElementById("printableTicketArea");
  const inner = document.getElementById("ticketFlipInner");
  const back = document.getElementById("ticketAgendaCard");
+ const defaultBack = document.getElementById("ticketDefaultFaceBack");
  if (!front || !inner) return;
  const height = Math.max(front.offsetHeight || 0, 560);
  inner.style.minHeight = `${height}px`;
- if (back) back.style.minHeight = `${height}px`;
+ if (defaultBack) defaultBack.style.minHeight = `${height}px`;
+ if (back && back.parentElement === defaultBack) back.style.minHeight = `${height}px`;
+	}
+
+	function syncDesignedFlipHeight() {
+		const host = document.getElementById("ticketDesignedHost");
+		const live = host && host.querySelector("#ticketLiveCard");
+		const inner = document.getElementById("ticketDesignedFlipInner");
+		const back = document.getElementById("ticketDesignedFaceBack");
+		const agenda = document.getElementById("ticketAgendaCard");
+		if (!live || !inner) return;
+		const height = Math.max(Math.round(live.getBoundingClientRect().height) || 0, 420);
+		inner.style.minHeight = height + "px";
+		if (back) back.style.minHeight = height + "px";
+		if (agenda && agenda.parentElement === back) agenda.style.minHeight = height + "px";
 	}
 
 	function bindTicketFlip() {
@@ -618,6 +752,21 @@
  const flipped = inner.classList.contains("is-flipped");
  if (hint) hint.textContent = flipped ? "Tap ticket to view front" : "Tap ticket to view agenda";
  });
+	}
+
+	function bindDesignedTicketFlip() {
+		const scene = document.getElementById("ticketDesignedFlipScene");
+		const inner = document.getElementById("ticketDesignedFlipInner");
+		const hint = document.getElementById("ticketDesignedFlipHint");
+		if (!scene || !inner || scene.dataset.flipBound === "1") return;
+		scene.dataset.flipBound = "1";
+		scene.addEventListener("click", (event) => {
+			if (event.target.closest("a, button, input, textarea, select, label")) return;
+			inner.classList.toggle("is-flipped");
+			const flipped = inner.classList.contains("is-flipped");
+			if (hint) hint.textContent = flipped ? "Tap ticket to view front" : "Tap ticket to view agenda";
+			if (flipped) window.requestAnimationFrame(syncDesignedFlipHeight);
+		});
 	}
 
 	function max(a, b) { return a > b ? a : b; }

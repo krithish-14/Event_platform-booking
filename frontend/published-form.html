@@ -1085,22 +1085,25 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					const qId = q.id || `q_${idx}`;
 					const qTitle = q.title || `Question ${idx + 1}`;
 
+					let value = "";
 					if (q.type === 'radio') {
 						const checked = pubFormElement.querySelector(`input[name="${qId}"]:checked`);
-						answers[qTitle] = checked ? checked.value : "";
+						value = checked ? checked.value : "";
 					} else if (q.type === 'checkbox') {
-						const checkedBoxes = Array.from(pubFormElement.querySelectorAll(`input[name="${qId}"]:checked`)).map(cb => cb.value);
-						answers[qTitle] = checkedBoxes;
+						value = Array.from(pubFormElement.querySelectorAll(`input[name="${qId}"]:checked`)).map(cb => cb.value);
 					} else if (q.type === 'terms') {
 						const termsCb = document.getElementById(qId);
-						answers[qTitle] = termsCb && termsCb.checked ? "Agreed" : "Not Agreed";
+						value = termsCb && termsCb.checked ? "Agreed" : "Not Agreed";
 					} else {
 						const el = document.getElementById(qId);
-						answers[qTitle] = el ? el.value.trim() : "";
+						value = el ? el.value.trim() : "";
 						if (q.type === 'email' && el && el.value) {
 							userEmail = el.value.trim();
 						}
 					}
+					/* Title (legacy admin) + question id (ticket canvas form fields). */
+					answers[qTitle] = value;
+					if (qId) answers[qId] = value;
 				});
 
 				const contact = contactFromSchema(schema, answers);

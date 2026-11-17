@@ -318,7 +318,28 @@ def normalize_ticket_layout(
             if etype in text_types and align in {"left", "center", "right"}:
                 entry["align"] = align
             if etype == "text":
-                entry["text"] = str(item.get("text") or "Your text").strip()[:120] or "Your text"
+                form_qid = str(item.get("form_question_id") or item.get("formQuestionId") or "").strip()[:80]
+                form_label = str(item.get("form_label") or item.get("formLabel") or "").strip()[:80]
+                raw_text = str(item.get("text") or "").strip()
+                if form_qid:
+                    entry["form_question_id"] = form_qid
+                if form_label:
+                    entry["form_label"] = form_label
+                if form_qid or form_label:
+                    # Prefer separate label + value; migrate older "Label: Sample" text.
+                    value = raw_text
+                    label = form_label
+                    if label and value.lower().startswith(label.lower() + ":"):
+                        value = value[len(label) + 1 :].strip()
+                    elif not label and ":" in value:
+                        left, right = value.split(":", 1)
+                        if 0 < len(left.strip()) < 48:
+                            label = left.strip()
+                            value = right.strip()
+                            entry["form_label"] = label[:80]
+                    entry["text"] = (value or "Sample")[:120]
+                else:
+                    entry["text"] = (raw_text or "Your text")[:120] or "Your text"
             if etype == "stub":
                 entry["text"] = str(item.get("text") or "").strip()[:120]
             if etype in {"image", "organizer_logo"}:
@@ -362,6 +383,24 @@ def normalize_ticket_layout(
                 font_scale = 1.0
             if 0.4 <= font_scale <= 8 and abs(font_scale - 1.0) > 0.01:
                 entry["fontScale"] = round(font_scale, 2)
+            # Optional left-side labels (Name / Phone / registration fields). Default is show label.
+            labelable = etype in {
+                "name",
+                "phone",
+                "email",
+                "price",
+                "date",
+                "venue",
+                "title",
+                "booking_id",
+                "seat",
+            } or bool(entry.get("form_question_id") or entry.get("form_label"))
+            if labelable:
+                raw_label = item.get("showLabel", item.get("show_label", True))
+                if raw_label is False or str(raw_label).strip().lower() in {"false", "0", "no", "off"}:
+                    entry["showLabel"] = False
+                else:
+                    entry["showLabel"] = True
             if custom:
                 _clamp_custom_box(entry)
             cleaned_elements.append(entry)

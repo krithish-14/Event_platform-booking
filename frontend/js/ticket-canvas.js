@@ -285,7 +285,22 @@
 			if (type === "text" || type === "stub" || ["title", "date", "time", "venue", "qty", "ticket_type", "seat", "name", "phone", "email", "booking_id", "price", "footer", "badge", "organizer", "ticket_id"].indexOf(type) >= 0) {
 				item.align = sanitizeAlign(e.align, type);
 			}
-			if (type === "text") item.text = String(e.text || "Your text").trim().slice(0, 120) || "Your text";
+			if (type === "text") {
+				const formQid = String(e.form_question_id || e.formQuestionId || "").trim();
+				const formLabel = String(e.form_label || e.formLabel || "").trim();
+				if (formQid) item.form_question_id = formQid.slice(0, 80);
+				if (formLabel) item.form_label = formLabel.slice(0, 80);
+				if (item.form_question_id || item.form_label) {
+					const parts = formFieldParts({
+						form_label: item.form_label || formLabel,
+						text: e.text,
+					});
+					if (!item.form_label) item.form_label = parts.label;
+					item.text = parts.value.slice(0, 120) || "Sample";
+				} else {
+					item.text = String(e.text || "Your text").trim().slice(0, 120) || "Your text";
+				}
+			}
 			if (type === "stub") item.text = String(e.text || "").trim().slice(0, 120);
 			if (["Arial", "Georgia", "Courier New", "Times New Roman", "Verdana"].indexOf(e.fontFamily) >= 0) item.fontFamily = e.fontFamily;
 			if (["400", "500", "600", "700", "800"].indexOf(String(e.fontWeight || "")) >= 0) item.fontWeight = String(e.fontWeight);
@@ -299,6 +314,10 @@
 			if (Number.isFinite(fs)) item.fontScale = clampNum(fs, 0.4, 8, 1);
 			const fontSize = Number(e.fontSize);
 			if (FONT_STEPS.indexOf(fontSize) >= 0) item.fontSize = fontSize;
+			if (isLabelableType(type) || item.form_question_id || item.form_label) {
+				const rawShow = (e.showLabel !== undefined) ? e.showLabel : e.show_label;
+				item.showLabel = coerceShowLabel(rawShow, true);
+			}
 			out.push(item);
 		});
 		return out;
@@ -500,7 +519,10 @@
 		if (mode === "custom" || version >= 11) {
 			const onlyLogo = !!(savedElements && src.canvas_elements.length === 1 && src.canvas_elements[0] && src.canvas_elements[0].type === "jod_logo");
 			const orient = src && src.orientation === "portrait" ? "portrait" : "landscape";
-			if (src && src.frame === "reference") {
+			const hasEditedContent = !!(savedElements && src.canvas_elements.length > 1);
+			/* Reference frame with no real host content → blank starter. If elements
+			   were already saved/published, keep them so attendee pages match the studio. */
+			if (src && src.frame === "reference" && !hasEditedContent) {
 				return src.card_style === "eticket" ? eticketLayout() : referenceLayout(orient);
 			}
 			if (onlyLogo || !savedElements) return blankCustomLayout();
@@ -583,6 +605,78 @@
 			.replace(/"/g, "&quot;");
 	}
 
+	/** Built-in fields that can show a left-side label next to the value. */
+	const LABELABLE_TYPES = {
+		name: true,
+		phone: true,
+		email: true,
+		price: true,
+		date: true,
+		venue: true,
+		title: true,
+		booking_id: true,
+		seat: true,
+	};
+
+	function isLabelableType(type) {
+		return !!LABELABLE_TYPES[type];
+	}
+
+	function isFormFieldElement(el) {
+		return !!(el && el.type === "text" && (el.form_question_id || el.formQuestionId || el.form_label || el.formLabel));
+	}
+
+	function isLabelableElement(el) {
+		if (!el) return false;
+		return isLabelableType(el.type) || isFormFieldElement(el);
+	}
+
+	function formFieldParts(el) {
+		const storedLabel = String((el && (el.form_label || el.formLabel)) || "").trim();
+		let value = String((el && el.text) || "").trim();
+		let label = storedLabel;
+		if (label && value.toLowerCase().indexOf(label.toLowerCase() + ":") === 0) {
+			value = value.slice(label.length + 1).trim();
+		} else if (!label) {
+			const idx = value.indexOf(":");
+			if (idx > 0 && idx < 48) {
+				label = value.slice(0, idx).trim();
+				value = value.slice(idx + 1).trim();
+			}
+		}
+		/* Never treat the label itself as the displayed value. */
+		if (label && value && value.toLowerCase() === label.toLowerCase()) {
+			value = "";
+		}
+		return {
+			label: label || "Field",
+			value: value || "Sample",
+		};
+	}
+
+	function coerceShowLabel(raw, defaultValue) {
+		if (raw === false || raw === 0 || raw === "0") return false;
+		if (typeof raw === "string") {
+			const s = raw.trim().toLowerCase();
+			if (s === "false" || s === "no" || s === "off") return false;
+			if (s === "true" || s === "yes" || s === "on") return true;
+		}
+		if (raw === true || raw === 1 || raw === "1") return true;
+		return defaultValue !== false;
+	}
+
+	function elementShowsLabel(el) {
+		if (!isLabelableElement(el)) return false;
+		const raw = (el.showLabel !== undefined) ? el.showLabel : el.show_label;
+		return coerceShowLabel(raw, true);
+	}
+
+	function setElementShowLabel(el, on) {
+		if (!el || !isLabelableElement(el)) return;
+		el.showLabel = !!on;
+		delete el.show_label;
+	}
+
 	function sampleDateWithTime(sample) {
 		const date = String((sample && sample.date) || "").trim();
 		const time = String((sample && sample.time) || "").trim();
@@ -593,8 +687,8 @@
 	}
 
 	function TicketCanvasController(opts) {
-		this.root = opts.root;
-		this.isPremium = !!opts.isPremium;
+		this.root = opts.root || opts.host || null;
+		this.isPremium = !!(opts.isPremium || opts.premium);
 		this.templates = Array.isArray(opts.templates) && opts.templates.length ? opts.templates : FALLBACK_TEMPLATES;
 		this.layout = cloneLayout(opts.layout);
 		this.formFields = Object.assign({ name: true, email: true, phone: true }, opts.formFields || {});
@@ -951,6 +1045,8 @@
 		const avail = stage.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
 		if (!(avail > 40)) return;
 		const scale = Math.min(size.maxW, avail) / size.w;
+		const shrinkX = size.w * (scale - 1);
+		const shrinkY = size.h * (scale - 1);
 		const set = function (prop, value) { card.style.setProperty(prop, value, "important"); };
 		set("width", size.w + "px");
 		set("height", size.h + "px");
@@ -960,10 +1056,20 @@
 		set("flex-shrink", "0");
 		set("animation", "none");
 		set("transition", "none");
-		set("transform-origin", "top left");
 		set("transform", "scale(" + scale.toFixed(4) + ")");
-		set("margin-right", (size.w * (scale - 1)).toFixed(2) + "px");
-		set("margin-bottom", (size.h * (scale - 1)).toFixed(2) + "px");
+		set("margin-bottom", shrinkY.toFixed(2) + "px");
+		if (this.readOnly) {
+			/* Attendee page: keep the scaled ticket centered (auto + forced
+			   margin-right alone pushes the card to the right). */
+			set("transform-origin", "top center");
+			set("margin-left", (shrinkX / 2).toFixed(2) + "px");
+			set("margin-right", (shrinkX / 2).toFixed(2) + "px");
+			set("margin-top", "0px");
+		} else {
+			set("transform-origin", "top left");
+			set("margin-left", "0px");
+			set("margin-right", shrinkX.toFixed(2) + "px");
+		}
 		this._cardScale = scale;
 		if (!this._fitObserver && typeof ResizeObserver === "function") {
 			const self = this;
@@ -1018,6 +1124,7 @@
 		const colorInput = this.root.querySelector("#ticketItemColor");
 		const colorLabel = this.root.querySelector("#ticketItemColorLabel");
 		const alignWrap = this.root.querySelector("#ticketAlignSection");
+		const labelModeWrap = this.root.querySelector("#ticketLabelModeWrap");
 		const textWrap = this.root.querySelector("#ticketTextEditWrap");
 		const textInput = this.root.querySelector("#ticketItemText");
 		const sizeWrap = this.root.querySelector("#ticketSizeRow");
@@ -1032,6 +1139,7 @@
 			if (help) help.textContent = "Change the ticket background, accent, or default text color.";
 			if (sizeWrap) sizeWrap.hidden = true;
 			if (alignWrap) alignWrap.hidden = true;
+			if (labelModeWrap) labelModeWrap.hidden = true;
 			if (textWrap) textWrap.hidden = true;
 			const imageWrapCanvas = this.root.querySelector("#ticketImageEditWrap");
 			if (imageWrapCanvas) imageWrapCanvas.hidden = true;
@@ -1044,6 +1152,7 @@
 		if (!item) {
 			if (panel) panel.hidden = true;
 			if (alignWrap) alignWrap.hidden = true;
+			if (labelModeWrap) labelModeWrap.hidden = true;
 			if (textWrap) textWrap.hidden = true;
 			if (sizeWrap) sizeWrap.hidden = true;
 			if (colorLabel) colorLabel.textContent = "Color";
@@ -1055,7 +1164,11 @@
 		const isText = this.isTextElement(item.type);
 		const showFont = isText && item.type !== "jod_logo";
 		if (panel) panel.hidden = false;
-		if (label) label.textContent = def.label || item.type;
+		if (label) {
+			label.textContent = isFormFieldElement(item)
+				? formFieldParts(item).label
+				: (def.label || item.type);
+		}
 		if (help) help.textContent = item.type === "image"
 			? "Upload a picture. Drag it anywhere on the ticket."
 			: (item.type === "stub"
@@ -1089,20 +1202,44 @@
 				btn.classList.toggle("is-active", btn.getAttribute("data-align") === sanitizeAlign(item.align, item.type));
 			});
 		}
+		if (labelModeWrap) {
+			const canLabel = isLabelableElement(item);
+			labelModeWrap.hidden = !canLabel;
+			const showLabelInput = this.root.querySelector("#ticketShowFieldLabel");
+			if (canLabel && showLabelInput) {
+				showLabelInput.checked = elementShowsLabel(item);
+			}
+			if (canLabel && help) {
+				const formBits = isFormFieldElement(item) ? formFieldParts(item) : null;
+				help.textContent = elementShowsLabel(item)
+					? (formBits
+						? ("Label is on for “" + formBits.label + "”. Uncheck “Show label” to show only the answer.")
+						: "Label is on. Uncheck “Show label” below to hide words like Name / Phone.")
+					: (formBits
+						? ("Label is off — only the “" + formBits.label + "” answer shows.")
+						: "Label is off — only the value shows. Check “Show label” below to bring it back.");
+			}
+		}
 		if (textWrap && textInput) {
-			const editable = this.isEditableText(item.type);
+			const formField = isFormFieldElement(item);
+			const editable = formField || this.isEditableText(item.type);
 			textWrap.hidden = !editable;
 			if (editable) {
-				if (item.type === "title") textInput.value = this.layout.headline_override || "";
+				if (formField) {
+					textInput.value = formFieldParts(item).value;
+					textInput.placeholder = "Sample answer for preview";
+				} else if (item.type === "title") textInput.value = this.layout.headline_override || "";
 				else if (item.type === "ticket_type") textInput.value = this.layout.ticket_type_override || "";
 				else if (item.type === "footer") textInput.value = this.layout.custom_footer || "";
 				else if (item.type === "stub") textInput.value = item.text || "";
 				else textInput.value = item.text || "";
-				textInput.placeholder = item.type === "title"
-					? "Your event name"
-					: (item.type === "ticket_type"
-						? "Your ticket name"
-						: (item.type === "stub" ? "Side text" : (item.type === "footer" ? "Optional note on ticket" : "Your text")));
+				if (!formField) {
+					textInput.placeholder = item.type === "title"
+						? "Your event name"
+						: (item.type === "ticket_type"
+							? "Your ticket name"
+							: (item.type === "stub" ? "Side text" : (item.type === "footer" ? "Optional note on ticket" : "Your text")));
+				}
 			}
 		}
 		const imageWrap = this.root.querySelector("#ticketImageEditWrap");
@@ -1249,6 +1386,11 @@
 			'        <p class="ticket-selected-help" id="ticketSelectedHelp">Click a field on the ticket to edit it here.</p>',
 			'        <label class="ticket-ctrl" id="ticketTextEditWrap" hidden><span>Text</span><input type="text" id="ticketItemText" maxlength="120" /></label>',
 			'        <label class="ticket-ctrl" id="ticketImageEditWrap" hidden><span>Image</span><input type="file" id="ticketItemImage" accept="image/png,image/jpeg,image/webp" /><span class="ticket-image-status" id="ticketImageStatus"></span></label>',
+			'        <div class="ticket-float-section ticket-label-mode-block" id="ticketLabelModeWrap" hidden>',
+			'          <div class="ticket-palette-title">Field label</div>',
+			'          <label class="ticket-toggle ticket-show-label-toggle"><input type="checkbox" id="ticketShowFieldLabel" checked /> Show label (e.g. Name, Phone)</label>',
+			'          <p class="ticket-float-hint" style="margin:0.35rem 0 0;">Turn off to show only the value — for example just Satheeshkumar with no “Name” text.</p>',
+			'        </div>',
 			'        <div class="ticket-float-colors">',
 			'          <label class="ticket-ctrl"><span id="ticketItemColorLabel">Color</span><input type="color" id="ticketItemColor" value="#111827" /></label>',
 			'        </div>',
@@ -1501,8 +1643,17 @@
 		if (itemText) {
 			itemText.addEventListener("input", function () {
 				const item = self.findById(self.selectedId);
-				if (!item || !self.isEditableText(item.type)) return;
+				if (!item) return;
 				const value = String(itemText.value || "");
+				if (isFormFieldElement(item)) {
+					const parts = formFieldParts(item);
+					if (!item.form_label) item.form_label = parts.label;
+					item.text = value.slice(0, 120) || "Sample";
+					self.renderPreview();
+					self.emitChange();
+					return;
+				}
+				if (!self.isEditableText(item.type)) return;
 				if (item.type === "title") {
 					self.layout.headline_override = value.slice(0, 80);
 				} else if (item.type === "ticket_type") {
@@ -1529,6 +1680,17 @@
 				self.emitChange();
 			});
 		});
+		const showLabelInput = this.root.querySelector("#ticketShowFieldLabel");
+		if (showLabelInput) {
+			showLabelInput.addEventListener("change", function () {
+				const item = self.findById(self.selectedId);
+				if (!item || !isLabelableElement(item)) return;
+				setElementShowLabel(item, !!showLabelInput.checked);
+				self.renderPreview();
+				self.syncSelectedPanel();
+				self.emitChange();
+			});
+		}
 
 		[["ticketElX", "x"], ["ticketElY", "y"], ["ticketElWidth", "w"], ["ticketElHeight", "h"]].forEach(function (pair) {
 			const el = self.root.querySelector("#" + pair[0]);
@@ -1884,6 +2046,19 @@
 		}
 	};
 
+	TicketCanvasController.prototype.revealLabelControls = function () {
+		if (!this.root) return;
+		const item = this.findById(this.selectedId);
+		if (!item || !isLabelableElement(item)) return;
+		if (this.isDrawerMode()) this.setToolsOpen(true);
+		const panel = this.root.querySelector("#ticketSelectedPanel");
+		const wrap = this.root.querySelector("#ticketLabelModeWrap");
+		window.requestAnimationFrame(function () {
+			if (panel && !panel.hidden && panel.scrollIntoView) panel.scrollIntoView({ block: "nearest" });
+			if (wrap && !wrap.hidden && wrap.scrollIntoView) wrap.scrollIntoView({ block: "nearest" });
+		});
+	};
+
 	TicketCanvasController.prototype.syncShapeColorControl = function () {
 		this.syncSelectedPanel();
 	};
@@ -1968,12 +2143,15 @@
 						id: "form_" + qid,
 						type: "text",
 						form_question_id: qid,
-						text: meta.label + ": Sample",
+						form_label: meta.label || "Field",
+						text: "Sample",
+						showLabel: true,
 						x: 8,
 						y: y,
 						w: 84,
-						h: 4,
-						fontSize: 11,
+						h: 5,
+						fontSize: 12,
+						fontWeight: "700",
 						align: "left",
 					});
 				}
@@ -1994,6 +2172,7 @@
 		const host = this.root.querySelector("#ticketFormFieldToggles");
 		const empty = this.root.querySelector("#ticketFormFieldsEmpty");
 		if (!host) return;
+		this.normalizeFormFieldElements();
 		const questions = Array.isArray(this.formQuestions) ? this.formQuestions : [];
 		const metas = [];
 		const seenKinds = {};
@@ -2264,8 +2443,25 @@
 		const eticketCard = custom && L.orientation === "portrait" && L.card_style === "eticket";
 		const portraitCard = custom && L.orientation === "portrait" && !eticketCard;
 		const landscapeCard = custom && L.orientation !== "portrait";
+		const withLabel = elementShowsLabel(el);
 		const field = function (label, value) {
+			if (!withLabel) {
+				return '<div class="tc-field is-value-only"><strong>' + escapeHtml(value) + "</strong></div>";
+			}
 			return '<div class="tc-field"><span>' + escapeHtml(label) + "</span><strong>" + escapeHtml(value) + "</strong></div>";
+		};
+		const row = function (label, value) {
+			/* Value-only uses plain text — avoids flex space-between pushing the value right. */
+			if (!withLabel) {
+				return '<div class="tc-el-text strong tc-value-only">' + escapeHtml(value) + "</div>";
+			}
+			return '<div class="tc-el-row"><span>' + escapeHtml(label) + "</span><strong>" + escapeHtml(value) + "</strong></div>";
+		};
+		const priceRow = function (label, value) {
+			if (!withLabel) {
+				return '<div class="tc-el-text strong tc-value-only">' + escapeHtml(value) + "</div>";
+			}
+			return '<div class="tc-el-price"><span class="tc-price-label">' + escapeHtml(label) + '</span><strong class="tc-price-value">' + escapeHtml(value) + "</strong></div>";
 		};
 		const sgDetail = function (_label, value) {
 			return '<div class="sg-detail"><strong>' + escapeHtml(value) + "</strong></div>";
@@ -2336,25 +2532,25 @@
 				return '<div class="tc-el-text muted">' + escapeHtml(s.seat) + "</div>";
 			}
 			case "name": {
-				if (isVip) return vgDetail("NAME", s.attendeeName);
-				if (isSunset) return sgDetail("NAME", s.attendeeName);
+				if (isVip) return withLabel ? vgDetail("NAME", s.attendeeName) : '<div class="vg-detail"><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
+				if (isSunset) return withLabel ? sgDetail("NAME", s.attendeeName) : '<div class="sg-detail"><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
 				if (isMidnight) return '<div class="ms-name"><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
-				return '<div class="tc-el-row"><span>Name</span><strong>' + escapeHtml(s.attendeeName) + "</strong></div>";
+				return row("Name", s.attendeeName);
 			}
 			case "phone": return isVip
-				? vgDetail("PHONE", s.attendeePhone)
+				? (withLabel ? vgDetail("PHONE", s.attendeePhone) : '<div class="vg-detail"><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>")
 				: (isSunset
-					? sgDetail("PHONE", s.attendeePhone)
+					? (withLabel ? sgDetail("PHONE", s.attendeePhone) : '<div class="sg-detail"><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>")
 					: (isMidnight
-						? '<div class="tc-el-row"><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>"
-						: '<div class="tc-el-row"><span>Phone</span><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>"));
+						? '<div class="tc-el-row is-value-only"><strong>' + escapeHtml(s.attendeePhone) + "</strong></div>"
+						: row("Phone", s.attendeePhone)));
 			case "email": return isVip
-				? vgDetail("EMAIL", s.attendeeEmail)
+				? (withLabel ? vgDetail("EMAIL", s.attendeeEmail) : '<div class="vg-detail"><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>")
 				: (isSunset
-					? sgDetail("EMAIL", s.attendeeEmail)
+					? (withLabel ? sgDetail("EMAIL", s.attendeeEmail) : '<div class="sg-detail"><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>")
 					: (isMidnight
-						? '<div class="tc-el-row"><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>"
-						: '<div class="tc-el-row"><span>Email</span><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>"));
+						? '<div class="tc-el-row is-value-only"><strong>' + escapeHtml(s.attendeeEmail) + "</strong></div>"
+						: row("Email", s.attendeeEmail)));
 			case "qr": {
 				const qrToken = String(s.qrToken || "").trim();
 				const qrImg = qrToken
@@ -2369,18 +2565,19 @@
 			}
 			case "booking_id": {
 				if (isVip) return '<div class="vg-id"><strong>' + escapeHtml(s.bookingId) + "</strong></div>";
-				if (isSunset) return sgDetail("ID", s.bookingId);
+				if (isSunset) return withLabel ? sgDetail("ID", s.bookingId) : '<div class="sg-detail"><strong>' + escapeHtml(s.bookingId) + "</strong></div>";
 				if (isMidnight) return '<div class="ms-code"><strong>' + escapeHtml(s.bookingId) + "</strong></div>";
 				if (portraitCard) return field("Ticket code", s.bookingId);
+				if (!withLabel) return '<div class="tc-el-text strong">' + escapeHtml(s.bookingId) + "</div>";
 				return '<div class="tc-el-text strong">BOOKING ID: #' + escapeHtml(s.bookingId) + "</div>";
 			}
 			case "price": return isVip
-				? vgDetail("PRICE", s.price)
+				? (withLabel ? vgDetail("PRICE", s.price) : '<div class="vg-detail"><strong>' + escapeHtml(s.price) + "</strong></div>")
 				: (isSunset
-					? sgDetail("PRICE", s.price)
+					? (withLabel ? sgDetail("PRICE", s.price) : '<div class="sg-detail"><strong>' + escapeHtml(s.price) + "</strong></div>")
 					: (isMidnight
-						? '<div class="tc-el-price"><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"
-						: '<div class="tc-el-price"><span class="tc-price-label">' + (eticketCard ? "Total Amount" : "Price") + '</span><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"));
+						? '<div class="tc-el-price is-value-only"><strong class="tc-price-value">' + escapeHtml(s.price) + "</strong></div>"
+						: priceRow(eticketCard ? "Total Amount" : "Price", s.price)));
 			case "jod_logo": {
 				const plate = L.background_image ? " is-plate" : "";
 				return '<div class="tc-el-logo is-watermark' + plate + '" aria-label="JOD Events"><img src="' + this.jodLogoSrc() + '" alt="JOD Events" draggable="false" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'' + LOGO_BLACK + '\';}" /></div>';
@@ -2390,7 +2587,13 @@
 				if (!note) return '<div class="tc-el-text muted tc-el-placeholder">Footer note</div>';
 				return '<div class="tc-el-text muted">' + escapeHtml(note) + "</div>";
 			}
-			case "text": return '<div class="tc-el-text">' + escapeHtml(el.text || "Your text") + "</div>";
+			case "text": {
+				if (isFormFieldElement(el)) {
+					const parts = formFieldParts(el);
+					return row(parts.label, parts.value);
+				}
+				return '<div class="tc-el-text">' + escapeHtml(el.text || "Your text") + "</div>";
+			}
 			case "line": return '<div class="tc-shape-line' + (Number(el.h) > Number(el.w) ? " is-vertical" : "") + '" style="background:' + color + ';"></div>';
 			case "dashed_line": return '<div class="tc-shape-line is-dashed" style="border-top-color:' + color + ';"></div>';
 			case "rectangle": return '<div class="tc-shape-rect" style="border-color:' + color + ';background:color-mix(in srgb, ' + color + ' 18%, transparent);"></div>';
@@ -2407,10 +2610,32 @@
 		host.innerHTML = items.map(function (el) {
 			const def = DEF_BY_TYPE[el.type] || {};
 			const active = self.selectedId === el.id;
+			const layerName = isFormFieldElement(el) ? formFieldParts(el).label : (def.label || el.type);
 			return '<button type="button" class="ticket-layer' + (active ? " is-active" : "") + '" data-layer="' + escapeHtml(el.id) + '" draggable="true">' +
 				'<span class="ticket-layer-grip" aria-hidden="true"></span>' +
-				"<span>" + escapeHtml(def.label || el.type) + "</span></button>";
+				"<span>" + escapeHtml(layerName) + "</span></button>";
 		}).join("");
+	};
+
+	TicketCanvasController.prototype.normalizeFormFieldElements = function () {
+		const questions = Array.isArray(this.formQuestions) ? this.formQuestions : [];
+		const labelById = {};
+		questions.forEach(function (q) {
+			const meta = classifyFormQuestion(q);
+			if (!meta || meta.kind !== "custom") return;
+			const qid = String(meta.formQuestionId || meta.key || "");
+			if (qid) labelById[qid] = meta.label;
+		});
+		(this.layout.canvas_elements || []).forEach(function (el) {
+			if (!el || el.type !== "text") return;
+			const qid = String(el.form_question_id || el.formQuestionId || "").trim();
+			if (!qid && !el.form_label && !el.formLabel) return;
+			if (qid) el.form_question_id = qid;
+			if (qid && labelById[qid]) el.form_label = labelById[qid];
+			const parts = formFieldParts(el);
+			if (!el.form_label) el.form_label = parts.label;
+			el.text = parts.value;
+		});
 	};
 
 	TicketCanvasController.prototype.readImageFile = function (file, done) {
@@ -2571,6 +2796,14 @@
 			const removeCtrl = (self.readOnly || locked)
 				? ""
 				: '<button type="button" class="tc-node-remove" data-remove title="Delete" aria-label="Delete" tabindex="-1">&times;</button>';
+			const labeled = elementShowsLabel(el);
+			const canToggleLabel = isLabelableElement(el);
+			const labelToggle = (self.readOnly || !canToggleLabel)
+				? ""
+				: ('<button type="button" class="tc-label-toggle' + (labeled ? "" : " is-value-only") + '" data-toggle-label title="' +
+					(labeled ? "Hide field label" : "Show field label") + '" aria-label="' +
+					(labeled ? "Hide field label" : "Show field label") + '" tabindex="-1">' +
+					(labeled ? "Label on" : "Value only") + "</button>");
 			bits.push(
 				'<div class="tc-node' +
 					(!self.readOnly && selected ? " is-selected" : "") +
@@ -2580,6 +2813,7 @@
 					(isLine ? " is-line" : "") +
 					(align ? " is-align-" + align : "") +
 					(customFont ? " has-font-size" : "") +
+					(!labeled && canToggleLabel ? " is-value-only" : "") +
 					'" data-id="' + escapeHtml(el.id) + '" data-type="' + el.type +
 					'" style="left:' + el.x + "%;top:" + el.y + "%;width:" + el.w + "%;height:" + el.h +
 					"%;--tc-font-scale:" + scale + ";" + (customFont ? "--tc-font-px:" + fontPx + "px;" : "") + (paint ? "color:" + paint + ";" : "") +
@@ -2588,6 +2822,7 @@
 					(el.rotation ? "transform:rotate(" + Number(el.rotation) + "deg);" : "") + '">' +
 				'<div class="tc-node-body">' + self.elementContent(el) + "</div>" +
 				removeCtrl +
+				labelToggle +
 				'<div class="tc-handles" aria-hidden="true">' + handles + "</div>" +
 				"</div>"
 			);
@@ -2604,6 +2839,20 @@
 					ev.preventDefault();
 					ev.stopPropagation();
 					self.removeElement(node.getAttribute("data-id"));
+					return;
+				}
+				const labelBtn = ev.target && ev.target.closest ? ev.target.closest("[data-toggle-label], .tc-label-toggle") : null;
+				if (labelBtn) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					const item = self.findById(node.getAttribute("data-id"));
+					if (!item || !isLabelableElement(item)) return;
+					setElementShowLabel(item, !elementShowsLabel(item));
+					self.selectedId = item.id;
+					self.canvasSelected = false;
+					self.renderPreview();
+					self.emitChange();
+					self.revealLabelControls();
 					return;
 				}
 				const handle = ev.target && ev.target.closest ? ev.target.closest("[data-resize]") : null;
@@ -2760,6 +3009,7 @@
 		};
 		this.capturePointer(point, node);
 		this.updateSelectionStyles();
+		if (isLabelableElement(item)) this.revealLabelControls();
 	};
 
 	TicketCanvasController.prototype.onResizeStart = function (point, node, edge) {

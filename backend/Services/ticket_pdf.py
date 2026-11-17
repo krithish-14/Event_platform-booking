@@ -1081,6 +1081,69 @@ def _close_rotation(ops: list, pending) -> None:
         ops.append("Q")
 
 
+def _coerce_pdf_answer(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        parts = [_coerce_pdf_answer(v) for v in value]
+        return ", ".join(p for p in parts if p)
+    if isinstance(value, dict):
+        for key in ("value", "answer", "text", "label", "name"):
+            if value.get(key) is not None and str(value.get(key)).strip():
+                return _coerce_pdf_answer(value.get(key))
+        return ""
+    text = str(value).strip()
+    if not text or text.lower() in {"none", "null", "[object object]"}:
+        return ""
+    return text
+
+
+def _show_label_enabled(el: dict, default: bool = True) -> bool:
+    raw = el.get("showLabel", el.get("show_label", default))
+    if raw is False or raw == 0:
+        return False
+    if isinstance(raw, str) and raw.strip().lower() in {"false", "0", "no", "off"}:
+        return False
+    if raw is True or raw == 1:
+        return True
+    if isinstance(raw, str) and raw.strip().lower() in {"true", "1", "yes", "on"}:
+        return True
+    return bool(default)
+
+
+def _answer_for_form_field(answers: Optional[dict], el: dict) -> str:
+    """Resolve a registration answer for a canvas form field element."""
+    if not isinstance(answers, dict) or not isinstance(el, dict):
+        return ""
+    qid = str(el.get("form_question_id") or el.get("formQuestionId") or "").strip()
+    label = str(el.get("form_label") or el.get("formLabel") or "").strip()
+    label_l = label.lower()
+    keys = []
+    if qid:
+        bare = qid[2:] if qid.startswith("q_") else qid
+        keys.extend([qid, bare, f"q_{bare}"])
+    if label:
+        keys.extend([label, label_l])
+    for key in keys:
+        if not key:
+            continue
+        text = _coerce_pdf_answer(answers.get(key))
+        if text:
+            return text
+    for key, val in answers.items():
+        if str(key).startswith("_"):
+            continue
+        text = _coerce_pdf_answer(val)
+        if not text:
+            continue
+        key_s = str(key).strip()
+        if qid and key_s.replace("q_", "", 1) == qid.replace("q_", "", 1):
+            return text
+        if label_l and key_s.lower() == label_l:
+            return text
+    return ""
+
+
 def _render_canvas_ticket(
     *,
     layout: dict,
@@ -1107,6 +1170,7 @@ def _render_canvas_ticket(
     logo,
     show_qr: bool,
     organizer_name: str = "",
+    form_answers: Optional[dict] = None,
 ) -> Optional[dict]:
     """Place every host canvas element on a ticket with the same proportions."""
     elements = [el for el in (layout.get("canvas_elements") or []) if isinstance(el, dict)]
@@ -1401,7 +1465,62 @@ def _render_canvas_ticket(
             continue
         if etype == "text":
             weight = "/F1" if str(el.get("fontWeight") or "") in {"600", "700", "800"} else "/F2"
-            _draw_text_box(ops, str(el.get("text") or ""), x, y, w, h, size, paint, align, weight)
+            form_qid = str(el.get("form_question_id") or el.get("formQuestionId") or "").strip()
+            form_label = str(el.get("form_label") or el.get("formLabel") or "").strip()
+            raw_text = str(el.get("text") or "").strip()
+            if form_qid or form_label:
+                label = form_label
+                answered = _answer_for_form_field(form_answers, el)
+                value = answered or raw_text
+                if label and value.lower().startswith(label.lower() + ":"):
+                    value = value[len(label) + 1 :].strip()
+                elif not label and ":" in value:
+                    left, right = value.split(":", 1)
+                    if 0 < len(left.strip()) < 48:
+                        label = left.strip()
+                        value = right.strip()
+                value = _ascii_text(value, "Sample")
+                label = _ascii_text(label or "Field", "Field")
+                show_form_label = _show_label_enabled(el, True)
+                if show_form_label:
+                    label_w = min(w * 0.45, text_width(label, size, "/F1") + 2.0)
+                    gap = 12.0 * (card_h / css_h)
+                    label_paint = eticket_muted if eticket else paint
+                    value_align = "right" if align == "right" else ("center" if align == "center" else "left")
+                    if align == "left":
+                        _draw_text_box(ops, label, x, y, label_w, h, size, label_paint, "left", "/F1", nowrap=True)
+                        _draw_text_box(
+                            ops,
+                            value,
+                            x + label_w + gap,
+                            y,
+                            max(4.0, w - label_w - gap),
+                            h,
+                            size,
+                            paint,
+                            "left",
+                            weight,
+                            nowrap=True,
+                        )
+                    else:
+                        _draw_text_box(ops, label, x, y, label_w, h, size, label_paint, "left", "/F1", nowrap=True)
+                        _draw_text_box(
+                            ops,
+                            value,
+                            x + label_w + gap,
+                            y,
+                            max(4.0, w - label_w - gap),
+                            h,
+                            size,
+                            paint,
+                            value_align,
+                            weight,
+                            nowrap=True,
+                        )
+                else:
+                    _draw_text_box(ops, value, x, y, w, h, size, paint, align, weight, nowrap=True)
+            else:
+                _draw_text_box(ops, raw_text, x, y, w, h, size, paint, align, weight)
             continue
         if etype == "stub":
             stub = str(el.get("text") or "").strip() or " ".join(part for part in (type_label, title) if part)
@@ -1424,18 +1543,36 @@ def _render_canvas_ticket(
         value = values.get(etype, "")
         if not value:
             continue
+        show_field_label = _show_label_enabled(el, True)
         if etype in _ROW_LABELS and template_id not in plain_types:
-            # Designer rows: label on the left, value pushed to the right edge (.tc-el-row strong).
+            row_value = price_text if etype == "price" else value
+            if not show_field_label:
+                # Value only — honor the element's alignment like other plain fields.
+                _draw_text_box(ops, row_value, x, y, w, h, size, paint, align or "left", "/F1", nowrap=True)
+                continue
+            # Designer rows: label + value. Left align keeps them together; otherwise value can sit right.
             label = "Total Amount" if (eticket and etype == "price") else _ROW_LABELS[etype]
             label_paint = eticket_muted if (eticket and etype != "price") else paint
-            row_value = price_text if etype == "price" else value
-            label_size = size * 0.72
+            label_size = size
             label_w = min(w * 0.45, text_width(label, label_size, "/F1") + 2.0)
             gap = 12.0 * (card_h / css_h)
+            value_align = "left" if align in {"", "left"} else align
             _draw_text_box(ops, label, x, y, label_w, h, label_size, label_paint, "left", "/F1", nowrap=True)
-            _draw_text_box(ops, row_value, x + label_w + gap, y, max(4.0, w - label_w - gap), h, size, paint, "right", "/F1", nowrap=True)
+            _draw_text_box(
+                ops,
+                row_value,
+                x + label_w + gap,
+                y,
+                max(4.0, w - label_w - gap),
+                h,
+                size,
+                paint,
+                "right" if value_align == "right" else "left",
+                "/F1",
+                nowrap=True,
+            )
             continue
-        if eticket and etype == "booking_id":
+        if eticket and etype == "booking_id" and show_field_label:
             value = f"BOOKING ID: #{value}"
         if custom and custom_orient == "landscape" and etype == "ticket_type":
             value = value.upper()
@@ -1487,6 +1624,7 @@ def build_mticket_pdf_bytes(
     attendee_phone: str = "",
     attendee_guest_label: str = "",
     organizer_name: str = "",
+    form_answers: Optional[dict] = None,
     _return_page_chunk: bool = False,
 ) -> Optional[bytes | dict]:
     """One-page M-ticket PDF. Returns None if assembly fails."""
@@ -1589,6 +1727,7 @@ def build_mticket_pdf_bytes(
                 logo=logo,
                 show_qr=show_qr,
                 organizer_name=organizer_name,
+                form_answers=form_answers if isinstance(form_answers, dict) else None,
             )
             if canvas_chunk:
                 if _return_page_chunk:
@@ -1898,6 +2037,13 @@ def build_mticket_pdf_from_booking(
         getattr(booking, "receiver_email", None),
         getattr(booking, "receiver_phone", None),
     )
+    form_answers = {}
+    if db is not None:
+        try:
+            from APIs.bookings import _form_answers_for_booking
+            form_answers = _form_answers_for_booking(db, booking) or {}
+        except Exception:
+            form_answers = {}
 
     return build_mticket_pdf_bytes(
         booking_id=getattr(booking, "booking_id", ""),
@@ -1921,6 +2067,7 @@ def build_mticket_pdf_from_booking(
         attendee_phone=attendee_phone,
         attendee_guest_label=guest_label,
         organizer_name=(getattr(event, "organizer_name", None) or "") if event is not None else "",
+        form_answers=form_answers,
         _return_page_chunk=_return_page_chunk,
     )
 

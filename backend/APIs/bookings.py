@@ -589,6 +589,167 @@ def _apply_active_ticket_fields(payload: dict, tickets: list, active_token: str 
     return payload
 
 
+def _form_submission_row_for_booking(db, booking):
+    """Registration submission row linked to this booking, if any."""
+    if db is None or booking is None:
+        return None
+    try:
+        from Utils.form_submission_query import (
+            fetch_form_submissions,
+            form_submission_booking_id,
+        )
+    except Exception:
+        return None
+
+    booking_key = str(getattr(booking, "booking_id", None) or "").replace("-", "").lower()
+    event_key = str(getattr(booking, "event_id", None) or "").replace("-", "").lower()
+    receiver_email = (getattr(booking, "receiver_email", None) or "").strip().lower()
+    try:
+        rows = fetch_form_submissions(db)
+    except Exception:
+        rows = []
+    if booking_key:
+        for candidate in rows:
+            stored = form_submission_booking_id(db, getattr(candidate, "id", None)) or ""
+            if str(stored).replace("-", "").lower() == booking_key:
+                return candidate
+    if receiver_email:
+        for candidate in rows:
+            row_email = (getattr(candidate, "user_email", None) or "").strip().lower()
+            if row_email != receiver_email:
+                continue
+            stored_event = str(getattr(candidate, "event_id", None) or "").replace("-", "").lower()
+            if event_key and stored_event and stored_event != event_key:
+                continue
+            return candidate
+    return None
+
+
+def _coerce_answer_value(value) -> str:
+    """Normalize a registration answer into a single display string."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        parts = [_coerce_answer_value(v) for v in value]
+        return ", ".join(p for p in parts if p)
+    if isinstance(value, dict):
+        for key in ("value", "answer", "text", "label", "name"):
+            if value.get(key) is not None and str(value.get(key)).strip():
+                return _coerce_answer_value(value.get(key))
+        return ""
+    text = str(value).strip()
+    if not text or text.lower() in {"none", "null", "[object object]"}:
+        return ""
+    return text
+
+
+def _form_schema_questions_for_event(db, event_id) -> list:
+    """Host registration questions for an event (id + title)."""
+    if db is None or not event_id:
+        return []
+    event_key = str(event_id).strip()
+    questions = []
+    try:
+        from Models.event_registration_forms import EventRegistrationForm
+        from Models.form_definitions import FormDefinition
+
+        reg = None
+        try:
+            reg = (
+                db.query(EventRegistrationForm)
+                .filter(EventRegistrationForm.event_id == event_key)
+                .first()
+            )
+        except Exception:
+            reg = None
+        raw = None
+        if reg is not None:
+            raw = getattr(reg, "questions_json", None)
+            if not raw:
+                form_json = getattr(reg, "form_json", None)
+                if isinstance(form_json, dict):
+                    raw = form_json.get("questions") or form_json.get("fields")
+                elif isinstance(form_json, list):
+                    raw = form_json
+        if isinstance(raw, list):
+            questions.extend([q for q in raw if isinstance(q, dict)])
+
+        if not questions:
+            form_def = None
+            try:
+                form_def = (
+                    db.query(FormDefinition)
+                    .filter(FormDefinition.event_id == event_key)
+                    .order_by(FormDefinition.id.desc())
+                    .first()
+                )
+            except Exception:
+                form_def = None
+            schema = getattr(form_def, "schema_json", None) if form_def else None
+            if isinstance(schema, list):
+                questions.extend([q for q in schema if isinstance(q, dict)])
+    except Exception:
+        return questions
+    return questions
+
+
+def _form_answers_for_booking(db, booking) -> dict:
+    """Flat registration answers for ticket canvas form fields.
+
+    Published forms store answers under question titles. Ticket canvas fields
+    look up by form_question_id and form_label — alias both directions.
+    """
+    row = _form_submission_row_for_booking(db, booking)
+    if row is None:
+        return {}
+    try:
+        from Utils.form_submission_query import parse_answers_json
+        answers = parse_answers_json(getattr(row, "answers_json", None))
+    except Exception:
+        answers = getattr(row, "answers_json", None)
+    if not isinstance(answers, dict):
+        return {}
+
+    flat = {}
+    for key, value in answers.items():
+        text = _coerce_answer_value(value)
+        if not text and str(key).startswith("_"):
+            continue
+        flat[str(key)] = text if text else value
+
+    # Title <-> id aliases so canvas form_question_id lookups resolve.
+    for q in _form_schema_questions_for_event(db, getattr(booking, "event_id", None)):
+        qid = str(q.get("id") or "").strip()
+        title = str(q.get("title") or q.get("label") or q.get("name") or "").strip()
+        if not qid and not title:
+            continue
+        value = ""
+        for key in (qid, title, title.lower() if title else ""):
+            if not key:
+                continue
+            if key in flat and _coerce_answer_value(flat.get(key)):
+                value = _coerce_answer_value(flat.get(key))
+                break
+            for existing_key, existing_val in list(flat.items()):
+                if str(existing_key).startswith("_"):
+                    continue
+                if title and str(existing_key).strip().lower() == title.lower():
+                    value = _coerce_answer_value(existing_val)
+                    if value:
+                        break
+            if value:
+                break
+        if not value:
+            continue
+        if qid and not _coerce_answer_value(flat.get(qid)):
+            flat[qid] = value
+        if title and not _coerce_answer_value(flat.get(title)):
+            flat[title] = value
+        if title and not _coerce_answer_value(flat.get(title.lower())):
+            flat[title.lower()] = value
+    return flat
+
+
 def _form_attendee_for_booking(db, booking) -> tuple:
     """Name, email, and phone from the host form for this booking.
 
@@ -598,41 +759,12 @@ def _form_attendee_for_booking(db, booking) -> tuple:
         return "", "", ""
     try:
         from APIs.admin import _form_guest_identity
-        from Utils.form_submission_query import (
-            fetch_form_submissions,
-            form_submission_booking_id,
-            parse_answers_json,
-        )
     except Exception:
         return "", "", ""
 
-    booking_key = str(getattr(booking, "booking_id", None) or "").replace("-", "").lower()
-    event_key = str(getattr(booking, "event_id", None) or "").replace("-", "").lower()
-    receiver_email = (getattr(booking, "receiver_email", None) or "").strip().lower()
-    row = None
-    try:
-        rows = fetch_form_submissions(db)
-    except Exception:
-        rows = []
-    if booking_key:
-        for candidate in rows:
-            stored = form_submission_booking_id(db, getattr(candidate, "id", None)) or ""
-            if str(stored).replace("-", "").lower() == booking_key:
-                row = candidate
-                break
-    if row is None and receiver_email:
-        for candidate in rows:
-            row_email = (getattr(candidate, "user_email", None) or "").strip().lower()
-            if row_email != receiver_email:
-                continue
-            stored_event = str(getattr(candidate, "event_id", None) or "").replace("-", "").lower()
-            if event_key and stored_event and stored_event != event_key:
-                continue
-            row = candidate
-            break
-    if row is None:
+    answers = _form_answers_for_booking(db, booking)
+    if not answers:
         return "", "", ""
-    answers = parse_answers_json(getattr(row, "answers_json", None))
     name, email, phone = _form_guest_identity(answers, fallback_email="")
     return (name or "").strip(), (email or "").strip(), (phone or "").strip()
 
@@ -689,6 +821,12 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None, *, active_qr_to
             ticket_layout = _published_ticket_layout_for_event(db, b.event_id)
         except Exception:
             ticket_layout = None
+    form_answers = {}
+    if db is not None:
+        try:
+            form_answers = _form_answers_for_booking(db, b) or {}
+        except Exception:
+            form_answers = {}
 
     payload = {
         "booking_id": str(b.booking_id),
@@ -731,6 +869,7 @@ def _serialize_booking(b: Booking, db: Optional[Session] = None, *, active_qr_to
         "card_image": card_image or ticket_image,
         "image_url": ticket_image or hero_image,
         "ticket_layout": ticket_layout,
+        "form_answers": form_answers,
         "agenda": _booking_event_agenda(b.event_id, db),
         "event_end_date": b.event.end_date if b.event else None,
         "language": getattr(b.event, "language", None) if b.event else None,

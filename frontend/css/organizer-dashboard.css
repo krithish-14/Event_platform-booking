@@ -20,7 +20,9 @@
 	padding: 0;
 }
 
-html {
+/* Only lock scroll inside the organizer dashboard shell — never on public pages
+   that reuse this stylesheet for ticket-canvas styles (e.g. ticket-details). */
+html:has(body.dashboard-body) {
 	height: 100% !important;
 	overflow: hidden !important;
 }
@@ -4594,8 +4596,8 @@ html[data-theme="dark"] .dash-toast {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
+	justify-content: flex-start;
+	gap: 0.45rem;
 	width: 100%;
 	height: 100%;
 	font-size: calc(0.74rem * var(--tc-font-scale, 1));
@@ -4603,31 +4605,122 @@ html[data-theme="dark"] .dash-toast {
 	box-sizing: border-box;
 }
 .tc-el-row span {
-	flex: 0 1 auto;
+	flex: 0 0 auto;
 	color: inherit;
 	font-weight: 600;
 	white-space: nowrap;
 }
 .tc-el-row strong {
 	flex: 0 1 auto;
-	margin-left: auto;
+	margin-left: 0;
 	font-weight: 700;
-	text-align: right;
+	text-align: left;
 	word-break: break-word;
+	min-width: 0;
+}
+.tc-el-row.is-value-only,
+.tc-el-price.is-value-only,
+.tc-field.is-value-only {
+	justify-content: flex-start;
+	gap: 0;
+}
+.tc-el-row.is-value-only strong,
+.tc-el-price.is-value-only .tc-price-value,
+.tc-field.is-value-only strong,
+.tc-value-only {
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	width: auto !important;
+	max-width: 100%;
+	text-align: inherit;
+}
+.tc-node.is-align-center .tc-el-row,
+.tc-node.is-align-center .tc-el-price,
+.tc-node.is-align-center .tc-field {
+	justify-content: center;
+}
+.tc-node.is-align-center .tc-el-row strong,
+.tc-node.is-align-center .tc-el-price .tc-price-value,
+.tc-node.is-align-center .tc-field strong {
+	text-align: center;
+}
+.tc-node.is-align-right .tc-el-row,
+.tc-node.is-align-right .tc-el-price,
+.tc-node.is-align-right .tc-field {
+	justify-content: flex-end;
+}
+.tc-node.is-align-right .tc-el-row strong,
+.tc-node.is-align-right .tc-el-price .tc-price-value,
+.tc-node.is-align-right .tc-field strong {
+	text-align: right;
+}
+.ticket-label-mode-block {
+	margin-top: 0.35rem;
+	padding: 0.65rem 0.7rem;
+	border: 1px solid #fbbf24;
+	border-radius: 10px;
+	background: #fffbeb;
+}
+.ticket-show-label-toggle {
+	display: flex !important;
+	align-items: center;
+	gap: 0.45rem;
+	font-size: 0.82rem !important;
+	font-weight: 700 !important;
+	color: #92400e !important;
+}
+.ticket-show-label-toggle input {
+	width: 1rem;
+	height: 1rem;
+	accent-color: #d97706;
+}
+.tc-label-toggle {
+	display: none;
+	position: absolute;
+	left: 50%;
+	top: -1.55rem;
+	transform: translateX(-50%);
+	z-index: 6;
+	border: 1px solid #f59e0b;
+	background: #fffbeb;
+	color: #92400e;
+	border-radius: 999px;
+	padding: 0.15rem 0.55rem;
+	font-size: 0.65rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	white-space: nowrap;
+	cursor: pointer;
+	box-shadow: 0 4px 10px rgba(15, 23, 42, 0.18);
+}
+.tc-label-toggle.is-value-only {
+	border-color: #2563eb;
+	background: #eff6ff;
+	color: #1d4ed8;
+}
+.tc-node.is-selected > .tc-label-toggle {
+	display: inline-flex;
+}
+html[data-theme="dark"] .ticket-label-mode-block {
+	border-color: #b45309;
+	background: rgba(245, 158, 11, 0.12);
+}
+html[data-theme="dark"] .ticket-show-label-toggle {
+	color: #fbbf24 !important;
 }
 .tc-el-price {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
+	justify-content: flex-start;
+	gap: 0.45rem;
 	width: 100%;
 	height: 100%;
 	white-space: nowrap;
 	box-sizing: border-box;
 }
 .tc-price-label {
-	flex: 0 1 auto;
+	flex: 0 0 auto;
 	color: inherit;
 	font-weight: 600;
 	font-size: calc(0.78rem * var(--tc-font-scale, 1));
@@ -4635,12 +4728,12 @@ html[data-theme="dark"] .dash-toast {
 	min-width: 0;
 }
 .tc-price-value {
-	flex: 0 0 auto;
-	margin-left: auto;
+	flex: 0 1 auto;
+	margin-left: 0;
 	font-weight: 800;
 	font-size: calc(0.9rem * var(--tc-font-scale, 1));
 	white-space: nowrap;
-	text-align: right;
+	text-align: left;
 	color: inherit;
 }
 .tc-shape-line {
@@ -5353,37 +5446,43 @@ html[data-theme="dark"] .ticket-hero-upload-btn {
 	color: inherit;
 }
 
-/* Chosen text size wins on every template. Labels stay a step smaller than the value. */
+/* Chosen text size wins on every template — labels and values use the same size. */
 .ticket-live-card .tc-node.has-font-size .tc-el-text,
 .ticket-live-card .tc-node.has-font-size .tc-el-title,
 .ticket-live-card .tc-node.has-font-size .tc-el-strong,
 .ticket-live-card .tc-node.has-font-size .tc-el-badge,
 .ticket-live-card .tc-node.has-font-size .tc-el-row,
+.ticket-live-card .tc-node.has-font-size .tc-el-row span,
 .ticket-live-card .tc-node.has-font-size .tc-el-row strong,
+.ticket-live-card .tc-node.has-font-size .tc-price-label,
 .ticket-live-card .tc-node.has-font-size .tc-price-value,
+.ticket-live-card .tc-node.has-font-size .tc-field,
+.ticket-live-card .tc-node.has-font-size .tc-field span,
+.ticket-live-card .tc-node.has-font-size .tc-field strong,
 .ticket-live-card .tc-node.has-font-size .sg-hero,
 .ticket-live-card .tc-node.has-font-size .sg-sub,
+.ticket-live-card .tc-node.has-font-size .sg-detail,
+.ticket-live-card .tc-node.has-font-size .sg-detail span,
 .ticket-live-card .tc-node.has-font-size .sg-detail strong,
 .ticket-live-card .tc-node.has-font-size .vg-hero,
 .ticket-live-card .tc-node.has-font-size .vg-sub,
+.ticket-live-card .tc-node.has-font-size .vg-id,
+.ticket-live-card .tc-node.has-font-size .vg-id span,
 .ticket-live-card .tc-node.has-font-size .vg-id strong,
+.ticket-live-card .tc-node.has-font-size .vg-detail,
+.ticket-live-card .tc-node.has-font-size .vg-detail span,
 .ticket-live-card .tc-node.has-font-size .vg-detail strong,
+.ticket-live-card .tc-node.has-font-size .ms-name,
+.ticket-live-card .tc-node.has-font-size .ms-name span,
 .ticket-live-card .tc-node.has-font-size .ms-name strong,
+.ticket-live-card .tc-node.has-font-size .ms-code,
+.ticket-live-card .tc-node.has-font-size .ms-code span,
 .ticket-live-card .tc-node.has-font-size .ms-code strong,
+.ticket-live-card .tc-node.has-font-size .ms-meta,
+.ticket-live-card .tc-node.has-font-size .ms-meta span,
 .ticket-live-card .tc-node.has-font-size .ms-meta strong,
 .ticket-live-card .tc-node.has-font-size .ms-stub-text {
 	font-size: var(--tc-font-px) !important;
-	line-height: 1.15;
-}
-.ticket-live-card .tc-node.has-font-size .tc-el-row span,
-.ticket-live-card .tc-node.has-font-size .tc-price-label,
-.ticket-live-card .tc-node.has-font-size .sg-detail span,
-.ticket-live-card .tc-node.has-font-size .vg-detail span,
-.ticket-live-card .tc-node.has-font-size .vg-id span,
-.ticket-live-card .tc-node.has-font-size .ms-name span,
-.ticket-live-card .tc-node.has-font-size .ms-code span,
-.ticket-live-card .tc-node.has-font-size .ms-meta span {
-	font-size: calc(var(--tc-font-px) * 0.72) !important;
 	line-height: 1.15;
 }
 .ticket-live-card .tc-node.has-font-size .tc-node-body,
@@ -6776,12 +6875,12 @@ html[data-theme="dark"] .ticket-float-close {
 	text-align: inherit;
 }
 .ticket-live-card.is-custom .tc-field span {
-	font-size: 0.62em;
-	letter-spacing: 0.04em;
-	opacity: 0.55;
+	font-size: inherit;
+	letter-spacing: 0.02em;
+	opacity: 0.75;
 	font-weight: 600;
 }
-.ticket-live-card.is-custom .tc-field strong { font-weight: 800; }
+.ticket-live-card.is-custom .tc-field strong { font-size: inherit; font-weight: 800; }
 .ticket-live-card.is-custom .tc-scan {
 	display: flex;
 	align-items: center;
