@@ -486,6 +486,7 @@ function initFormBuilder() {
 		email: "Email Address",
 		phone: "Phone Number",
 		dropdown: "Dropdown Select",
+		integrated_dropdown: "Integrated Dropdown (Excel)",
 		radio: "Multiple Choice",
 		checkbox: "Checkboxes",
 		date: "Date Picker",
@@ -493,6 +494,13 @@ function initFormBuilder() {
 		address: "Address Block",
 		terms: "Terms Checkbox"
 	};
+
+	function sdmColumns() {
+		if (window.JodDataMapping && typeof window.JodDataMapping.getColumns === "function") {
+			return window.JodDataMapping.getColumns() || [];
+		}
+		return [];
+	}
 	let expandedQuestionId = null;
 	let focusedPreviewQid = null;
 
@@ -652,9 +660,20 @@ function initFormBuilder() {
 				if (typeof q.required !== "boolean") q.required = false;
 
 				const hasOptions = ["dropdown", "radio", "checkbox"].includes(q.type);
+				const isIntegrated = q.type === "integrated_dropdown";
 				if (hasOptions && (!q.options || !Array.isArray(q.options))) {
 					q.options = ["Option 1", "Option 2"];
 				}
+				if (isIntegrated) {
+					q.options = [];
+				}
+				const excelCols = sdmColumns();
+				const colOptionsHtml = excelCols.length
+					? excelCols.map((c) => {
+						const sel = q.smart_column_id === c.id ? " selected" : "";
+						return `<option value="${String(c.id).replace(/"/g, "&quot;")}"${sel}>${String(c.column_name || "").replace(/</g, "&lt;")}</option>`;
+					}).join("")
+					: `<option value="" disabled>Upload Excel in Smart Data Mapping first</option>`;
 
 				const card = document.createElement("div");
 				card.className = "builder-question-card";
@@ -686,6 +705,7 @@ function initFormBuilder() {
 								<option value="email" ${q.type === 'email' ? 'selected' : ''}>Email Address</option>
 								<option value="phone" ${q.type === 'phone' ? 'selected' : ''}>Phone Number</option>
 								<option value="dropdown" ${q.type === 'dropdown' ? 'selected' : ''}>Dropdown Select</option>
+								<option value="integrated_dropdown" ${q.type === 'integrated_dropdown' ? 'selected' : ''}>Integrated Dropdown (Excel)</option>
 								<option value="radio" ${q.type === 'radio' ? 'selected' : ''}>Multiple Choice Radio</option>
 								<option value="checkbox" ${q.type === 'checkbox' ? 'selected' : ''}>Checkboxes</option>
 								<option value="date" ${q.type === 'date' ? 'selected' : ''}>Date Picker</option>
@@ -725,6 +745,17 @@ function initFormBuilder() {
 							</label>
 						</div>
 					</div>
+
+					${isIntegrated ? `
+						<div class="q-options-box" style="border-color:#bfdbfe;background:#eff6ff;">
+							<label style="font-size: 0.82rem; font-weight: 700; color: #1e40af; margin-bottom: 0.5rem; display: block;">Excel column (title auto-fills)</label>
+							<select class="setup-select q-smart-column-select" style="padding: 0.45rem 0.7rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px;">
+								<option value="">— Select column —</option>
+								${colOptionsHtml}
+							</select>
+							<p class="q-options-tip" style="color:#1d4ed8;">Options load live from Excel. Question order = parent → child (first integrated field is parent).</p>
+						</div>
+					` : ''}
 
 					${hasOptions ? `
 						<div class="q-options-box">
@@ -768,8 +799,35 @@ function initFormBuilder() {
 					if (["dropdown", "radio", "checkbox"].includes(q.type) && !q.options) {
 						q.options = ["Option 1", "Option 2"];
 					}
+					if (q.type === "integrated_dropdown") {
+						q.options = [];
+						if (!q.smart_column_id) {
+							q.placeholder = q.placeholder || "Select an option";
+						}
+					} else {
+						delete q.smart_column_id;
+						delete q.smart_column_name;
+					}
 					renderBuilderQuestions();
 					renderLivePreview();
+				});
+
+				card.querySelector(".q-smart-column-select")?.addEventListener("change", (e) => {
+					const colId = e.target.value;
+					const col = sdmColumns().find((c) => c.id === colId);
+					q.smart_column_id = colId || "";
+					q.smart_column_name = col ? col.column_name : "";
+					if (col && col.column_name) {
+						q.title = col.column_name;
+						const titleInput = card.querySelector(".q-title-input");
+						if (titleInput) titleInput.value = col.column_name;
+						summaryTitle.textContent = col.column_name;
+					}
+					q.options = [];
+					renderLivePreview();
+					if (window.JodDataMapping && typeof window.JodDataMapping.render === "function") {
+						window.JodDataMapping.render();
+					}
 				});
 
 				card.querySelector(".q-title-input")?.addEventListener("input", (e) => {
@@ -1021,6 +1079,13 @@ function initFormBuilder() {
 					fieldHtml = `
 						<select class="setup-select" style="border-radius:${radius}; padding-left:0.8rem;">
 							${(q.options || []).map(opt => `<option>${opt}</option>`).join('')}
+						</select>
+					`;
+					break;
+				case 'integrated_dropdown':
+					fieldHtml = `
+						<select class="setup-select" style="border-radius:${radius}; padding-left:0.8rem;" disabled>
+							<option>${q.smart_column_name ? ('Excel: ' + q.smart_column_name) : 'Integrated dropdown (Excel)'}</option>
 						</select>
 					`;
 					break;
