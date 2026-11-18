@@ -174,7 +174,7 @@ html:has(body.auth-page-body) {
 	justify-content: center;
 	flex: 0 0 auto;
 	width: 1.5rem;
-	color: #ff9f2e;
+	color: #ff7a2e;
 }
 
 .auth-step-arrow svg {
@@ -842,7 +842,7 @@ html:has(body.auth-page-body) {
 }
 .otp-field:focus {
 	outline: none;
-	border-color: #ff8c00;
+	border-color: #ff6200;
 	box-shadow: 0 0 0 3px rgba(255, 117, 8, .15);
 }
 .fp-resend {
@@ -855,7 +855,7 @@ html:has(body.auth-page-body) {
 	background: none;
 	border: 0;
 	padding: 0 .2rem;
-	color: #ff8c00;
+	color: #ff6200;
 	font-weight: 700;
 	cursor: pointer;
 }
