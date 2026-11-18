@@ -753,7 +753,7 @@ function initFormBuilder() {
 								<option value="">— Select column —</option>
 								${colOptionsHtml}
 							</select>
-							<p class="q-options-tip" style="color:#1d4ed8;">Options load live from Excel. Question order = parent → child (first integrated field is parent).</p>
+							<p class="q-options-tip" style="color:#1d4ed8;">Pick Club Name here, add another Integrated Dropdown for Member Name, set relationship Club → Name in Smart Data Mapping, then Activate. Selecting a club will show only that club’s names.</p>
 						</div>
 					` : ''}
 
@@ -1089,8 +1089,8 @@ function initFormBuilder() {
 					break;
 				case 'integrated_dropdown':
 					fieldHtml = `
-						<select class="setup-select" style="border-radius:${radius}; padding-left:0.8rem;" disabled>
-							<option>${q.smart_column_name ? ('Excel: ' + q.smart_column_name) : 'Integrated dropdown (Excel)'}</option>
+						<select id="${q.id}" name="${q.id}" class="setup-select smart-mapped-select" data-smart-mapped="1" style="border-radius:${radius}; padding-left:0.8rem;">
+							<option value="" disabled selected>${q.placeholder || (q.smart_column_name ? ('Loading ' + q.smart_column_name + '…') : 'Select…')}</option>
 						</select>
 					`;
 					break;
@@ -1145,6 +1145,70 @@ function initFormBuilder() {
 
 			previewRenderedForm.appendChild(group);
 		});
+
+		wirePreviewIntegratedDropdowns();
+	}
+
+	let previewSmartSeq = 0;
+	async function wirePreviewIntegratedDropdowns() {
+		const integrated = (questions || []).filter((q) => q && q.type === "integrated_dropdown" && q.smart_column_id);
+		if (!integrated.length || !previewRenderedForm) return;
+
+		const eventKey = resolveActiveEventId();
+		const seq = ++previewSmartSeq;
+
+		// Prefer live dependent API (works after Activate) — Club selection filters Name, etc.
+		if (eventKey && window.JodDynamicDropdown && typeof window.JodDynamicDropdown.init === "function") {
+			try {
+				await window.JodDynamicDropdown.init({
+					formId: eventKey,
+					formKey: eventKey,
+					container: previewRenderedForm,
+				});
+			} catch (_) {}
+		}
+
+		// Fallback: load unique values per column from admin API (no parent filter)
+		const sourceId = window.JodDataMapping && window.JodDataMapping.getSourceId
+			? window.JodDataMapping.getSourceId()
+			: null;
+		if (!sourceId) return;
+
+		for (const q of integrated) {
+			if (seq !== previewSmartSeq) return;
+			const select = previewRenderedForm.querySelector("#" + CSS.escape(q.id));
+			if (!select) continue;
+			// Skip if dynamic dropdown already filled options
+			if (select.options && select.options.length > 1) continue;
+			try {
+				const sort = q.smart_sort_order
+					|| (window.JodDataMapping.getSortForColumn && window.JodDataMapping.getSortForColumn(q.smart_column_id))
+					|| "alpha_asc";
+				const url = `${getHostEventsApiBase().replace(/\/api\/host-events\/?$/, "")}/api/data-mapping/${sourceId}/unique-values/${encodeURIComponent(q.smart_column_id)}?limit=300`;
+				const res = await authFetch(url);
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok || seq !== previewSmartSeq) continue;
+				let opts = Array.isArray(data.options) ? data.options.slice() : [];
+				if (sort === "alpha_desc") opts = opts.slice().sort((a, b) => String(b).localeCompare(String(a)));
+				else if (sort === "num_asc") opts = opts.slice().sort((a, b) => (parseFloat(a) || 0) - (parseFloat(b) || 0) || String(a).localeCompare(String(b)));
+				else if (sort === "num_desc") opts = opts.slice().sort((a, b) => (parseFloat(b) || 0) - (parseFloat(a) || 0) || String(b).localeCompare(String(a)));
+				else opts = opts.slice().sort((a, b) => String(a).localeCompare(String(b)));
+				select.innerHTML = "";
+				const ph = document.createElement("option");
+				ph.value = "";
+				ph.disabled = true;
+				ph.selected = true;
+				ph.textContent = q.placeholder || `Select ${q.title || q.smart_column_name || "option"}`;
+				select.appendChild(ph);
+				opts.forEach((opt) => {
+					const o = document.createElement("option");
+					o.value = opt;
+					o.textContent = opt;
+					select.appendChild(o);
+				});
+				select.disabled = false;
+			} catch (_) {}
+		}
 	}
 
 	// \u2500\u2500 Form Input Change Listeners \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500

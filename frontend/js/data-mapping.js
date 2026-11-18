@@ -441,7 +441,7 @@
 			colToMid[m.column_id] = m.id;
 		});
 
-		const relationships = state.relationships
+		let relationships = state.relationships
 			.filter(function (r) {
 				return r.parent_column_id && r.child_column_id && r.parent_column_id !== r.child_column_id;
 			})
@@ -457,6 +457,23 @@
 			.filter(function (r) {
 				return r.parent_mapping_id && r.child_mapping_id;
 			});
+
+		// Fallback: chain integrated questions in form order (Club → Name primary-key style)
+		if (!relationships.length && integrated.length >= 2) {
+			for (let i = 0; i < integrated.length - 1; i++) {
+				const parentMid = qidToMid[integrated[i].id];
+				const childMid = qidToMid[integrated[i + 1].id];
+				if (parentMid && childMid) {
+					relationships.push({
+						parent_mapping_id: parentMid,
+						child_mapping_id: childMid,
+						relationship_type: "one_to_many",
+						sort_order: "alpha_asc",
+						is_active: true,
+					});
+				}
+			}
+		}
 
 		if (relationships.length) {
 			const relRes = await authFetch(apiBase() + "/api/data-mapping/" + state.sourceId + "/relationships", {
