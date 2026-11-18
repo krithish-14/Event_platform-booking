@@ -646,6 +646,29 @@ def submit_attendee_response(
 	form_id = _integer_form_id_for_event(db, event_id_str, payload.form_id) or 1
 
 	answers = dict(payload.answers_json or {})
+	# Smart Data Mapping — validate Excel-connected dropdown selections
+	if event_id_str:
+		try:
+			from Services.dropdown_service import validate_mapped_answers, DropdownServiceError
+			expected_hash = None
+			if isinstance(answers.get("_data_mapping_hash"), str):
+				expected_hash = answers.get("_data_mapping_hash")
+			validate_mapped_answers(
+				db,
+				event_id=event_id_str,
+				answers=answers,
+				expected_hash=expected_hash,
+			)
+		except DropdownServiceError as exc:
+			raise HTTPException(status_code=exc.status_code, detail=exc.message)
+		except HTTPException:
+			raise
+		except Exception:
+			logger.exception("data_mapping_validation_failed")
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Could not validate registration dropdown selections.",
+			)
 	ticket_type = (payload.ticket_type or "").strip() or None
 	ticket_price = payload.ticket_price
 	if not ticket_type:

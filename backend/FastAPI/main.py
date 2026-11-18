@@ -39,6 +39,7 @@ from APIs.bookings import router as bookings_router
 from APIs.tickets import router as tickets_router
 from APIs.organizers import router as organizers_router
 from APIs.forms import router as forms_router
+from APIs.data_mapping import admin_router as data_mapping_admin_router, public_router as data_mapping_public_router
 from APIs.host_events_api import router as host_events_router
 from APIs.wishlist import router as wishlist_router
 from APIs.media import router as media_router
@@ -255,6 +256,8 @@ app.include_router(organizers_router,  prefix="/api/organizers",  tags=["Organiz
 app.include_router(host_events_router, prefix="/api/host-events", tags=["Host Events"])
 app.include_router(wishlist_router,    prefix="/api/wishlist",    tags=["Wishlist"])
 app.include_router(forms_router)
+app.include_router(data_mapping_admin_router)
+app.include_router(data_mapping_public_router)
 app.include_router(media_router)
 app.include_router(support_router, prefix="/api/support", tags=["Support"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])

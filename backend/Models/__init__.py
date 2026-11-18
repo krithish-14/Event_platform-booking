@@ -37,6 +37,13 @@ from Models.event_session import EventSession, EventSessionRegistration, EventSe
 from Models.event_link import EventLinkCheckin
 from Models.theatre_partner import TheatrePartner
 from Models.cinema import CinemaBooking, CinemaMovie, CinemaScreen, CinemaShow, CinemaShowSeat
+from Models.registration_data_mapping import (
+    RegistrationDataSource,
+    RegistrationDataColumn,
+    RegistrationDataMapping,
+    RegistrationDataRelationship,
+    RegistrationDataSourceVersion,
+)
 
 __all__ = [
     "Base",
@@ -87,4 +94,9 @@ __all__ = [
     "CinemaShow",
     "CinemaShowSeat",
     "CinemaBooking",
+    "RegistrationDataSource",
+    "RegistrationDataColumn",
+    "RegistrationDataMapping",
+    "RegistrationDataRelationship",
+    "RegistrationDataSourceVersion",
 ]

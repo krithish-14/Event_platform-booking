@@ -1018,6 +1018,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					questionsContainer.appendChild(group);
 				});
 
+				if (window.JodDynamicDropdown) {
+					const mappedFormKey = (formData && (formData.form_id || formData.event_id)) || formId || eventId;
+					window.JodDynamicDropdown.init({
+						formId: mappedFormKey,
+						formKey: mappedFormKey,
+						container: pubFormElement || document
+					});
+				}
+
 				// If no email question exists in custom schema, show standalone email input
 				if (!hasEmailQuestionInSchema && attendeeEmailGroup) {
 					attendeeEmailGroup.style.display = "flex";
@@ -1141,6 +1150,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				const priceVal = Number(resolvedTicketPrice || ticketPrice);
 				if (Number.isFinite(priceVal)) {
 					answers["_ticket_price"] = priceVal;
+				}
+				const mappingHashEl = document.getElementById("_data_mapping_hash");
+				if (mappingHashEl && mappingHashEl.value) {
+					answers["_data_mapping_hash"] = mappingHashEl.value;
 				}
 
 				function integerFormId(value) {
@@ -1382,6 +1395,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				fetchPublishedForm();
 			}
 		})();
-	</script> <script src="js/include.js?v=61"></script> <script src="js/auth.js?v=58"></script> <script src="js/profile.js?v=15"></script> <script src="js/script.js?v=67"></script>
+	</script> <script src="js/include.js?v=61"></script> <script src="js/auth.js?v=58"></script> <script src="js/profile.js?v=15"></script> <script src="js/script.js?v=67"></script> <script src="js/dynamic-dropdown.js?v=1"></script>
 </body>
 </html>

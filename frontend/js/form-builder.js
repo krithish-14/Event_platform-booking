@@ -1995,6 +1995,13 @@ function initFormBuilder() {
 	window.renderFormBuilderQuestions = renderBuilderQuestions;
 	window.renderFormLivePreview = renderLivePreview;
 	window.loadFormSubmissionsData = loadSubmissionsData;
+	window.resolveActiveEventId = resolveActiveEventId;
+	window.getBuilderQuestions = function () { return Array.isArray(questions) ? questions : []; };
+	window.formBuilderState = window.formBuilderState || {};
+	Object.defineProperty(window.formBuilderState, "questions", {
+		configurable: true,
+		get: function () { return questions; },
+	});
 
 	// Synchronous First Render so questions are immediately visible
 	renderBuilderQuestions();

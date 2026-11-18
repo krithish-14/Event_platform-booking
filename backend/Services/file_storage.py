@@ -21,8 +21,9 @@ from sqlalchemy.orm import Session
 from Models.stored_file import StoredFile
 
 
-PRIVATE_PURPOSES = {"pan_card", "cancelled_cheque", "payment_screenshot"}
+PRIVATE_PURPOSES = {"pan_card", "cancelled_cheque", "payment_screenshot", "data_mapping_excel"}
 MAX_STORE_BYTES = 5 * 1024 * 1024
+MAX_DATA_MAPPING_BYTES = int(__import__("os").getenv("DATA_MAPPING_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)) or str(10 * 1024 * 1024))
 
 
 def _fernet_from(raw: str) -> Fernet:
@@ -113,39 +114,66 @@ def guess_content_type(filename: str, fallback: str = "application/octet-stream"
 
 
 def store_bytes(
-    db: Session,
-    *,
-    data: bytes,
-    filename: str,
-    content_type: Optional[str] = None,
-    kind: str = "event_media",
-    purpose: Optional[str] = None,
-    owner_customer_id: Optional[str] = None,
-    owner_email: Optional[str] = None,
-    legacy_path: Optional[str] = None,
+	db: Session,
+	*,
+	data: bytes,
+	filename: str,
+	content_type: Optional[str] = None,
+	kind: str = "event_media",
+	purpose: Optional[str] = None,
+	owner_customer_id: Optional[str] = None,
+	owner_email: Optional[str] = None,
+	legacy_path: Optional[str] = None,
+	max_bytes: Optional[int] = None,
 ) -> StoredFile:
-    if not data:
-        raise ValueError("Empty file.")
-    if len(data) > MAX_STORE_BYTES:
-        raise ValueError("File is too large to store.")
+	if not data:
+		raise ValueError("Empty file.")
+	limit = max_bytes if max_bytes is not None else MAX_STORE_BYTES
+	if purpose == "data_mapping_excel":
+		limit = max(limit, MAX_DATA_MAPPING_BYTES)
+	if len(data) > limit:
+		raise ValueError("File is too large to store.")
 
-    is_private = kind in {"kyc", "payment_proof"} or (purpose or "") in PRIVATE_PURPOSES
-    stored = StoredFile(
-        owner_customer_id=owner_customer_id,
-        owner_email=(owner_email or "").strip().lower() or None,
-        kind="kyc" if is_private else kind,
-        purpose=purpose,
-        original_filename=os.path.basename(filename or "upload").replace("..", ""),
-        content_type=content_type or guess_content_type(filename or ""),
-        byte_size=len(data),
-        is_private=is_private,
-        encrypted_data=encrypt_bytes(data),
-        encryption_version=1,
-        legacy_path=legacy_path,
-    )
-    db.add(stored)
-    db.flush()
-    return stored
+	is_private = kind in {"kyc", "payment_proof", "data_mapping"} or (purpose or "") in PRIVATE_PURPOSES
+	stored = StoredFile(
+		owner_customer_id=owner_customer_id,
+		owner_email=(owner_email or "").strip().lower() or None,
+		kind="kyc" if kind == "kyc" else ("data_mapping" if is_private and purpose == "data_mapping_excel" else kind),
+		purpose=purpose,
+		original_filename=os.path.basename(filename or "upload").replace("..", ""),
+		content_type=content_type or guess_content_type(filename or ""),
+		byte_size=len(data),
+		is_private=is_private,
+		encrypted_data=encrypt_bytes(data),
+		encryption_version=1,
+		legacy_path=legacy_path,
+	)
+	db.add(stored)
+	db.flush()
+	return stored
+
+
+def store_data_mapping_excel(
+	db: Session,
+	*,
+	data: bytes,
+	filename: str,
+	content_type: Optional[str] = None,
+	owner_customer_id: Optional[str] = None,
+	owner_email: Optional[str] = None,
+) -> StoredFile:
+	"""Private encrypted Excel/CSV for Smart Data Mapping (up to DATA_MAPPING_MAX_UPLOAD_BYTES)."""
+	return store_bytes(
+		db,
+		data=data,
+		filename=filename,
+		content_type=content_type,
+		kind="data_mapping",
+		purpose="data_mapping_excel",
+		owner_customer_id=owner_customer_id,
+		owner_email=owner_email,
+		max_bytes=MAX_DATA_MAPPING_BYTES,
+	)
 
 
 def get_by_id(db: Session, file_id) -> Optional[StoredFile]:
