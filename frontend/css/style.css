@@ -1183,7 +1183,7 @@ body.home-page .hero.hero-slide-in .hero-copy {
 	right: 0;
 	width: 100%;
 	height: var(--hero-banner-height, 530px);
-	object-fit: cover;
+	object-fit: contain;
 	object-position: center center;
 	opacity: 1;
 	z-index: 0;
@@ -1216,8 +1216,8 @@ body.home-page .hero.hero-slide-in .hero-copy {
 .hero-idle-fade {
 	position: absolute;
 	inset: 0;
-	background-size: cover;
-	background-position: center;
+	background-size: contain;
+	background-position: center center;
 	background-repeat: no-repeat;
 }
 
