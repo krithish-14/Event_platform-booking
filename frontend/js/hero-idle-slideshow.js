@@ -6,7 +6,8 @@
 (function (global) {
 	"use strict";
 
-	const FILES = ["h1.webp", "h2.webp", "h3.webp", "h5.webp", "h6.webp"];
+	const FOLDER = "Hero Banner images";
+	const FILES = ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png", "7.png"];
 	const HOLD_MS = 3000;
 	const FADE_MS = 700;
 
@@ -24,11 +25,11 @@
 		if (global.JodConfig && typeof global.JodConfig.assetUrl === "function") {
 			return global.JodConfig.assetUrl(rel);
 		}
-		return "https://assets.jodevents.com/images/" + encodeURIComponent("hero banner") + "/" + rel.replace(/^.*\//, "");
+		return "https://assets.jodevents.com/images/" + encodeURIComponent(FOLDER) + "/" + rel.replace(/^.*\//, "");
 	}
 
 	function slideshowUrls() {
-		return FILES.map((name) => assetUrl("images/hero banner/" + name));
+		return FILES.map((name) => assetUrl("images/" + FOLDER + "/" + name));
 	}
 
 	function prefersReducedMotion() {
