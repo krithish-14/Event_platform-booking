@@ -1168,31 +1168,52 @@ function initFormBuilder() {
 			} catch (_) {}
 		}
 
-		// Fallback: load unique values per column from admin API (no parent filter)
+		// Fallback only for ROOT columns (never dump full unfiltered lists into child fields)
 		const sourceId = window.JodDataMapping && window.JodDataMapping.getSourceId
 			? window.JodDataMapping.getSourceId()
 			: null;
 		if (!sourceId) return;
 
+		const childColIds = new Set(
+			(window.JodDataMapping.getChildColumnIds && window.JodDataMapping.getChildColumnIds()) || []
+		);
+
 		for (const q of integrated) {
 			if (seq !== previewSmartSeq) return;
 			const select = previewRenderedForm.querySelector("#" + CSS.escape(q.id));
 			if (!select) continue;
-			// Skip if dynamic dropdown already filled options
 			if (select.options && select.options.length > 1) continue;
+
+			const isChild = childColIds.has(q.smart_column_id);
+			if (isChild) {
+				select.innerHTML = "";
+				const ph = document.createElement("option");
+				ph.value = "";
+				ph.disabled = true;
+				ph.selected = true;
+				ph.textContent = q.placeholder || "-- Select parent first --";
+				select.appendChild(ph);
+				select.disabled = true;
+				continue;
+			}
+
 			try {
 				const sort = q.smart_sort_order
 					|| (window.JodDataMapping.getSortForColumn && window.JodDataMapping.getSortForColumn(q.smart_column_id))
 					|| "alpha_asc";
-				const url = `${getHostEventsApiBase().replace(/\/api\/host-events\/?$/, "")}/api/data-mapping/${sourceId}/unique-values/${encodeURIComponent(q.smart_column_id)}?limit=300`;
+				const url = `${getHostEventsApiBase().replace(/\/api\/host-events\/?$/, "")}/api/data-mapping/${sourceId}/unique-values/${encodeURIComponent(q.smart_column_id)}?limit=2000&sort_order=${encodeURIComponent(sort)}`;
 				const res = await authFetch(url);
 				const data = await res.json().catch(() => ({}));
 				if (!res.ok || seq !== previewSmartSeq) continue;
-				let opts = Array.isArray(data.options) ? data.options.slice() : [];
-				if (sort === "alpha_desc") opts = opts.slice().sort((a, b) => String(b).localeCompare(String(a)));
-				else if (sort === "num_asc") opts = opts.slice().sort((a, b) => (parseFloat(a) || 0) - (parseFloat(b) || 0) || String(a).localeCompare(String(b)));
-				else if (sort === "num_desc") opts = opts.slice().sort((a, b) => (parseFloat(b) || 0) - (parseFloat(a) || 0) || String(b).localeCompare(String(a)));
-				else opts = opts.slice().sort((a, b) => String(a).localeCompare(String(b)));
+				const seen = new Set();
+				const opts = [];
+				(Array.isArray(data.options) ? data.options : []).forEach((raw) => {
+					const disp = String(raw == null ? "" : raw).replace(/\s+/g, " ").trim();
+					const key = disp.toLowerCase();
+					if (!disp || seen.has(key)) return;
+					seen.add(key);
+					opts.push(disp);
+				});
 				select.innerHTML = "";
 				const ph = document.createElement("option");
 				ph.value = "";

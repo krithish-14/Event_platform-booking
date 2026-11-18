@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -422,9 +422,11 @@ def get_columns(
 def unique_values(
 	source_id: str,
 	column: str,
+	request: Request,
 	search: Optional[str] = None,
+	sort_order: str = Query("alpha_asc"),
 	offset: int = Query(0, ge=0),
-	limit: int = Query(100, ge=1, le=500),
+	limit: int = Query(500, ge=1, le=2000),
 	db: Session = Depends(get_db),
 	current_user: User = Depends(get_current_user),
 ):
@@ -440,8 +442,31 @@ def unique_values(
 		col_name = col_row.column_name
 	from Services.excel_reader import unique_values_for_column
 
-	opts, total = unique_values_for_column(view, col_name, search=search, offset=offset, limit=limit)
-	return {"options": opts, "total": total}
+	# Optional parent filters: parent_<Column Name>=value or filter_<column_id>=value
+	filters: Dict[str, str] = {}
+	cols_by_id = {
+		str(c.id): c.column_name
+		for c in db.query(RegistrationDataColumn).filter(RegistrationDataColumn.source_id == source.id).all()
+	}
+	for key, val in request.query_params.multi_items():
+		if val is None or val == "":
+			continue
+		if key.startswith("parent_"):
+			filters[key[7:]] = val
+		elif key.startswith("filter_"):
+			cid = key[7:]
+			filters[cols_by_id.get(cid, cid)] = val
+
+	opts, total = unique_values_for_column(
+		view,
+		col_name,
+		filters=filters,
+		sort_order=sort_order,
+		search=search,
+		offset=offset,
+		limit=limit,
+	)
+	return {"options": opts, "total": total, "filtered_by": filters, "column": col_name}
 
 
 @admin_router.post("/{source_id}/configure")
@@ -720,33 +745,35 @@ def public_data_fields(
 		return {"fields": [], "source_id": None, "source_version_hash": None}
 	maps = mappings_for_source(db, source.id)
 	rels = relationships_for_source(db, source.id)
+	from Services.relationship_engine import ancestor_chain, build_parent_map
+
+	parent_map = build_parent_map(rels)
 	parent_of = {str(r.child_mapping_id): str(r.parent_mapping_id) for r in rels}
+	mid_to_qid = {str(m.id): m.question_id for m in maps}
 	fields = []
 	for m in maps:
+		mid = str(m.id)
+		ancestors = ancestor_chain(mid, parent_map)
+		immediate = parent_of.get(mid)
 		fields.append(
 			{
 				"question_id": m.question_id,
-				"mapping_id": str(m.id),
-				"parent_mapping_id": parent_of.get(str(m.id)),
+				"mapping_id": mid,
+				"parent_mapping_id": immediate,
+				"parent_question_id": mid_to_qid.get(immediate) if immediate else None,
+				"parent_question_ids": [mid_to_qid[a] for a in ancestors if a in mid_to_qid],
+				"is_root": not bool(immediate),
 				"sort_order": m.sort_order,
 				"is_searchable": m.is_searchable,
 				"placeholder": m.placeholder,
 			}
 		)
-	# Attach parent question ids
-	mid_to_qid = {str(m.id): m.question_id for m in maps}
-	for f in fields:
-		pmid = f.get("parent_mapping_id")
-		f["parent_question_id"] = mid_to_qid.get(pmid) if pmid else None
 	return {
 		"fields": fields,
 		"source_id": str(source.id),
 		"source_version_hash": source.file_hash,
 		"event_id": event_id,
 	}
-
-
-from fastapi import Request
 
 
 @public_router.get("/{form_id}/dropdown/{field_id}/options")
@@ -756,7 +783,7 @@ async def public_dropdown_options(
 	request: Request,
 	search: Optional[str] = None,
 	offset: int = Query(0, ge=0),
-	limit: int = Query(100, ge=1, le=500),
+	limit: int = Query(500, ge=1, le=2000),
 	parents: Optional[str] = Query(
 		None,
 		description="Parent selections as qid1:val1|qid2:val2",

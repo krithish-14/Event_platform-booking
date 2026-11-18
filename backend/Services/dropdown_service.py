@@ -167,11 +167,18 @@ def options_for_question(
 	if not col_name:
 		raise DropdownServiceError("Mapped column is missing.", 400)
 
+	# Prefer relationship sort for child fields when set; else mapping sort
+	sort_order = mapping.sort_order or "alpha_asc"
+	for rel in rels:
+		if str(rel.child_mapping_id) == str(mapping.id) and getattr(rel, "sort_order", None):
+			sort_order = rel.sort_order or sort_order
+			break
+
 	options, total = unique_values_for_column(
 		view,
 		col_name,
 		filters=filters,
-		sort_order=mapping.sort_order,
+		sort_order=sort_order,
 		search=search,
 		offset=offset,
 		limit=limit,
@@ -181,7 +188,9 @@ def options_for_question(
 		"total": total,
 		"disabled": False,
 		"missing_parents": [],
-		"sort_order": mapping.sort_order,
+		"filtered_by": filters,
+		"column": col_name,
+		"sort_order": sort_order,
 		"is_searchable": mapping.is_searchable,
 		"placeholder": mapping.placeholder,
 		"source_version_hash": source.file_hash,

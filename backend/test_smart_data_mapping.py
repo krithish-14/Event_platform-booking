@@ -99,6 +99,28 @@ class ExcelReaderTests(unittest.TestCase):
 	def test_normalize_key(self):
 		self.assertEqual(normalize_key("  Chennai   Central "), "chennai central")
 
+	def test_numeric_twins_dedupe(self):
+		csv = "District,Club\n3233,A\n3233.0,A\n3233,B\n"
+		view = load_workbook_view(_csv_bytes(csv), "d.csv")
+		opts, total = unique_values_for_column(view, "District", sort_order="num_asc")
+		self.assertEqual(total, 1)
+		self.assertEqual(opts, ["3233"])
+
+	def test_unfiltered_clubs_are_unique(self):
+		opts, total = unique_values_for_column(self.view, "Club Name")
+		self.assertEqual(total, 4)
+		self.assertEqual(len(opts), len(set(opts)))
+
+	def test_member_not_leaked_across_clubs(self):
+		opts, total = unique_values_for_column(
+			self.view,
+			"Member Name",
+			filters={"Club Name": "Chennai Central"},
+		)
+		self.assertEqual(total, 2)
+		self.assertNotIn("Priya", opts)
+		self.assertNotIn("Karthik", opts)
+
 
 class RelationshipEngineTests(unittest.TestCase):
 	def test_cycle_detection(self):

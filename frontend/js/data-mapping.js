@@ -668,6 +668,14 @@
 		getSourceId: function () {
 			return state.sourceId;
 		},
+		getChildColumnIds: function () {
+			syncRelsFromDom();
+			return (state.relationships || [])
+				.map(function (r) {
+					return r.child_column_id;
+				})
+				.filter(Boolean);
+		},
 		getSortForColumn: function (columnId) {
 			const s = (state.selected || []).find(function (x) {
 				return x.column_id === columnId;

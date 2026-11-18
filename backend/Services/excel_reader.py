@@ -41,21 +41,52 @@ def file_hash(data: bytes) -> str:
 
 
 def normalize_key(value: Any) -> str:
-	"""Comparison key — trim + collapse whitespace; casefold for matching."""
+	"""Comparison key — trim, collapse whitespace, unify numeric twins, casefold."""
 	if value is None:
 		return ""
+	if isinstance(value, bool):
+		return "1" if value else "0"
+	if isinstance(value, int) and not isinstance(value, bool):
+		return str(value)
+	if isinstance(value, float):
+		if value.is_integer():
+			return str(int(value))
+		return str(value)
 	text = str(value).replace("\u00a0", " ").strip()
 	text = re.sub(r"\s+", " ", text)
+	if not text:
+		return ""
+	# Unify 3233 / 3233.0 / 3,233 so parent filters and dedupe match
+	try:
+		num = float(text.replace(",", ""))
+		if num.is_integer():
+			return str(int(num))
+		return str(num)
+	except (TypeError, ValueError):
+		pass
 	return text.casefold()
 
 
 def display_value(value: Any) -> str:
 	if value is None:
 		return ""
-	if isinstance(value, float) and value.is_integer():
-		return str(int(value))
+	if isinstance(value, bool):
+		return "Yes" if value else "No"
+	if isinstance(value, int) and not isinstance(value, bool):
+		return str(value)
+	if isinstance(value, float):
+		if value.is_integer():
+			return str(int(value))
+		return str(value)
 	text = str(value).replace("\u00a0", " ").strip()
 	text = re.sub(r"\s+", " ", text)
+	# Prefer clean integer strings over "3233.0"
+	try:
+		num = float(text.replace(",", ""))
+		if num.is_integer():
+			text = str(int(num))
+	except (TypeError, ValueError):
+		pass
 	# Guard against formula injection when values are later exported
 	if _FORMULA_PREFIX.match(text):
 		return "'" + text
@@ -193,22 +224,27 @@ def unique_values_for_column(
 	offset: int = 0,
 	limit: int = 100,
 ) -> Tuple[List[str], int]:
-	"""Return (display values, total_count) for a column under parent filters."""
+	"""Return unique display values for a column, filtered by parent column=value pairs.
+
+	Duplicates are removed by normalized key (case/spacing/numeric twins).
+	Parent filters must all match on the same Excel row (primary-key style).
+	"""
 	filters = filters or {}
+	norm_filters = {col: normalize_key(val) for col, val in filters.items() if col}
 	seen_keys: set[str] = set()
 	ordered: List[str] = []
 	search_n = normalize_key(search) if search else ""
 
 	for row, norm in zip(view.rows, view.norm_rows):
 		ok = True
-		for parent_col, parent_val in filters.items():
-			if normalize_key(parent_val) != norm.get(parent_col, ""):
+		for parent_col, parent_key in norm_filters.items():
+			if parent_key != norm.get(parent_col, ""):
 				ok = False
 				break
 		if not ok:
 			continue
-		disp = row.get(column_name, "")
-		key = norm.get(column_name, "")
+		disp = display_value(row.get(column_name, ""))
+		key = normalize_key(disp) or norm.get(column_name, "")
 		if not key:
 			continue
 		if search_n and search_n not in key:
@@ -221,7 +257,7 @@ def unique_values_for_column(
 	ordered = _sort_values(ordered, sort_order)
 	total = len(ordered)
 	offset = max(0, int(offset or 0))
-	limit = max(1, min(int(limit or 100), 500))
+	limit = max(1, min(int(limit or 100), 2000))
 	return ordered[offset : offset + limit], total
 
 
@@ -229,10 +265,11 @@ def _sort_values(values: List[str], sort_order: str) -> List[str]:
 	order = (sort_order or "alpha_asc").lower()
 
 	def num_key(v: str):
+		key = normalize_key(v)
 		try:
-			return (0, float(str(v).replace(",", "")))
+			return (0, float(key.replace(",", "")))
 		except (TypeError, ValueError):
-			return (1, normalize_key(v))
+			return (1, key)
 
 	if order == "alpha_desc":
 		return sorted(values, key=normalize_key, reverse=True)

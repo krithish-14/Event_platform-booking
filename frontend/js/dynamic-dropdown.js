@@ -1,6 +1,6 @@
 /**
  * Smart Data Mapping — dependent Excel dropdowns on published registration forms.
- * Fetches options from /api/registration/{formId}/dropdown/{fieldId}/options
+ * Parent selection filters child options (primary-key style); values are unique.
  */
 (function (global) {
 	"use strict";
@@ -37,23 +37,52 @@
 		return data;
 	}
 
+	function normKey(opt) {
+		var text = String(opt == null ? "" : opt).replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+		if (!text) return "";
+		var asNum = Number(text.replace(/,/g, ""));
+		if (!isNaN(asNum) && String(text.replace(/,/g, "")).match(/^-?\d+(\.0+)?$/)) {
+			return String(Math.trunc(asNum));
+		}
+		return text.toLowerCase();
+	}
+
+	function dedupeOptions(options) {
+		var seen = {};
+		var out = [];
+		(options || []).forEach(function (opt) {
+			var disp = String(opt == null ? "" : opt).replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+			var key = normKey(disp);
+			if (!key || seen[key]) return;
+			seen[key] = true;
+			// Prefer clean integer display
+			var n = Number(disp.replace(/,/g, ""));
+			if (!isNaN(n) && String(disp.replace(/,/g, "")).match(/^-?\d+(\.0+)?$/)) {
+				disp = String(Math.trunc(n));
+			}
+			out.push(disp);
+		});
+		return out;
+	}
+
 	function fillSelect(select, options, placeholder, disabled) {
 		if (!select) return;
-		const prev = select.value;
+		var prev = select.value;
+		var unique = dedupeOptions(options);
 		select.innerHTML = "";
-		const ph = document.createElement("option");
+		var ph = document.createElement("option");
 		ph.value = "";
 		ph.disabled = true;
 		ph.selected = true;
 		ph.textContent = placeholder || "-- Select an option --";
 		select.appendChild(ph);
-		(options || []).forEach(function (opt) {
-			const o = document.createElement("option");
+		unique.forEach(function (opt) {
+			var o = document.createElement("option");
 			o.value = opt;
 			o.textContent = opt;
 			select.appendChild(o);
 		});
-		if (prev && options && options.indexOf(prev) >= 0) {
+		if (prev && unique.indexOf(prev) >= 0) {
 			select.value = prev;
 			ph.selected = false;
 		}
@@ -61,50 +90,59 @@
 	}
 
 	function init(config) {
-		const formId = config.formId;
-		const formKey = config.formKey || formId;
-		const container = config.container || document;
+		var formId = config.formId;
+		var formKey = config.formKey || formId;
+		var container = config.container || document;
 		if (!formId) return Promise.resolve(null);
 
-		let reqSeq = 0;
-		let meta = null;
+		var fieldSeq = {};
 
 		return fetchJson(buildUrl("/api/registration/" + encodeURIComponent(formKey) + "/data-fields"))
 			.then(function (data) {
-				meta = data;
-				const fields = (data && data.fields) || [];
-				if (!fields.length) return meta;
+				var fields = (data && data.fields) || [];
+				if (!fields.length) return data;
 
-				const byQ = {};
+				var byQ = {};
 				fields.forEach(function (f) {
 					byQ[f.question_id] = f;
 				});
 
-				const childrenOf = {};
+				var childrenOf = {};
 				fields.forEach(function (f) {
-					if (f.parent_question_id) {
-						if (!childrenOf[f.parent_question_id]) childrenOf[f.parent_question_id] = [];
-						childrenOf[f.parent_question_id].push(f.question_id);
+					var parentId = f.parent_question_id;
+					if (parentId) {
+						if (!childrenOf[parentId]) childrenOf[parentId] = [];
+						childrenOf[parentId].push(f.question_id);
 					}
 				});
 
 				function parentAnswersFor(qid) {
-					const parents = {};
-					let cur = byQ[qid];
-					while (cur && cur.parent_question_id) {
-						const pel = container.querySelector("#" + CSS.escape(cur.parent_question_id));
-						if (pel && pel.value) parents[cur.parent_question_id] = pel.value;
-						cur = byQ[cur.parent_question_id];
+					var parents = {};
+					var field = byQ[qid];
+					var ids = (field && field.parent_question_ids && field.parent_question_ids.length)
+						? field.parent_question_ids
+						: [];
+					if (!ids.length) {
+						var cur = field;
+						while (cur && cur.parent_question_id) {
+							ids.push(cur.parent_question_id);
+							cur = byQ[cur.parent_question_id];
+						}
+						ids.reverse();
 					}
+					ids.forEach(function (pid) {
+						var pel = container.querySelector("#" + CSS.escape(pid));
+						if (pel && pel.value) parents[pid] = pel.value;
+					});
 					return parents;
 				}
 
 				function resetDescendants(qid) {
-					const stack = (childrenOf[qid] || []).slice();
+					var stack = (childrenOf[qid] || []).slice();
 					while (stack.length) {
-						const cid = stack.pop();
-						const el = container.querySelector("#" + CSS.escape(cid));
-						const metaC = byQ[cid];
+						var cid = stack.pop();
+						var el = container.querySelector("#" + CSS.escape(cid));
+						var metaC = byQ[cid];
 						fillSelect(el, [], (metaC && metaC.placeholder) || "-- Select parent first --", true);
 						(childrenOf[cid] || []).forEach(function (x) {
 							stack.push(x);
@@ -113,35 +151,35 @@
 				}
 
 				function loadOptions(qid) {
-					const el = container.querySelector("#" + CSS.escape(qid));
-					const field = byQ[qid];
+					var el = container.querySelector("#" + CSS.escape(qid));
+					var field = byQ[qid];
 					if (!el || !field) return Promise.resolve();
-					const parents = parentAnswersFor(qid);
-					const missing = [];
-					let cur = field;
-					while (cur && cur.parent_question_id) {
-						if (!parents[cur.parent_question_id]) missing.push(cur.parent_question_id);
-						cur = byQ[cur.parent_question_id];
-					}
+					var parents = parentAnswersFor(qid);
+					var requiredParents = (field.parent_question_ids && field.parent_question_ids.length)
+						? field.parent_question_ids
+						: (field.parent_question_id ? [field.parent_question_id] : []);
+					var missing = requiredParents.filter(function (pid) {
+						return !parents[pid];
+					});
 					if (missing.length) {
 						fillSelect(el, [], field.placeholder || "-- Select parent first --", true);
 						return Promise.resolve();
 					}
 
-					const seq = ++reqSeq;
+					var seq = (fieldSeq[qid] || 0) + 1;
+					fieldSeq[qid] = seq;
 					el.dataset.loading = "1";
-					const params = { limit: "200" };
+					var params = { limit: "2000" };
 					Object.keys(parents).forEach(function (pid) {
 						params["parent_" + pid] = parents[pid];
 					});
-					const url = buildUrl(
+					var url = buildUrl(
 						"/api/registration/" + encodeURIComponent(formKey) + "/dropdown/" + encodeURIComponent(qid) + "/options",
 						params
 					);
 					return fetchJson(url)
 						.then(function (resp) {
-							if (seq !== reqSeq && el.dataset.lastSeq && Number(el.dataset.lastSeq) > seq) return;
-							el.dataset.lastSeq = String(seq);
+							if (fieldSeq[qid] !== seq) return;
 							fillSelect(
 								el,
 								resp.options || [],
@@ -151,19 +189,19 @@
 							el.dataset.loading = "0";
 						})
 						.catch(function () {
-							if (seq !== reqSeq) return;
+							if (fieldSeq[qid] !== seq) return;
 							fillSelect(el, [], "Unable to load options", true);
 							el.dataset.loading = "0";
 						});
 				}
 
 				fields.forEach(function (f) {
-					const el = container.querySelector("#" + CSS.escape(f.question_id));
+					var el = container.querySelector("#" + CSS.escape(f.question_id));
 					if (!el || el.tagName !== "SELECT") return;
 					el.classList.add("smart-mapped-select");
 					el.dataset.smartMapped = "1";
-					// Clear static options — backend is source of truth
-					if (!f.parent_question_id) {
+					// Always clear static/schema options — backend is source of truth
+					if (f.is_root || !f.parent_question_id) {
 						loadOptions(f.question_id);
 					} else {
 						fillSelect(el, [], f.placeholder || "-- Select parent first --", true);
@@ -175,22 +213,22 @@
 				});
 
 				if (data.source_version_hash) {
-					let hashInput = container.querySelector('input[name="_data_mapping_hash"]');
+					var hashInput = container.querySelector('input[name="_data_mapping_hash"]');
 					if (!hashInput) {
 						hashInput = document.createElement("input");
 						hashInput.type = "hidden";
 						hashInput.name = "_data_mapping_hash";
 						hashInput.id = "_data_mapping_hash";
-						const form = container.querySelector("form") || container;
+						var form = container.querySelector("form") || container;
 						form.appendChild(hashInput);
 					}
 					hashInput.value = data.source_version_hash;
 				}
 
-				meta.reload = function (qid) {
+				data.reload = function (qid) {
 					return loadOptions(qid);
 				};
-				return meta;
+				return data;
 			})
 			.catch(function () {
 				return null;
