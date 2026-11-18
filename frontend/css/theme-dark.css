@@ -5,23 +5,23 @@
  */
 html[data-theme="dark"] {
 	color-scheme: dark;
-	--background: #1a1f27;
-	--foreground: #e8eaee;
-	--ink: #ffffff;
-	--cream: #252b36;
-	--card: #2c3440;
+	--background: #0e0c0a;
+	--foreground: #f6f0e8;
+	--ink: #fff8f0;
+	--cream: #1a1612;
+	--card: #1c1814;
 	--primary: #ff7a2e;
 	--light-orange: #ff9a5c;
 	--accent-orange: #ff6200;
 	--soft-orange: #ffb380;
-	--muted: #9aa3b2;
+	--muted: #b8aea2;
 	--border: rgba(255, 255, 255, 0.12);
-	--dark: #12161c;
-	--dark-soft: #5b6472;
-	--slate: #9aa3b2;
-	--navy: #9aa3b2;
-	--charcoal: #9aa3b2;
-	--header-bg: rgba(26, 31, 39, 0.96);
+	--dark: #0a0908;
+	--dark-soft: #1a1612;
+	--slate: #b8aea2;
+	--navy: #b8aea2;
+	--charcoal: #b8aea2;
+	--header-bg: rgba(14, 12, 10, 0.96);
 }
 
 html[data-theme="dark"] body,
@@ -31,8 +31,8 @@ html[data-theme="dark"] body.category-page,
 html[data-theme="dark"] body.event-details-page,
 html[data-theme="dark"] body.ticket-page,
 html[data-theme="dark"] body.dashboard-body {
-	background: #1a1f27 !important;
-	color: #e8eaee !important;
+	background: #0e0c0a !important;
+	color: #f6f0e8 !important;
 }
 
 html[data-theme="dark"] h1,
@@ -95,7 +95,7 @@ html[data-theme="dark"] .upcoming-nav-link.is-active {
 html[data-theme="dark"] .header-search,
 html[data-theme="dark"] .header-search:hover,
 html[data-theme="dark"] .header-search:focus-within {
-	background: #252b36 !important;
+	background: #1a1612 !important;
 	border-color: rgba(255, 122, 46, 0.4) !important;
 }
 
@@ -151,7 +151,7 @@ html[data-theme="dark"] .button-ghost:hover {
 }
 
 html[data-theme="dark"] .theme-toggle {
-	background: #252b36 !important;
+	background: #1a1612 !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.35) !important;
 }
@@ -200,7 +200,7 @@ html[data-theme="dark"] .faq-item p {
 
 /* --- Stats section dark background --- */
 html[data-theme="dark"] .stats-section {
-	background: #1a1f27 !important;
+	background: #0e0c0a !important;
 	border-color: rgba(255, 122, 46, 0.12) !important;
 }
 
@@ -267,7 +267,7 @@ html[data-theme="dark"] .form-input,
 html[data-theme="dark"] .setup-input,
 html[data-theme="dark"] .setup-select,
 html[data-theme="dark"] .setup-textarea {
-	background: #252b36 !important;
+	background: #1a1612 !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.32) !important;
 }
@@ -286,7 +286,7 @@ html[data-theme="dark"] .setup-textarea:focus,
 html[data-theme="dark"] input:focus,
 html[data-theme="dark"] textarea:focus,
 html[data-theme="dark"] select:focus {
-	background: #252b36 !important;
+	background: #1a1612 !important;
 	color: #f4f5f7 !important;
 	border-color: #ff7a2e !important;
 }
@@ -355,7 +355,7 @@ html[data-theme="dark"] .help-faq-item:hover {
 html[data-theme="dark"] .category-page,
 html[data-theme="dark"] .category-content-section,
 html[data-theme="dark"] .category-main {
-	background: #1a1f27 !important;
+	background: #0e0c0a !important;
 	color: #f4f5f7 !important;
 }
 
@@ -414,7 +414,7 @@ html[data-theme="dark"] body.event-details-page.category-theme-launch,
 html[data-theme="dark"] body.event-details-page.category-theme-wedding,
 html[data-theme="dark"] body.event-details-page.category-theme-festival,
 html[data-theme="dark"] body.event-details-page.category-theme-workshop {
-	background: #1a1f27 !important;
+	background: #0e0c0a !important;
 	color: #f4f5f7 !important;
 }
 
@@ -527,7 +527,7 @@ html[data-theme="dark"] .setup-form-group label {
 }
 
 html[data-theme="dark"] .format-pill {
-	background: #252b36 !important;
+	background: #1a1612 !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.32) !important;
 }
@@ -605,7 +605,7 @@ html[data-theme="dark"] .proof-card input[type="text"],
 html[data-theme="dark"] .proof-card input[type="email"],
 html[data-theme="dark"] .proof-card input[type="tel"],
 html[data-theme="dark"] .proof-card input[type="file"] {
-	background: #1a1f27 !important;
+	background: #0e0c0a !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.35) !important;
 }
@@ -927,7 +927,7 @@ html[data-theme="dark"] body.dashboard-body .tab-section h4:not(.theme-exempt *)
 
 /* --- Account setup / bank details --- */
 html[data-theme="dark"] .setup-wrapper {
-	background: #1a1f27 !important;
+	background: #0e0c0a !important;
 	color: #f4f5f7 !important;
 }
 
@@ -1103,7 +1103,7 @@ html[data-theme="dark"] body.dashboard-body .section-title-select {
 
 /* --- Admin QR portal (light table + inherited cream text was unreadable) --- */
 html[data-theme="dark"] body.admin-portal-body {
-	background: #1a1f27 !important;
+	background: #0e0c0a !important;
 	color: #f4f5f7 !important;
 }
 
@@ -1142,7 +1142,7 @@ html[data-theme="dark"] body.admin-portal-body .admin-section-label span {
 
 html[data-theme="dark"] body.admin-portal-body .admin-section-label select,
 html[data-theme="dark"] body.admin-portal-body .admin-toolbar input {
-	background: #252b36 !important;
+	background: #1a1612 !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.32) !important;
 }
@@ -1212,7 +1212,7 @@ html[data-theme="dark"] body.admin-portal-body .warn {
 }
 
 html[data-theme="dark"] body.admin-portal-body .admin-theme-toggle {
-	background: #252b36 !important;
+	background: #1a1612 !important;
 	color: #ffffff !important;
 	border-color: rgba(255, 122, 46, 0.4) !important;
 }

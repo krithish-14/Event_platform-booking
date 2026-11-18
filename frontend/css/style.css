@@ -40,28 +40,29 @@ html {
 
 html[data-theme="dark"] {
 	color-scheme: dark;
-	--background: #1a1f27;
-	--foreground: #e8eaee;
-	--ink: #ffffff;
-	--cream: #252b36;
-	--card: #2c3440;
+	/* Keep the previous near-black dark surfaces */
+	--background: #0e0c0a;
+	--foreground: #f6f0e8;
+	--ink: #fff8f0;
+	--cream: #1a1612;
+	--card: #1c1814;
 	--primary: #ff7a2e;
 	--light-orange: #ff9a5c;
 	--accent-orange: #ff6200;
 	--soft-orange: #ffb380;
 	--brand-gradient: linear-gradient(90deg, #ff6200 0%, #ff7a2e 55%, #ff9a5c 100%);
 	--gold: #ff7a2e;
-	--slate: #9aa3b2;
-	--navy: #9aa3b2;
-	--charcoal: #9aa3b2;
-	--muted: #9aa3b2;
+	--slate: #b8aea2;
+	--navy: #b8aea2;
+	--charcoal: #b8aea2;
+	--muted: #b8aea2;
 	--border: rgba(255, 255, 255, 0.12);
-	--dark: #12161c;
-	--dark-soft: #5b6472;
-	--shadow: 0 20px 60px -20px rgba(0, 0, 0, .7);
+	--dark: #0a0908;
+	--dark-soft: #1a1612;
+	--shadow: 0 20px 60px -20px rgba(0, 0, 0, .75);
 	--glow: 0 10px 36px -14px rgba(255, 122, 46, .35);
 	--gold-shadow: 0 10px 36px -14px rgba(255, 98, 0, .3);
-	--header-bg: rgba(26, 31, 39, 0.96);
+	--header-bg: rgba(14, 12, 10, 0.96);
 }
 
 body {
@@ -3351,7 +3352,7 @@ body.sub-page .policy-hero {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: linear-gradient(135deg, #3f4754 0%, #3f4754 45%, #1a1f27 100%);
+	background: linear-gradient(135deg, #3f4754 0%, #3f4754 45%, #0e0c0a 100%);
 	overflow: hidden;
 	visibility: visible;
 	opacity: 1;
