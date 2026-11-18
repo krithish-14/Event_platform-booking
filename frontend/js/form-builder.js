@@ -817,6 +817,11 @@ function initFormBuilder() {
 					const col = sdmColumns().find((c) => c.id === colId);
 					q.smart_column_id = colId || "";
 					q.smart_column_name = col ? col.column_name : "";
+					q.smart_sort_order = col && col.sort_order
+						? col.sort_order
+						: (window.JodDataMapping && window.JodDataMapping.getSortForColumn
+							? window.JodDataMapping.getSortForColumn(colId)
+							: "alpha_asc");
 					if (col && col.column_name) {
 						q.title = col.column_name;
 						const titleInput = card.querySelector(".q-title-input");
