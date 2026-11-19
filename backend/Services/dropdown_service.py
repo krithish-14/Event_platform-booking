@@ -139,17 +139,32 @@ def options_for_question(
 	ancestors = ancestor_chain(str(mapping.id), parent_map)
 	parent_answers = parent_answers or {}
 
-	# Require all ancestor selections
+	def _answer_for_mapping(parent_m: RegistrationDataMapping) -> str:
+		"""Resolve parent value from question id or loose title/id keys."""
+		qid = parent_m.question_id
+		raw = parent_answers.get(qid)
+		if raw is None or str(raw).strip() == "":
+			for key, val in parent_answers.items():
+				if key == qid or str(key).endswith(str(qid)) or str(qid) in str(key):
+					if val is not None and str(val).strip() != "":
+						return str(val).strip()
+			return ""
+		return str(raw).strip()
+
+	# Only require ancestors that are actually mapped as form questions.
+	# Ignore orphan relationship links (e.g. District→Club) when District is not on the form.
 	missing = []
 	for parent_mid in ancestors:
 		parent_m = next((m for m in qmap.values() if str(m.id) == parent_mid), None)
 		if not parent_m:
 			continue
-		val = parent_answers.get(parent_m.question_id)
-		if val is None or str(val).strip() == "":
+		val = _answer_for_mapping(parent_m)
+		if not val:
 			missing.append(parent_m.question_id)
 		else:
-			filters[col_by_mapping[parent_mid]] = str(val)
+			col = col_by_mapping.get(parent_mid)
+			if col:
+				filters[col] = val
 
 	if missing:
 		return {

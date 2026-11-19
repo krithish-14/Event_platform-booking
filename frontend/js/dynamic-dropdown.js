@@ -55,7 +55,6 @@
 			var key = normKey(disp);
 			if (!key || seen[key]) return;
 			seen[key] = true;
-			// Prefer clean integer display
 			var n = Number(disp.replace(/,/g, ""));
 			if (!isNaN(n) && String(disp.replace(/,/g, "")).match(/^-?\d+(\.0+)?$/)) {
 				disp = String(Math.trunc(n));
@@ -87,6 +86,29 @@
 			ph.selected = false;
 		}
 		select.disabled = !!disabled;
+		if (!disabled) {
+			select.removeAttribute("disabled");
+		}
+	}
+
+	function findSelect(container, qid) {
+		if (!qid) return null;
+		var el = container.querySelector("#" + CSS.escape(qid));
+		if (el && el.tagName === "SELECT") return el;
+		el = container.querySelector('select[name="' + qid.replace(/"/g, '\\"') + '"]');
+		if (el) return el;
+		el = container.querySelector('select[data-qid="' + qid.replace(/"/g, '\\"') + '"]');
+		return el;
+	}
+
+	function readSelectValue(el) {
+		if (!el) return "";
+		var v = el.value;
+		if (v != null && String(v).trim() !== "") return String(v).trim();
+		// Fallback: selected option text when value is oddly empty
+		var opt = el.options && el.options[el.selectedIndex];
+		if (opt && opt.value) return String(opt.value).trim();
+		return "";
 	}
 
 	function init(config) {
@@ -116,23 +138,26 @@
 					}
 				});
 
+				function parentIdsFor(field) {
+					// Only parents that exist as mapped fields AND as selects on this form.
+					var ids = [];
+					if (field && field.parent_question_ids && field.parent_question_ids.length) {
+						ids = field.parent_question_ids.slice();
+					} else if (field && field.parent_question_id) {
+						ids = [field.parent_question_id];
+					}
+					return ids.filter(function (pid) {
+						return !!byQ[pid] && !!findSelect(container, pid);
+					});
+				}
+
 				function parentAnswersFor(qid) {
 					var parents = {};
 					var field = byQ[qid];
-					var ids = (field && field.parent_question_ids && field.parent_question_ids.length)
-						? field.parent_question_ids
-						: [];
-					if (!ids.length) {
-						var cur = field;
-						while (cur && cur.parent_question_id) {
-							ids.push(cur.parent_question_id);
-							cur = byQ[cur.parent_question_id];
-						}
-						ids.reverse();
-					}
-					ids.forEach(function (pid) {
-						var pel = container.querySelector("#" + CSS.escape(pid));
-						if (pel && pel.value) parents[pid] = pel.value;
+					parentIdsFor(field).forEach(function (pid) {
+						var pel = findSelect(container, pid);
+						var val = readSelectValue(pel);
+						if (val) parents[pid] = val;
 					});
 					return parents;
 				}
@@ -141,7 +166,7 @@
 					var stack = (childrenOf[qid] || []).slice();
 					while (stack.length) {
 						var cid = stack.pop();
-						var el = container.querySelector("#" + CSS.escape(cid));
+						var el = findSelect(container, cid);
 						var metaC = byQ[cid];
 						fillSelect(el, [], (metaC && metaC.placeholder) || "-- Select parent first --", true);
 						(childrenOf[cid] || []).forEach(function (x) {
@@ -151,16 +176,16 @@
 				}
 
 				function loadOptions(qid) {
-					var el = container.querySelector("#" + CSS.escape(qid));
+					var el = findSelect(container, qid);
 					var field = byQ[qid];
 					if (!el || !field) return Promise.resolve();
+
+					var requiredParents = parentIdsFor(field);
 					var parents = parentAnswersFor(qid);
-					var requiredParents = (field.parent_question_ids && field.parent_question_ids.length)
-						? field.parent_question_ids
-						: (field.parent_question_id ? [field.parent_question_id] : []);
 					var missing = requiredParents.filter(function (pid) {
 						return !parents[pid];
 					});
+
 					if (missing.length) {
 						fillSelect(el, [], field.placeholder || "-- Select parent first --", true);
 						return Promise.resolve();
@@ -180,36 +205,63 @@
 					return fetchJson(url)
 						.then(function (resp) {
 							if (fieldSeq[qid] !== seq) return;
-							fillSelect(
-								el,
-								resp.options || [],
-								field.placeholder || "-- Select an option --",
-								!!resp.disabled
-							);
+							var opts = resp.options || [];
+							var disabled = !!resp.disabled;
+							var placeholder = field.placeholder || "-- Select an option --";
+							if (!disabled && !opts.length) {
+								placeholder = "No matching values for this selection";
+							}
+							// Never keep child locked when parent is selected and API is reachable
+							if (!disabled) {
+								fillSelect(el, opts, placeholder, false);
+							} else {
+								fillSelect(el, [], field.placeholder || "-- Select parent first --", true);
+							}
 							el.dataset.loading = "0";
 						})
-						.catch(function () {
+						.catch(function (err) {
 							if (fieldSeq[qid] !== seq) return;
-							fillSelect(el, [], "Unable to load options", true);
+							var msg = "Unable to load options";
+							if (err && err.status === 404) msg = "Mapping not active — re-Activate in form builder";
+							fillSelect(el, [], msg, true);
 							el.dataset.loading = "0";
 						});
 				}
 
 				fields.forEach(function (f) {
-					var el = container.querySelector("#" + CSS.escape(f.question_id));
+					var el = findSelect(container, f.question_id);
 					if (!el || el.tagName !== "SELECT") return;
 					el.classList.add("smart-mapped-select");
 					el.dataset.smartMapped = "1";
-					// Always clear static/schema options — backend is source of truth
-					if (f.is_root || !f.parent_question_id) {
+					el.dataset.qid = f.question_id;
+					if (f.parent_question_id) el.dataset.parentQid = f.parent_question_id;
+
+					var requiredParents = parentIdsFor(f);
+					if (!requiredParents.length) {
 						loadOptions(f.question_id);
 					} else {
 						fillSelect(el, [], f.placeholder || "-- Select parent first --", true);
 					}
-					el.addEventListener("change", function () {
-						resetDescendants(f.question_id);
-						(childrenOf[f.question_id] || []).forEach(loadOptions);
+				});
+
+				// Event delegation so change always reaches children (avoids missed listeners)
+				if (!container.dataset.jodSmartChangeBound) {
+					container.dataset.jodSmartChangeBound = "1";
+					container.addEventListener("change", function (ev) {
+						var t = ev.target;
+						if (!t || t.tagName !== "SELECT") return;
+						var qid = t.dataset.qid || t.id || t.getAttribute("name");
+						if (!qid || !byQ[qid]) return;
+						resetDescendants(qid);
+						(childrenOf[qid] || []).forEach(loadOptions);
 					});
+				}
+
+				// If parent already has a value (browser restore / preview), unlock children now
+				fields.forEach(function (f) {
+					if (!f.parent_question_id) return;
+					var parents = parentAnswersFor(f.question_id);
+					if (Object.keys(parents).length) loadOptions(f.question_id);
 				});
 
 				if (data.source_version_hash) {

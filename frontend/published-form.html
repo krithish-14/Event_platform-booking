@@ -974,7 +974,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 						case 'dropdown':
 						case 'integrated_dropdown':
 							fieldHtml = `
-								<select id="${qId}" name="${qId}" class="form-select" ${q.required ? 'required' : ''} style="border-radius:${radius};"> <option value="" disabled selected>${escapeHtml(q.placeholder || '-- Select an option --')}</option> ${(q.type === 'integrated_dropdown' ? [] : (q.options || [])).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+								<select id="${qId}" name="${qId}" data-qid="${qId}" class="form-select${q.type === 'integrated_dropdown' ? ' smart-mapped-select' : ''}" ${q.required ? 'required' : ''} style="border-radius:${radius};"> <option value="" disabled selected>${escapeHtml(q.placeholder || '-- Select an option --')}</option> ${(q.type === 'integrated_dropdown' ? [] : (q.options || [])).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
 								</select> `;
 							break;
 
@@ -1396,6 +1396,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 				fetchPublishedForm();
 			}
 		})();
-	</script> <script src="js/include.js?v=61"></script> <script src="js/auth.js?v=58"></script> <script src="js/profile.js?v=15"></script> <script src="js/script.js?v=67"></script> <script src="js/dynamic-dropdown.js?v=4"></script>
+	</script> <script src="js/include.js?v=61"></script> <script src="js/auth.js?v=58"></script> <script src="js/profile.js?v=15"></script> <script src="js/script.js?v=67"></script> <script src="js/dynamic-dropdown.js?v=5"></script>
 </body>
 </html>

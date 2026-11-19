@@ -753,15 +753,18 @@ def public_data_fields(
 	fields = []
 	for m in maps:
 		mid = str(m.id)
-		ancestors = ancestor_chain(mid, parent_map)
-		immediate = parent_of.get(mid)
+		ancestors = [a for a in ancestor_chain(mid, parent_map) if a in mid_to_qid]
+		immediate = parent_of.get(mid) if parent_of.get(mid) in mid_to_qid else None
+		# If immediate parent mapping was deleted, walk to nearest mapped ancestor
+		if not immediate and ancestors:
+			immediate = ancestors[-1]
 		fields.append(
 			{
 				"question_id": m.question_id,
 				"mapping_id": mid,
 				"parent_mapping_id": immediate,
 				"parent_question_id": mid_to_qid.get(immediate) if immediate else None,
-				"parent_question_ids": [mid_to_qid[a] for a in ancestors if a in mid_to_qid],
+				"parent_question_ids": [mid_to_qid[a] for a in ancestors],
 				"is_root": not bool(immediate),
 				"sort_order": m.sort_order,
 				"is_searchable": m.is_searchable,
