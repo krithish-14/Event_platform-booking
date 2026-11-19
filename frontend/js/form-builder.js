@@ -1089,7 +1089,7 @@ function initFormBuilder() {
 					break;
 				case 'integrated_dropdown':
 					fieldHtml = `
-						<select id="${q.id}" name="${q.id}" class="setup-select smart-mapped-select" data-smart-mapped="1" style="border-radius:${radius}; padding-left:0.8rem;">
+						<select id="${q.id}" name="${q.id}" data-qid="${q.id}" data-smart-column="${String(q.smart_column_id || '').replace(/"/g, '&quot;')}" class="setup-select smart-mapped-select" data-smart-mapped="1" style="border-radius:${radius}; padding-left:0.8rem;">
 							<option value="" disabled selected>${q.placeholder || (q.smart_column_name ? ('Loading ' + q.smart_column_name + '…') : 'Select…')}</option>
 						</select>
 					`;
@@ -1150,85 +1150,156 @@ function initFormBuilder() {
 	}
 
 	let previewSmartSeq = 0;
+	function fillPreviewSelect(select, options, placeholder, disabled) {
+		if (!select) return;
+		const seen = new Set();
+		const opts = [];
+		(options || []).forEach((raw) => {
+			const disp = String(raw == null ? "" : raw).replace(/\s+/g, " ").trim();
+			const key = disp.toLowerCase();
+			if (!disp || seen.has(key)) return;
+			seen.add(key);
+			opts.push(disp);
+		});
+		select.innerHTML = "";
+		const ph = document.createElement("option");
+		ph.value = "";
+		ph.disabled = true;
+		ph.selected = true;
+		ph.textContent = placeholder || "-- Select an option --";
+		select.appendChild(ph);
+		opts.forEach((opt) => {
+			const o = document.createElement("option");
+			o.value = opt;
+			o.textContent = opt;
+			select.appendChild(o);
+		});
+		select.disabled = !!disabled;
+		if (!disabled) select.removeAttribute("disabled");
+	}
+
 	async function wirePreviewIntegratedDropdowns() {
 		const integrated = (questions || []).filter((q) => q && q.type === "integrated_dropdown" && q.smart_column_id);
 		if (!integrated.length || !previewRenderedForm) return;
 
-		const eventKey = resolveActiveEventId();
 		const seq = ++previewSmartSeq;
-
-		// Prefer live dependent API (works after Activate) — Club selection filters Name, etc.
-		if (eventKey && window.JodDynamicDropdown && typeof window.JodDynamicDropdown.init === "function") {
-			try {
-				await window.JodDynamicDropdown.init({
-					formId: eventKey,
-					formKey: eventKey,
-					container: previewRenderedForm,
-				});
-			} catch (_) {}
-		}
-
-		// Fallback only for ROOT columns (never dump full unfiltered lists into child fields)
 		const sourceId = window.JodDataMapping && window.JodDataMapping.getSourceId
 			? window.JodDataMapping.getSourceId()
 			: null;
-		if (!sourceId) return;
+		const apiRoot = getHostEventsApiBase().replace(/\/api\/host-events\/?$/, "");
 
-		const childColIds = new Set(
-			(window.JodDataMapping.getChildColumnIds && window.JodDataMapping.getChildColumnIds()) || []
-		);
+		// Build parent→child from Smart Data Mapping relationships (column ids)
+		const colToQ = {};
+		integrated.forEach((q) => { colToQ[q.smart_column_id] = q; });
+		const parentColOf = {};
+		const rels = (window.JodDataMapping && window.JodDataMapping.getRelationships
+			? window.JodDataMapping.getRelationships()
+			: []) || [];
+		rels.forEach((r) => {
+			if (r.parent_column_id && r.child_column_id && colToQ[r.parent_column_id] && colToQ[r.child_column_id]) {
+				parentColOf[r.child_column_id] = r.parent_column_id;
+			}
+		});
+		// Fallback: question order = parent → child when no explicit links yet
+		if (!Object.keys(parentColOf).length && integrated.length >= 2) {
+			for (let i = 1; i < integrated.length; i++) {
+				parentColOf[integrated[i].smart_column_id] = integrated[i - 1].smart_column_id;
+			}
+		}
 
-		for (const q of integrated) {
-			if (seq !== previewSmartSeq) return;
+		const childrenOfQ = {};
+		Object.keys(parentColOf).forEach((childCol) => {
+			const parentQ = colToQ[parentColOf[childCol]];
+			const childQ = colToQ[childCol];
+			if (!parentQ || !childQ) return;
+			if (!childrenOfQ[parentQ.id]) childrenOfQ[parentQ.id] = [];
+			childrenOfQ[parentQ.id].push(childQ.id);
+		});
+
+		async function loadPreviewOptions(q) {
+			if (seq !== previewSmartSeq || !sourceId) return;
 			const select = previewRenderedForm.querySelector("#" + CSS.escape(q.id));
-			if (!select) continue;
-			if (select.options && select.options.length > 1) continue;
+			if (!select) return;
+			const parentCol = parentColOf[q.smart_column_id];
+			const sort = q.smart_sort_order
+				|| (window.JodDataMapping.getSortForColumn && window.JodDataMapping.getSortForColumn(q.smart_column_id))
+				|| "alpha_asc";
 
-			const isChild = childColIds.has(q.smart_column_id);
-			if (isChild) {
-				select.innerHTML = "";
-				const ph = document.createElement("option");
-				ph.value = "";
-				ph.disabled = true;
-				ph.selected = true;
-				ph.textContent = q.placeholder || "-- Select parent first --";
-				select.appendChild(ph);
-				select.disabled = true;
-				continue;
+			if (parentCol) {
+				const parentQ = colToQ[parentCol];
+				const parentEl = parentQ ? previewRenderedForm.querySelector("#" + CSS.escape(parentQ.id)) : null;
+				const pval = parentEl && parentEl.value ? String(parentEl.value).trim() : "";
+				if (!pval) {
+					fillPreviewSelect(select, [], q.placeholder || "-- Select parent first --", true);
+					return;
+				}
+				try {
+					const url = `${apiRoot}/api/data-mapping/${sourceId}/unique-values/${encodeURIComponent(q.smart_column_id)}?limit=2000&sort_order=${encodeURIComponent(sort)}&filter_${encodeURIComponent(parentCol)}=${encodeURIComponent(pval)}`;
+					const res = await authFetch(url);
+					const data = await res.json().catch(() => ({}));
+					if (seq !== previewSmartSeq) return;
+					const opts = Array.isArray(data.options) ? data.options : [];
+					fillPreviewSelect(
+						select,
+						opts,
+						opts.length ? (q.placeholder || `Select ${q.title || "option"}`) : "No matching values for this selection",
+						false
+					);
+				} catch (_) {
+					fillPreviewSelect(select, [], "Unable to load options", true);
+				}
+				return;
 			}
 
 			try {
-				const sort = q.smart_sort_order
-					|| (window.JodDataMapping.getSortForColumn && window.JodDataMapping.getSortForColumn(q.smart_column_id))
-					|| "alpha_asc";
-				const url = `${getHostEventsApiBase().replace(/\/api\/host-events\/?$/, "")}/api/data-mapping/${sourceId}/unique-values/${encodeURIComponent(q.smart_column_id)}?limit=2000&sort_order=${encodeURIComponent(sort)}`;
+				const url = `${apiRoot}/api/data-mapping/${sourceId}/unique-values/${encodeURIComponent(q.smart_column_id)}?limit=2000&sort_order=${encodeURIComponent(sort)}`;
 				const res = await authFetch(url);
 				const data = await res.json().catch(() => ({}));
-				if (!res.ok || seq !== previewSmartSeq) continue;
-				const seen = new Set();
-				const opts = [];
-				(Array.isArray(data.options) ? data.options : []).forEach((raw) => {
-					const disp = String(raw == null ? "" : raw).replace(/\s+/g, " ").trim();
-					const key = disp.toLowerCase();
-					if (!disp || seen.has(key)) return;
-					seen.add(key);
-					opts.push(disp);
+				if (seq !== previewSmartSeq) return;
+				fillPreviewSelect(
+					select,
+					Array.isArray(data.options) ? data.options : [],
+					q.placeholder || `Select ${q.title || q.smart_column_name || "option"}`,
+					false
+				);
+			} catch (_) {
+				fillPreviewSelect(select, [], "Unable to load options", true);
+			}
+		}
+
+		if (!sourceId) {
+			integrated.forEach((q) => {
+				const select = previewRenderedForm.querySelector("#" + CSS.escape(q.id));
+				fillPreviewSelect(select, [], "Upload Excel in Smart Data Mapping first", true);
+			});
+			return;
+		}
+
+		// Initial load: roots get values; children stay locked until parent is chosen
+		for (const q of integrated) {
+			if (seq !== previewSmartSeq) return;
+			await loadPreviewOptions(q);
+		}
+
+		// Keep latest relationship map for delegated change handler (survives re-render)
+		previewRenderedForm._jodPreviewChildrenOfQ = childrenOfQ;
+		previewRenderedForm._jodPreviewLoad = loadPreviewOptions;
+		previewRenderedForm._jodPreviewIntegrated = integrated;
+
+		if (!previewRenderedForm._jodPreviewChangeAttached) {
+			previewRenderedForm._jodPreviewChangeAttached = true;
+			previewRenderedForm.addEventListener("change", (ev) => {
+				const t = ev.target;
+				if (!t || t.tagName !== "SELECT") return;
+				const qid = t.dataset.qid || t.id;
+				const map = previewRenderedForm._jodPreviewChildrenOfQ || {};
+				const list = previewRenderedForm._jodPreviewIntegrated || [];
+				const load = previewRenderedForm._jodPreviewLoad;
+				(map[qid] || []).forEach((cid) => {
+					const childQ = list.find((x) => x.id === cid);
+					if (childQ && load) load(childQ);
 				});
-				select.innerHTML = "";
-				const ph = document.createElement("option");
-				ph.value = "";
-				ph.disabled = true;
-				ph.selected = true;
-				ph.textContent = q.placeholder || `Select ${q.title || q.smart_column_name || "option"}`;
-				select.appendChild(ph);
-				opts.forEach((opt) => {
-					const o = document.createElement("option");
-					o.value = opt;
-					o.textContent = opt;
-					select.appendChild(o);
-				});
-				select.disabled = false;
-			} catch (_) {}
+			});
 		}
 	}
 

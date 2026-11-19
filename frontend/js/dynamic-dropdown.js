@@ -244,16 +244,24 @@
 					}
 				});
 
-				// Event delegation so change always reaches children (avoids missed listeners)
-				if (!container.dataset.jodSmartChangeBound) {
-					container.dataset.jodSmartChangeBound = "1";
+				// Store latest graph on container so re-init (e.g. live preview) stays correct
+				container._jodSmartState = {
+					byQ: byQ,
+					childrenOf: childrenOf,
+					resetDescendants: resetDescendants,
+					loadOptions: loadOptions,
+				};
+				if (!container._jodSmartChangeAttached) {
+					container._jodSmartChangeAttached = true;
 					container.addEventListener("change", function (ev) {
 						var t = ev.target;
 						if (!t || t.tagName !== "SELECT") return;
+						var st = container._jodSmartState;
+						if (!st) return;
 						var qid = t.dataset.qid || t.id || t.getAttribute("name");
-						if (!qid || !byQ[qid]) return;
-						resetDescendants(qid);
-						(childrenOf[qid] || []).forEach(loadOptions);
+						if (!qid || !st.byQ[qid]) return;
+						st.resetDescendants(qid);
+						(st.childrenOf[qid] || []).forEach(st.loadOptions);
 					});
 				}
 

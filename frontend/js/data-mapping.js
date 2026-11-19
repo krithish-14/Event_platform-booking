@@ -496,10 +496,13 @@
 				mappings.length +
 				" integrated dropdown(s)" +
 				(relationships.length ? " with " + relationships.length + " relationship(s)" : "") +
-				". Save/publish the form."
+				". Test Club → child filtering in the live preview on the right."
 		);
 		render();
 		emitColumnsChanged();
+		if (typeof global.renderFormLivePreview === "function") {
+			global.renderFormLivePreview();
+		}
 	}
 
 	async function loadExisting() {
@@ -675,6 +678,10 @@
 					return r.child_column_id;
 				})
 				.filter(Boolean);
+		},
+		getRelationships: function () {
+			syncRelsFromDom();
+			return (state.relationships || []).slice();
 		},
 		getSortForColumn: function (columnId) {
 			const s = (state.selected || []).find(function (x) {
