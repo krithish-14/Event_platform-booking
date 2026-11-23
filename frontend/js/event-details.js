@@ -527,9 +527,9 @@ function renderEventDOM(event) {
  perfSection.style.display = 'none';
  }
 
- renderEventGallery(event, EP);
- renderEventAds(event, EP);
  renderEventSponsors(event, EP, escape);
+ renderEventAds(event, EP);
+ renderEventGallery(event, EP);
  paintTicketTypes(event);
  bindTicketPruneListener();
 }
@@ -730,7 +730,7 @@ function renderEventAds(event, EP) {
     vid.addEventListener('click', expand);
    }
   } else {
-   media.innerHTML = `<img src="${safeUrl}" alt="${EP && EP.escapeHtml ? EP.escapeHtml(item.title || 'Event spotlight') : 'Event spotlight'}" loading="lazy" />`;
+   media.innerHTML = `<img src="${safeUrl}" alt="${EP && EP.escapeHtml ? EP.escapeHtml(item.title || 'Sponsor spotlight') : 'Sponsor spotlight'}" loading="lazy" />`;
   }
   if (dots) {
    dots.querySelectorAll('.event-ads-dot').forEach((dot, i) => {
