@@ -539,6 +539,27 @@ let eventAdsIndex = 0;
 let eventAdsItems = [];
 let eventAdsLightboxBound = false;
 
+function syncAdVideoControls(player) {
+ const playBtn = document.getElementById('adVideoPlayBtn');
+ const volBtn = document.getElementById('adVideoVolumeBtn');
+ if (playBtn) {
+  const paused = !player || player.paused;
+  playBtn.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+  playBtn.dataset.state = paused ? 'paused' : 'playing';
+  playBtn.innerHTML = paused
+   ? '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>'
+   : '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
+ }
+ if (volBtn && player) {
+  const muted = player.muted || player.volume === 0;
+  volBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+  volBtn.dataset.state = muted ? 'muted' : 'on';
+  volBtn.innerHTML = muted
+   ? '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M16.5 12a4.5 4.5 0 0 0-2.5-4V9.7L16.5 12zm3.5 0c0-1.8-.7-3.4-1.8-4.6l-1.1 1.1A4.96 4.96 0 0 1 18.5 12c0 1.2-.4 2.3-1.1 3.2l1.1 1.1A6.9 6.9 0 0 0 20 12zM4.3 3 3 4.3 7.7 9H4v6h4l5 5v-6.7l5.7 5.7 1.3-1.3L4.3 3zM14 3.2v4.5l-2.1 2.1L9.2 7.1 14 3.2z"/></svg>'
+   : '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+ }
+}
+
 function ensureAdVideoLightbox() {
  let box = document.getElementById('adVideoLightbox');
  if (box) return box;
@@ -549,7 +570,11 @@ function ensureAdVideoLightbox() {
  box.innerHTML = [
   '<button type="button" class="ad-video-lightbox-close" id="adVideoLightboxClose" aria-label="Close video">&times;</button>',
   '<div class="ad-video-lightbox-stage">',
-  '<video id="adVideoLightboxPlayer" controls playsinline loop autoplay></video>',
+  '<video id="adVideoLightboxPlayer" playsinline loop autoplay></video>',
+  '<div class="ad-video-controls" id="adVideoControls">',
+  '<button type="button" class="ad-video-ctrl-btn" id="adVideoPlayBtn" aria-label="Pause" data-state="playing"></button>',
+  '<button type="button" class="ad-video-ctrl-btn" id="adVideoVolumeBtn" aria-label="Mute" data-state="on"></button>',
+  '</div>',
   '</div>'
  ].join('');
  document.body.appendChild(box);
@@ -581,19 +606,46 @@ function openAdVideoLightbox(url) {
  if (inline) {
   try { inline.pause(); } catch (_) {}
  }
+ player.controls = false;
+ player.disablePictureInPicture = true;
+ player.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
  player.src = url;
  player.muted = false;
  player.volume = 1;
  player.loop = true;
  box.hidden = false;
  document.body.classList.add('ad-video-lightbox-open');
- const play = () => player.play().catch(() => {});
+ const play = () => {
+  player.play().then(() => syncAdVideoControls(player)).catch(() => syncAdVideoControls(player));
+ };
  player.addEventListener('loadeddata', play, { once: true });
  play();
+ syncAdVideoControls(player);
  if (!eventAdsLightboxBound) {
   eventAdsLightboxBound = true;
   const closeBtn = document.getElementById('adVideoLightboxClose');
+  const playBtn = document.getElementById('adVideoPlayBtn');
+  const volBtn = document.getElementById('adVideoVolumeBtn');
   if (closeBtn) closeBtn.addEventListener('click', closeAdVideoLightbox);
+  if (playBtn) {
+   playBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (player.paused) player.play().catch(() => {});
+    else player.pause();
+    syncAdVideoControls(player);
+   });
+  }
+  if (volBtn) {
+   volBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    player.muted = !player.muted;
+    if (!player.muted && player.volume === 0) player.volume = 1;
+    syncAdVideoControls(player);
+   });
+  }
+  player.addEventListener('play', () => syncAdVideoControls(player));
+  player.addEventListener('pause', () => syncAdVideoControls(player));
+  player.addEventListener('volumechange', () => syncAdVideoControls(player));
   box.addEventListener('click', (e) => {
    if (e.target === box) closeAdVideoLightbox();
   });

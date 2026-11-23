@@ -673,6 +673,7 @@ body.category-theme-workshop .performer-avatar {
 }
 
 .ad-video-lightbox-stage {
+    position: relative;
     width: min(960px, 100%);
     max-height: min(80vh, 540px);
 }
@@ -684,6 +685,37 @@ body.category-theme-workshop .performer-avatar {
     border-radius: 12px;
     background: #000;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.ad-video-controls {
+    position: absolute;
+    left: 0.85rem;
+    bottom: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(8, 6, 4, 0.72);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+    z-index: 2;
+}
+
+.ad-video-ctrl-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+}
+
+.ad-video-ctrl-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .ad-video-lightbox-close {
