@@ -652,6 +652,81 @@ body.category-theme-workshop .performer-avatar {
     display: block;
 }
 
+.event-ads-media video.event-ads-video {
+    cursor: pointer;
+}
+
+.event-ads-sound-btn {
+    position: absolute;
+    left: 50%;
+    bottom: 0.85rem;
+    transform: translateX(-50%);
+    z-index: 3;
+    border: none;
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: rgba(15, 23, 42, 0.72);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+    cursor: pointer;
+}
+
+.event-ads-sound-btn:hover {
+    background: rgba(234, 88, 12, 0.92);
+}
+
+.ad-video-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    background: rgba(8, 6, 4, 0.88);
+    backdrop-filter: blur(6px);
+}
+
+.ad-video-lightbox[hidden] {
+    display: none !important;
+}
+
+.ad-video-lightbox-stage {
+    width: min(960px, 100%);
+    max-height: min(80vh, 540px);
+}
+
+.ad-video-lightbox-stage video {
+    width: 100%;
+    max-height: min(80vh, 540px);
+    display: block;
+    border-radius: 12px;
+    background: #000;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.ad-video-lightbox-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 42px;
+    height: 42px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+body.ad-video-lightbox-open {
+    overflow: hidden;
+}
+
 .event-ads-nav {
     position: absolute;
     top: 50%;

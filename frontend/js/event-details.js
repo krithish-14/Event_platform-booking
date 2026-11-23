@@ -537,6 +537,70 @@ function renderEventDOM(event) {
 let eventAdsTimer = null;
 let eventAdsIndex = 0;
 let eventAdsItems = [];
+let eventAdsLightboxBound = false;
+
+function ensureAdVideoLightbox() {
+ let box = document.getElementById('adVideoLightbox');
+ if (box) return box;
+ box = document.createElement('div');
+ box.id = 'adVideoLightbox';
+ box.className = 'ad-video-lightbox';
+ box.hidden = true;
+ box.innerHTML = [
+  '<button type="button" class="ad-video-lightbox-close" id="adVideoLightboxClose" aria-label="Close video">&times;</button>',
+  '<div class="ad-video-lightbox-stage">',
+  '<video id="adVideoLightboxPlayer" controls playsinline></video>',
+  '</div>'
+ ].join('');
+ document.body.appendChild(box);
+ return box;
+}
+
+function closeAdVideoLightbox() {
+ const box = document.getElementById('adVideoLightbox');
+ const player = document.getElementById('adVideoLightboxPlayer');
+ if (player) {
+  try { player.pause(); } catch (_) {}
+  player.removeAttribute('src');
+  try { player.load(); } catch (_) {}
+ }
+ if (box) box.hidden = true;
+ document.body.classList.remove('ad-video-lightbox-open');
+}
+
+function openAdVideoLightbox(url) {
+ if (!url) return;
+ const box = ensureAdVideoLightbox();
+ const player = document.getElementById('adVideoLightboxPlayer');
+ if (!player) return;
+ if (eventAdsTimer) {
+  clearInterval(eventAdsTimer);
+  eventAdsTimer = null;
+ }
+ const inline = document.querySelector('#adsMedia video');
+ if (inline) {
+  try { inline.pause(); } catch (_) {}
+ }
+ player.src = url;
+ player.muted = false;
+ player.volume = 1;
+ box.hidden = false;
+ document.body.classList.add('ad-video-lightbox-open');
+ const play = () => player.play().catch(() => {});
+ player.addEventListener('loadeddata', play, { once: true });
+ play();
+ if (!eventAdsLightboxBound) {
+  eventAdsLightboxBound = true;
+  const closeBtn = document.getElementById('adVideoLightboxClose');
+  if (closeBtn) closeBtn.addEventListener('click', closeAdVideoLightbox);
+  box.addEventListener('click', (e) => {
+   if (e.target === box) closeAdVideoLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+   if (e.key === 'Escape' && box && !box.hidden) closeAdVideoLightbox();
+  });
+ }
+}
 
 function collectAdItems(event, EP) {
  let raw = event ? event.ad_items : null;
@@ -583,12 +647,43 @@ function renderEventAds(event, EP) {
   return;
  }
  frame.classList.toggle('has-many', eventAdsItems.length > 1);
+ const startCarousel = () => {
+  if (eventAdsTimer) {
+   clearInterval(eventAdsTimer);
+   eventAdsTimer = null;
+  }
+  if (eventAdsItems.length <= 1) return;
+  const current = eventAdsItems[eventAdsIndex];
+  // Keep video slides on screen; only auto-advance image slides.
+  if (current && current.type === 'video') return;
+  eventAdsTimer = setInterval(() => paint(eventAdsIndex + 1), 5500);
+ };
  const paint = (idx) => {
   eventAdsIndex = ((idx % eventAdsItems.length) + eventAdsItems.length) % eventAdsItems.length;
   const item = eventAdsItems[eventAdsIndex];
   const safeUrl = EP && EP.escapeHtml ? EP.escapeHtml(item.url) : String(item.url || '');
   if (item.type === 'video') {
-   media.innerHTML = `<video src="${safeUrl}" autoplay muted loop playsinline></video>`;
+   media.innerHTML = [
+    `<video class="event-ads-video" src="${safeUrl}" autoplay muted loop playsinline preload="auto"></video>`,
+    '<button type="button" class="event-ads-sound-btn" aria-label="Play with sound">Tap for sound</button>'
+   ].join('');
+   const vid = media.querySelector('video');
+   const soundBtn = media.querySelector('.event-ads-sound-btn');
+   const expand = () => openAdVideoLightbox(item.url);
+   if (vid) {
+    vid.muted = true;
+    vid.setAttribute('muted', '');
+    vid.playsInline = true;
+    const tryPlay = () => { vid.play().catch(() => {}); };
+    vid.addEventListener('loadeddata', tryPlay);
+    tryPlay();
+    vid.addEventListener('click', expand);
+   }
+   if (soundBtn) soundBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    expand();
+   });
   } else {
    media.innerHTML = `<img src="${safeUrl}" alt="${EP && EP.escapeHtml ? EP.escapeHtml(item.title || 'Event spotlight') : 'Event spotlight'}" loading="lazy" />`;
   }
@@ -597,6 +692,7 @@ function renderEventAds(event, EP) {
     dot.classList.toggle('is-active', i === eventAdsIndex);
    });
   }
+  startCarousel();
  };
  if (dots) {
   dots.innerHTML = eventAdsItems.map((_, i) => `<button type="button" class="event-ads-dot${i === 0 ? ' is-active' : ''}" data-ad-index="${i}" aria-label="Ad ${i + 1}"></button>`).join('');
@@ -610,9 +706,6 @@ function renderEventAds(event, EP) {
  if (next) next.onclick = () => paint(eventAdsIndex + 1);
  paint(0);
  section.style.display = '';
- if (eventAdsItems.length > 1) {
-  eventAdsTimer = setInterval(() => paint(eventAdsIndex + 1), 5500);
- }
 }
 
 function collectGalleryUrls(event, EP) {

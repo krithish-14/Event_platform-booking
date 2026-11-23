@@ -2425,15 +2425,17 @@ async def upload_design_asset(
                 owner_email=email_clean,
             )
         else:
+            # Videos can be up to ASSET_FILE_LIMITS size; encrypted DB default is 5MB.
             stored = store_bytes(
                 db,
                 data=contents,
                 filename=filename,
-                content_type=file.content_type,
+                content_type=file.content_type or ("video/mp4" if is_video else None),
                 kind="event_media",
                 purpose=asset_type,
                 owner_customer_id=current_user.customer_id if current_user else None,
                 owner_email=email_clean,
+                max_bytes=max_bytes if is_video else None,
             )
             file_url = public_url(stored)
     except ValueError as exc:

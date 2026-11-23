@@ -18,6 +18,14 @@ from Services.file_storage import can_access, decrypt_bytes, get_by_id, get_by_l
 router = APIRouter(tags=["Media"])
 
 
+def _safe_content_disposition(filename: str) -> str:
+    # HTTP header values must be latin-1; strip quotes/control/non-ascii for filename=
+    raw = (filename or "file").replace('"', "").replace("\r", "").replace("\n", "").strip() or "file"
+    ascii_name = raw.encode("ascii", "ignore").decode("ascii").strip() or "file"
+    ascii_name = "".join(ch if ch.isprintable() else "_" for ch in ascii_name)[:120] or "file"
+    return f'inline; filename="{ascii_name}"'
+
+
 def _file_response(stored, *, private: bool) -> Response:
     try:
         payload = decrypt_bytes(stored.encrypted_data)
@@ -26,7 +34,8 @@ def _file_response(stored, *, private: bool) -> Response:
     headers = {
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "private, no-store" if private or stored.is_private else "public, max-age=86400",
-        "Content-Disposition": f'inline; filename="{(stored.original_filename or "file").replace(chr(34), "")}"',
+        "Content-Disposition": _safe_content_disposition(stored.original_filename or "file"),
+        "Accept-Ranges": "bytes",
     }
     return Response(
         content=payload,
