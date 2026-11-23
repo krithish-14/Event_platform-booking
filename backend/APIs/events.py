@@ -114,6 +114,7 @@ class EventResponse(BaseModel):
     highlights: Optional[Any] = None
     gallery_images: Optional[Any] = None
     sponsors: Optional[Any] = None
+    ad_items: Optional[Any] = None
     ticket_types: Optional[Any] = None
     terms: Optional[str] = None
     policies: Optional[Any] = None
@@ -252,6 +253,32 @@ def _normalize_sponsors(raw: Any) -> list:
     return items
 
 
+def _normalize_ad_items(raw: Any) -> list:
+    items = []
+    for item in _parse_list_field(raw):
+        if isinstance(item, str):
+            url = item.strip()
+            if not url:
+                continue
+            media_type = "video" if any(url.lower().endswith(ext) for ext in (".mp4", ".webm", ".mov")) else "image"
+            items.append({"type": media_type, "url": url, "title": ""})
+            continue
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or item.get("src") or item.get("image_url") or "").strip()
+        if not url:
+            continue
+        media_type = str(item.get("type") or "").strip().lower()
+        if media_type not in ("image", "video"):
+            media_type = "video" if any(url.lower().endswith(ext) for ext in (".mp4", ".webm", ".mov")) else "image"
+        items.append({
+            "type": media_type,
+            "url": url,
+            "title": str(item.get("title") or "").strip()[:120],
+        })
+    return items
+
+
 def _design_lookup_candidates(event_id) -> list:
     candidates = [event_id]
     text_id = str(event_id) if event_id is not None else ""
@@ -296,13 +323,14 @@ def _host_design_for_event(db: Session, event_id) -> tuple:
 
     if not design:
         # None = no host design. Empty lists mean the host explicitly cleared the field.
-        return None, None, None
+        return None, None, None, None
     title = getattr(design, "performers_title", None)
     performers_title = str(title).strip() if title and str(title).strip() else None
     return (
         _normalize_gallery_images(design.gallery_images),
         _normalize_sponsors(design.sponsor_details),
         performers_title,
+        _normalize_ad_items(getattr(design, "custom_sections", None)),
     )
 
 
@@ -474,6 +502,7 @@ def _event_to_response(
     policies: Optional[dict] = None,
     gallery_images: Optional[Any] = None,
     sponsors: Optional[Any] = None,
+    ad_items: Optional[Any] = None,
     agenda: Optional[Any] = None,
     performers_title: Optional[str] = None,
     ticket_types: Optional[Any] = None,
@@ -524,6 +553,7 @@ def _event_to_response(
         highlights=sponsors or [],
         gallery_images=gallery_images or [],
         sponsors=sponsors or [],
+        ad_items=ad_items or [],
         ticket_types=resolved_tickets,
         terms=terms,
         policies=policies or None,
@@ -635,8 +665,8 @@ def get_public_event(event_id: UUID, access: Optional[str] = Query(default=None,
             return default
 
     policies = _host_call(lambda: _host_policies_for_event(db, event.id), None)
-    design = _host_call(lambda: _host_design_for_event(db, event.id), (None, None, None))
-    gallery_images, sponsors, performers_title = design
+    design = _host_call(lambda: _host_design_for_event(db, event.id), (None, None, None, None))
+    gallery_images, sponsors, performers_title, ad_items = design
     gallery_images = _prefer_design_list(
         gallery_images,
         _parse_json_field(getattr(event, "gallery_images", None)),
@@ -647,7 +677,8 @@ def get_public_event(event_id: UUID, access: Optional[str] = Query(default=None,
         _parse_json_field(event.highlights),
         _normalize_sponsors,
     )
-    print(f"[EVENT DETAILS] gallery={len(gallery_images or [])} sponsors={len(sponsors or [])}", flush=True)
+    ad_items = ad_items if isinstance(ad_items, list) else []
+    print(f"[EVENT DETAILS] gallery={len(gallery_images or [])} sponsors={len(sponsors or [])} ads={len(ad_items or [])}", flush=True)
     if policies:
         formatted = _format_policies_text(policies)
         if formatted and event.terms != formatted:
@@ -665,6 +696,7 @@ def get_public_event(event_id: UUID, access: Optional[str] = Query(default=None,
         policies=policies,
         gallery_images=gallery_images,
         sponsors=sponsors,
+        ad_items=ad_items,
         agenda=agenda,
         performers_title=performers_title,
         ticket_types=host_tickets,
@@ -722,7 +754,7 @@ def get_event(event_id: UUID, access: Optional[str] = Query(default=None, max_le
     if not event:
         raise HTTPException(status_code=404, detail="This event is currently unavailable.")
     policies = _host_policies_for_event(db, event.id)
-    gallery_images, sponsors, performers_title = _host_design_for_event(db, event.id)
+    gallery_images, sponsors, performers_title, ad_items = _host_design_for_event(db, event.id)
     gallery_images = _prefer_design_list(
         gallery_images,
         _parse_json_field(getattr(event, "gallery_images", None)),
@@ -738,6 +770,7 @@ def get_event(event_id: UUID, access: Optional[str] = Query(default=None, max_le
         policies=policies,
         gallery_images=gallery_images,
         sponsors=sponsors,
+        ad_items=ad_items if isinstance(ad_items, list) else [],
         agenda=_host_agenda_for_event(db, event.id),
         performers_title=performers_title,
         ticket_types=_host_tickets_for_event(db, event.id),

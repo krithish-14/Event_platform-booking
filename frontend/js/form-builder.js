@@ -508,8 +508,174 @@ function initFormBuilder() {
 		return !!(window.matchMedia && window.matchMedia(COMPACT_BUILDER_QUERY).matches);
 	}
 
+	function supportsCharRange(type) {
+		return type === "short_answer" || type === "paragraph";
+	}
+
+	function normalizeCharLimits(q) {
+		if (!q || !supportsCharRange(q.type)) {
+			if (q) {
+				delete q.min_length;
+				delete q.max_length;
+			}
+			return { min: null, max: null };
+		}
+		let min = q.min_length != null && q.min_length !== "" ? parseInt(q.min_length, 10) : null;
+		let max = q.max_length != null && q.max_length !== "" ? parseInt(q.max_length, 10) : null;
+		if (min != null && (!Number.isFinite(min) || min < 0)) min = null;
+		if (max != null && (!Number.isFinite(max) || max < 1)) max = null;
+		if (min != null && max != null && min > max) {
+			const t = min;
+			min = max;
+			max = t;
+		}
+		if (min != null) q.min_length = min;
+		else delete q.min_length;
+		if (max != null) q.max_length = max;
+		else delete q.max_length;
+		return { min, max };
+	}
+
+	function charLimitAttrs(q) {
+		const { min, max } = normalizeCharLimits(q);
+		let attrs = "";
+		if (min != null) attrs += ` minlength="${min}"`;
+		if (max != null) attrs += ` maxlength="${max}"`;
+		return attrs;
+	}
+
+	function charLimitHint(q) {
+		const { min, max } = normalizeCharLimits(q);
+		if (min != null && max != null) return `${min}\u2013${max} characters`;
+		if (min != null) return `At least ${min} characters`;
+		if (max != null) return `Up to ${max} characters`;
+		return "";
+	}
+
+	function buildCharRangePanelHtml(q) {
+		if (!supportsCharRange(q.type)) return "";
+		const { min, max } = normalizeCharLimits(q);
+		return `
+			<div class="q-char-range-box" style="margin-top:0.85rem;padding:0.85rem 1rem;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+				<label style="font-weight:700;font-size:0.85rem;color:#0f172a;display:block;margin-bottom:0.55rem;">Character range (optional)</label>
+				<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+					<div class="setup-form-group" style="margin:0;">
+						<label style="font-size:0.78rem;">Minimum</label>
+						<input type="number" class="setup-input q-min-length" min="0" step="1" value="${min != null ? min : ""}" placeholder="e.g. 2" style="padding-left:0.8rem;" />
+					</div>
+					<div class="setup-form-group" style="margin:0;">
+						<label style="font-size:0.78rem;">Maximum</label>
+						<input type="number" class="setup-input q-max-length" min="1" step="1" value="${max != null ? max : ""}" placeholder="e.g. 100" style="padding-left:0.8rem;" />
+					</div>
+				</div>
+				<p style="margin:0.45rem 0 0;font-size:0.75rem;color:#64748b;">Leave blank for no limit. Attendees see a live character count when a max is set.</p>
+			</div>
+		`;
+	}
+
 	function questionSummaryMeta(q) {
-		return (QUESTION_TYPE_LABELS[q.type] || q.type) + (q.required ? " \u00b7 Required" : "");
+		const bits = [QUESTION_TYPE_LABELS[q.type] || q.type];
+		if (q.required) bits.push("Required");
+		const hint = charLimitHint(q);
+		if (hint) bits.push(hint);
+		if (q.show_if && q.show_if.enabled && q.show_if.question_id) bits.push("Conditional");
+		return bits.join(" \u00b7 ");
+	}
+
+	function normalizeShowIf(q) {
+		if (!q.show_if || typeof q.show_if !== "object") {
+			q.show_if = { enabled: false, question_id: "", operator: "is", values: [] };
+			return q.show_if;
+		}
+		const values = Array.isArray(q.show_if.values)
+			? q.show_if.values
+			: (q.show_if.equals != null && String(q.show_if.equals).trim()
+				? [String(q.show_if.equals).trim()]
+				: []);
+		const op = String(q.show_if.operator || "is").toLowerCase() === "is_not" ? "is_not" : "is";
+		q.show_if = {
+			enabled: !!q.show_if.enabled,
+			question_id: q.show_if.question_id || "",
+			operator: op,
+			values: values.map((v) => String(v == null ? "" : v).trim()).filter(Boolean),
+		};
+		return q.show_if;
+	}
+
+	function getShowIfControllers(excludeId) {
+		return (questions || []).filter((cand) =>
+			cand &&
+			cand.id &&
+			cand.id !== excludeId &&
+			["dropdown", "radio", "integrated_dropdown"].includes(cand.type)
+		);
+	}
+
+	function buildShowIfPanelHtml(q) {
+		const rule = normalizeShowIf(q);
+		const controllers = getShowIfControllers(q.id);
+		const source = controllers.find((c) => c.id === rule.question_id) || null;
+		const sourceOptions = source && Array.isArray(source.options) ? source.options.filter((o) => String(o || "").trim()) : [];
+		const selected = new Set((rule.values || []).map((v) => String(v).trim().toLowerCase()));
+		const isNot = rule.operator === "is_not";
+		const controllerOpts = controllers.length
+			? controllers.map((c) => {
+				const label = (c.title || c.id) + " (" + (QUESTION_TYPE_LABELS[c.type] || c.type) + ")";
+				return `<option value="${String(c.id).replace(/"/g, "&quot;")}" ${c.id === rule.question_id ? "selected" : ""}>${label.replace(/</g, "&lt;")}</option>`;
+			}).join("")
+			: `<option value="">No dropdown / radio questions yet</option>`;
+
+		let valuesHtml = "";
+		if (!rule.question_id || !source) {
+			valuesHtml = `<p style="margin:0;font-size:0.8rem;color:#64748b;">Pick the question whose answer controls this one (e.g. Position).</p>`;
+		} else if (source.type === "integrated_dropdown" || !sourceOptions.length) {
+			valuesHtml = `
+				<label style="font-size:0.78rem;font-weight:700;color:#475569;display:block;margin-bottom:0.35rem;">${isNot ? "Value to exclude" : "Value that shows this question"}</label>
+				<input type="text" class="setup-input q-show-if-text" value="${(rule.values[0] || "").replace(/"/g, "&quot;")}" placeholder="e.g. Rotarian" style="padding-left:0.8rem;" />
+				<p style="margin:0.35rem 0 0;font-size:0.75rem;color:#64748b;">Enter the option text exactly as attendees see it.</p>
+			`;
+		} else {
+			valuesHtml = `
+				<label style="font-size:0.78rem;font-weight:700;color:#475569;display:block;margin-bottom:0.35rem;">${isNot ? "These answers hide this question (show for everything else)" : "Show this question when answer is any of"}</label>
+				<div class="q-show-if-checks" style="display:flex;flex-direction:column;gap:0.35rem;max-height:160px;overflow:auto;">
+					${sourceOptions.map((opt) => {
+						const safe = String(opt).replace(/"/g, "&quot;");
+						const checked = selected.has(String(opt).trim().toLowerCase()) ? "checked" : "";
+						return `<label style="font-size:0.84rem;font-weight:600;color:#334155;display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+							<input type="checkbox" class="q-show-if-value" value="${safe}" ${checked} />
+							<span>${String(opt).replace(/</g, "&lt;")}</span>
+						</label>`;
+					}).join("")}
+				</div>
+			`;
+		}
+
+		return `
+			<div class="q-show-if-box" style="margin-top:0.85rem;padding:0.85rem 1rem;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+				<label style="font-weight:700;font-size:0.85rem;cursor:pointer;display:flex;align-items:center;gap:0.45rem;color:#0f172a;">
+					<input type="checkbox" class="q-show-if-enable" ${rule.enabled ? "checked" : ""} />
+					Show / hide based on another answer
+				</label>
+				<div class="q-show-if-rules" ${rule.enabled ? "" : "hidden"} style="margin-top:0.75rem;flex-direction:column;gap:0.65rem;${rule.enabled ? "display:flex;" : "display:none;"}">
+					<div>
+						<label style="font-size:0.78rem;font-weight:700;color:#475569;display:block;margin-bottom:0.35rem;">When this question</label>
+						<select class="setup-select q-show-if-source" style="padding:0.4rem 0.7rem;font-size:0.85rem;font-weight:700;border-radius:8px;" ${controllers.length ? "" : "disabled"}>
+							<option value="">— Select question —</option>
+							${controllerOpts}
+						</select>
+					</div>
+					<div>
+						<label style="font-size:0.78rem;font-weight:700;color:#475569;display:block;margin-bottom:0.35rem;">Condition</label>
+						<select class="setup-select q-show-if-operator" style="padding:0.4rem 0.7rem;font-size:0.85rem;font-weight:700;border-radius:8px;">
+							<option value="is" ${!isNot ? "selected" : ""}>Is (equals)</option>
+							<option value="is_not" ${isNot ? "selected" : ""}>Is not</option>
+						</select>
+					</div>
+					<div class="q-show-if-values">${valuesHtml}</div>
+					<p style="margin:0;font-size:0.75rem;color:#64748b;">Example: Club Name → Position <strong>is</strong> Rotarian. Manual club/name field → Position <strong>is not</strong> Rotarian.</p>
+				</div>
+			</div>
+		`;
 	}
 
 	function scrollPreviewTo(target) {
@@ -658,6 +824,8 @@ function initFormBuilder() {
 				if (!q.placeholder) q.placeholder = "";
 				if (!q.help_text) q.help_text = "";
 				if (typeof q.required !== "boolean") q.required = false;
+				normalizeShowIf(q);
+				normalizeCharLimits(q);
 
 				const hasOptions = ["dropdown", "radio", "checkbox"].includes(q.type);
 				const isIntegrated = q.type === "integrated_dropdown";
@@ -745,6 +913,10 @@ function initFormBuilder() {
 							</label>
 						</div>
 					</div>
+
+					${buildCharRangePanelHtml(q)}
+
+					${buildShowIfPanelHtml(q)}
 
 					${isIntegrated ? `
 						<div class="q-options-box" style="border-color:#bfdbfe;background:#eff6ff;">
@@ -857,6 +1029,78 @@ function initFormBuilder() {
 					renderLivePreview();
 				});
 
+				const syncCharLimitsFromCard = () => {
+					const minEl = card.querySelector(".q-min-length");
+					const maxEl = card.querySelector(".q-max-length");
+					q.min_length = minEl && minEl.value !== "" ? minEl.value : null;
+					q.max_length = maxEl && maxEl.value !== "" ? maxEl.value : null;
+					normalizeCharLimits(q);
+					if (minEl) minEl.value = q.min_length != null ? q.min_length : "";
+					if (maxEl) maxEl.value = q.max_length != null ? q.max_length : "";
+					summaryMeta.textContent = questionSummaryMeta(q);
+					renderLivePreview();
+				};
+				card.querySelector(".q-min-length")?.addEventListener("change", syncCharLimitsFromCard);
+				card.querySelector(".q-max-length")?.addEventListener("change", syncCharLimitsFromCard);
+				card.querySelector(".q-min-length")?.addEventListener("input", () => {
+					summaryMeta.textContent = questionSummaryMeta(
+						Object.assign({}, q, {
+							min_length: card.querySelector(".q-min-length")?.value,
+							max_length: card.querySelector(".q-max-length")?.value,
+						})
+					);
+				});
+				card.querySelector(".q-max-length")?.addEventListener("input", () => {
+					summaryMeta.textContent = questionSummaryMeta(
+						Object.assign({}, q, {
+							min_length: card.querySelector(".q-min-length")?.value,
+							max_length: card.querySelector(".q-max-length")?.value,
+						})
+					);
+				});
+
+				const showIfEnable = card.querySelector(".q-show-if-enable");
+				const showIfRules = card.querySelector(".q-show-if-rules");
+				const showIfSource = card.querySelector(".q-show-if-source");
+				showIfEnable?.addEventListener("change", (e) => {
+					normalizeShowIf(q);
+					q.show_if.enabled = !!e.target.checked;
+					if (showIfRules) {
+						showIfRules.hidden = !q.show_if.enabled;
+						showIfRules.style.display = q.show_if.enabled ? "flex" : "none";
+					}
+					summaryMeta.textContent = questionSummaryMeta(q);
+					renderLivePreview();
+				});
+				showIfSource?.addEventListener("change", (e) => {
+					normalizeShowIf(q);
+					q.show_if.question_id = e.target.value || "";
+					q.show_if.values = [];
+					renderBuilderQuestions();
+					renderLivePreview();
+				});
+				card.querySelector(".q-show-if-operator")?.addEventListener("change", (e) => {
+					normalizeShowIf(q);
+					q.show_if.operator = e.target.value === "is_not" ? "is_not" : "is";
+					renderBuilderQuestions();
+					renderLivePreview();
+				});
+				card.querySelectorAll(".q-show-if-value").forEach((cb) => {
+					cb.addEventListener("change", () => {
+						normalizeShowIf(q);
+						q.show_if.values = Array.from(card.querySelectorAll(".q-show-if-value:checked")).map((el) => el.value);
+						summaryMeta.textContent = questionSummaryMeta(q);
+						renderLivePreview();
+					});
+				});
+				card.querySelector(".q-show-if-text")?.addEventListener("input", (e) => {
+					normalizeShowIf(q);
+					const text = String(e.target.value || "").trim();
+					q.show_if.values = text ? [text] : [];
+					summaryMeta.textContent = questionSummaryMeta(q);
+					renderLivePreview();
+				});
+
 				// Up / Down / Duplicate / Delete
 				card.querySelector(".btn-move-up")?.addEventListener("click", () => {
 					if (idx > 0) {
@@ -891,7 +1135,15 @@ function initFormBuilder() {
 				card.querySelector(".btn-delete-q")?.addEventListener("click", () => {
 					if (questions.length > 1) {
 						if (expandedQuestionId === q.id) expandedQuestionId = null;
+						const removedId = q.id;
 						questions.splice(idx, 1);
+						questions.forEach((other) => {
+							if (other && other.show_if && other.show_if.question_id === removedId) {
+								other.show_if.enabled = false;
+								other.show_if.question_id = "";
+								other.show_if.values = [];
+							}
+						});
 						renderBuilderQuestions();
 						renderLivePreview();
 					}
@@ -1025,6 +1277,8 @@ function initFormBuilder() {
 			if (previewTitle) previewTitle.style.color = textColor;
 			if (previewDesc) previewDesc.style.color = subTextColor;
 			previewCardContainer.style.color = textColor;
+			previewCardContainer.dataset.previewScheme = isDarkCard ? "dark" : "light";
+			if (livePreviewWrapper) livePreviewWrapper.dataset.previewScheme = isDarkCard ? "dark" : "light";
 		}
 
 		// Header Banner Image
@@ -1063,27 +1317,44 @@ function initFormBuilder() {
 			const group = document.createElement("div");
 			group.className = "setup-form-group";
 			group.dataset.qid = q.id;
+			group.setAttribute("data-question-group", "1");
 			if (q.id === focusedPreviewQid) group.classList.add("is-preview-focus");
 
 			const reqSpan = q.required ? '<span style="color:#ef4444;">*</span>' : '';
-			const helpHtml = q.help_text ? `<span style="font-size:0.75rem; color:#64748b; margin-top:0.1rem; display:block;">${q.help_text}</span>` : '';
+			const limitHint = charLimitHint(q);
+			const helpHtml = [
+				q.help_text ? `<span style="font-size:0.75rem; color:#64748b; margin-top:0.1rem; display:block;">${q.help_text}</span>` : "",
+				limitHint ? `<span style="font-size:0.72rem; color:#64748b; margin-top:0.15rem; display:block;">${limitHint}</span>` : "",
+			].join("");
+			const escAttr = (v) => String(v == null ? "" : v).replace(/"/g, "&quot;");
+			const limitAttrs = charLimitAttrs(q);
+			const counterHtml = supportsCharRange(q.type) && (q.max_length != null || q.min_length != null)
+				? `<div class="char-count" data-for="${q.id}" style="font-size:0.72rem;color:#64748b;text-align:right;margin-top:0.25rem;">0${q.max_length != null ? " / " + q.max_length : ""}</div>`
+				: "";
 
 			let fieldHtml = '';
 
 			switch (q.type) {
 				case 'short_answer':
+					fieldHtml = `<input type="text" id="${q.id}" name="${q.id}" class="setup-input" placeholder="${escAttr(q.placeholder || '')}"${limitAttrs} style="border-radius:${radius}; border-color:#cbd5e1;" />${counterHtml}`;
+					break;
 				case 'email':
+					fieldHtml = `<input type="email" id="${q.id}" name="${q.id}" class="setup-input" placeholder="${escAttr(q.placeholder || '')}" style="border-radius:${radius}; border-color:#cbd5e1;" />`;
+					break;
 				case 'phone':
-					fieldHtml = `<input type="${q.type === 'email' ? 'email' : 'text'}" class="setup-input" placeholder="${q.placeholder || ''}" style="border-radius:${radius}; border-color:#cbd5e1;" />`;
+					fieldHtml = `<input type="tel" id="${q.id}" name="${q.id}" class="setup-input" inputmode="numeric" autocomplete="tel" maxlength="10" pattern="[0-9]{10}" placeholder="${escAttr(q.placeholder || '10-digit mobile number')}" style="border-radius:${radius}; border-color:#cbd5e1;" /><span style="font-size:0.72rem;color:#64748b;margin-top:0.15rem;display:block;">Exactly 10 digits</span>`;
 					break;
 				case 'paragraph':
+					fieldHtml = `<textarea id="${q.id}" name="${q.id}" class="setup-textarea" placeholder="${escAttr(q.placeholder || '')}"${limitAttrs} style="border-radius:${radius}; border-color:#cbd5e1; min-height:70px;"></textarea>${counterHtml}`;
+					break;
 				case 'address':
-					fieldHtml = `<textarea class="setup-textarea" placeholder="${q.placeholder || ''}" style="border-radius:${radius}; border-color:#cbd5e1; min-height:70px;"></textarea>`;
+					fieldHtml = `<textarea id="${q.id}" name="${q.id}" class="setup-textarea" placeholder="${escAttr(q.placeholder || '')}" style="border-radius:${radius}; border-color:#cbd5e1; min-height:70px;"></textarea>`;
 					break;
 				case 'dropdown':
 					fieldHtml = `
-						<select class="setup-select" style="border-radius:${radius}; padding-left:0.8rem;">
-							${(q.options || []).map(opt => `<option>${opt}</option>`).join('')}
+						<select id="${q.id}" name="${q.id}" class="setup-select" style="border-radius:${radius}; padding-left:0.8rem;">
+							<option value="" disabled selected>${escAttr(q.placeholder || "-- Select an option --")}</option>
+							${(q.options || []).map(opt => `<option value="${escAttr(opt)}">${String(opt == null ? "" : opt).replace(/</g, "&lt;")}</option>`).join('')}
 						</select>
 					`;
 					break;
@@ -1099,7 +1370,7 @@ function initFormBuilder() {
 						<div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.2rem;">
 							${(q.options || []).map(opt => `
 								<label style="font-weight:600; font-size:0.88rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#334155;">
-									<input type="radio" name="prev_${q.id}" /> ${opt}
+									<input type="radio" name="${q.id}" value="${escAttr(opt)}" /> ${String(opt == null ? "" : opt).replace(/</g, "&lt;")}
 								</label>
 							`).join('')}
 						</div>
@@ -1110,14 +1381,14 @@ function initFormBuilder() {
 						<div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.2rem;">
 							${(q.options || []).map(opt => `
 								<label style="font-weight:600; font-size:0.88rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#334155;">
-									<input type="checkbox" /> ${opt}
+									<input type="checkbox" name="${q.id}" value="${escAttr(opt)}" /> ${String(opt == null ? "" : opt).replace(/</g, "&lt;")}
 								</label>
 							`).join('')}
 						</div>
 					`;
 					break;
 				case 'date':
-					fieldHtml = `<input type="date" class="setup-input" style="border-radius:${radius}; border-color:#cbd5e1;" />`;
+					fieldHtml = `<input type="date" id="${q.id}" name="${q.id}" class="setup-input" style="border-radius:${radius}; border-color:#cbd5e1;" />`;
 					break;
 				case 'file_upload':
 					fieldHtml = `
@@ -1129,12 +1400,12 @@ function initFormBuilder() {
 				case 'terms':
 					fieldHtml = `
 						<label style="font-weight:600; font-size:0.85rem; cursor:pointer; display:flex; align-items:center; gap:0.4rem; color:#334155;">
-							<input type="checkbox" /> I agree to the terms and event policies.
+							<input type="checkbox" id="${q.id}" name="${q.id}" value="agreed" /> I agree to the terms and event policies.
 						</label>
 					`;
 					break;
 				default:
-					fieldHtml = `<input type="text" class="setup-input" placeholder="${q.placeholder || ''}" style="border-radius:${radius};" />`;
+					fieldHtml = `<input type="text" id="${q.id}" name="${q.id}" class="setup-input" placeholder="${escAttr(q.placeholder || '')}" style="border-radius:${radius};" />`;
 			}
 
 			group.innerHTML = `
@@ -1147,6 +1418,35 @@ function initFormBuilder() {
 		});
 
 		wirePreviewIntegratedDropdowns();
+		wirePreviewCharCounters();
+		if (window.JodConditionalQuestions && typeof window.JodConditionalQuestions.init === "function") {
+			window.JodConditionalQuestions.init({
+				container: previewRenderedForm,
+				schema: questions,
+			});
+		}
+	}
+
+	function wirePreviewCharCounters() {
+		if (!previewRenderedForm) return;
+		previewRenderedForm.querySelectorAll(".char-count[data-for]").forEach((counter) => {
+			const field = previewRenderedForm.querySelector("#" + CSS.escape(counter.getAttribute("data-for") || ""));
+			if (!field) return;
+			const max = field.getAttribute("maxlength") ? parseInt(field.getAttribute("maxlength"), 10) : null;
+			const update = () => {
+				const n = String(field.value || "").length;
+				counter.textContent = max != null && Number.isFinite(max) ? `${n} / ${max}` : String(n);
+				counter.style.color = max != null && n >= max ? "#dc2626" : "#64748b";
+			};
+			field.addEventListener("input", update);
+			update();
+		});
+		previewRenderedForm.querySelectorAll('input[type="tel"][maxlength="10"]').forEach((phoneEl) => {
+			phoneEl.addEventListener("input", () => {
+				const digits = String(phoneEl.value || "").replace(/\D/g, "").slice(0, 10);
+				if (phoneEl.value !== digits) phoneEl.value = digits;
+			});
+		});
 	}
 
 	let previewSmartSeq = 0;

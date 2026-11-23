@@ -601,6 +601,118 @@ body.category-theme-workshop .performer-avatar {
     margin: 0;
 }
 
+/* --- Ad Running / Spotlight --- */
+.event-ads-section {
+    margin-top: 0.35rem;
+}
+
+.event-ads-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-bottom: 0.85rem;
+}
+
+.event-ads-eyebrow {
+    display: inline-flex;
+    align-self: flex-start;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ea580c;
+    background: rgba(234, 88, 12, 0.1);
+    border: 1px solid rgba(234, 88, 12, 0.22);
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+}
+
+.event-ads-frame {
+    position: relative;
+    width: min(100%, 540px);
+    margin: 0 auto 0 0;
+    border-radius: 18px;
+    overflow: hidden;
+    background: linear-gradient(145deg, #1c1410 0%, #0f172a 55%, #1e293b 100%);
+    box-shadow: 0 18px 40px -24px rgba(15, 23, 42, 0.55), 0 0 0 1px rgba(234, 88, 12, 0.28);
+    aspect-ratio: 16 / 9;
+}
+
+.event-ads-media {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.event-ads-media img,
+.event-ads-media video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.event-ads-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.62);
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.event-ads-frame.has-many .event-ads-nav {
+    display: inline-flex;
+}
+
+.event-ads-prev { left: 0.65rem; }
+.event-ads-next { right: 0.65rem; }
+
+.event-ads-dots {
+    position: absolute;
+    left: 50%;
+    bottom: 0.7rem;
+    transform: translateX(-50%);
+    display: none;
+    gap: 0.35rem;
+    z-index: 2;
+}
+
+.event-ads-frame.has-many .event-ads-dots {
+    display: flex;
+}
+
+.event-ads-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.45);
+    cursor: pointer;
+}
+
+.event-ads-dot.is-active {
+    background: #ff7a2e;
+    box-shadow: 0 0 0 3px rgba(255, 122, 46, 0.25);
+}
+
+html[data-theme="dark"] .event-ads-eyebrow {
+    color: #ff9a5c;
+    background: rgba(255, 122, 46, 0.14);
+    border-color: rgba(255, 122, 46, 0.3);
+}
+
 /* --- Sponsors --- */
 .sponsors-row {
     display: flex;

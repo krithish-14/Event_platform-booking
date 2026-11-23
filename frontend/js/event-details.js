@@ -528,9 +528,91 @@ function renderEventDOM(event) {
  }
 
  renderEventGallery(event, EP);
+ renderEventAds(event, EP);
  renderEventSponsors(event, EP, escape);
  paintTicketTypes(event);
  bindTicketPruneListener();
+}
+
+let eventAdsTimer = null;
+let eventAdsIndex = 0;
+let eventAdsItems = [];
+
+function collectAdItems(event, EP) {
+ let raw = event ? event.ad_items : null;
+ if (typeof raw === 'string') {
+  try { raw = JSON.parse(raw); } catch (_) { raw = []; }
+ }
+ if (!Array.isArray(raw)) raw = [];
+ return raw.map((item) => {
+  if (typeof item === 'string') {
+   const url = EP ? EP.resolveImage(item) : item;
+   if (!url) return null;
+   const isVid = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+   return { type: isVid ? 'video' : 'image', url: url, title: '' };
+  }
+  if (!item || typeof item !== 'object') return null;
+  const urlRaw = item.url || item.src || item.image_url || '';
+  const url = urlRaw ? (EP ? EP.resolveImage(urlRaw) : urlRaw) : '';
+  if (!url) return null;
+  let type = String(item.type || '').toLowerCase();
+  if (type !== 'image' && type !== 'video') {
+   type = /\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : 'image';
+  }
+  return { type: type, url: url, title: String(item.title || '').trim() };
+ }).filter(Boolean);
+}
+
+function renderEventAds(event, EP) {
+ const section = document.getElementById('adsSection');
+ const media = document.getElementById('adsMedia');
+ const dots = document.getElementById('adsDots');
+ const frame = document.getElementById('adsFrame');
+ if (!section || !media || !frame) return;
+ if (eventAdsTimer) {
+  clearInterval(eventAdsTimer);
+  eventAdsTimer = null;
+ }
+ eventAdsItems = collectAdItems(event, EP);
+ eventAdsIndex = 0;
+ if (!eventAdsItems.length) {
+  section.style.display = 'none';
+  media.innerHTML = '';
+  if (dots) dots.innerHTML = '';
+  frame.classList.remove('has-many');
+  return;
+ }
+ frame.classList.toggle('has-many', eventAdsItems.length > 1);
+ const paint = (idx) => {
+  eventAdsIndex = ((idx % eventAdsItems.length) + eventAdsItems.length) % eventAdsItems.length;
+  const item = eventAdsItems[eventAdsIndex];
+  const safeUrl = EP && EP.escapeHtml ? EP.escapeHtml(item.url) : String(item.url || '');
+  if (item.type === 'video') {
+   media.innerHTML = `<video src="${safeUrl}" autoplay muted loop playsinline></video>`;
+  } else {
+   media.innerHTML = `<img src="${safeUrl}" alt="${EP && EP.escapeHtml ? EP.escapeHtml(item.title || 'Event spotlight') : 'Event spotlight'}" loading="lazy" />`;
+  }
+  if (dots) {
+   dots.querySelectorAll('.event-ads-dot').forEach((dot, i) => {
+    dot.classList.toggle('is-active', i === eventAdsIndex);
+   });
+  }
+ };
+ if (dots) {
+  dots.innerHTML = eventAdsItems.map((_, i) => `<button type="button" class="event-ads-dot${i === 0 ? ' is-active' : ''}" data-ad-index="${i}" aria-label="Ad ${i + 1}"></button>`).join('');
+  dots.querySelectorAll('[data-ad-index]').forEach((btn) => {
+   btn.addEventListener('click', () => paint(Number(btn.dataset.adIndex)));
+  });
+ }
+ const prev = document.getElementById('adsPrev');
+ const next = document.getElementById('adsNext');
+ if (prev) prev.onclick = () => paint(eventAdsIndex - 1);
+ if (next) next.onclick = () => paint(eventAdsIndex + 1);
+ paint(0);
+ section.style.display = '';
+ if (eventAdsItems.length > 1) {
+  eventAdsTimer = setInterval(() => paint(eventAdsIndex + 1), 5500);
+ }
 }
 
 function collectGalleryUrls(event, EP) {

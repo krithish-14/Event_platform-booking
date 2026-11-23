@@ -264,7 +264,7 @@ window.JodAuth = (() => {
 		}
 		if (isHomeDestination(dest)) {
 			queueFeaturedModalAfterLogin();
-			window.location.replace(homeUrlWithFeaturedPopup());
+		window.location.replace(homeUrlWithFeaturedPopup());
 			return;
 		}
 		window.location.replace(prettyUrl(dest));
@@ -1827,7 +1827,7 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 			}
 			if (googleLibraryReady()) {
 				resolve();
-				return;
+			return;
 			}
 			script.addEventListener("load", () => {
 				if (googleLibraryReady()) resolve();
@@ -1907,8 +1907,8 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 		}
 		try {
 			if (!googleGsiInitialized) {
-				window.google.accounts.id.initialize({
-					client_id: googleClientConfig.client_id,
+					window.google.accounts.id.initialize({
+						client_id: googleClientConfig.client_id,
 					callback: (resp) => handleGoogleCredentialResponse(resp, alertEl, btnEl),
 					auto_select: false,
 					cancel_on_tap_outside: true,
@@ -1964,7 +1964,7 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 		try {
 			const res = await fetch(`${getApiBase()}/api/auth/google/config`);
 			if (res.ok) googleClientConfig = await res.json();
-		} catch (_) {}
+				} catch (_) {}
 
 		if (!googleClientConfig.enabled || !googleClientConfig.client_id) {
 			if (tries < 6) {
@@ -2032,8 +2032,8 @@ html[data-theme=dark] .google-complete-card .form-input{background:#241f1a;borde
 	document.addEventListener("click", (e) => {
 		if (e.target.closest(".google-gsi-overlay") && !e.target.closest(".google-gsi-overlay.is-blocked")) {
 			if (!canStartGoogleSignup()) {
-				e.preventDefault();
-				e.stopPropagation();
+			e.preventDefault();
+			e.stopPropagation();
 			} else {
 				rememberGoogleRedirect();
 			}

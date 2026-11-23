@@ -1708,6 +1708,7 @@ class SaveEventDesignRequest(BaseModel):
     sponsor_details: Optional[List[Dict[str, Any]]] = None
     social_links: Optional[Dict[str, Any]] = None
     custom_sections: Optional[List[Dict[str, Any]]] = None
+    ad_items: Optional[List[Dict[str, Any]]] = None
     performers_title: Optional[str] = None
     ticket_template_id: Optional[str] = None
     ticket_layout_json: Optional[Dict[str, Any]] = None
@@ -2191,6 +2192,24 @@ def save_event_design(
     if payload.theme_color: design.theme_color = payload.theme_color
     if payload.font: design.font = payload.font
     if payload.gallery_images is not None: design.gallery_images = payload.gallery_images
+    # Ad Running creatives are stored in custom_sections (no extra DB column needed).
+    if payload.ad_items is not None:
+        cleaned_ads = []
+        for item in payload.ad_items or []:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url") or item.get("src") or "").strip()
+            if not url:
+                continue
+            media_type = str(item.get("type") or "").strip().lower()
+            if media_type not in ("image", "video"):
+                media_type = "video" if any(url.lower().endswith(ext) for ext in (".mp4", ".webm", ".mov")) else "image"
+            cleaned_ads.append({
+                "type": media_type,
+                "url": url,
+                "title": str(item.get("title") or "").strip()[:120],
+            })
+        design.custom_sections = cleaned_ads
     if payload.about_event is not None: design.about_event = sanitize_rich_text(payload.about_event, max_length=20000) or None
     if payload.highlights: design.highlights = payload.highlights
     if payload.speaker_details is not None: design.speaker_details = payload.speaker_details
@@ -2307,6 +2326,7 @@ def save_event_design(
             "speaker_details": design.speaker_details,
             "sponsor_details": design.sponsor_details,
             "gallery_images": design.gallery_images,
+            "ad_items": design.custom_sections if isinstance(design.custom_sections, list) else [],
             "performers_title": design.performers_title,
             "ticket_template_id": design.ticket_template_id or "classic",
             "ticket_layout_json": design.ticket_layout_json,
@@ -2337,6 +2357,8 @@ async def upload_design_asset(
         "sponsor_logo",
         "artist_photo",
         "gallery",
+        "ad_image",
+        "ad_video",
         "ticket",
         "ticket_bg",
         "logo",
@@ -2345,7 +2367,13 @@ async def upload_design_asset(
     if asset_type not in allowed_types:
         raise HTTPException(status_code=400, detail=f"Invalid asset_type. Allowed: {', '.join(sorted(allowed_types))}")
 
-    if not is_allowed_image_filename(file.filename or ""):
+    is_video = asset_type == "ad_video"
+    filename = file.filename or (f"{asset_type}.mp4" if is_video else f"{asset_type}.jpg")
+    if is_video:
+        lower_name = filename.lower()
+        if not lower_name.endswith((".mp4", ".webm", ".mov")):
+            raise HTTPException(status_code=400, detail="Ad video must be MP4, WEBM, or MOV.")
+    elif not is_allowed_image_filename(filename):
         raise HTTPException(status_code=400, detail=INVALID_IMAGE_TYPE_MESSAGE)
 
     contents = await file.read()
@@ -2354,7 +2382,7 @@ async def upload_design_asset(
     )
     if len(contents) < min_bytes or len(contents) > max_bytes:
         raise HTTPException(status_code=400, detail=size_message)
-    if not is_allowed_image_bytes(contents, file.content_type or ""):
+    if not is_video and not is_allowed_image_bytes(contents, file.content_type or ""):
         raise HTTPException(status_code=400, detail=INVALID_IMAGE_TYPE_MESSAGE)
 
     from Services.file_storage import public_url, store_bytes, store_public_image
@@ -2369,6 +2397,8 @@ async def upload_design_asset(
         "sponsor_logo",
         "artist_photo",
         "gallery",
+        "ad_image",
+        "ad_video",
         "ticket",
         "ticket_bg",
         "logo",
@@ -2376,11 +2406,19 @@ async def upload_design_asset(
     } and r2_storage.is_configured()
 
     try:
-        if use_public_cdn:
+        if is_video and use_public_cdn:
+            file_url = r2_storage.upload_public_file(
+                data=contents,
+                filename=filename,
+                content_type=file.content_type or "video/mp4",
+                purpose=asset_type,
+                owner_customer_id=current_user.customer_id if current_user else None,
+            )
+        elif use_public_cdn:
             file_url = store_public_image(
                 db,
                 data=contents,
-                filename=file.filename or f"{asset_type}.jpg",
+                filename=filename,
                 content_type=file.content_type,
                 purpose=asset_type,
                 owner_customer_id=current_user.customer_id if current_user else None,
@@ -2390,7 +2428,7 @@ async def upload_design_asset(
             stored = store_bytes(
                 db,
                 data=contents,
-                filename=file.filename or f"{asset_type}.jpg",
+                filename=filename,
                 content_type=file.content_type,
                 kind="event_media",
                 purpose=asset_type,
@@ -2400,6 +2438,8 @@ async def upload_design_asset(
             file_url = public_url(stored)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
     db.commit()
     return {
         "message": f"{asset_type.replace('_', ' ').title()} uploaded successfully.",
@@ -2571,6 +2611,7 @@ def get_current_host_event(
             "speaker_details": design.speaker_details if design else [],
             "sponsor_details": design.sponsor_details if design else [],
             "gallery_images": design.gallery_images if design else [],
+            "ad_items": (design.custom_sections if design and isinstance(design.custom_sections, list) else []),
             "performers_title": design.performers_title if design else None,
             "ticket_template_id": (design.ticket_template_id if design else None) or "classic",
             "ticket_layout_json": design.ticket_layout_json if design else None,

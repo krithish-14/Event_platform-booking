@@ -3805,6 +3805,14 @@ html[data-theme="dark"] .setup-form-group label {
 	color: #FFA136;
 }
 
+html[data-theme="dark"] .theme-exempt .setup-form-group label,
+html[data-theme="dark"] .theme-exempt label,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .setup-form-group label,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt label {
+	color: #0f172a !important;
+	-webkit-text-fill-color: #0f172a !important;
+}
+
 html[data-theme="dark"] .desc-editor {
 	background: #1a1612;
 	border-color: rgba(255, 138, 31, 0.32);

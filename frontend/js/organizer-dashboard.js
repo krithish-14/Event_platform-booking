@@ -421,6 +421,7 @@ async function initOrganizerDashboard() {
 	let detailsBannerImageUrl = null;
 	let cardImageUrl = null;
 	let galleryImageUrls = [];
+	let adItems = [];
 	let pendingHostDesignData = null;
 	let pendingManageEvent = null;
 	let pendingRegistrationForm = null;
@@ -1634,13 +1635,25 @@ async function initOrganizerDashboard() {
 		if (!file || !email) throw new Error("Missing file or organizer email.");
 		const opts = options || {};
 		const isTicketBg = assetType === "ticket_bg";
-		await validateImageFile(file, {
-			requireBannerSize: assetType === "banner" || assetType === "details_banner",
-			requireCardSize: assetType === "card_image",
-			requireTicketBgSize: isTicketBg || !!opts.requireTicketBgSize,
-			ticketBgOrientation: opts.ticketBgOrientation || "landscape",
-			limitKey: assetType
-		});
+		const isVideo = assetType === "ad_video";
+		if (!isVideo) {
+			await validateImageFile(file, {
+				requireBannerSize: assetType === "banner" || assetType === "details_banner",
+				requireCardSize: assetType === "card_image",
+				requireTicketBgSize: isTicketBg || !!opts.requireTicketBgSize,
+				ticketBgOrientation: opts.ticketBgOrientation || "landscape",
+				limitKey: assetType === "ad_image" ? "gallery" : assetType
+			});
+		} else {
+			const name = String(file.name || "").toLowerCase();
+			const mime = String(file.type || "").toLowerCase();
+			const okExt = /\.(mp4|webm|mov)$/i.test(name);
+			const okMime = !mime || mime.startsWith("video/");
+			if (!okExt || !okMime) throw new Error("Use MP4, WEBM, or MOV for ad videos.");
+			const maxBytes = 40 * 1024 * 1024;
+			if (file.size > maxBytes) throw new Error("Ad video must be 40 MB or smaller.");
+			if (file.size < 50 * 1024) throw new Error("Ad video looks too small. Please upload a real video file.");
+		}
 		const fd = new FormData();
 		fd.append("email", email);
 		fd.append("asset_type", assetType);
@@ -1654,12 +1667,12 @@ async function initOrganizerDashboard() {
 				body: fd
 			});
 		} catch (networkErr) {
-			throw new Error("Could not upload the image. Check your connection and try again.");
+			throw new Error(isVideo ? "Could not upload the video. Check your connection and try again." : "Could not upload the image. Check your connection and try again.");
 		}
 		const data = await res.json().catch(() => ({}));
 		if (!res.ok) {
 			const detail = data.detail;
-			const text = typeof detail === "string" ? detail : IMAGE_TYPE_MSG;
+			const text = typeof detail === "string" ? detail : (isVideo ? "Could not upload video." : IMAGE_TYPE_MSG);
 			throw new Error(text);
 		}
 		return data.file_url;
@@ -2940,6 +2953,8 @@ async function initOrganizerDashboard() {
 		detailsBannerImageUrl = null;
 		cardImageUrl = null;
 		galleryImageUrls = [];
+		adItems = [];
+		if (typeof window.__jodApplyAdItems === "function") window.__jodApplyAdItems([]);
 		const ticketStudio = document.getElementById("ticketDesignStudioHost");
 		if (ticketStudio) ticketStudio.innerHTML = "";
 		if (createEventForm) createEventForm.reset();
@@ -5954,7 +5969,8 @@ async function initOrganizerDashboard() {
 			banner_image: bannerImageUrl || undefined,
 			details_banner_image: detailsBannerImageUrl || "",
 			card_image: cardImageUrl || "",
-			gallery_images: galleryImageUrls.length ? galleryImageUrls : undefined,
+			gallery_images: Array.isArray(galleryImageUrls) ? galleryImageUrls : [],
+			ad_items: Array.isArray(adItems) ? adItems : [],
 			sponsor_details: collectSponsorDetails(),
 			speaker_details: collectSpeakerDetails(),
 			performers_title: collectPerformersTitle(),
@@ -8004,6 +8020,134 @@ async function initOrganizerDashboard() {
 		});
 		renderGalleryHint();
 
+		// Dynamic Ad Running media (images + videos)
+		const adsDropzone = document.getElementById("adsDropzone");
+		const adsFileInput = document.getElementById("adsFileInput");
+		const adsThumbnailsGrid = document.getElementById("adsThumbnailsGrid");
+		const maxAdItems = 6;
+		const adsHintClass = "ads-empty-hint";
+
+		const renderAdsHint = () => {
+			if (!adsThumbnailsGrid) return;
+			if (!adsThumbnailsGrid.querySelector(".ads-thumb-item")) {
+				adsThumbnailsGrid.innerHTML = `<div class="${adsHintClass}" style="grid-column:1/-1;color:#64748b;font-size:0.92rem;padding:1rem;border:1px dashed #cbd5e1;border-radius:12px;text-align:center;">No ads yet. Upload images or short videos for the event details promo strip.</div>`;
+			}
+		};
+		const clearAdsHint = () => {
+			const hint = adsThumbnailsGrid && adsThumbnailsGrid.querySelector(`.${adsHintClass}`);
+			if (hint) hint.remove();
+		};
+		const normalizeAdItem = (item) => {
+			if (!item) return null;
+			if (typeof item === "string") {
+				const url = item.trim();
+				if (!url) return null;
+				const isVid = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+				return { type: isVid ? "video" : "image", url: url, title: "" };
+			}
+			if (typeof item === "object") {
+				const url = String(item.url || item.src || item.image_url || "").trim();
+				if (!url) return null;
+				let type = String(item.type || "").toLowerCase();
+				if (type !== "image" && type !== "video") {
+					type = /\.(mp4|webm|mov)(\?|$)/i.test(url) ? "video" : "image";
+				}
+				return { type: type, url: url, title: String(item.title || "").trim() };
+			}
+			return null;
+		};
+		const renderAdThumbs = () => {
+			if (!adsThumbnailsGrid) return;
+			adsThumbnailsGrid.innerHTML = "";
+			if (!adItems.length) {
+				renderAdsHint();
+				return;
+			}
+			adItems.forEach((raw, idx) => {
+				const item = normalizeAdItem(raw);
+				if (!item) return;
+				const thumbDiv = document.createElement("div");
+				thumbDiv.className = "ads-thumb-item";
+				thumbDiv.dataset.idx = String(idx);
+				thumbDiv.style.cssText = "position:relative;height:120px;border-radius:10px;overflow:hidden;border:1px solid #cbd5e1;background:#0f172a;";
+				if (item.type === "video") {
+					const vid = document.createElement("video");
+					vid.src = resolveUploadUrl(item.url);
+					vid.muted = true;
+					vid.playsInline = true;
+					vid.preload = "metadata";
+					vid.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+					thumbDiv.appendChild(vid);
+					const badge = document.createElement("span");
+					badge.textContent = "VIDEO";
+					badge.style.cssText = "position:absolute;left:8px;bottom:8px;background:rgba(15,23,42,0.85);color:#fff;font-size:0.68rem;font-weight:800;padding:0.15rem 0.45rem;border-radius:999px;";
+					thumbDiv.appendChild(badge);
+				} else {
+					const img = document.createElement("img");
+					img.alt = item.title || "Ad image";
+					img.src = resolveUploadUrl(item.url);
+					img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+					thumbDiv.appendChild(img);
+				}
+				const removeBtn = document.createElement("button");
+				removeBtn.type = "button";
+				removeBtn.innerHTML = "&times;";
+				removeBtn.style.cssText = "position:absolute;top:5px;right:5px;background:rgba(220,38,38,0.85);color:#fff;border:none;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:0.8rem;font-weight:800;";
+				removeBtn.addEventListener("click", () => {
+					adItems.splice(idx, 1);
+					renderAdThumbs();
+					triggerLiveAutoSave();
+				});
+				thumbDiv.appendChild(removeBtn);
+				adsThumbnailsGrid.appendChild(thumbDiv);
+			});
+		};
+		window.__jodApplyAdItems = (items) => {
+			adItems = (Array.isArray(items) ? items : []).map(normalizeAdItem).filter(Boolean);
+			renderAdThumbs();
+		};
+		const handleAdFiles = async (files) => {
+			const host = document.getElementById("adsUploadHost");
+			setInlineUploadError(host, "");
+			const room = Math.max(0, maxAdItems - adItems.length);
+			if (!room) {
+				setInlineUploadError(host, `You can upload up to ${maxAdItems} ads.`);
+				return;
+			}
+			const selected = Array.from(files || []).slice(0, room);
+			for (const file of selected) {
+				try {
+					const isVideo = String(file.type || "").startsWith("video/") || /\.(mp4|webm|mov)$/i.test(file.name || "");
+					const url = await uploadDesignAsset(file, isVideo ? "ad_video" : "ad_image");
+					adItems.push({ type: isVideo ? "video" : "image", url: url, title: "" });
+					renderAdThumbs();
+				} catch (err) {
+					setInlineUploadError(host, formatDesignUploadError(err));
+				}
+			}
+			triggerLiveAutoSave();
+		};
+		if (adsDropzone && adsFileInput && adsThumbnailsGrid) {
+			adsDropzone.addEventListener("click", () => adsFileInput.click());
+			adsDropzone.addEventListener("dragover", (event) => {
+				event.preventDefault();
+				adsDropzone.style.borderColor = "#ea580c";
+			});
+			adsDropzone.addEventListener("dragleave", () => {
+				adsDropzone.style.borderColor = "#cbd5e1";
+			});
+			adsDropzone.addEventListener("drop", (event) => {
+				event.preventDefault();
+				adsDropzone.style.borderColor = "#cbd5e1";
+				if (event.dataTransfer && event.dataTransfer.files) handleAdFiles(event.dataTransfer.files);
+			});
+			adsFileInput.addEventListener("change", (e) => {
+				handleAdFiles(e.target.files);
+				adsFileInput.value = "";
+			});
+			renderAdsHint();
+		}
+
 		function applyPendingHostDesign() {
 			if (!pendingHostDesignData) return;
 			const d = pendingHostDesignData;
@@ -8042,10 +8186,17 @@ async function initOrganizerDashboard() {
 				banner_image: d.details_banner_image || d.banner_image,
 				details_banner_image: d.details_banner_image || undefined
 			});
-			if (d.gallery_images && Array.isArray(d.gallery_images) && d.gallery_images.length) {
+			if (Array.isArray(d.gallery_images)) {
 				galleryImageUrls = d.gallery_images.slice();
 				galleryThumbnailsGrid.innerHTML = "";
-				d.gallery_images.forEach((url) => addThumbnail(url));
+				if (galleryImageUrls.length) {
+					galleryImageUrls.forEach((url) => addThumbnail(url));
+				} else {
+					renderGalleryHint();
+				}
+			}
+			if (typeof window.__jodApplyAdItems === "function") {
+				window.__jodApplyAdItems(Array.isArray(d.ad_items) ? d.ad_items : (Array.isArray(d.custom_sections) ? d.custom_sections : []));
 			}
 			populateDesignRows(d.sponsor_details || [], d.speaker_details || []);
 			applyPerformersTitle(d.performers_title || "");
@@ -8060,6 +8211,10 @@ async function initOrganizerDashboard() {
 			pendingHostDesignData.sponsor_details || [],
 			pendingHostDesignData.speaker_details || []
 		);
+		if (typeof window.__jodApplyAdItems === "function") {
+			const d = pendingHostDesignData;
+			window.__jodApplyAdItems(Array.isArray(d.ad_items) ? d.ad_items : (Array.isArray(d.custom_sections) ? d.custom_sections : []));
+		}
 		hydrateTicketLayoutFromDesign(pendingHostDesignData, activeEventId);
 		pendingHostDesignData = null;
 		ensureTicketCanvas();

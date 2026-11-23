@@ -58,7 +58,7 @@ html[data-theme="dark"] body.category-page .site-header {
 }
 
 html[data-theme="dark"] .header-back-btn {
-	background: #3f4754;
+	background: #2a221c;
 	border-color: rgba(255, 122, 46, 0.28);
 	color: #ffffff;
 }
@@ -110,7 +110,7 @@ html[data-theme="dark"] .header-search input::placeholder {
 
 html[data-theme="dark"] .search-suggestions,
 html[data-theme="dark"] .profile-dropdown {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.22) !important;
 	color: #f4f5f7 !important;
 }
@@ -139,7 +139,7 @@ html[data-theme="dark"] .pd-item:hover {
 html[data-theme="dark"] .button-login,
 html[data-theme="dark"] .button-ghost,
 html[data-theme="dark"] .carousel-arrow {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.28) !important;
 }
@@ -174,7 +174,7 @@ html[data-theme="dark"] .card-category {
 
 /* --- Home FAQ: hover must not go cream/white --- */
 html[data-theme="dark"] .faq-list {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.28) !important;
 }
 
@@ -245,7 +245,7 @@ html[data-theme="dark"] .help-faq-item,
 html[data-theme="dark"] .support-card,
 html[data-theme="dark"] .ticket-panel,
 html[data-theme="dark"] .lookup-card {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.22) !important;
 }
@@ -297,7 +297,7 @@ html[data-theme="dark"] .host-card-grid-pink .host-card,
 html[data-theme="dark"] .host-card:hover,
 html[data-theme="dark"] .host-card-grid-blue .host-card:hover,
 html[data-theme="dark"] .host-card-grid-pink .host-card:hover {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.28) !important;
 	color: #f4f5f7 !important;
 }
@@ -361,7 +361,7 @@ html[data-theme="dark"] .category-main {
 
 html[data-theme="dark"] .cat-sidebar,
 html[data-theme="dark"] .filter-sidebar {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.22) !important;
 	color: #f4f5f7 !important;
 	box-shadow: none !important;
@@ -393,7 +393,7 @@ html[data-theme="dark"] .filter-chip.active {
 }
 
 html[data-theme="dark"] .cat-event-card {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.22) !important;
 }
 
@@ -403,7 +403,7 @@ html[data-theme="dark"] .cat-card-cat-badge {
 }
 
 html[data-theme="dark"] .cat-empty-state {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	color: #f4f5f7 !important;
 }
 
@@ -444,7 +444,7 @@ html[data-theme="dark"] .performer-card,
 html[data-theme="dark"] .tickets-section,
 html[data-theme="dark"] .ticket-type-option,
 html[data-theme="dark"] .event-hero-banner {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.28) !important;
 	color: #f4f5f7 !important;
 }
@@ -526,6 +526,15 @@ html[data-theme="dark"] .setup-form-group label {
 	color: #ff9a5c !important;
 }
 
+/* Attendee form preview / published form cards keep their own contrast */
+html[data-theme="dark"] .theme-exempt .setup-form-group label,
+html[data-theme="dark"] .theme-exempt label,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .setup-form-group label,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt label {
+	color: #0f172a !important;
+	-webkit-text-fill-color: #0f172a !important;
+}
+
 html[data-theme="dark"] .format-pill {
 	background: #1a1612 !important;
 	color: #f4f5f7 !important;
@@ -551,7 +560,7 @@ html[data-theme="dark"] .sidebar-item.active {
 
 html[data-theme="dark"] .rich-form-container,
 html[data-theme="dark"] .kpi-card {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.22) !important;
 }
@@ -564,7 +573,7 @@ html[data-theme="dark"] .dash-topbar {
 
 html[data-theme="dark"] .venue-map-hint,
 html[data-theme="dark"] .crop-modal-card {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	color: #d4cbbf !important;
 	border-top-color: rgba(255, 122, 46, 0.22) !important;
 }
@@ -575,8 +584,8 @@ html[data-theme="dark"] .payment-card,
 html[data-theme="dark"] .bill-card,
 html[data-theme="dark"] .qr-pay-card,
 html[data-theme="dark"] .proof-card {
-	background: #3f4754 !important;
-	background-color: #3f4754 !important;
+	background: #2a221c !important;
+	background-color: #2a221c !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.28) !important;
 }
@@ -623,7 +632,7 @@ html[data-theme="dark"] .btn-cancel-order:hover {
 html[data-theme="dark"] {
 	--dash-sidebar-bg: #161310;
 	--dash-main-bg: #0f0d0b;
-	--dash-card-bg: #3f4754;
+	--dash-card-bg: #2a221c; /* warm espresso surface (replaces cool slate grey) */
 	--dash-border: rgba(255, 122, 46, 0.22);
 	--dash-primary: #ff7a2e;
 	--dash-primary-hover: #ff9a5c;
@@ -652,8 +661,8 @@ html[data-theme="dark"] body.dashboard-body .avatar-upload-card,
 html[data-theme="dark"] body.dashboard-body .venue-map-panel,
 html[data-theme="dark"] body.dashboard-body .venue-map-hint,
 html[data-theme="dark"] body.dashboard-body .venue-map-actions {
-	background: #3f4754 !important;
-	background-color: #3f4754 !important;
+	background: #2a221c !important;
+	background-color: #2a221c !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.24) !important;
 }
@@ -663,7 +672,7 @@ html[data-theme="dark"] body.dashboard-body .venue-map-status {
 }
 
 html[data-theme="dark"] body.dashboard-body .venue-adjust-btn {
-	background: #3f4754;
+	background: #2a221c;
 	border-color: rgba(255, 122, 46, 0.32);
 	color: #f4f5f7;
 }
@@ -733,7 +742,7 @@ html[data-theme="dark"] body.dashboard-body .registrations-header-row {
 }
 
 html[data-theme="dark"] body.dashboard-body .subtab-switcher {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.22) !important;
 }
 
@@ -840,8 +849,8 @@ html[data-theme="dark"] body.dashboard-body *:not(.theme-exempt):not(.theme-exem
 html[data-theme="dark"] body.dashboard-body *:not(.theme-exempt):not(.theme-exempt *)[style*="background: #fff;"],
 html[data-theme="dark"] body.dashboard-body *:not(.theme-exempt):not(.theme-exempt *)[style*="background:#eff6ff"],
 html[data-theme="dark"] body.dashboard-body *:not(.theme-exempt):not(.theme-exempt *)[style*="background: #eff6ff"] {
-	background: #3f4754 !important;
-	background-color: #3f4754 !important;
+	background: #2a221c !important;
+	background-color: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.24) !important;
 }
 
@@ -884,7 +893,7 @@ html[data-theme="dark"] body.dashboard-body .doc-dropzone span {
 }
 
 html[data-theme="dark"] .priority-pill {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	color: #d4cbbf !important;
 	border-color: rgba(255, 122, 46, 0.28) !important;
 }
@@ -914,7 +923,7 @@ html[data-theme="dark"] .ticket-card,
 html[data-theme="dark"] .help-field input,
 html[data-theme="dark"] .help-field select,
 html[data-theme="dark"] .help-field textarea {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	color: #f4f5f7 !important;
 	border-color: rgba(255, 122, 46, 0.28) !important;
 }
@@ -948,7 +957,7 @@ html[data-theme="dark"] .wizard-step.active {
 
 html[data-theme="dark"] .setup-card-container,
 html[data-theme="dark"] .doc-modal-card {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	color: #f4f5f7 !important;
 	border: 1px solid rgba(255, 122, 46, 0.22);
 	box-shadow: none !important;
@@ -1032,7 +1041,7 @@ html[data-theme="dark"] .setup-wrapper .view-example-link {
 
 html[data-theme="dark"] .btn-setup-back,
 html[data-theme="dark"] .btn-setup-secondary {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: #ff7a2e !important;
 	color: #ff9a5c !important;
 }
@@ -1054,8 +1063,8 @@ html[data-theme="dark"] body.dashboard-body #sectionDesign [style*="rgb(248, 250
 html[data-theme="dark"] body.dashboard-body #sectionRegistrations *:not(.theme-exempt):not(.theme-exempt *)[style*="rgb(255, 255, 255)"],
 html[data-theme="dark"] body.dashboard-body #sectionRegistrations *:not(.theme-exempt):not(.theme-exempt *)[style*="rgb(248, 250, 252)"],
 html[data-theme="dark"] body.dashboard-body #sectionRegistrations *:not(.theme-exempt):not(.theme-exempt *)[style*="rgb(241, 245, 249)"] {
-	background: #3f4754 !important;
-	background-color: #3f4754 !important;
+	background: #2a221c !important;
+	background-color: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.24) !important;
 	color: #f4f5f7 !important;
 	box-shadow: none !important;
@@ -1122,7 +1131,7 @@ html[data-theme="dark"] body.admin-portal-body .admin-stat,
 html[data-theme="dark"] body.admin-portal-body .admin-block-count,
 html[data-theme="dark"] body.admin-portal-body .admin-table-card,
 html[data-theme="dark"] body.admin-portal-body .admin-modal-card {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.22) !important;
 	color: #f4f5f7 !important;
 }
@@ -1254,7 +1263,7 @@ html[data-theme="dark"] .info-details-btn {
 html[data-theme="dark"] .history-event-row,
 html[data-theme="dark"] .history-detail-panel,
 html[data-theme="dark"] .history-report-card {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	border-color: rgba(255, 122, 46, 0.22) !important;
 }
 html[data-theme="dark"] .history-event-row:hover,
@@ -1285,7 +1294,7 @@ html[data-theme="dark"] .history-page-header {
 
 html[data-theme="dark"] .agenda-page-card,
 html[data-theme="dark"] .agenda-stop-card {
-	background: #3f4754 !important;
+	background: #2a221c !important;
 	color: #ffffff !important;
 	border-color: rgba(255, 122, 46, 0.22) !important;
 }
@@ -1312,4 +1321,128 @@ html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-c
 html[data-theme="dark"] *:not(.theme-exempt):not(.theme-exempt *):not(.mticket-card):not(.mticket-card *)[style*="color:#1e2a3a"] {
 	color: #ffffff !important;
 	-webkit-text-fill-color: #ffffff !important;
+}
+
+/* ── Attendee form surfaces (builder preview + published form) ──
+   Keep light registration cards readable when the dashboard/site is in dark mode.
+   Dark form themes opt in via data-preview-scheme="dark". */
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt #previewCardContainer,
+html[data-theme="dark"] .theme-exempt.pub-form-card,
+html[data-theme="dark"] #formCard.theme-exempt {
+	color: #0f172a !important;
+}
+
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt #previewTitle,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt h3,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt label,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .setup-form-group label,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .question-label,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt span:not(.req-star),
+html[data-theme="dark"] .theme-exempt.pub-form-card .question-label,
+html[data-theme="dark"] .theme-exempt.pub-form-card label,
+html[data-theme="dark"] #formCard.theme-exempt .question-label,
+html[data-theme="dark"] #formCard.theme-exempt label,
+html[data-theme="dark"] #formCard.theme-exempt #pubFormTitle {
+	color: #0f172a !important;
+	-webkit-text-fill-color: #0f172a !important;
+}
+
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt #previewDesc,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt p,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .help-text,
+html[data-theme="dark"] #formCard.theme-exempt #pubFormDesc,
+html[data-theme="dark"] #formCard.theme-exempt .help-text {
+	color: #64748b !important;
+	-webkit-text-fill-color: #64748b !important;
+}
+
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt input,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt select,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt textarea,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .setup-input,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .setup-select,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .setup-textarea,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .form-input,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .form-select,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .form-textarea,
+html[data-theme="dark"] #formCard.theme-exempt input,
+html[data-theme="dark"] #formCard.theme-exempt select,
+html[data-theme="dark"] #formCard.theme-exempt textarea,
+html[data-theme="dark"] #formCard.theme-exempt .form-input,
+html[data-theme="dark"] #formCard.theme-exempt .form-select,
+html[data-theme="dark"] #formCard.theme-exempt .form-textarea {
+	background: #ffffff !important;
+	background-color: #ffffff !important;
+	color: #0f172a !important;
+	-webkit-text-fill-color: #0f172a !important;
+	border-color: #cbd5e1 !important;
+	caret-color: #0f172a !important;
+	box-shadow: none !important;
+	color-scheme: light;
+}
+
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt input::placeholder,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt textarea::placeholder,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .setup-input::placeholder,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt .setup-textarea::placeholder,
+html[data-theme="dark"] #formCard.theme-exempt input::placeholder,
+html[data-theme="dark"] #formCard.theme-exempt textarea::placeholder {
+	color: #94a3b8 !important;
+	-webkit-text-fill-color: #94a3b8 !important;
+	opacity: 1 !important;
+}
+
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt select option,
+html[data-theme="dark"] #formCard.theme-exempt select option {
+	background: #ffffff !important;
+	color: #0f172a !important;
+}
+
+/* Dark-themed registration cards (host chose a dark card color) */
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"],
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] #previewCardContainer,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] {
+	color: #ffffff !important;
+}
+
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] #previewTitle,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] h3,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] label,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] .setup-form-group label,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] span:not(.req-star),
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] .question-label,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] label,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] #pubFormTitle {
+	color: #ffffff !important;
+	-webkit-text-fill-color: #ffffff !important;
+}
+
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] #previewDesc,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] p,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] #pubFormDesc,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] .help-text {
+	color: #94a3b8 !important;
+	-webkit-text-fill-color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] input,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] select,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] textarea,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] .setup-input,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] .setup-select,
+html[data-theme="dark"] #livePreviewWrapper.theme-exempt[data-preview-scheme="dark"] .setup-textarea,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] input,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] select,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] textarea,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] .form-input,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] .form-select,
+html[data-theme="dark"] #formCard.theme-exempt[data-preview-scheme="dark"] .form-textarea {
+	background: #1a1612 !important;
+	background-color: #1a1612 !important;
+	color: #f4f5f7 !important;
+	-webkit-text-fill-color: #f4f5f7 !important;
+	border-color: rgba(255, 122, 46, 0.35) !important;
+	caret-color: #ff9a5c !important;
+	color-scheme: dark;
 }

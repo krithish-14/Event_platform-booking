@@ -45,6 +45,8 @@ ASSET_FILE_LIMITS = {
     "sponsor_logo": (50 * _KB, 1 * _MB, "Sponsor logo must be 50 KB to 1 MB. Recommended 50-200 KB."),
     "artist_photo": (200 * _KB, 2 * _MB, "Artist photo must be 200 KB to 2 MB. Recommended 200-500 KB."),
     "gallery": (500 * _KB, 5 * _MB, "Gallery photo must be 500 KB to 5 MB. Recommended 500 KB-1.5 MB."),
+    "ad_image": (100 * _KB, 5 * _MB, "Ad image must be 100 KB to 5 MB. Recommended landscape 16:9."),
+    "ad_video": (50 * _KB, 40 * _MB, "Ad video must be under 40 MB. Use MP4/WEBM/MOV."),
     "ticket": (200 * _KB, 3 * _MB, "Ticket image must be 200 KB to 3 MB. Recommended 200-800 KB."),
     "ticket_bg": (
         1 * _MB,
