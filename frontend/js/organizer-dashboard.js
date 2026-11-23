@@ -422,6 +422,7 @@ async function initOrganizerDashboard() {
 	let cardImageUrl = null;
 	let galleryImageUrls = [];
 	let adItems = [];
+	let adsReady = false; // prevent autosave from wiping ads before hydrate
 	let pendingHostDesignData = null;
 	let pendingManageEvent = null;
 	let pendingRegistrationForm = null;
@@ -2954,6 +2955,7 @@ async function initOrganizerDashboard() {
 		cardImageUrl = null;
 		galleryImageUrls = [];
 		adItems = [];
+		adsReady = false;
 		if (typeof window.__jodApplyAdItems === "function") window.__jodApplyAdItems([]);
 		const ticketStudio = document.getElementById("ticketDesignStudioHost");
 		if (ticketStudio) ticketStudio.innerHTML = "";
@@ -5970,13 +5972,17 @@ async function initOrganizerDashboard() {
 			details_banner_image: detailsBannerImageUrl || "",
 			card_image: cardImageUrl || "",
 			gallery_images: Array.isArray(galleryImageUrls) ? galleryImageUrls : [],
-			ad_items: Array.isArray(adItems) ? adItems : [],
 			sponsor_details: collectSponsorDetails(),
 			speaker_details: collectSpeakerDetails(),
 			performers_title: collectPerformersTitle(),
 			about_event: readAboutEventHtml() || undefined,
 			sync_live: syncLive ? true : undefined
 		};
+		// Only send ad_items after Design ads UI has hydrated; otherwise empty []
+		// from early autosave wipes previously saved Spotlight creatives.
+		if (adsReady) {
+			payload.ad_items = Array.isArray(adItems) ? adItems : [];
+		}
 
 		try {
 			const res = await fetch(`${HOST_EVENTS_API_BASE}/design`, {
@@ -8104,6 +8110,7 @@ async function initOrganizerDashboard() {
 		};
 		window.__jodApplyAdItems = (items) => {
 			adItems = (Array.isArray(items) ? items : []).map(normalizeAdItem).filter(Boolean);
+			adsReady = true;
 			renderAdThumbs();
 		};
 		const handleAdFiles = async (files) => {
@@ -8119,6 +8126,7 @@ async function initOrganizerDashboard() {
 				try {
 					const isVideo = String(file.type || "").startsWith("video/") || /\.(mp4|webm|mov)$/i.test(file.name || "");
 					const url = await uploadDesignAsset(file, isVideo ? "ad_video" : "ad_image");
+					adsReady = true;
 					adItems.push({ type: isVideo ? "video" : "image", url: url, title: "" });
 					renderAdThumbs();
 				} catch (err) {
@@ -8204,6 +8212,9 @@ async function initOrganizerDashboard() {
 			pendingHostDesignData = null;
 		}
 		applyPendingHostDesign();
+		if (typeof window.__jodApplyAdItems === "function" && !adsReady) {
+			window.__jodApplyAdItems([]);
+		}
 		ensureTicketCanvas();
 	} else if (pendingHostDesignData) {
 		applyPerformersTitle(pendingHostDesignData.performers_title || "");
@@ -8217,8 +8228,14 @@ async function initOrganizerDashboard() {
 		}
 		hydrateTicketLayoutFromDesign(pendingHostDesignData, activeEventId);
 		pendingHostDesignData = null;
+		if (typeof window.__jodApplyAdItems === "function" && !adsReady) {
+			window.__jodApplyAdItems([]);
+		}
 		ensureTicketCanvas();
 	} else {
+		if (typeof window.__jodApplyAdItems === "function" && !adsReady) {
+			window.__jodApplyAdItems([]);
+		}
 		ensureTicketCanvas();
 	}
 
