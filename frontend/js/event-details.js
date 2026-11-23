@@ -549,7 +549,7 @@ function ensureAdVideoLightbox() {
  box.innerHTML = [
   '<button type="button" class="ad-video-lightbox-close" id="adVideoLightboxClose" aria-label="Close video">&times;</button>',
   '<div class="ad-video-lightbox-stage">',
-  '<video id="adVideoLightboxPlayer" controls playsinline></video>',
+  '<video id="adVideoLightboxPlayer" controls playsinline loop autoplay></video>',
   '</div>'
  ].join('');
  document.body.appendChild(box);
@@ -584,6 +584,7 @@ function openAdVideoLightbox(url) {
  player.src = url;
  player.muted = false;
  player.volume = 1;
+ player.loop = true;
  box.hidden = false;
  document.body.classList.add('ad-video-lightbox-open');
  const play = () => player.play().catch(() => {});
@@ -663,27 +664,19 @@ function renderEventAds(event, EP) {
   const item = eventAdsItems[eventAdsIndex];
   const safeUrl = EP && EP.escapeHtml ? EP.escapeHtml(item.url) : String(item.url || '');
   if (item.type === 'video') {
-   media.innerHTML = [
-    `<video class="event-ads-video" src="${safeUrl}" autoplay muted loop playsinline preload="auto"></video>`,
-    '<button type="button" class="event-ads-sound-btn" aria-label="Play with sound">Tap for sound</button>'
-   ].join('');
+   media.innerHTML = `<video class="event-ads-video" src="${safeUrl}" autoplay muted loop playsinline preload="auto"></video>`;
    const vid = media.querySelector('video');
-   const soundBtn = media.querySelector('.event-ads-sound-btn');
    const expand = () => openAdVideoLightbox(item.url);
    if (vid) {
     vid.muted = true;
     vid.setAttribute('muted', '');
+    vid.loop = true;
     vid.playsInline = true;
     const tryPlay = () => { vid.play().catch(() => {}); };
     vid.addEventListener('loadeddata', tryPlay);
     tryPlay();
     vid.addEventListener('click', expand);
    }
-   if (soundBtn) soundBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    expand();
-   });
   } else {
    media.innerHTML = `<img src="${safeUrl}" alt="${EP && EP.escapeHtml ? EP.escapeHtml(item.title || 'Event spotlight') : 'Event spotlight'}" loading="lazy" />`;
   }

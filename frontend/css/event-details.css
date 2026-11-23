@@ -656,28 +656,6 @@ body.category-theme-workshop .performer-avatar {
     cursor: pointer;
 }
 
-.event-ads-sound-btn {
-    position: absolute;
-    left: 50%;
-    bottom: 0.85rem;
-    transform: translateX(-50%);
-    z-index: 3;
-    border: none;
-    border-radius: 999px;
-    padding: 0.45rem 0.9rem;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    color: #fff;
-    background: rgba(15, 23, 42, 0.72);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
-    cursor: pointer;
-}
-
-.event-ads-sound-btn:hover {
-    background: rgba(234, 88, 12, 0.92);
-}
-
 .ad-video-lightbox {
     position: fixed;
     inset: 0;
