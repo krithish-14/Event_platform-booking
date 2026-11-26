@@ -290,7 +290,10 @@ body.reels-lightbox-open {
 	border-radius: 999px;
 	background: #fff;
 	color: #1a1714;
-	font-size: 1.35rem;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 1.55rem;
+	font-weight: 700;
+	line-height: 1;
 	cursor: pointer;
 	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 	z-index: 5;
@@ -310,7 +313,10 @@ body.reels-lightbox-open {
 	border-radius: 999px;
 	background: rgba(255, 255, 255, 0.16);
 	color: #fff;
-	font-size: 1.4rem;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 1.25rem;
+	font-weight: 700;
+	line-height: 1;
 	cursor: pointer;
 }
 
