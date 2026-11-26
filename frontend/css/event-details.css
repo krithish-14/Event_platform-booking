@@ -568,7 +568,9 @@ body.category-theme-workshop .performer-avatar {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.12);
     color: #ffffff;
-    font-size: 1.8rem;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 1.35rem;
+    font-weight: 700;
     line-height: 1;
     cursor: pointer;
 }
@@ -583,7 +585,9 @@ body.category-theme-workshop .performer-avatar {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.12);
     color: #ffffff;
-    font-size: 2rem;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 1.85rem;
+    font-weight: 700;
     line-height: 1;
     cursor: pointer;
 }

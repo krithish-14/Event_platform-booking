@@ -568,7 +568,7 @@ function ensureAdVideoLightbox() {
  box.className = 'ad-video-lightbox';
  box.hidden = true;
  box.innerHTML = [
-  '<button type="button" class="ad-video-lightbox-close" id="adVideoLightboxClose" aria-label="Close video">&times;</button>',
+  '<button type="button" class="ad-video-lightbox-close" id="adVideoLightboxClose" aria-label="Close video">X</button>',
   '<div class="ad-video-lightbox-stage">',
   '<video id="adVideoLightboxPlayer" playsinline loop autoplay></video>',
   '<div class="ad-video-controls" id="adVideoControls">',

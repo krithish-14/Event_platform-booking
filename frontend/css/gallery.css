@@ -795,6 +795,8 @@ html[data-theme="dark"] .carousel-nav-btn:hover {
 	align-items: center;
 	justify-content: center;
 	transition: all 0.2s ease;
+	font-family: Arial, Helvetica, sans-serif;
+	font-weight: 700;
 }
 
 .gallery-lb-close:hover,
